@@ -1,13 +1,7 @@
 import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import {
-  CoachBucket,
-  CoachGoal,
-  CoachNote,
-  CoachRecentForm,
-  RECENT_FORM_GAMES,
-} from '../../common/my-stats/coach'
+import { CoachBucket, CoachGoal, CoachNote, CoachRecentForm } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { MaterialIcon } from '../icons/material/material-icon'
@@ -53,8 +47,8 @@ const GoalRow = styled.li`
   padding: 16px 0;
 
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
 
   & + & {
     border-top: 1px solid var(--theme-outline-variant);
@@ -65,19 +59,19 @@ const GoalRow = styled.li`
   }
 `
 
+/** Neutral, so green only ever means a good result. Lines up with the goal's name. */
 const GoalNumber = styled.span`
-  ${labelLarge};
-  width: 32px;
-  height: 32px;
+  ${labelMedium};
+  width: 24px;
+  height: 24px;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
   border-radius: var(--radius-full);
-  background: var(--theme-tab-coach-tint);
-  box-shadow: inset 0 0 0 1px var(--theme-tab-coach-ring);
-  color: var(--theme-tab-coach);
+  background: var(--theme-container-highest);
+  color: var(--theme-on-surface);
   font-weight: 700;
 `
 
@@ -150,21 +144,16 @@ const Fact = styled.span<{ $tone?: Tone }>`
 const CheckDots = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  cursor: help;
 `
 
-/** One of the latest games: reached the target, missed it, or didn't have the number. */
-const CheckDot = styled.span<{ $hit: boolean | null }>`
+/** One of the latest games: reached the target or missed it. */
+const CheckDot = styled.span<{ $hit: boolean }>`
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
-  background-color: ${props => {
-    if (props.$hit === null) {
-      return 'transparent'
-    }
-    return props.$hit ? 'var(--theme-positive)' : 'var(--theme-negative)'
-  }};
-  box-shadow: ${props => (props.$hit === null ? 'inset 0 0 0 1.5px var(--theme-outline)' : 'none')};
+  background-color: ${props => (props.$hit ? 'var(--theme-positive)' : 'var(--theme-negative)')};
 `
 
 const Tip = styled.p`
@@ -172,7 +161,7 @@ const Tip = styled.p`
   margin: 0;
   padding: 10px 12px;
 
-  border-left: 3px solid var(--theme-tab-coach);
+  border-left: 3px solid var(--theme-outline);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: var(--theme-container);
   color: var(--theme-on-surface);
@@ -196,7 +185,7 @@ const NoteRow = styled.li`
 
 const NoteIcon = styled(MaterialIcon)<{ $tone?: Tone }>`
   margin-top: 1px;
-  color: ${props => (props.$tone ? toneColor(props.$tone) : 'var(--theme-tab-coach)')};
+  color: ${props => toneColor(props.$tone)};
 `
 
 const NoteBody = styled.div`
@@ -206,7 +195,8 @@ const NoteBody = styled.div`
 `
 
 const NoteTitle = styled.span`
-  ${titleSmall};
+  ${labelLarge};
+  font-weight: 600;
 `
 
 function getWinRate(wins: number, losses: number) {
@@ -226,9 +216,13 @@ function getAimText(goal: CoachGoal, value: string, t: TFunction) {
 function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   switch (goal.basis) {
     case 'others':
-      return t('myStats.coach.basisOthers', 'what most {{race}} players reach', {
-        race: raceCharToLabel(bucket.race, t),
-      })
+      return goal.unit === 'time'
+        ? t('myStats.coach.basisOthersTime', 'when most {{race}} players start it', {
+            race: raceCharToLabel(bucket.race, t),
+          })
+        : t('myStats.coach.basisOthers', 'what most {{race}} players reach', {
+            race: raceCharToLabel(bucket.race, t),
+          })
     case 'wins':
       return t('myStats.coach.basisWins', 'what you reach in your wins')
     case 'earlier':
@@ -276,12 +270,23 @@ function GoalItem({
   const formatValue = useFormatValue()
   const [label, help] = getGoalText(goal, t)
   const { target } = goal
-  const checkWord = (hit: boolean | null) => {
-    if (hit === null) {
-      return t('myStats.coach.checkNone', "Didn't have it")
-    }
-    return hit ? t('myStats.coach.hit', 'Reached') : t('myStats.coach.missed', 'Not reached')
-  }
+  const checkWord = (hit: boolean) =>
+    hit ? t('myStats.coach.hit', 'Reached') : t('myStats.coach.missed', 'Not reached')
+  const checksHelp = [
+    t(
+      'myStats.coach.checksHelpGames',
+      'Your latest games with this number, oldest first: {{games}}.',
+      {
+        games: goal.checks.map(checkWord).join(', ').toLowerCase(),
+      },
+    ),
+    isTeamGame(bucket.shape)
+      ? t(
+          'myStats.coach.checksHelpTeam',
+          "A team game where someone left before this point doesn't have it, so it's skipped.",
+        )
+      : '',
+  ].join(' ')
 
   return (
     <GoalRow>
@@ -289,8 +294,8 @@ function GoalItem({
       <GoalBody>
         <GoalTop>
           <HelpLabel label={label} help={help} />
-          {goal.inLosses ? (
-            <Tag>{t('myStats.coach.inYourLosses', 'Worse in your losses')}</Tag>
+          {goal.inLosses && goal.basis === 'others' ? (
+            <Tag>{t('myStats.coach.alsoCostsGames', 'Also costs you games')}</Tag>
           ) : null}
         </GoalTop>
         <AimLine>
@@ -301,28 +306,15 @@ function GoalItem({
           <Fact>
             {goal.basis === 'wins'
               ? t('myStats.coach.factLosses', 'In your losses')
-              : t('myStats.coach.factTypical', 'You, typically')}
+              : t('myStats.coach.factUsually', 'You usually')}
             <strong>{formatValue(goal.userValue, goal.unit)}</strong>
           </Fact>
-          {goal.recentValue !== undefined ? (
-            <Fact>
-              {t('myStats.coach.factRecent', 'Last {{count}}', {
-                count: Math.min(RECENT_FORM_GAMES, bucket.userGames),
-              })}
-              <strong>{formatValue(goal.recentValue, goal.unit)}</strong>
-            </Fact>
-          ) : null}
           {goal.checks.length ? (
             <Fact>
               {t('myStats.coach.factChecks', 'Last {{count}} games', {
                 count: goal.checks.length,
               })}
-              <CheckDots
-                role='img'
-                aria-label={goal.checks.map(checkWord).join(', ')}
-                title={t('myStats.coach.checksHelp', 'Oldest to newest: {{games}}', {
-                  games: goal.checks.map(checkWord).join(', ').toLowerCase(),
-                })}>
+              <CheckDots role='img' aria-label={checksHelp} title={checksHelp}>
                 {goal.checks.map((hit, i) => (
                   <CheckDot key={i} $hit={hit} />
                 ))}
@@ -342,7 +334,7 @@ function GoalItem({
         <Tip>
           {goal.key === 'buildTiming'
             ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)
-            : getTip(goal.key, getTipContext(bucket), t)}
+            : getTip(goal.key, getTipContext(bucket), t, goal.basis)}
         </Tip>
       </GoalBody>
     </GoalRow>
@@ -378,8 +370,8 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
       ) : (
         <Text>
           {t(
-            'myStats.coach.noGoals',
-            "Nothing stands out against other players right now. Keep playing your game: the notes and the tables below show where you're closest to slipping.",
+            'myStats.coach.noGoalsNow',
+            'No goals right now. You play your wins and losses alike, and keep up with other players on the basics. The tables below show where you are closest to slipping.',
           )}
         </Text>
       )}
@@ -400,15 +392,19 @@ function getFormContent(
     losses: form.losses,
     rate: formatPercent(rate),
     earlierRate: formatPercent(earlierRate),
+    earlierCount: form.earlierGames,
   }
   if (earlierRate !== undefined && rate - earlierRate >= 0.1) {
     return {
       icon: 'trending_up',
       tone: 'good',
-      title: t('myStats.coach.note.formUpTitle', "You're on a good run"),
+      title:
+        rate > 0.5
+          ? t('myStats.coach.note.formUpTitle', "You're on a good run")
+          : t('myStats.coach.note.formBetterTitle', 'Winning more lately'),
       body: t(
-        'myStats.coach.note.formUp',
-        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, up from {{earlierRate}} before. Whatever changed, keep doing it.',
+        'myStats.coach.note.formUpBefore',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before. Whatever changed, keep doing it.',
         values,
       ),
     }
@@ -419,8 +415,8 @@ function getFormContent(
       tone: 'bad',
       title: t('myStats.coach.note.formDownTitle', 'A rough patch'),
       body: t(
-        'myStats.coach.note.formDown',
-        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, down from {{earlierRate}} before. Pick one goal for your next game and play a few games with only that in mind.',
+        'myStats.coach.note.formDownBefore',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before. Pick one goal and play a few games with only that in mind.',
         values,
       ),
     }
@@ -429,8 +425,8 @@ function getFormContent(
     icon: 'trending_flat',
     title: t('myStats.coach.note.formSteadyTitle', 'Steady results'),
     body: t(
-      'myStats.coach.note.formSteady',
-      '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} before. To move up, work on the goals for your next game.',
+      'myStats.coach.note.formSteadyBefore',
+      '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} in the {{earlierCount}} before. To move up, work on your goals.',
       values,
     ),
   }
@@ -467,11 +463,11 @@ function getNoteContent(
       return {
         icon: 'flag',
         tone: 'bad',
-        title: t('myStats.coach.note.inLossesTitle', 'Where your games slip away'),
+        title: t('myStats.coach.note.lossesWrongTitle', 'Where losses go wrong'),
         body: isTeamGame(bucket.shape)
           ? t(
-              'myStats.coach.note.inLossesTeam',
-              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss, leaving out losses where a teammate fell first. In team games that can also mean you were the one they attacked, so check a few of those games.',
+              'myStats.coach.note.inLossesTeamShort',
+              '{{metric}}: {{win}} in your wins, {{loss}} in your losses. In team games, check if you were the one they attacked.',
               values,
             )
           : t(
@@ -536,8 +532,8 @@ function getNoteContent(
         tone: 'good',
         title: t('myStats.coach.note.strengthTitle', 'Your strength'),
         body: t(
-          'myStats.coach.note.strength',
-          '{{metric}}: {{you}} against {{them}}, better than {{percent}} of {{race}} players here. Lean on it.',
+          'myStats.coach.note.strengthUse',
+          '{{metric}}: {{you}} against {{them}}, better than {{percent}} of {{race}} players here. Plan your game around it: that is your window to attack.',
           {
             metric: getMetricText(note.finding.key, t)[0],
             you: formatValue(note.finding.userValue, note.finding.unit),
@@ -576,16 +572,26 @@ function getNoteContent(
   }
 }
 
-/** What a coach would say first, in a few short notes. */
-export function CoachNotes({ bucket }: { bucket: CoachBucket }) {
+/**
+ * What a coach would say first, in a few short notes. With the comparison on the page, its Keep
+ * doing list already shows the user's strengths, so the note about one is left out.
+ */
+export function CoachNotes({
+  bucket,
+  hideStrength,
+}: {
+  bucket: CoachBucket
+  hideStrength: boolean
+}) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
+  const notes = hideStrength ? bucket.notes.filter(n => n.kind !== 'strength') : bucket.notes
   return (
     <PaddedPanel>
       <PanelTitle>{t('myStats.coach.notesTitle', "Coach's notes")}</PanelTitle>
-      {bucket.notes.length ? (
+      {notes.length ? (
         <Notes>
-          {bucket.notes.map(note => {
+          {notes.map(note => {
             const content = getNoteContent(note, bucket, formatValue, t)
             return (
               <NoteRow key={note.kind}>

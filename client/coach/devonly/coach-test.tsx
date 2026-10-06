@@ -127,6 +127,7 @@ const recentForm: CoachRecentForm = {
 const pvz: CoachBucket = {
   recentForm,
   anyAlly: false,
+  poolPlayers: 74,
   poolFromUserGames: 64,
   goals: [
     {
@@ -471,6 +472,7 @@ const ownGoals: CoachBucket['goals'] = [
 const recentWindow = {
   window: 'auto' as const,
   autoGames: 42,
+  autoMonths: true,
   sinceMs: Date.UTC(2026, 7, 3),
   maps: [
     { key: 'polypoid', name: 'Polypoid', games: 31 },
@@ -562,6 +564,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
           opponentRace: undefined,
           allyRace: 't',
           anyAlly: true,
+          poolPlayers: 0,
           poolFromUserGames: 0,
           userGames: 24,
           goals: ownGoals,
