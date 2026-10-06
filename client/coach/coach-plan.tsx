@@ -17,7 +17,14 @@ import { watchGameAt } from '../replays/action-creators'
 
 import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
 
-import { bodyMedium, labelLarge, labelMedium, titleLarge, titleSmall } from '../styles/typography'
+import {
+  bodyMedium,
+  labelLarge,
+  labelMedium,
+  titleLarge,
+  titleMedium,
+  titleSmall,
+} from '../styles/typography'
 import {
   formatGameTime,
   formatTimeDiff,
@@ -114,9 +121,33 @@ const Tag = styled.span`
   font-weight: 600;
 `
 
-const Aim = styled.span`
-  ${titleLarge};
+const Aim = styled.span<{ $small: boolean }>`
+  ${props => (props.$small ? titleMedium : titleLarge)};
   font-variant-numeric: tabular-nums;
+`
+
+/** The one goal to play the next game around, set apart from the rest. */
+const Focus = styled.div`
+  margin: 0 -12px;
+  padding: 4px 12px 12px;
+
+  border-radius: var(--radius-md);
+  background: var(--theme-container);
+
+  & > ol > li {
+    padding-bottom: 0;
+  }
+`
+
+const GoalsLabel = styled.span`
+  ${labelMedium};
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+`
+
+const FocusLabel = styled(GoalsLabel)`
+  display: block;
+  padding-top: 8px;
 `
 
 const AimLine = styled.div`
@@ -409,7 +440,7 @@ function GoalItem({
           ) : null}
         </GoalTop>
         <AimLine>
-          <Aim>{getAimText(goal, formatValue(target, goal.unit), t)}</Aim>
+          <Aim $small={index > 0}>{getAimText(goal, formatValue(target, goal.unit), t)}</Aim>
           <AimBasis>{getBasisText(goal, bucket, t)}</AimBasis>
         </AimLine>
         <Facts>
@@ -485,11 +516,31 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
         </CheckSummary>
       </PanelHeader>
       {bucket.goals.length ? (
-        <Goals>
-          {bucket.goals.map((goal, i) => (
-            <GoalItem key={goal.buildKey ?? goal.key} goal={goal} index={i} bucket={bucket} />
-          ))}
-        </Goals>
+        <>
+          <Focus>
+            <FocusLabel>
+              {t('myStats.coach.focusLabel', 'Play your next game around this')}
+            </FocusLabel>
+            <Goals>
+              <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} />
+            </Goals>
+          </Focus>
+          {bucket.goals.length > 1 ? (
+            <>
+              <GoalsLabel>{t('myStats.coach.afterThat', 'After that')}</GoalsLabel>
+              <Goals>
+                {bucket.goals.slice(1).map((goal, i) => (
+                  <GoalItem
+                    key={goal.buildKey ?? goal.key}
+                    goal={goal}
+                    index={i + 1}
+                    bucket={bucket}
+                  />
+                ))}
+              </Goals>
+            </>
+          ) : null}
+        </>
       ) : (
         <Text>
           {t(

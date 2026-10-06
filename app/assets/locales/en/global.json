@@ -529,6 +529,7 @@
       "winRate": "Win rate"
     },
     "coach": {
+      "afterThat": "After that",
       "againstWhere": "{{where}}, over {{floor}} EAPM",
       "aimAtLeast": "At least {{value}}",
       "aimAtMost": "At most {{value}}",
@@ -566,6 +567,7 @@
       "fewerProduction_one": "You had {{count}} fewer production buildings at 8 min than them, which is often why a bank builds up.",
       "fewerProduction_other": "You had {{count}} fewer production buildings at 8 min than them, which is often why a bank builds up.",
       "floorMenuOption": "Players over {{floor}} EAPM, here and in My stats",
+      "focusLabel": "Play your next game around this",
       "fromGames": "From {{userGames}} of your games and {{poolGames}} of theirs.",
       "goals": "Your goals",
       "goalsFrom_one": "From your last {{count}} games.",
