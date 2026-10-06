@@ -1,7 +1,8 @@
+import { GameStatsResult } from '../games/game-stats'
 import { MapFamily } from '../games/map-family'
-import { CHECKPOINT_MINUTES, GameShape, PlayerMetrics } from '../games/player-metrics'
+import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import type { DatedGameMetrics, MyStatsQuery, MyStatsShape } from './my-stats'
+import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
 /** How many of the user's games a number needs before it's compared. */
@@ -12,8 +13,6 @@ export const COACH_MIN_POOL_GAMES = 30
 export const EAPM_FLOORS = [100, 150, 200, 250] as const
 /** The EAPM other players need to count, unless the user picks another. */
 export const DEFAULT_EAPM_FLOOR = EAPM_FLOORS[0]
-/** How many kinds of game the coach offers as quick picks. */
-const MAX_SCOPES = 6
 /** The fewest of the user's games a kind of game needs to be offered, so a stray game isn't. */
 const MIN_SCOPE_GAMES = 3
 /** How many wins and how many losses comparing them needs. */
@@ -32,6 +31,12 @@ const STRENGTH_SCORE = 0.7
 const CONSISTENT_SHARE = 0.6
 const MAX_GAPS = 5
 const MAX_STRENGTHS = 3
+/** How many of the user's latest games their recent form looks at. */
+export const RECENT_FORM_GAMES = 10
+/** How many games before those recent form needs to compare them with. */
+export const MIN_EARLIER_GAMES = 5
+/** The most things the coach asks the user to work on in their next game. */
+const MAX_GOALS = 3
 /** A build made in fewer games than this share isn't given a typical time. */
 const MIN_TIMING_SHARE = 0.25
 /** Timings closer than this to other players' aren't worth pointing out. */
@@ -280,7 +285,7 @@ export interface CoachTiming {
 
 /** The coach's look at one kind of game: a game type, the user's race, and what else matters. */
 export interface CoachBucket {
-  shape: GameShape
+  shape: MyStatsShape
   race: AssignedRaceChar
   opponentRace?: AssignedRaceChar
   mapFamily?: MapFamily
@@ -301,7 +306,84 @@ export interface CoachBucket {
   timings: CoachTiming[]
   /** Every number with enough games on both sides to compare, flagged or not, in a fixed order. */
   compared: CoachFinding[]
+  recentForm: CoachRecentForm
+  /** What to work on in the next game, most important first. Empty until there's enough to compare. */
+  goals: CoachGoal[]
+  /** What a coach would say about these games, most important first. */
+  notes: CoachNote[]
 }
+
+/** One of the user's games, enough to name it and open it. */
+export interface CoachGame {
+  gameId: string
+  gameTimeMs: number
+  mapName: string
+  result: GameStatsResult
+}
+
+/** How one number moved in the user's latest games, against their games before those. */
+export interface CoachChange {
+  key: CoachMetricKey
+  unit: CoachUnit
+  higherIsBetter: boolean
+  recentValue: number
+  earlierValue: number
+  recentGames: number
+  earlierGames: number
+  /** Better or worse by enough to matter, or about the same. */
+  direction: 'better' | 'worse' | 'same'
+  /** How far it moved, in steps of the smallest difference worth pointing out. */
+  size: number
+}
+
+/** The user's latest games, next to the ones before them. */
+export interface CoachRecentForm {
+  /** The latest games, up to {@link RECENT_FORM_GAMES}, oldest first. */
+  games: CoachGame[]
+  wins: number
+  losses: number
+  /** The games before those. */
+  earlierGames: number
+  earlierWins: number
+  earlierLosses: number
+  /** Every number with enough games on both sides, in a fixed order. */
+  changes: CoachChange[]
+}
+
+/**
+ * Where a goal's target comes from: other players' typical game, the user's typical win, or the
+ * user's typical game before their latest ones.
+ */
+export type CoachGoalBasis = 'others' | 'wins' | 'earlier'
+
+/** Something to aim for in the next game, and the number to reach. */
+export interface CoachGoal {
+  key: CoachMetricKey
+  unit: CoachUnit
+  higherIsBetter: boolean
+  basis: CoachGoalBasis
+  target: number
+  /** The user's typical game. */
+  userValue: number
+  /** The user's typical game, in their latest games. Missing when too few of them have it. */
+  recentValue?: number
+  /** The share of other players the user does better than, for goals based on them. */
+  beats?: number
+  /** It's also worse in the user's losses than in their wins, so it's likely costing games. */
+  inLosses: boolean
+  /** The user's latest game, and whether it reached the target. Missing if it didn't have it. */
+  lastValue?: number
+  lastHit?: boolean
+}
+
+/** Something a coach would say, about one finding. */
+export type CoachNote =
+  | { kind: 'form'; form: CoachRecentForm }
+  | { kind: 'inLosses'; finding: CoachResultFinding }
+  | { kind: 'slipping'; change: CoachChange }
+  | { kind: 'improving'; change: CoachChange }
+  | { kind: 'strength'; finding: CoachFinding }
+  | { kind: 'timing'; timing: CoachTiming }
 
 /** A kind of game the coach can look at: the filters that pick it, and the user's games of it. */
 export interface CoachScope {
@@ -314,11 +396,32 @@ export interface CoachScope {
   games: number
 }
 
+/** The kind of game to coach, and who the user is. Without a kind picked, the most played one. */
+export interface CoachQuery {
+  names: string[]
+  shape?: MyStatsShape
+  race?: AssignedRaceChar
+  /** Only used in 1v1. */
+  opponentRace?: AssignedRaceChar
+  /** Only used in game types that split by map, see `splitsByMap`. */
+  mapFamily?: MapFamily
+  /** The EAPM other players need to count. */
+  eapmFloor?: number
+}
+
 export type CoachResult = {
-  /** The kinds of game the user has played most in the picked time range, most first. */
+  /** Every kind of game the user has played enough of, most played first. */
   scopes: CoachScope[]
   eapmFloor: number
-} & ({ status: 'pickFilters' } | { status: 'ready'; buckets: CoachBucket[] })
+} & (
+  | { status: 'noGames' }
+  | {
+      status: 'ready'
+      /** The kind of game coached: the one asked for, or the most played. */
+      scope: Omit<CoachScope, 'games'>
+      buckets: CoachBucket[]
+    }
+)
 
 function median(values: ReadonlyArray<number>): number {
   const sorted = values.toSorted((a, b) => a - b)
@@ -506,21 +609,20 @@ function getTimings(
   )
 }
 
+interface UserGame extends CoachGame {
+  player: PlayerMetrics
+}
+
 interface BucketGames {
   mapFamily?: MapFamily
-  user: Array<{ player: PlayerMetrics; won: boolean | undefined }>
+  /** The user's games of this kind that can be compared. */
+  user: UserGame[]
   /** The user's games of this kind that someone left too early to compare. */
   skipped: number
   /** How many of the user's games were on each map. */
   maps: Map<string, number>
 }
 
-/**
- * Compares the user's games of one kind with other players of the same race in the same kind of
- * game, from every analyzed replay, to find what they do worse and better than most. Only games
- * matching the page's filters count for the user, and other players need at least `eapmFloor`
- * EAPM. Needs a game type and race picked, and in 1v1 the opponent's race.
- */
 /** Whether a player stayed long enough, in a game even enough, for the coach to use it. */
 function isComparable(game: DatedGameMetrics, player: PlayerMetrics) {
   if (player.leftAtMs !== undefined && player.leftAtMs < MIN_PLAYED_MS) {
@@ -529,26 +631,15 @@ function isComparable(game: DatedGameMetrics, player: PlayerMetrics) {
   return !(isTeamGame(game.shape) && isUneven(game))
 }
 
-/**
- * The kinds of game the user played most in range, as the coach would count them. With a game type
- * picked, only that type's, so the choices never leave the page's filters.
- */
+/** Every kind of game the user played enough of, as the coach would count them, most first. */
 function getScopes(
   allGames: ReadonlyArray<DatedGameMetrics>,
   names: ReadonlyArray<string>,
-  shape: MyStatsShape | undefined,
-  isInRange: (game: DatedGameMetrics) => boolean,
 ): CoachScope[] {
   const scopes = new Map<string, CoachScope>()
   for (const game of allGames) {
     const me = findMe(game, names)
-    if (
-      !me?.race ||
-      game.shape === 'other' ||
-      (shape && game.shape !== shape) ||
-      !isInRange(game) ||
-      !isComparable(game, me)
-    ) {
+    if (!me?.race || game.shape === 'other' || !isComparable(game, me)) {
       continue
     }
     const opponentRace = game.shape === '1v1' ? getSidesOf(game, me).opponents[0]?.race : undefined
@@ -570,29 +661,222 @@ function getScopes(
   return Array.from(scopes.values())
     .filter(scope => scope.games >= MIN_SCOPE_GAMES)
     .sort((a, b) => b.games - a.games)
-    .slice(0, MAX_SCOPES)
 }
 
+function countResults(games: ReadonlyArray<CoachGame>) {
+  return {
+    wins: games.filter(g => g.result === 'win').length,
+    losses: games.filter(g => g.result === 'loss').length,
+  }
+}
+
+/** The user's latest games, and how each number in them moved from the games before. */
+function getRecentForm(
+  user: ReadonlyArray<UserGame>,
+  metrics: ReadonlyArray<CoachMetric>,
+): CoachRecentForm {
+  const recent = user.slice(-RECENT_FORM_GAMES)
+  const earlier = user.slice(0, -RECENT_FORM_GAMES)
+  const changes: CoachChange[] = []
+  if (earlier.length >= MIN_EARLIER_GAMES) {
+    for (const metric of metrics) {
+      const recentValues = numbersOf(
+        recent.map(g => g.player),
+        metric,
+      )
+      const earlierValues = numbersOf(
+        earlier.map(g => g.player),
+        metric,
+      )
+      if (
+        recentValues.length < COACH_MIN_RESULT_GAMES ||
+        earlierValues.length < MIN_EARLIER_GAMES
+      ) {
+        continue
+      }
+      const recentValue = median(recentValues)
+      const earlierValue = median(earlierValues)
+      const diff = Math.abs(recentValue - earlierValue)
+      let direction: CoachChange['direction'] = 'same'
+      if (diff >= metric.minDiff) {
+        direction = isBetter(metric, recentValue, earlierValue) ? 'better' : 'worse'
+      }
+      changes.push({
+        key: metric.key,
+        unit: metric.unit,
+        higherIsBetter: metric.higherIsBetter,
+        recentValue,
+        earlierValue,
+        recentGames: recentValues.length,
+        earlierGames: earlierValues.length,
+        direction,
+        size: diff / metric.minDiff,
+      })
+    }
+  }
+  const earlierResults = countResults(earlier)
+  return {
+    games: recent.map(({ player: _, ...game }) => game),
+    ...countResults(recent),
+    earlierGames: earlier.length,
+    earlierWins: earlierResults.wins,
+    earlierLosses: earlierResults.losses,
+    changes,
+  }
+}
+
+/**
+ * Numbers that come from the same thing, like workers at 6 and at 8 minutes. Fixing one usually
+ * fixes the rest, so only one of each is made a goal.
+ */
+function getMetricFamily(key: CoachMetricKey) {
+  return key.endsWith('Base') ? 'base' : key.replace(/(\d+|Early|Mid|Late)$/, '')
+}
+
+/**
+ * What to aim for in the next game, one of each family. Gaps against other players come first,
+ * the ones that also show up in the user's losses before the rest. Without enough of those, what
+ * changes in their losses (aiming for their typical win), then what slipped in their latest games
+ * (aiming for where they were before).
+ */
+function getGoals(
+  gaps: ReadonlyArray<CoachFinding & { metric: CoachMetric }>,
+  inLosses: ReadonlyArray<CoachResultFinding>,
+  changes: ReadonlyArray<CoachChange>,
+  user: ReadonlyArray<UserGame>,
+): CoachGoal[] {
+  const players = user.map(g => g.player)
+  const recent = players.slice(-RECENT_FORM_GAMES)
+  const last = players.at(-1)
+  const costly = new Set(inLosses.filter(f => f.notable).map(f => f.key))
+  const candidates: Array<{
+    metric: CoachMetric
+    basis: CoachGoalBasis
+    target: number
+    beats?: number
+  }> = [
+    ...gaps
+      .toSorted(
+        (a, b) => Number(costly.has(b.key)) - Number(costly.has(a.key)) || a.beats - b.beats,
+      )
+      .map(gap => ({
+        metric: gap.metric,
+        basis: 'others' as const,
+        target: gap.poolValue,
+        beats: gap.beats,
+      })),
+    ...inLosses
+      .filter(f => f.notable)
+      .map(f => ({
+        metric: METRICS.find(m => m.key === f.key)!,
+        basis: 'wins' as const,
+        target: f.winValue,
+      })),
+    ...changes
+      .filter(c => c.direction === 'worse')
+      .toSorted((a, b) => b.size - a.size)
+      .map(c => ({
+        metric: METRICS.find(m => m.key === c.key)!,
+        basis: 'earlier' as const,
+        target: c.earlierValue,
+      })),
+  ]
+
+  const families = new Set<string>()
+  const goals: CoachGoal[] = []
+  for (const { metric, basis, target, beats } of candidates) {
+    const family = getMetricFamily(metric.key)
+    if (goals.length >= MAX_GOALS || families.has(family)) {
+      continue
+    }
+    families.add(family)
+    const userValues = numbersOf(players, metric)
+    const recentValues = numbersOf(recent, metric)
+    const lastValue = last ? metric.value(last) : undefined
+    const hasLast = lastValue !== null && lastValue !== undefined && Number.isFinite(lastValue)
+    goals.push({
+      key: metric.key,
+      unit: metric.unit,
+      higherIsBetter: metric.higherIsBetter,
+      basis,
+      target,
+      userValue: median(userValues),
+      recentValue: recentValues.length >= COACH_MIN_RESULT_GAMES ? median(recentValues) : undefined,
+      beats,
+      inLosses: costly.has(metric.key),
+      lastValue: hasLast ? lastValue : undefined,
+      lastHit: hasLast ? lastValue === target || isBetter(metric, lastValue, target) : undefined,
+    })
+  }
+  return goals
+}
+
+/** The few things a coach would say first about these games, most important first. */
+function getNotes(
+  bucket: Pick<CoachBucket, 'recentForm' | 'inLosses' | 'strengths' | 'timings'>,
+): CoachNote[] {
+  const notes: CoachNote[] = []
+  const form = bucket.recentForm
+  if (form.earlierGames >= MIN_EARLIER_GAMES && form.wins + form.losses > 0) {
+    notes.push({ kind: 'form', form })
+  }
+  const inLosses = bucket.inLosses.find(f => f.notable)
+  if (inLosses) {
+    notes.push({ kind: 'inLosses', finding: inLosses })
+  }
+  const biggest = (direction: CoachChange['direction']) =>
+    form.changes.filter(c => c.direction === direction).sort((a, b) => b.size - a.size)[0]
+  const slipping = biggest('worse')
+  if (slipping) {
+    notes.push({ kind: 'slipping', change: slipping })
+  }
+  const improving = biggest('better')
+  if (improving) {
+    notes.push({ kind: 'improving', change: improving })
+  }
+  if (bucket.strengths.length) {
+    notes.push({ kind: 'strength', finding: bucket.strengths[0] })
+  }
+  const timingGap = (t: CoachTiming) => Math.abs((t.userMs ?? 0) - (t.poolMs ?? 0))
+  const timing = bucket.timings
+    .filter(t => t.notable)
+    .sort((a, b) => timingGap(b) - timingGap(a))[0]
+  if (timing) {
+    notes.push({ kind: 'timing', timing })
+  }
+  return notes
+}
+
+/**
+ * Compares the user's games of one kind with other players of the same race in the same kind of
+ * game, from every analyzed replay, to find what they do worse and better than most, how they've
+ * played lately, and what to work on next. Other players need at least `eapmFloor` EAPM. Without a
+ * kind of game picked, it looks at the one the user played most.
+ */
 export function computeCoach(
   allGames: ReadonlyArray<DatedGameMetrics>,
-  query: MyStatsQuery,
-  isInRange: (game: DatedGameMetrics) => boolean,
+  query: CoachQuery,
 ): CoachResult {
-  const { shape, race, opponentRace } = query
   const eapmFloor = query.eapmFloor ?? DEFAULT_EAPM_FLOOR
-  const scopes = getScopes(allGames, query.names, query.shape, isInRange)
-  if (!shape || !race || (shape === '1v1' && !opponentRace)) {
-    return { status: 'pickFilters', scopes, eapmFloor }
+  const scopes = getScopes(allGames, query.names)
+  const picked =
+    query.shape && query.race && (query.shape !== '1v1' || query.opponentRace) ? query : scopes[0]
+  if (!picked?.shape || !picked.race) {
+    return { status: 'noGames', scopes, eapmFloor }
   }
+  const shape = picked.shape
+  const race = picked.race
+  const opponentRace = shape === '1v1' ? picked.opponentRace : undefined
   const teamGame = isTeamGame(shape)
   const splitByMap = splitsByMap(shape)
+  const mapFamily = splitByMap ? picked.mapFamily : undefined
   // Every number that means something for this race is shown; only some can be pointed out.
   const shownMetrics = METRICS.filter(m => !m.race || m.race === race)
   const metrics = shownMetrics.filter(m => !(teamGame && m.notInTeamGames))
 
   const isOfKind = (game: DatedGameMetrics, player: PlayerMetrics) =>
     game.shape === shape &&
-    (!query.mapFamily || !splitByMap || game.mapFamily === query.mapFamily) &&
+    (!mapFamily || game.mapFamily === mapFamily) &&
     player.race === race &&
     player.human &&
     (shape !== '1v1' || getSidesOf(game, player).opponents[0]?.race === opponentRace)
@@ -605,7 +889,7 @@ export function computeCoach(
   for (const game of allGames) {
     const family = splitByMap ? game.mapFamily : 'any'
     const me = findMe(game, query.names)
-    if (me && isOfKind(game, me) && isInRange(game)) {
+    if (me && isOfKind(game, me)) {
       const bucket = buckets.get(family) ?? {
         mapFamily: splitByMap ? game.mapFamily : undefined,
         user: [],
@@ -614,8 +898,13 @@ export function computeCoach(
       }
       bucket.maps.set(game.mapName, (bucket.maps.get(game.mapName) ?? 0) + 1)
       if (isComparable(game, me)) {
-        const result = getMyResult(game, me, query.names)
-        bucket.user.push({ player: me, won: result === 'unknown' ? undefined : result === 'win' })
+        bucket.user.push({
+          player: me,
+          gameId: game.gameId,
+          gameTimeMs: game.gameTimeMs,
+          mapName: game.mapName,
+          result: getMyResult(game, me, query.names),
+        })
       } else {
         bucket.skipped += 1
       }
@@ -636,7 +925,8 @@ export function computeCoach(
   }
 
   const results = Array.from(buckets, ([family, bucket]): CoachBucket => {
-    const user = bucket.user.map(u => u.player)
+    const userGames = bucket.user.toSorted((a, b) => a.gameTimeMs - b.gameTimeMs)
+    const user = userGames.map(g => g.player)
     const pool = poolByFamily.get(family) ?? []
     const opening = mostCommon(user.map(openingKey).filter(Boolean))
     const samePool = opening ? pool.filter(p => openingKey(p) === opening) : undefined
@@ -677,42 +967,48 @@ export function computeCoach(
     }
 
     const strip = ({ metric: _, ...finding }: CoachFinding & { metric: CoachMetric }) => finding
-    return {
+    const topGaps = gaps.sort((a, b) => a.beats - b.beats).slice(0, MAX_GAPS)
+    const inLosses = getResultFindings(
+      userGames.filter(g => g.result === 'win').map(g => g.player),
+      userGames.filter(g => g.result === 'loss').map(g => g.player),
+      metrics,
+    )
+    const recentForm = getRecentForm(userGames, shownMetrics)
+    const withoutNotes = {
       shape,
       race,
-      opponentRace: shape === '1v1' ? opponentRace : undefined,
+      opponentRace,
       mapFamily: bucket.mapFamily,
       userGames: user.length,
       skippedGames: bucket.skipped,
       mapNames: Array.from(bucket.maps)
         .sort(([, a], [, b]) => b - a)
         .map(([name]) => name),
-      wins: bucket.user.filter(u => u.won === true).length,
-      losses: bucket.user.filter(u => u.won === false).length,
+      ...countResults(userGames),
       poolGames: pool.length,
       opening: opening ? opening.split(',') : [],
-      gaps: gaps
-        .sort((a, b) => a.beats - b.beats)
-        .slice(0, MAX_GAPS)
-        .map(strip),
+      gaps: topGaps.map(strip),
       strengths: strengths
         .sort((a, b) => b.beats - a.beats)
         .slice(0, MAX_STRENGTHS)
         .map(strip),
-      inLosses: getResultFindings(
-        bucket.user.filter(u => u.won === true).map(u => u.player),
-        bucket.user.filter(u => u.won === false).map(u => u.player),
-        metrics,
-      ),
+      inLosses,
       timings: getTimings(user, pool, samePool),
       compared,
+      recentForm,
+      goals:
+        user.length >= COACH_MIN_USER_GAMES
+          ? getGoals(topGaps, inLosses, recentForm.changes, userGames)
+          : [],
     }
+    return { ...withoutNotes, notes: getNotes(withoutNotes) }
   })
 
   return {
     status: 'ready',
     scopes,
     eapmFloor,
+    scope: { shape, race, opponentRace, mapFamily },
     buckets: results.sort((a, b) => b.userGames - a.userGames),
   }
 }

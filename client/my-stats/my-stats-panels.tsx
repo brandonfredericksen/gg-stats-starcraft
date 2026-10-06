@@ -292,7 +292,7 @@ const RESULT_FILLS: Record<MyStatsGame['result'], string> = {
 }
 
 /** Filled by result, so a run of wins or losses shows at a glance. */
-const RecentChip = styled.button<{ $result: MyStatsGame['result']; $tall: boolean }>`
+export const RecentChip = styled.button<{ $result: MyStatsGame['result']; $tall: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: ${props => (props.$tall ? 44 : 36)}px;
@@ -333,11 +333,11 @@ const RecentMatchup = styled.span`
 `
 
 /** Lets a chip's tooltip wrapper fill its grid cell. */
-const RecentTooltip = styled(Tooltip)`
+export const RecentTooltip = styled(Tooltip)`
   min-width: 0;
 `
 
-function getResultLetter(result: MyStatsGame['result'], t: TFunction) {
+export function getResultLetter(result: MyStatsGame['result'], t: TFunction) {
   switch (result) {
     case 'win':
       return t('myStats.recent.win', 'W')
@@ -348,7 +348,7 @@ function getResultLetter(result: MyStatsGame['result'], t: TFunction) {
   }
 }
 
-function getResultWord(result: MyStatsGame['result'], t: TFunction) {
+export function getResultWord(result: MyStatsGame['result'], t: TFunction) {
   switch (result) {
     case 'win':
       return t('myStats.recent.winWord', 'Win')

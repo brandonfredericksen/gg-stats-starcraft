@@ -3,7 +3,7 @@ import { MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
-import { CoachResult, computeCoach, DEFAULT_EAPM_FLOOR } from './coach'
+import { DEFAULT_EAPM_FLOOR } from './coach'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
 /** How many of the latest games the recent results show. */
@@ -25,7 +25,7 @@ export interface MyStatsQuery {
   opponentRace?: AssignedRaceChar
   /** Only used in game types that split by map, see `splitsByMap`. */
   mapFamily?: MapFamily
-  /** The EAPM other players need for the coach and the comparisons to count them. */
+  /** The EAPM other players need for the comparisons to count them. */
   eapmFloor?: number
 }
 
@@ -148,7 +148,6 @@ export interface MyStatsResult {
    * narrow this panel down without changing the rest.
    */
   team?: Partial<Record<'any' | AssignedRaceChar, TeamStats>>
-  coach: CoachResult
 }
 
 /** How far back each range reaches. `all` has no limit. */
@@ -507,6 +506,5 @@ export function computeMyStats(
     opponents: people.filter(p => p.relation === 'opponent').slice(0, MAX_PEOPLE),
     maps: getMaps(games),
     team: getTeamStatsByRace(games),
-    coach: computeCoach(allGames, query, game => isInRange(game, query.range, nowMs)),
   }
 }

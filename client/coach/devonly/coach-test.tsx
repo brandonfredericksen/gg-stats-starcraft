@@ -1,21 +1,21 @@
 import styled from 'styled-components'
-import { CoachBucket, CoachFinding, CoachResult, CoachScope } from '../../../common/my-stats/coach'
+import {
+  CoachBucket,
+  CoachChange,
+  CoachFinding,
+  CoachGame,
+  CoachRecentForm,
+  CoachResult,
+  CoachScope,
+} from '../../../common/my-stats/coach'
 import { titleSmall } from '../../styles/typography'
-import { CoachPanel } from '../coach-panel'
-
-const Container = styled.div`
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 24px 32px;
-
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-`
+import { CoachView } from '../coach-page'
 
 const CaseLabel = styled.h2`
   ${titleSmall};
-  margin: 0;
+  max-width: 1180px;
+  margin: 24px auto 0;
+  padding: 0 32px;
   color: var(--theme-on-surface-variant);
 `
 
@@ -72,7 +72,141 @@ const everything: CoachFinding[] = [
   compared('productionCommandsMid', 'perMinute', 7.2, 7.9, 0.41),
 ]
 
+const DAY_MS = 24 * 60 * 60_000
+const recentResults = ['win', 'win', 'loss', 'win', 'win', 'loss', 'win', 'unknown', 'win', 'loss']
+const recentGames: CoachGame[] = recentResults.map((result, i) => ({
+  gameId: `recent-${i}`,
+  gameTimeMs: Date.now() - (recentResults.length - i) * DAY_MS,
+  mapName: ['Polypoid', 'Eclipse', 'Vermeer'][i % 3],
+  result: result as CoachGame['result'],
+}))
+
+function change(
+  key: CoachChange['key'],
+  unit: CoachChange['unit'],
+  earlierValue: number,
+  recentValue: number,
+  direction: CoachChange['direction'],
+  higherIsBetter = true,
+): CoachChange {
+  return {
+    key,
+    unit,
+    higherIsBetter,
+    earlierValue,
+    recentValue,
+    recentGames: 10,
+    earlierGames: 32,
+    direction,
+    size: 2,
+  }
+}
+
+const recentForm: CoachRecentForm = {
+  games: recentGames,
+  wins: 6,
+  losses: 3,
+  earlierGames: 32,
+  earlierWins: 14,
+  earlierLosses: 18,
+  changes: [
+    change('workers6', 'count', 20, 23, 'better'),
+    change('workers8', 'count', 30, 32, 'better'),
+    change('income6', 'perMinute', 950, 990, 'same'),
+    change('secondBase', 'time', 215_000, 198_000, 'same', false),
+    change('bankMid', 'count', 700, 880, 'worse', false),
+    change('supplyBlocked', 'share', 0.025, 0.02, 'same', false),
+    change('armyTrade', 'ratio', 1.05, 1.2, 'better'),
+    change('workersLost', 'count', 8, 12, 'worse', false),
+    change('eapm', 'count', 150, 162, 'same'),
+    change('hotkeysMid', 'perMinute', 3.9, 4.4, 'same'),
+  ],
+}
+
 const pvz: CoachBucket = {
+  recentForm,
+  goals: [
+    {
+      key: 'workers8',
+      unit: 'count',
+      higherIsBetter: true,
+      basis: 'others',
+      target: 37.5,
+      userValue: 31,
+      recentValue: 32,
+      beats: 0.12,
+      inLosses: true,
+      lastValue: 38,
+      lastHit: true,
+    },
+    {
+      key: 'bankMid',
+      unit: 'count',
+      higherIsBetter: false,
+      basis: 'others',
+      target: 460,
+      userValue: 820,
+      recentValue: 880,
+      beats: 0.18,
+      inLosses: false,
+      lastValue: 910,
+      lastHit: false,
+    },
+    {
+      key: 'hotkeysMid',
+      unit: 'perMinute',
+      higherIsBetter: true,
+      basis: 'others',
+      target: 6.4,
+      userValue: 4.1,
+      beats: 0.24,
+      inLosses: false,
+    },
+  ],
+  notes: [
+    { kind: 'form', form: recentForm },
+    {
+      kind: 'inLosses',
+      finding: {
+        key: 'workers6',
+        unit: 'count',
+        higherIsBetter: true,
+        winValue: 24,
+        lossValue: 19,
+        wins: 24,
+        losses: 18,
+        notable: true,
+      },
+    },
+    { kind: 'slipping', change: change('bankMid', 'count', 700, 880, 'worse', false) },
+    { kind: 'improving', change: change('workers6', 'count', 20, 23, 'better') },
+    {
+      kind: 'strength',
+      finding: {
+        key: 'supplyBlocked',
+        unit: 'share',
+        higherIsBetter: false,
+        userValue: 0.021,
+        poolValue: 0.068,
+        beats: 0.86,
+        userGames: 42,
+        poolGames: 186,
+        sameOpening: false,
+      },
+    },
+    {
+      kind: 'timing',
+      timing: {
+        buildKey: 'u154',
+        userMs: 245000,
+        poolMs: 205000,
+        userGames: 40,
+        poolGames: 180,
+        sameOpening: true,
+        notable: true,
+      },
+    },
+  ],
   shape: '1v1',
   race: 'p',
   opponentRace: 'z',
@@ -272,16 +406,67 @@ const pvz: CoachBucket = {
   compared: everything,
 }
 
-const empty = { gaps: [], strengths: [], inLosses: [], timings: [], opening: [], compared: [] }
+const empty = {
+  gaps: [],
+  strengths: [],
+  inLosses: [],
+  timings: [],
+  opening: [],
+  compared: [],
+  goals: [],
+  notes: [],
+}
 
-const cases: Array<[string, CoachResult]> = [
-  ['Findings in 1v1', { status: 'ready', scopes, eapmFloor: 150, buckets: [pvz] }],
+const fewGamesForm: CoachRecentForm = {
+  games: recentGames.slice(0, 7),
+  wins: 4,
+  losses: 3,
+  earlierGames: 0,
+  earlierWins: 0,
+  earlierLosses: 0,
+  changes: [],
+}
+
+/** Goals from the user's own games, before there are enough other players to compare with. */
+const ownGoals: CoachBucket['goals'] = [
+  {
+    key: 'workers6',
+    unit: 'count',
+    higherIsBetter: true,
+    basis: 'wins',
+    target: 24,
+    userValue: 21,
+    recentValue: 22,
+    inLosses: true,
+    lastValue: 20,
+    lastHit: false,
+  },
+  {
+    key: 'workersLost',
+    unit: 'count',
+    higherIsBetter: false,
+    basis: 'earlier',
+    target: 8,
+    userValue: 9,
+    recentValue: 12,
+    inLosses: false,
+    lastValue: 6,
+    lastHit: true,
+  },
+]
+
+const pvzScope = { shape: '1v1', race: 'p', opponentRace: 'z' } as const
+const teamScope = { shape: '3v3', race: 'p', mapFamily: 'bgh' } as const
+
+const cases: Array<[string, CoachResult | undefined]> = [
+  ['Findings in 1v1', { status: 'ready', scopes, eapmFloor: 150, scope: pvzScope, buckets: [pvz] }],
   [
     'Team games on two kinds of map, one still locked',
     {
       status: 'ready',
       scopes,
       eapmFloor: 100,
+      scope: teamScope,
       buckets: [
         { ...pvz, shape: '3v3', opponentRace: undefined, mapFamily: 'bgh', userGames: 24 },
         {
@@ -292,6 +477,7 @@ const cases: Array<[string, CoachResult]> = [
           mapFamily: 'fastest',
           userGames: 7,
           skippedGames: 1,
+          recentForm: fewGamesForm,
           wins: 3,
           losses: 4,
           poolGames: 18,
@@ -305,8 +491,19 @@ const cases: Array<[string, CoachResult]> = [
       status: 'ready',
       scopes,
       eapmFloor: 200,
+      scope: pvzScope,
       buckets: [
-        { ...pvz, ...empty, userGames: 14, skippedGames: 0, wins: 9, losses: 5, poolGames: 22 },
+        {
+          ...pvz,
+          ...empty,
+          userGames: 14,
+          skippedGames: 0,
+          wins: 9,
+          losses: 5,
+          poolGames: 22,
+          recentForm,
+          goals: ownGoals,
+        },
       ],
     },
   ],
@@ -316,24 +513,34 @@ const cases: Array<[string, CoachResult]> = [
       status: 'ready',
       scopes,
       eapmFloor: 100,
+      scope: pvzScope,
       buckets: [{ ...pvz, ...empty, wins: 12, losses: 3 }],
     },
   ],
-  ['Nothing picked yet', { status: 'pickFilters', scopes, eapmFloor: 100 }],
-  ['No games to pick from', { status: 'pickFilters', scopes: [], eapmFloor: 100 }],
-  ['No games of the picked kind', { status: 'ready', scopes, eapmFloor: 100, buckets: [] }],
+  ['No games to coach', { status: 'noGames', scopes: [], eapmFloor: 100 }],
+  [
+    'No games of the picked kind',
+    {
+      status: 'ready',
+      scopes,
+      eapmFloor: 100,
+      scope: { shape: '2v2', race: 't' },
+      buckets: [],
+    },
+  ],
+  ['Loading', undefined],
 ]
 
 /** Every state of the coach, with made up numbers, since real ones need a lot of games. */
 export function CoachTest() {
   return (
-    <Container>
+    <>
       {cases.map(([label, coach]) => (
         <section key={label}>
           <CaseLabel>{label}</CaseLabel>
-          <CoachPanel coach={coach} />
+          <CoachView coach={coach} />
         </section>
       ))}
-    </Container>
+    </>
   )
 }

@@ -12,7 +12,6 @@ import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
 import { bodyMedium, headlineMedium, labelLarge } from '../styles/typography'
 import { AnalyzeMine } from './analyze-mine'
-import { CoachPanel } from './coach-panel'
 import { MyStatsData, MyStatsFilters, myStatsFiltersAtom, useMyStats } from './my-stats-data'
 import { FilterBar } from './my-stats-filters'
 import {
@@ -191,9 +190,6 @@ export function MyStatsView() {
             </SectionErrorBoundary>
           </Column>
         </Columns>
-        <SectionErrorBoundary>
-          <CoachPanel coach={stats.coach} />
-        </SectionErrorBoundary>
         <SectionErrorBoundary>
           <MacroAveragesPanel
             macro={stats.macro}

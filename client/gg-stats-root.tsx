@@ -34,6 +34,9 @@ const ReduxDevToolsContainer = import.meta.env.DEV
 
 const DevComponent = import.meta.env.PROD ? () => null : React.lazy(() => import('./dev'))
 
+const CoachPage = React.lazy(async () => ({
+  default: (await import('./coach/coach-page')).CoachPage,
+}))
 const GameStatsPage = React.lazy(async () => ({
   default: (await import('./games/game-stats-page')).GameStatsPage,
 }))
@@ -179,6 +182,7 @@ function Layout() {
             <Route path='/settings' component={SettingsScreen} />
             <Route path='/last-game' component={LastGamePage} />
             <Route path='/my-stats' component={MyStatsPage} />
+            <Route path='/coach' component={CoachPage} />
             <Route>
               <Redirect to='/replays' replace={true} />
             </Route>

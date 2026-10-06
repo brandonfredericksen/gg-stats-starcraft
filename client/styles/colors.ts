@@ -269,6 +269,9 @@ export const THEME_CSS = css`
   --theme-tab-stats: #a78bfa;
   --theme-tab-stats-tint: rgb(167 139 250 / 0.16);
   --theme-tab-stats-ring: rgb(167 139 250 / 0.3);
+  --theme-tab-coach: #34d399;
+  --theme-tab-coach-tint: rgb(52 211 153 / 0.14);
+  --theme-tab-coach-ring: rgb(52 211 153 / 0.28);
   --theme-tab-last-game: #fbbf24;
   /* The best value among players, like the top of a stats column. */
   --theme-best: #fbbf24;
@@ -396,6 +399,9 @@ export const LIGHT_THEME_CSS = css`
   --theme-tab-stats: #6d28d9;
   --theme-tab-stats-tint: #ede9fe;
   --theme-tab-stats-ring: #ddd6fe;
+  --theme-tab-coach: #047857;
+  --theme-tab-coach-tint: #d1fae5;
+  --theme-tab-coach-ring: #a7f3d0;
   --theme-tab-last-game: #b45309;
   --theme-best: #b45309;
   --theme-tab-last-game-tint: #fef3c7;

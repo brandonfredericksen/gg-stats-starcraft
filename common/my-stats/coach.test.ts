@@ -7,8 +7,8 @@ import {
   PlayerMetrics,
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { computeCoach } from './coach'
-import { DatedGameMetrics, MyStatsQuery } from './my-stats'
+import { CoachQuery, computeCoach } from './coach'
+import { DatedGameMetrics } from './my-stats'
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
 
@@ -64,14 +64,12 @@ function game(shape: GameShape, players: PlayerMetrics[]): DatedGameMetrics {
 }
 
 const me = 'Kestrel'
-const query: MyStatsQuery = {
+const query: CoachQuery = {
   names: [me],
-  range: 'all',
   shape: '1v1',
   race: 'p',
   opponentRace: 'z',
 }
-const anyTime = () => true
 
 /** The user's PvZ games, each against a different Zerg. */
 function myGames(
@@ -98,19 +96,22 @@ function poolGames(count: number, workers6: (i: number) => number, eapm = 150) {
 }
 
 describe('common/my-stats/coach', () => {
-  test('asks for a game type, race and, in 1v1, an opponent race', () => {
-    expect(computeCoach([], { names: [me], range: 'all' }, anyTime).status).toBe('pickFilters')
-    expect(computeCoach([], { ...query, opponentRace: undefined }, anyTime).status).toBe(
-      'pickFilters',
-    )
+  test('says when there are no games to coach', () => {
+    expect(computeCoach([], { names: [me] }).status).toBe('noGames')
+  })
+
+  test('coaches the most played kind of game when none is picked', () => {
+    const coach = computeCoach([...myGames(5, 18)], { names: [me] })
+    expect(coach.status === 'ready' && coach.scope).toEqual({
+      shape: '1v1',
+      race: 'p',
+      opponentRace: 'z',
+      mapFamily: undefined,
+    })
   })
 
   test('points out a number most of the user games fall behind on', () => {
-    const coach = computeCoach(
-      [...myGames(12, 14), ...poolGames(40, i => 16 + (i % 5))],
-      query,
-      anyTime,
-    )
+    const coach = computeCoach([...myGames(12, 14), ...poolGames(40, i => 16 + (i % 5))], query)
     if (coach.status !== 'ready') {
       throw new Error('Expected a ready coach')
     }
@@ -125,23 +126,19 @@ describe('common/my-stats/coach', () => {
   })
 
   test('points out strengths too', () => {
-    const coach = computeCoach(
-      [...myGames(12, 24), ...poolGames(40, i => 16 + (i % 5))],
-      query,
-      anyTime,
-    )
+    const coach = computeCoach([...myGames(12, 24), ...poolGames(40, i => 16 + (i % 5))], query)
     expect(coach.status === 'ready' && coach.buckets[0].strengths[0]?.key).toBe('workers6')
   })
 
   test("doesn't compare until there are enough games on both sides", () => {
-    const fewMine = computeCoach([...myGames(9, 14), ...poolGames(40, () => 18)], query, anyTime)
+    const fewMine = computeCoach([...myGames(9, 14), ...poolGames(40, () => 18)], query)
     expect(fewMine.status === 'ready' && fewMine.buckets[0].gaps).toEqual([])
-    const fewTheirs = computeCoach([...myGames(12, 14), ...poolGames(29, () => 18)], query, anyTime)
+    const fewTheirs = computeCoach([...myGames(12, 14), ...poolGames(29, () => 18)], query)
     expect(fewTheirs.status === 'ready' && fewTheirs.buckets[0].gaps).toEqual([])
   })
 
   test('leaves out players under the EAPM floor', () => {
-    const coach = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query, anyTime)
+    const coach = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query)
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
   })
 
@@ -149,7 +146,7 @@ describe('common/my-stats/coach', () => {
     const sameOpponent = Array.from({ length: 40 }, () =>
       game('1v1', [player('Bisu', 'p', 0, 'win'), player('Jaedong', 'z', 0, 'loss')]),
     )
-    const coach = computeCoach([...myGames(12, 14), ...sameOpponent], query, anyTime)
+    const coach = computeCoach([...myGames(12, 14), ...sameOpponent], query)
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(5)
   })
 
@@ -174,24 +171,10 @@ describe('common/my-stats/coach', () => {
       player('c', 'p', 1, 'loss'),
       player('d', 'p', 1, 'loss'),
     ])
-    const coach = computeCoach(
-      [...myGames(5, 18), ...pvt, ...teams, stray],
-      { names: [me], range: 'all' },
-      anyTime,
-    )
-    expect(coach.status).toBe('pickFilters')
+    const coach = computeCoach([...myGames(5, 18), ...pvt, ...teams, stray], { names: [me] })
     expect(coach.scopes).toEqual([
       { shape: '1v1', race: 'p', opponentRace: 'z', games: 5 },
       { shape: '1v1', race: 'p', opponentRace: 't', games: 3 },
-      { shape: '3v3', race: 'z', opponentRace: undefined, mapFamily: 'standard', games: 3 },
-    ])
-
-    const teamsOnly = computeCoach(
-      [...myGames(5, 18), ...pvt, ...teams],
-      { names: [me], range: 'all', shape: '3v3' },
-      anyTime,
-    )
-    expect(teamsOnly.scopes).toEqual([
       { shape: '3v3', race: 'z', opponentRace: undefined, mapFamily: 'standard', games: 3 },
     ])
   })
@@ -201,7 +184,7 @@ describe('common/my-stats/coach', () => {
       player(me, 'p', 0, 'win', { leftAtMs: 2 * 60_000 }),
       player('quitter', 'z', 1, 'loss'),
     ])
-    const coach = computeCoach([...myGames(3, 18), left], query, anyTime)
+    const coach = computeCoach([...myGames(3, 18), left], query)
     expect(coach.status === 'ready' && coach.buckets[0]).toMatchObject({
       userGames: 3,
       skippedGames: 1,
@@ -221,20 +204,12 @@ describe('common/my-stats/coach', () => {
     }
     const games = (shape: '2v2' | '3v3') => [teamGame(shape, 'bgh'), teamGame(shape, 'fastest')]
     const families = (shape: '2v2' | '3v3') => {
-      const coach = computeCoach(
-        games(shape),
-        { names: [me], range: 'all', shape, race: 'p' },
-        anyTime,
-      )
+      const coach = computeCoach(games(shape), { names: [me], shape, race: 'p' })
       return coach.status === 'ready' ? coach.buckets.map(b => b.mapFamily) : []
     }
     expect(families('3v3').toSorted()).toEqual(['bgh', 'fastest'])
     expect(families('2v2')).toEqual([undefined])
-    const coach = computeCoach(
-      games('3v3'),
-      { names: [me], range: 'all', shape: '3v3', race: 'p' },
-      anyTime,
-    )
+    const coach = computeCoach(games('3v3'), { names: [me], shape: '3v3', race: 'p' })
     expect(coach.status === 'ready' && coach.buckets.map(b => b.mapNames)).toEqual([
       ['Polypoid'],
       ['Polypoid'],
@@ -259,7 +234,7 @@ describe('common/my-stats/coach', () => {
         player(`zergling${i}`, 'z', 0, 'loss'),
       ]),
     )
-    const coach = computeCoach([...mine, ...theirs], query, anyTime)
+    const coach = computeCoach([...mine, ...theirs], query)
     if (coach.status !== 'ready') {
       throw new Error('Expected a ready coach')
     }
@@ -276,10 +251,80 @@ describe('common/my-stats/coach', () => {
     const coach = computeCoach(
       [...myGames(6, 20), ...myGames(6, 14, () => 'loss'), ...poolGames(40, () => 17)],
       query,
-      anyTime,
     )
     expect(coach.status === 'ready' && coach.buckets[0].inLosses).toEqual([
       expect.objectContaining({ key: 'workers6', winValue: 20, lossValue: 14 }),
+    ])
+  })
+
+  test("compares the user's latest games with the ones before", () => {
+    const coach = computeCoach(
+      [...myGames(8, 14, () => 'loss'), ...myGames(10, 20, i => (i < 7 ? 'win' : 'loss'))],
+      query,
+    )
+    if (coach.status !== 'ready') {
+      throw new Error('Expected a ready coach')
+    }
+    const { recentForm, notes } = coach.buckets[0]
+    expect(recentForm).toMatchObject({ wins: 7, losses: 3, earlierGames: 8, earlierLosses: 8 })
+    expect(recentForm.games).toHaveLength(10)
+    expect(recentForm.changes.find(c => c.key === 'workers6')).toMatchObject({
+      recentValue: 20,
+      earlierValue: 14,
+      direction: 'better',
+    })
+    expect(notes.map(n => n.kind)).toEqual(['form', 'inLosses', 'improving'])
+  })
+
+  test('waits for enough earlier games before comparing recent form', () => {
+    const coach = computeCoach(myGames(12, 14), query)
+    expect(coach.status === 'ready' && coach.buckets[0].recentForm).toMatchObject({
+      earlierGames: 2,
+      changes: [],
+    })
+  })
+
+  test('sets goals for the next game, and checks the latest game against them', () => {
+    const coach = computeCoach(
+      [...myGames(11, 14), ...myGames(1, 19), ...poolGames(40, i => 16 + (i % 5))],
+      query,
+    )
+    expect(coach.status === 'ready' && coach.buckets[0].goals).toEqual([
+      expect.objectContaining({
+        key: 'workers6',
+        basis: 'others',
+        target: 18,
+        userValue: 14,
+        recentValue: 14,
+        lastValue: 19,
+        lastHit: true,
+        inLosses: false,
+      }),
+    ])
+  })
+
+  test('without other players to compare with, aims for what the user reaches in their wins', () => {
+    const coach = computeCoach(
+      [...myGames(6, 20), ...myGames(6, 14, () => 'loss'), ...myGames(1, 21)],
+      query,
+    )
+    expect(coach.status === 'ready' && coach.buckets[0].goals).toEqual([
+      expect.objectContaining({
+        key: 'workers6',
+        basis: 'wins',
+        target: 20,
+        inLosses: true,
+        lastValue: 21,
+        lastHit: true,
+      }),
+    ])
+  })
+
+  test('then aims for where the user was before a slip', () => {
+    const coach = computeCoach([...myGames(8, 20), ...myGames(10, 14)], query)
+    const goals = coach.status === 'ready' ? coach.buckets[0].goals : []
+    expect(goals).toEqual([
+      expect.objectContaining({ key: 'workers6', basis: 'earlier', target: 20, beats: undefined }),
     ])
   })
 })

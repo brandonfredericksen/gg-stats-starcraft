@@ -18,6 +18,7 @@ import {
 } from './games/game-stats'
 import { ReportedGameStatus } from './games/game-status'
 import { GgStatsFileResult } from './gg-stats-file'
+import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MyStatsQuery, MyStatsResult } from './my-stats/my-stats'
 import {
   ReplayBackfillProgress,
@@ -171,6 +172,8 @@ interface IpcInvokeables {
   gameStatsSummarizeReplays: (replayPaths: string[]) => Promise<Record<string, GameStatsSummary>>
   /** Sums up the user's analyzed games for My stats. */
   myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsResult>
+  /** Compares the user's games of one kind with other players', for the Coach page. */
+  coachQuery: (query: CoachQuery) => Promise<CoachResult>
 
   autoCaptureGetStatus: () => Promise<AutoCaptureStatus>
   /** Analyzes a captured replay that failed again. */

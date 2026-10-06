@@ -98,7 +98,7 @@ const Nav = styled.nav`
   gap: 4px;
 `
 
-type NavTab = 'library' | 'stats' | 'last-game' | 'settings'
+type NavTab = 'library' | 'stats' | 'coach' | 'last-game' | 'settings'
 
 const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   ${buttonReset};
@@ -389,6 +389,7 @@ const FitLevel = {
 const DevIndicator = styled.button`
   ${buttonReset};
   ${labelMedium};
+  flex-shrink: 0;
   height: 22px;
   padding: 0 10px;
 
@@ -409,6 +410,7 @@ export function SystemBar() {
   const section = useCurrentSection()
   const isReplays = section === 'library'
   const isMyStats = section === 'myStats'
+  const isCoach = section === 'coach'
   const isLastGame = section === 'lastGame'
   const [settingsButton, setSettingsButton] = useState<HTMLButtonElement | null>(null)
   useButtonHotkey({ elem: settingsButton, hotkey: ALT_S })
@@ -450,6 +452,10 @@ export function SystemBar() {
         <NavItem type='button' $tab='stats' $active={isMyStats} onClick={() => push('/my-stats')}>
           <MaterialIcon icon='bar_chart' size={20} />
           {t('myStats.label', 'My stats')}
+        </NavItem>
+        <NavItem type='button' $tab='coach' $active={isCoach} onClick={() => push('/coach')}>
+          <MaterialIcon icon='sports' size={20} />
+          {t('myStats.coach.title', 'Coach')}
         </NavItem>
         <Tooltip
           text={t('lastGame.tooltip', 'Stats for your newest game (Alt + G)')}
