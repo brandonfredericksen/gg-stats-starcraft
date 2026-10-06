@@ -52,6 +52,8 @@ export interface GamePlayerStatsPayload {
   resourcesLost: number | null
   /** How many frames the player couldn't make more units because they were out of supply. */
   supplyBlockedFrames: number | null
+  /** The frame the player first had a unit near an enemy's starting base. */
+  firstScoutFrame?: number | null
   /**
    * The player's progress over the game, with one value per frame in
    * {@link GameStatsPayload.snapshotFrames} for as long as they were playing.
@@ -115,6 +117,12 @@ export interface TimelinePayload {
   bases: number[]
   /** How many frames the player had been out of supply so far. */
   supplyBlockedFrames: number[]
+  /**
+   * For Zerg, frames their Hatcheries, Lairs and Hives had worked so far, added up over all of
+   * them, and of those, frames they held all the larvae they could.
+   */
+  hatcheryFrames?: number[]
+  larvaCappedFrames?: number[]
 }
 
 export interface GameStatsPayload {
@@ -210,6 +218,8 @@ export interface GamePlayerStats {
   resourcesDestroyed?: number
   resourcesLost?: number
   supplyBlockedMs?: number
+  /** When the player first had a unit near an enemy's starting base. */
+  firstScoutMs?: number
   /** The minerals and gas the player had on hand, on average over the game. */
   averageUnspent?: number
   /**
@@ -247,6 +257,12 @@ export interface PlayerTimeline {
   bases?: number[]
   /** How long the player had been out of supply so far. */
   supplyBlockedMs?: number[]
+  /**
+   * For Zerg, how long their Hatcheries, Lairs and Hives had worked so far, added up over all of
+   * them, and of that, how long they held all the larvae they could.
+   */
+  hatcheryMs?: number[]
+  larvaCappedMs?: number[]
 }
 
 export interface GameStats {
@@ -318,6 +334,10 @@ function toTimeline(value: unknown, snapshotCount: number): PlayerTimeline | und
     resourcesLost: optional(timeline?.resourcesLost),
     bases: optional(timeline?.bases),
     supplyBlockedMs: optional(timeline?.supplyBlockedFrames)?.map(
+      frames => frames * FASTEST_MS_PER_FRAME,
+    ),
+    hatcheryMs: optional(timeline?.hatcheryFrames)?.map(frames => frames * FASTEST_MS_PER_FRAME),
+    larvaCappedMs: optional(timeline?.larvaCappedFrames)?.map(
       frames => frames * FASTEST_MS_PER_FRAME,
     ),
   }
@@ -433,6 +453,7 @@ function toPlayerStats(
     resourcesDestroyed: optionalCount(player.resourcesDestroyed),
     resourcesLost: optionalCount(player.resourcesLost),
     supplyBlockedMs: framesToMs(optionalCount(player.supplyBlockedFrames)),
+    firstScoutMs: framesToMs(optionalCount(player.firstScoutFrame)),
     averageUnspent: average(timeline?.unspent),
     timeline,
     buildOrder: toBuildOrder(player.buildOrder),

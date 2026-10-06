@@ -148,6 +148,9 @@ export type CoachMetricKey =
   | 'workers15'
   | 'workerLead8'
   | 'workerProduction8'
+  | 'larvaeFull10'
+  | 'scoutTime'
+  | 'detection'
   | 'baseLead10'
   | 'income6'
   | 'income10'
@@ -192,6 +195,8 @@ export type CoachMetricKey =
 interface CoachContext {
   shape: MyStatsShape
   race: AssignedRaceChar
+  /** In 1v1, the opponent's race. */
+  opponentRace?: AssignedRaceChar
   teamGame: boolean
   mapFamily?: MapFamily
   /** Fastest and Big Game Hunters, where income is so high that spending decides games. */
@@ -282,6 +287,39 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     shownIn: context => context.race !== 'z',
     // A player can be fully saturated on a money map's main and rightly stop.
     gapWhen: (user, pool) => user < 0.75 && user < pool,
+  },
+  {
+    key: 'larvaeFull10',
+    value: s => s.player.larvaeFull10,
+    higherIsBetter: false,
+    minDiff: 0.05,
+    unit: 'percent',
+    minute: 10,
+    openingDependent: true,
+    shownIn: context => context.race === 'z',
+    // A Hatchery sitting on three larvae a quarter of the time wastes too much to ignore.
+    gapWhen: (user, pool) => user >= 0.25 && user > pool,
+  },
+  {
+    key: 'scoutTime',
+    value: s => s.player.firstScoutMs,
+    higherIsBetter: false,
+    minDiff: 20_000,
+    unit: 'time',
+    openingDependent: true,
+    // On a money map the whole team's bases are far apart, and nobody scouts to read a build.
+    shownIn: context => !context.moneyMap,
+    pointsOut: in1v1,
+  },
+  {
+    key: 'detection',
+    value: s => s.player.detectionMs,
+    higherIsBetter: false,
+    minDiff: 30_000,
+    unit: 'time',
+    openingDependent: true,
+    // Zerg have Overlords from the start, and a 1v1 against Terran has nothing cloaked early.
+    shownIn: context => context.race !== 'z' && (context.teamGame || context.opponentRace !== 't'),
   },
   {
     key: 'workerLead8',
@@ -1539,9 +1577,10 @@ function getReview(candidate: GoalCandidate, target: number): CoachReview | unde
   const { sample, teammates: _, ...game } = worst.game
   const moments = sample.player.moments
   const family = candidate.key === 'buildTiming' ? 'buildTiming' : getMetricFamily(candidate.key)
+  if (candidate.unit === 'time') {
+    return { game, atMs: target, amount: worst.value, kind: 'timing' }
+  }
   switch (family) {
-    case 'buildTiming':
-      return { game, atMs: target, amount: worst.value, kind: 'timing' }
     case 'supplyBlocked':
       return moments?.supplyBlock
         ? {
@@ -1797,6 +1836,7 @@ export function computeCoach(
   const context: CoachContext = {
     shape,
     race,
+    opponentRace,
     teamGame,
     mapFamily,
     moneyMap: false,

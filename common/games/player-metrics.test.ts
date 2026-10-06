@@ -258,6 +258,33 @@ describe('common/games/player-metrics/getGameShape', () => {
     expect(z.workerProduction8).toBeUndefined()
   })
 
+  test('reads scouting, detection and full Hatcheries', () => {
+    const durationMs = 20 * 60_000
+    const minutes = samples(durationMs).map(ms => ms / 60_000)
+    const base = player('Jaedong', durationMs)
+    const zerg = player('Jaedong', durationMs, {
+      race: 'z',
+      firstScoutMs: 95_000,
+      timeline: {
+        ...base.timeline!,
+        // Two Hatcheries the whole time, one of them always full.
+        hatcheryMs: minutes.map(m => m * 2 * 60_000),
+        larvaCappedMs: minutes.map(m => m * 60_000),
+      },
+    })
+    const [z] = computeGameMetrics('g', game([zerg])).players
+    expect(z.firstScoutMs).toBe(95_000)
+    expect(z.larvaeFull10).toBeCloseTo(0.5)
+    expect(z.detectionMs).toBeUndefined()
+
+    const toss = player('Bisu', durationMs, {
+      buildOrder: [step(1, 160), step(4, 162), step(7, 84)],
+    })
+    const [p] = computeGameMetrics('g', game([toss])).players
+    expect(p.detectionMs).toBe(4 * 60_000)
+    expect(p.larvaeFull10).toBeUndefined()
+  })
+
   test('tells game types apart', () => {
     expect(getGameShape([p(0), p(0)])).toBe('1v1')
     expect(getGameShape([p(0), p(0), p(0)])).toBe('ffa')
