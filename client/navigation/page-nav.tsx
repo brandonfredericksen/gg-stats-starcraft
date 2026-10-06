@@ -7,7 +7,7 @@ import { buttonReset } from '../material/button-reset'
 import { Tooltip } from '../material/tooltip'
 import { labelLarge, singleLine } from '../styles/typography'
 import { push } from './routing'
-import { SectionHistory } from './section-history'
+import { EntrySections, Section, VisitType } from './section-history'
 
 /** One step of the path to the current page. The last is the current page, so it has no link. */
 export interface Crumb {
@@ -129,19 +129,54 @@ const Actions = styled.div`
   gap: 8px;
 `
 
-const sectionHistory = new SectionHistory()
+const entrySections = new EntrySections()
 const historyListeners = new Set<() => void>()
 
-function onLocationChange() {
-  sectionHistory.visit(window.location.pathname + window.location.search)
+/** The entry the window is showing, as the Navigation API keeps it. */
+function currentEntryKey() {
+  return window.navigation?.currentEntry?.key ?? ''
+}
+
+function onLocationChange(type: VisitType) {
+  entrySections.visit(currentEntryKey(), window.location.pathname + window.location.search, type)
   for (const listener of historyListeners) {
     listener()
   }
 }
 
-onLocationChange()
-// The Navigation API reports pushes and replaces as well as moves through the browser's history.
-window.navigation?.addEventListener('currententrychange', onLocationChange)
+function goBy(delta: -1 | 1) {
+  if (delta < 0 && window.navigation?.canGoBack) {
+    history.back()
+  } else if (delta > 0 && window.navigation?.canGoForward) {
+    history.forward()
+  }
+}
+
+onLocationChange('reload')
+// The Navigation API reports pushes and replaces as well as moves through the window's history.
+window.navigation?.addEventListener('currententrychange', event => {
+  onLocationChange(event.navigationType ?? 'push')
+})
+
+// Like a browser: the mouse's back and forward buttons, and Alt with the left and right arrows.
+window.addEventListener('mouseup', event => {
+  if (event.button === 3 || event.button === 4) {
+    event.preventDefault()
+    goBy(event.button === 3 ? -1 : 1)
+  }
+})
+window.addEventListener('keydown', event => {
+  if (
+    event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+  ) {
+    event.preventDefault()
+    goBy(event.key === 'ArrowLeft' ? -1 : 1)
+  }
+})
 
 function subscribeToHistory(onChange: () => void) {
   historyListeners.add(onChange)
@@ -155,20 +190,25 @@ function subscribeToHistory(onChange: () => void) {
  * the tab that opened it stays the active one.
  */
 export function useCurrentSection() {
-  return useSyncExternalStore(subscribeToHistory, () => sectionHistory.section)
+  return useSyncExternalStore(subscribeToHistory, () => entrySections.section)
 }
 
-/** Whether there's a page to go back or forward to within the current section. */
+/** Makes the next page the app goes to belong to `section`, like a game opened from its tab. */
+export function openNextPageIn(section: Section) {
+  entrySections.openNextIn(section)
+}
+
+/** Whether there's a page to go back or forward to. */
 function useHistoryMoves() {
-  const canGoBack = useSyncExternalStore(subscribeToHistory, () => sectionHistory.canGoBack())
-  const canGoForward = useSyncExternalStore(subscribeToHistory, () => sectionHistory.canGoForward())
+  const canGoBack = useSyncExternalStore(
+    subscribeToHistory,
+    () => window.navigation?.canGoBack ?? false,
+  )
+  const canGoForward = useSyncExternalStore(
+    subscribeToHistory,
+    () => window.navigation?.canGoForward ?? false,
+  )
   return { canGoBack, canGoForward }
-}
-
-function goTo(url: string | undefined) {
-  if (url !== undefined) {
-    push(url)
-  }
 }
 
 /** The top of a sub page: the path to it as links, and the page's own actions on the right. */
@@ -204,9 +244,9 @@ export function PageNav({
 }
 
 /**
- * Back and forward within the current section, like a browser's but kept apart for each top level
- * section, so going back in the library never leaves it. They're always there, dimmed while
- * there's nowhere to go, so nothing beside them moves.
+ * Back and forward through every page the app has shown, across all its sections, like a
+ * browser's. They're always there, dimmed while there's nowhere to go, so nothing beside them
+ * moves.
  */
 export function HistoryButtons() {
   const { t } = useTranslation()
@@ -220,7 +260,7 @@ export function HistoryButtons() {
           type='button'
           aria-label={backLabel}
           disabled={!canGoBack}
-          onClick={() => goTo(sectionHistory.back())}>
+          onClick={() => goBy(-1)}>
           <MaterialIcon icon='arrow_back' size={20} />
         </ArrowButton>
       </Tooltip>
@@ -229,7 +269,7 @@ export function HistoryButtons() {
           type='button'
           aria-label={forwardLabel}
           disabled={!canGoForward}
-          onClick={() => goTo(sectionHistory.forward())}>
+          onClick={() => goBy(1)}>
           <MaterialIcon icon='arrow_forward' size={20} />
         </ArrowButton>
       </Tooltip>
