@@ -46,6 +46,8 @@ export interface SegmentOption<T> {
   label: string
   /** A longer description, for when the label is short, like a race's letter. */
   title?: string
+  /** What a `SegmentMenu` lists it as, when the list has room to say more than its button. */
+  menuLabel?: string
 }
 
 /** A row of buttons picking one of a few options, like a game type to filter by. */
@@ -165,7 +167,7 @@ export function SegmentMenu<T>({
           {options.map(option => (
             <SelectableMenuItem
               key={option.label}
-              text={option.title ?? option.label}
+              text={option.menuLabel ?? option.title ?? option.label}
               selected={option.value === value}
               onClick={() => {
                 closeMenu()

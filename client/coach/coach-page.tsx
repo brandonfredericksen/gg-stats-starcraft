@@ -1,18 +1,21 @@
 import { TFunction } from 'i18next'
-import { useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { MapFamily } from '../../common/games/map-family'
 import {
   COACH_MIN_POOL_GAMES,
   COACH_MIN_RESULT_GAMES,
   COACH_MIN_USER_GAMES,
+  COACH_WINDOW_GAMES,
   CoachBucket,
   CoachFinding,
   CoachResult,
   CoachResultFinding,
   CoachScope,
   CoachTiming,
+  CoachWindow,
   EAPM_FLOORS,
 } from '../../common/my-stats/coach'
 import { raceCharToLabel } from '../../common/races'
@@ -36,8 +39,17 @@ import {
   titleSmall,
 } from '../styles/typography'
 import { OwnGamesNeeded, useOwnGamesState } from '../system-bar/own-games-needed'
-import { coachScopeAtom, useCoach, useEapmFloor } from './coach-data'
-import { CoachNotes, NextGame, RecentForm } from './coach-plan'
+import {
+  coachLockedShapeAtom,
+  coachMapAtom,
+  coachScopeAtom,
+  coachWindowAtom,
+  ShapeCount,
+  useCoach,
+  useEapmFloor,
+  useShapeCounts,
+} from './coach-data'
+import { CoachNotes, NextGame } from './coach-plan'
 import {
   Card,
   Cell,
@@ -105,21 +117,77 @@ const HowItWorks = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
-/** The kinds of game to coach, and who to compare with. */
+/**
+ * The kind of game to coach, which games, and who to compare with. Stays in view while the page
+ * scrolls, like My stats' filters.
+ */
 const Toolbar = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-`
-
-/** Every kind of game the user plays, wrapping onto more rows as needed. */
-const Scopes = styled.div`
-  flex: 1;
-  min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: -10px 0;
+  padding: 10px 0;
 
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+
+  background-color: var(--theme-container-lowest);
+`
+
+/** The race the user played, among the kinds of game of the picked game type. */
+const Races = styled.div`
+  flex-shrink: 0;
+  padding: 4px;
+
+  display: inline-flex;
+  gap: 2px;
+
+  border: 1px solid var(--theme-outline-variant);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-container-low);
+`
+
+const RaceButton = styled.button<{ $on: boolean }>`
+  ${buttonReset};
+  ${labelLarge};
+  height: 30px;
+  padding: 0 10px 0 6px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  border-radius: var(--radius-sm);
+  background-color: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
+  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--theme-on-surface);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 1px;
+  }
+`
+
+const Spacer = styled.div`
+  flex: 1;
+`
+
+/** How much of the user's replays the coach has to go on, with a way to give it more. */
+const Coverage = styled.div`
+  ${bodyMedium};
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: var(--theme-on-surface-variant);
 `
 
 const Bucket = styled.section`
@@ -156,44 +224,6 @@ const ComparePanel = styled(PaddedPanel)`
 const Message = styled(PaddedPanel)`
   padding: 24px;
   gap: 12px;
-`
-
-const ScopeChip = styled.button<{ $selected: boolean }>`
-  ${buttonReset};
-  ${labelLarge};
-  height: 36px;
-  padding: 0 14px 0 10px;
-
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  border: 1px solid
-    ${props => (props.$selected ? 'var(--theme-outline)' : 'var(--theme-outline-variant)')};
-  border-radius: var(--radius-full);
-  background-color: ${props =>
-    props.$selected ? 'var(--theme-container-highest)' : 'transparent'};
-  color: var(--theme-on-surface);
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover {
-    background-color: ${props =>
-      props.$selected ? 'var(--theme-container-highest)' : 'var(--theme-container)'};
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
-  }
-`
-
-const ScopeCount = styled.span`
-  margin-left: 4px;
-  color: var(--theme-on-surface-variant);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
 `
 
 const UnlockTitle = styled.h4`
@@ -353,51 +383,264 @@ function getBucketPlace(bucket: CoachBucket, t: TFunction) {
   }
 }
 
+/** Which games the other players in a comparison come from, like "3v3 on BGH". */
+function getPoolPlace(bucket: CoachBucket, t: TFunction) {
+  const place = getPoolGameType(bucket, t)
+  return bucket.onMap
+    ? t('myStats.coach.poolOnMap', '{{place}} on {{map}}', { place, map: bucket.onMap })
+    : place
+}
+
+function getPoolGameType(bucket: CoachBucket, t: TFunction) {
+  const shape = bucket.shape === 'ffa' ? t('myStats.ffa', 'FFA') : bucket.shape
+  if (bucket.opponentRace) {
+    return t('myStats.coach.poolVs', '{{shape}} against {{opponent}}', {
+      shape,
+      opponent: raceCharToLabel(bucket.opponentRace, t),
+    })
+  }
+  if (bucket.allyRace && !bucket.anyAlly) {
+    return t('myStats.coach.poolAlly', '{{shape}} with a {{ally}} ally', {
+      shape,
+      ally: raceCharToLabel(bucket.allyRace, t),
+    })
+  }
+  if (bucket.mapFamily) {
+    return t('myStats.coach.poolMap', '{{shape}} on {{map}}', {
+      shape,
+      map: getMapFamilyShortName(bucket.mapFamily, t),
+    })
+  }
+  return t('myStats.coach.poolShape', '{{shape}}', { shape })
+}
+
 function isReady(bucket: CoachBucket) {
   return bucket.userGames >= COACH_MIN_USER_GAMES && bucket.poolGames >= COACH_MIN_POOL_GAMES
 }
 
-/** Every kind of game the user plays enough of, one click each, with the coached one picked. */
-function ScopePicker({
+/** A game type and the kind of map, which the race picker then splits by race. */
+function getModeKey(scope: Pick<CoachScope, 'shape' | 'mapFamily'>) {
+  return `${scope.shape}:${scope.mapFamily ?? ''}`
+}
+
+function getShapeName(shape: CoachScope['shape'], t: TFunction) {
+  return shape === 'ffa' ? t('myStats.ffa', 'FFA') : shape
+}
+
+function toQueryScope({ shape, race, opponentRace, allyRace, mapFamily }: CoachScope) {
+  return { shape, race, opponentRace, allyRace, mapFamily }
+}
+
+/**
+ * The game type to coach, and the game types in the user's replays with too few analyzed to coach
+ * yet, each with how many of the user's replays of it are analyzed.
+ */
+function ShapeMenu({
+  scopes,
+  picked,
+  counts,
+}: {
+  scopes: ReadonlyArray<CoachScope>
+  picked: Omit<CoachScope, 'games'> | undefined
+  counts: ReadonlyArray<ShapeCount>
+}) {
+  const { t } = useTranslation()
+  const setScope = useSetAtom(coachScopeAtom)
+  const setMap = useSetAtom(coachMapAtom)
+  const [pickedLocked, setLocked] = useAtom(coachLockedShapeAtom)
+
+  // Scopes come most played first, so the first of each game type is the one to open it on.
+  const shapes = new Map<CoachScope['shape'], { first: CoachScope; games: number }>()
+  for (const scope of scopes) {
+    const shape = shapes.get(scope.shape)
+    shapes.set(scope.shape, {
+      first: shape?.first ?? scope,
+      games: (shape?.games ?? 0) + scope.games,
+    })
+  }
+  // A game type played on one kind of map only names it here, rather than in a picker of one.
+  const nameOf = (shape: CoachScope['shape']) => {
+    const families = new Set(scopes.filter(s => s.shape === shape).map(s => s.mapFamily))
+    const [family] = families
+    return families.size === 1 && family
+      ? `${getShapeName(shape, t)} ${getMapFamilyShortName(family, t)}`
+      : getShapeName(shape, t)
+  }
+  const analyzedText = (name: string, count: ShapeCount) =>
+    t('myStats.coach.modeLocked', '{{name}}, {{analyzed}} of {{total}} analyzed', {
+      name,
+      analyzed: count.analyzed,
+      total: count.total,
+    })
+  const locked = counts.filter(count => !shapes.has(count.shape))
+  const options: Array<SegmentOption<string>> = [
+    ...Array.from(shapes, ([shape, { games }]) => {
+      const count = counts.find(c => c.shape === shape)
+      return {
+        value: shape,
+        label: nameOf(shape),
+        menuLabel: count
+          ? analyzedText(nameOf(shape), count)
+          : t('myStats.coach.modeGames', '{{name}}, {{count}} games', {
+              name: nameOf(shape),
+              count: games,
+            }),
+      }
+    }),
+    ...locked.map(count => ({
+      value: `locked:${count.shape}`,
+      label: getShapeName(count.shape, t),
+      menuLabel: analyzedText(getShapeName(count.shape, t), count),
+    })),
+  ]
+  if (!options.length) {
+    return null
+  }
+  let value: string = picked?.shape ?? options[0].value
+  if (pickedLocked && locked.some(count => count.shape === pickedLocked)) {
+    value = `locked:${pickedLocked}`
+  }
+
+  return (
+    <SegmentMenu
+      label={t('myStats.coach.mode', 'Game type')}
+      showLabel={false}
+      options={options}
+      value={value}
+      onChange={key => {
+        if (key.startsWith('locked:')) {
+          setLocked(key.slice('locked:'.length) as ShapeCount['shape'])
+          return
+        }
+        setLocked(undefined)
+        setMap(undefined)
+        setScope(toQueryScope(shapes.get(key as CoachScope['shape'])!.first))
+      }}
+    />
+  )
+}
+
+/** The kind of map to coach, in a game type that splits by map. Keeps the race where it can. */
+function MapPicker({
   scopes,
   picked,
 }: {
   scopes: ReadonlyArray<CoachScope>
-  picked: Omit<CoachScope, 'games'> | undefined
+  picked: Omit<CoachScope, 'games'>
 }) {
   const { t } = useTranslation()
   const setScope = useSetAtom(coachScopeAtom)
+  if (!picked.mapFamily) {
+    return null
+  }
+  const inShape = scopes.filter(scope => scope.shape === picked.shape && scope.mapFamily)
+  const families = new Map<MapFamily, number>()
+  for (const scope of inShape) {
+    families.set(scope.mapFamily!, (families.get(scope.mapFamily!) ?? 0) + scope.games)
+  }
+  // With one kind of map, the game type's name already says which.
+  if (families.size < 2) {
+    return null
+  }
 
   return (
-    <>
-      {scopes.map(scope => {
+    <SegmentMenu
+      label={t('myStats.coach.map', 'Maps')}
+      showLabel={false}
+      options={Array.from(families, ([family, games]) => ({
+        value: family,
+        label: getMapFamilyShortName(family, t),
+        menuLabel: t('myStats.coach.modeGames', '{{name}}, {{count}} games', {
+          name: getMapFamilyShortName(family, t),
+          count: games,
+        }),
+      }))}
+      value={picked.mapFamily}
+      onChange={family => {
+        const onMap = inShape.filter(scope => scope.mapFamily === family)
+        setScope(toQueryScope(onMap.find(scope => scope.race === picked.race) ?? onMap[0]))
+      }}
+    />
+  )
+}
+
+/** One map to coach, in a game type that doesn't split by map, or all of them. */
+function MapNameMenu({
+  maps,
+  picked,
+}: {
+  maps: ReadonlyArray<{ key: string; name: string; games: number }>
+  picked: string | undefined
+}) {
+  const { t } = useTranslation()
+  const setMap = useSetAtom(coachMapAtom)
+  if (maps.length < 2 && !picked) {
+    return null
+  }
+  const options: Array<SegmentOption<string>> = [
+    { value: '', label: t('myStats.coach.allMaps', 'All maps') },
+    ...maps.map(({ key, name, games }) => ({
+      value: key,
+      label: name,
+      menuLabel: t('myStats.coach.modeGames', '{{name}}, {{count}} games', {
+        name,
+        count: games,
+      }),
+    })),
+  ]
+  // A map picked for another race can have none of this one's games, and still needs a name.
+  if (picked && !maps.some(m => m.key === picked)) {
+    options.push({ value: picked, label: picked })
+  }
+
+  return (
+    <SegmentMenu
+      label={t('myStats.coach.map', 'Maps')}
+      showLabel={false}
+      options={options}
+      value={picked ?? ''}
+      onChange={name => setMap(name || undefined)}
+    />
+  )
+}
+
+/** The race to coach within the picked game type, with the matchup or ally where it splits by one. */
+function RacePicker({
+  scopes,
+  picked,
+}: {
+  scopes: ReadonlyArray<CoachScope>
+  picked: Omit<CoachScope, 'games'>
+}) {
+  const { t } = useTranslation()
+  const setScope = useSetAtom(coachScopeAtom)
+  const inMode = scopes.filter(scope => getModeKey(scope) === getModeKey(picked))
+  if (!inMode.length) {
+    return null
+  }
+
+  return (
+    <Races role='group' aria-label={t('myStats.coach.races', 'Your race')}>
+      {inMode.map(scope => {
         const selected =
-          picked?.shape === scope.shape &&
           picked.race === scope.race &&
           picked.opponentRace === scope.opponentRace &&
-          picked.allyRace === scope.allyRace &&
-          picked.mapFamily === scope.mapFamily
+          picked.allyRace === scope.allyRace
+        const description = t('myStats.coach.scopeLabel', {
+          defaultValue: '{{name}}, {{count}} games',
+          defaultValue_one: '{{name}}, {{count}} game',
+          name: getScopeName(scope, t),
+          count: scope.games,
+        })
         return (
-          <ScopeChip
-            key={`${scope.shape}${scope.race}${scope.opponentRace ?? ''}${scope.allyRace ?? ''}${scope.mapFamily ?? ''}`}
+          <RaceButton
+            key={`${scope.race}${scope.opponentRace ?? ''}${scope.allyRace ?? ''}`}
             type='button'
-            $selected={selected}
+            $on={selected}
             aria-pressed={selected}
-            aria-label={t('myStats.coach.scopeLabel', {
-              defaultValue: '{{name}}, {{count}} games',
-              defaultValue_one: '{{name}}, {{count}} game',
-              name: getScopeName(scope, t),
-              count: scope.games,
-            })}
-            onClick={() =>
-              setScope({
-                shape: scope.shape,
-                race: scope.race,
-                opponentRace: scope.opponentRace,
-                allyRace: scope.allyRace,
-                mapFamily: scope.mapFamily,
-              })
-            }>
+            aria-label={description}
+            title={description}
+            onClick={() => setScope(toQueryScope(scope))}>
             <RaceTag race={scope.race} />
             {scope.allyRace ? (
               <>
@@ -410,21 +653,91 @@ function ScopePicker({
                 {t('myStats.vs', 'vs')}
                 <RaceTag race={scope.opponentRace} />
               </>
-            ) : (
-              <span>{scope.shape === 'ffa' ? t('myStats.ffa', 'FFA') : scope.shape}</span>
-            )}
-            {scope.mapFamily ? <span>{getMapFamilyShortName(scope.mapFamily, t)}</span> : null}
-            <ScopeCount>
-              {t('myStats.coach.scopeGames', {
-                defaultValue: '{{count}} games',
-                defaultValue_one: '{{count}} game',
-                count: scope.games,
-              })}
-            </ScopeCount>
-          </ScopeChip>
+            ) : null}
+            {!scope.allyRace && !scope.opponentRace ? (
+              <span>{raceCharToLabel(scope.race, t)}</span>
+            ) : null}
+          </RaceButton>
         )
       })}
-    </>
+    </Races>
+  )
+}
+
+/** How many of the user's replays of the picked game type are analyzed, and of all of them. */
+function CoverageLine({
+  shape,
+  counts,
+}: {
+  shape: ShapeCount['shape']
+  counts: ReadonlyArray<ShapeCount>
+}) {
+  const { t } = useTranslation()
+  const names = useMyPlayerNames() ?? []
+  const count = counts.find(c => c.shape === shape)
+  if (!count) {
+    return null
+  }
+  const all = counts.reduce(
+    (sum, c) => ({ analyzed: sum.analyzed + c.analyzed, total: sum.total + c.total }),
+    { analyzed: 0, total: 0 },
+  )
+
+  return (
+    <Coverage>
+      <span>
+        {t(
+          'myStats.coach.coverage',
+          '{{analyzed}} of your {{total}} {{shape}} games are analyzed, {{allAnalyzed}} of {{allTotal}} in all.',
+          {
+            analyzed: count.analyzed.toLocaleString(),
+            total: count.total.toLocaleString(),
+            shape: getShapeName(shape, t),
+            allAnalyzed: all.analyzed.toLocaleString(),
+            allTotal: all.total.toLocaleString(),
+          },
+        )}
+      </span>
+      <AnalyzeMine names={names} filters={{ range: 'all', shape }} compact={true} />
+    </Coverage>
+  )
+}
+
+/** A game type the coach can't look at yet: how many of its replays are analyzed, and a way on. */
+function LockedView({ locked }: { locked: ShapeCount }) {
+  const { t } = useTranslation()
+  const names = useMyPlayerNames() ?? []
+  const name = locked.shape === 'ffa' ? t('myStats.ffa', 'FFA') : locked.shape
+
+  return (
+    <PaddedPanel>
+      <UnlockTitle>
+        {t('myStats.coach.lockedTitle', 'Analyze more of your {{shape}} games to coach them', {
+          shape: name,
+        })}
+      </UnlockTitle>
+      <Progress>
+        <span>{t('myStats.coach.lockedReplays', 'Your {{shape}} replays', { shape: name })}</span>
+        <Track>
+          <Fill style={{ width: `${(locked.analyzed / locked.total) * 100}%` }} />
+        </Track>
+        <ProgressCount>
+          {t('myStats.coach.lockedCount', '{{analyzed}} of {{total}}', {
+            analyzed: locked.analyzed,
+            total: locked.total,
+          })}
+        </ProgressCount>
+      </Progress>
+      <Text>
+        {t(
+          'myStats.coach.lockedHow',
+          'The coach looks at each race you play here once a few of those games are analyzed.',
+        )}
+      </Text>
+      <UnlockActions>
+        <AnalyzeMine names={names} filters={{ range: 'all', shape: locked.shape }} />
+      </UnlockActions>
+    </PaddedPanel>
   )
 }
 
@@ -711,7 +1024,7 @@ function Unlock({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number 
 }
 
 /** How the user's games compare with other players': gaps, strengths, every number, timings. */
-function Comparison({ bucket }: { bucket: CoachBucket }) {
+function Comparison({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number }) {
   const { t } = useTranslation()
 
   let losses: React.ReactNode
@@ -741,9 +1054,15 @@ function Comparison({ bucket }: { bucket: CoachBucket }) {
   return (
     <ComparePanel>
       <PanelTitle>
-        {t('myStats.coach.againstOthers', 'Against other {{race}} players', {
-          race: raceCharToLabel(bucket.race, t),
-        })}
+        {t(
+          'myStats.coach.comparedWith',
+          'Compared with other {{race}} players in your replays of {{where}}, over {{floor}} EAPM',
+          {
+            race: raceCharToLabel(bucket.race, t),
+            where: getPoolPlace(bucket, t),
+            floor: eapmFloor,
+          },
+        )}
       </PanelTitle>
       <Columns>
         <Column>
@@ -826,10 +1145,12 @@ function Comparison({ bucket }: { bucket: CoachBucket }) {
 function BucketView({
   bucket,
   eapmFloor,
+  sinceMs,
   showTitle,
 }: {
   bucket: CoachBucket
   eapmFloor: number
+  sinceMs?: number
   showTitle: boolean
 }) {
   const { t } = useTranslation()
@@ -839,17 +1160,31 @@ function BucketView({
   const showNextGame = ready || bucket.goals.length > 0
   const title = getBucketTitle(bucket, t)
 
+  const counts = {
+    userGames: bucket.userGames,
+    poolGames: bucket.poolGames,
+    race: raceCharToLabel(bucket.race, t),
+    floor: eapmFloor,
+  }
   const about = [
-    t(
-      'myStats.coach.about',
-      '{{userGames}} of your games, compared with {{poolGames}} games of other {{race}} players over {{floor}} EAPM.',
-      {
-        userGames: bucket.userGames,
-        poolGames: bucket.poolGames,
-        race: raceCharToLabel(bucket.race, t),
-        floor: eapmFloor,
-      },
-    ),
+    sinceMs === undefined
+      ? t(
+          'myStats.coach.about',
+          '{{userGames}} of your games, compared with {{poolGames}} games of other {{race}} players over {{floor}} EAPM.',
+          counts,
+        )
+      : t(
+          'myStats.coach.aboutSince',
+          '{{userGames}} of your games since {{date}}, compared with {{poolGames}} games of other {{race}} players over {{floor}} EAPM from then on.',
+          {
+            ...counts,
+            date: new Date(sinceMs).toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            }),
+          },
+        ),
   ]
   if (bucket.shape === '1v1' && bucket.poolGames) {
     // In a mirror, other players are mostly the user's own opponents; otherwise they can only come
@@ -904,7 +1239,7 @@ function BucketView({
       <PlanColumns>
         <SectionErrorBoundary>
           {showNextGame ? (
-            <NextGame bucket={bucket} />
+            <NextGame bucket={bucket} allGames={sinceMs === undefined} />
           ) : (
             <Unlock bucket={bucket} eapmFloor={eapmFloor} />
           )}
@@ -913,12 +1248,9 @@ function BucketView({
           <CoachNotes bucket={bucket} />
         </SectionErrorBoundary>
       </PlanColumns>
-      <SectionErrorBoundary>
-        <RecentForm bucket={bucket} />
-      </SectionErrorBoundary>
       {ready ? (
         <SectionErrorBoundary>
-          <Comparison bucket={bucket} />
+          <Comparison bucket={bucket} eapmFloor={eapmFloor} />
         </SectionErrorBoundary>
       ) : null}
       {showNextGame && !ready ? <Unlock bucket={bucket} eapmFloor={eapmFloor} /> : null}
@@ -942,6 +1274,37 @@ function FloorMenu() {
       options={floors}
       value={floor}
       onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
+    />
+  )
+}
+
+/** Which of the user's games the coach looks at: their latest few, or all of them. */
+function WindowMenu({ autoGames }: { autoGames: number }) {
+  const { t } = useTranslation()
+  const [window, setWindow] = useAtom(coachWindowAtom)
+  // Auto is a number of games too, so it's named by it, and a fixed choice of the same number
+  // would only repeat it.
+  const options: Array<SegmentOption<CoachWindow>> = [
+    {
+      value: 'auto',
+      label: t('myStats.coach.windowGames', 'Last {{count}} games', { count: autoGames }),
+      menuLabel: t('myStats.coach.windowAuto', 'Last {{count}} games, about 3 months', {
+        count: autoGames,
+      }),
+    },
+    ...COACH_WINDOW_GAMES.filter(count => count !== autoGames).map(count => ({
+      value: count,
+      label: t('myStats.coach.windowGames', 'Last {{count}} games', { count }),
+    })),
+    { value: 'all', label: t('myStats.coach.windowAll', 'All games') },
+  ]
+  return (
+    <SegmentMenu
+      label={t('myStats.coach.window', 'Games')}
+      showLabel={false}
+      options={options}
+      value={window}
+      onChange={setWindow}
     />
   )
 }
@@ -992,6 +1355,7 @@ function CoachBody({ coach }: { coach: CoachResult }) {
           key={`${bucket.shape}${bucket.mapFamily ?? ''}`}
           bucket={bucket}
           eapmFloor={coach.eapmFloor}
+          sinceMs={coach.sinceMs}
           showTitle={shown.length > 1 && bucket.mapFamily !== undefined}
         />
       ))}
@@ -1021,6 +1385,12 @@ function CoachBody({ coach }: { coach: CoachResult }) {
  */
 export function CoachView({ coach }: { coach: CoachResult | undefined }) {
   const { t } = useTranslation()
+  const counts = useShapeCounts()
+  const pickedShape = useAtomValue(coachLockedShapeAtom)
+  const pickedLocked = coach?.scopes.some(s => s.shape === pickedShape)
+    ? undefined
+    : counts.find(c => c.shape === pickedShape)
+  const picked = coach?.status === 'ready' ? coach.scope : undefined
   return (
     <Root>
       <Header>
@@ -1031,7 +1401,7 @@ export function CoachView({ coach }: { coach: CoachResult | undefined }) {
             label={t('myStats.coach.howItWorks', 'How it works')}
             help={t(
               'myStats.coach.intro',
-              "Compares your games with other players of your race in the same kind of game, from every replay you've analyzed. It only points out differences that show up in most of your games. Treat it as a hint, not a rule: builds and the meta change what's right.",
+              "Compares your games with other players of your race in the same kind of game, from the replays you've analyzed. It looks at your last 3 months of games, or your last 30 if that's more, and other players' games from the same stretch, so the patch and meta match. Pick another number of games at the top. It only points out differences that show up in most of your games. Treat it as a hint, not a rule: builds and the meta change what's right.",
             )}
           />
         </HowItWorks>
@@ -1039,15 +1409,22 @@ export function CoachView({ coach }: { coach: CoachResult | undefined }) {
       {coach ? (
         <>
           <Toolbar>
-            <Scopes role='group' aria-label={t('myStats.coach.scopes', 'Your games to look at')}>
-              <ScopePicker
-                scopes={coach.scopes}
-                picked={coach.status === 'ready' ? coach.scope : undefined}
-              />
-            </Scopes>
+            <ShapeMenu scopes={coach.scopes} picked={picked} counts={counts} />
+            {picked && !pickedLocked ? (
+              <>
+                <MapPicker scopes={coach.scopes} picked={picked} />
+                {coach.status === 'ready' ? (
+                  <MapNameMenu maps={coach.maps} picked={coach.mapKey} />
+                ) : null}
+                <RacePicker scopes={coach.scopes} picked={picked} />
+              </>
+            ) : null}
+            <Spacer />
+            {coach.status === 'ready' ? <WindowMenu autoGames={coach.autoGames} /> : null}
             <FloorMenu />
           </Toolbar>
-          <CoachBody coach={coach} />
+          {picked && !pickedLocked ? <CoverageLine shape={picked.shape} counts={counts} /> : null}
+          {pickedLocked ? <LockedView locked={pickedLocked} /> : <CoachBody coach={coach} />}
         </>
       ) : (
         <LoadingDotsArea />

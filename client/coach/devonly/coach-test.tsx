@@ -139,8 +139,7 @@ const pvz: CoachBucket = {
       recentValue: 32,
       beats: 0.12,
       inLosses: true,
-      lastValue: 38,
-      lastHit: true,
+      checks: [true, true, true, true, false],
     },
     {
       key: 'bankMid',
@@ -152,8 +151,7 @@ const pvz: CoachBucket = {
       recentValue: 880,
       beats: 0.18,
       inLosses: false,
-      lastValue: 910,
-      lastHit: false,
+      checks: [true, false, false, false, false],
     },
     {
       key: 'buildTiming',
@@ -165,8 +163,7 @@ const pvz: CoachBucket = {
       userValue: 335_000,
       recentValue: 330_000,
       inLosses: false,
-      lastValue: 300_000,
-      lastHit: false,
+      checks: [true, true, false, false, false],
     },
     {
       key: 'hotkeysMid',
@@ -177,6 +174,7 @@ const pvz: CoachBucket = {
       userValue: 4.1,
       beats: 0.24,
       inLosses: false,
+      checks: [],
     },
   ],
   notes: [
@@ -455,8 +453,7 @@ const ownGoals: CoachBucket['goals'] = [
     userValue: 900,
     recentValue: 1150,
     inLosses: true,
-    lastValue: 1250,
-    lastHit: false,
+    checks: [true, true, false, false, false],
   },
   {
     key: 'workersLost',
@@ -467,20 +464,33 @@ const ownGoals: CoachBucket['goals'] = [
     userValue: 3.1,
     recentValue: 4.2,
     inLosses: false,
-    lastValue: 1.8,
-    lastHit: true,
+    checks: [true, true, true, false, false],
   },
 ]
+
+const recentWindow = {
+  window: 'auto' as const,
+  autoGames: 42,
+  sinceMs: Date.UTC(2026, 7, 3),
+  maps: [
+    { key: 'polypoid', name: 'Polypoid', games: 31 },
+    { key: 'fighting spirit', name: 'Fighting Spirit', games: 18 },
+  ],
+}
 
 const pvzScope = { shape: '1v1', race: 'p', opponentRace: 'z' } as const
 const teamScope = { shape: '3v3', race: 'p', mapFamily: 'bgh' } as const
 
 const cases: Array<[string, CoachResult | undefined]> = [
-  ['Findings in 1v1', { status: 'ready', scopes, eapmFloor: 150, scope: pvzScope, buckets: [pvz] }],
+  [
+    'Findings in 1v1',
+    { status: 'ready', scopes, eapmFloor: 150, scope: pvzScope, ...recentWindow, buckets: [pvz] },
+  ],
   [
     'Team games on two kinds of map, one still locked',
     {
       status: 'ready',
+      ...recentWindow,
       scopes,
       eapmFloor: 100,
       scope: teamScope,
@@ -506,6 +516,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
     'Enough of the user, too few other players, floor above the lowest',
     {
       status: 'ready',
+      ...recentWindow,
       scopes,
       eapmFloor: 200,
       scope: pvzScope,
@@ -528,6 +539,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
     'Ready, but nothing stands out and too few losses',
     {
       status: 'ready',
+      ...recentWindow,
       scopes,
       eapmFloor: 100,
       scope: pvzScope,
@@ -538,6 +550,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
     'A 2v2 pairing with too few other players like it, and a teammate who often falls first',
     {
       status: 'ready',
+      ...recentWindow,
       scopes: [{ shape: '2v2', race: 'z', allyRace: 't', games: 24 }, ...scopes],
       eapmFloor: 100,
       scope: { shape: '2v2', race: 'z', allyRace: 't' },
@@ -580,6 +593,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
     'No games of the picked kind',
     {
       status: 'ready',
+      ...recentWindow,
       scopes,
       eapmFloor: 100,
       scope: { shape: '2v2', race: 't' },
