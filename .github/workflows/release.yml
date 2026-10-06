@@ -67,6 +67,17 @@ jobs:
           pnpm run build-game
           pnpm run gen-notices
 
+      # electron-builder uploads its files in parallel, and when no release exists yet each upload
+      # can create its own draft, splitting the files between them. Starting with one draft avoids
+      # that.
+      - name: Create the draft release
+        shell: bash
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "${GITHUB_REF_NAME#v}" --notes ""
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Package and upload a draft release
         run: pnpm exec electron-builder build --win --x64 --publish always -c gg-stats.yml
         env:
