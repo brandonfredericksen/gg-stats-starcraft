@@ -70,6 +70,17 @@ const WORKER_LOSS_WINDOW_MS = 30_000
 const MIN_WORKER_LOSS = 3
 /** How long before a player went out their losses are left out of the moments to watch. */
 const FINAL_MINUTE_MS = 60_000
+/** How far into a game Zerg larvae are judged: the part where every larva counts most. */
+const LARVA_MS = 10 * 60_000
+/**
+ * What can see cloaked and burrowed units, by race: Photon Cannons and Observers for Protoss,
+ * Missile Turrets, Comsat Stations and Science Vessels for Terran. Zerg have Overlords from the
+ * start.
+ */
+const DETECTOR_IDS: Partial<Record<AssignedRaceChar, ReadonlySet<number>>> = {
+  p: new Set([84, 162]),
+  t: new Set([72, 107, 124]),
+}
 const OVERLORD_ID = 42
 const HATCHERY_ID = 131
 const TOWN_HALL_IDS: ReadonlySet<number> = new Set([106, HATCHERY_ID, 154])
@@ -177,6 +188,15 @@ export interface PlayerMetrics {
   workerProduction8?: number | null
   /** Moments in the game worth watching again, for a coach to point to. */
   moments?: PlayerMoments
+  /** When the player first had a unit near an enemy's starting base. */
+  firstScoutMs?: number
+  /**
+   * For Zerg, the share of their Hatcheries' time in the first 10 minutes spent holding all the
+   * larvae they could, which wastes the larvae they'd make next.
+   */
+  larvaeFull10?: number | null
+  /** For Terran and Protoss, when they first started something that detects. */
+  detectionMs?: number | null
 }
 
 /** Moments in one player's game worth watching again. */
@@ -379,6 +399,30 @@ function getWorkerProduction(
   return capacity > 0 ? Math.min(1, (used * WORKER_BUILD_MS) / capacity) : null
 }
 
+/** For Zerg, the share of their Hatcheries' time in the first 10 minutes spent full of larvae. */
+function getLarvaeFull(times: PlayerTimes, player: GamePlayerStats) {
+  const hatchery = player.timeline?.hatcheryMs
+  const capped = player.timeline?.larvaCappedMs
+  if (player.race !== 'z' || !hatchery || !capped) {
+    return undefined
+  }
+  const total = times.valueAt(hatchery, LARVA_MS)
+  const full = times.valueAt(capped, LARVA_MS)
+  return total && full !== null ? full / total : null
+}
+
+/** For Terran and Protoss, when they first started a detector, or null if they never did. */
+function getDetection(
+  player: GamePlayerStats,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number }>,
+) {
+  const detectors = player.race ? DETECTOR_IDS[player.race] : undefined
+  if (!detectors || !player.buildOrder) {
+    return undefined
+  }
+  return unitSteps.find(step => detectors.has(step.id))?.timeMs ?? null
+}
+
 /** The moments in a player's game a coach would point to, from its timeline. */
 function getMoments(times: PlayerTimes, player: GamePlayerStats): PlayerMoments | undefined {
   const timeline = player.timeline
@@ -520,6 +564,9 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     overlordsLost: player.race === 'z' ? deathsOf(player, new Set([OVERLORD_ID])) : undefined,
     workerProduction8: getWorkerProduction(player, times.playedMs, unitSteps),
     moments: getMoments(times, player),
+    firstScoutMs: player.firstScoutMs,
+    larvaeFull10: getLarvaeFull(times, player),
+    detectionMs: getDetection(player, unitSteps),
   }
 }
 

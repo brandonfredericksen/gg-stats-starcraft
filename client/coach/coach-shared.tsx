@@ -207,6 +207,30 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
       return workers(12)
     case 'workers15':
       return workers(15)
+    case 'larvaeFull10':
+      return [
+        t('myStats.coach.metric.larvaeFull', 'Hatcheries full of larvae, first 10 min'),
+        t(
+          'myStats.coach.help.larvaeFull',
+          'The share of the first 10 minutes your Hatcheries, Lairs and Hives spent holding three larvae, when they stop making more. Every larva they would have made is one you never get.',
+        ),
+      ]
+    case 'scoutTime':
+      return [
+        t('myStats.coach.metric.scoutTime', 'First scout'),
+        t(
+          'myStats.coach.help.scoutTime',
+          "When one of your units first got near an enemy's starting base.",
+        ),
+      ]
+    case 'detection':
+      return [
+        t('myStats.coach.metric.detection', 'First detection'),
+        t(
+          'myStats.coach.help.detection',
+          'When you first started something that sees cloaked and burrowed units: an Observer or Photon Cannon, or a Missile Turret, Comsat Station or Science Vessel. Games without one are left out.',
+        ),
+      ]
     case 'workerProduction8':
       return [
         t('myStats.coach.metric.workerProduction', 'Worker production, first 8 min'),
@@ -477,8 +501,11 @@ export function getMetricGroup(key: CoachMetricKey): MetricGroup {
   ) {
     return 'growth'
   }
-  if (key.startsWith('bank') || key === 'supplyBlocked') {
+  if (key.startsWith('bank') || key === 'supplyBlocked' || key === 'larvaeFull10') {
     return 'spending'
+  }
+  if (key === 'scoutTime' || key === 'detection') {
+    return 'fights'
   }
   if (key.startsWith('army') || key === 'workersLost' || key === 'overlordsLost') {
     return 'fights'
@@ -497,6 +524,7 @@ export function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         supply: t('myStats.coach.words.depots', 'Supply Depots'),
         production: t('myStats.coach.words.barracksFactories', 'Barracks and Factories'),
         defense: t('myStats.coach.words.bunkersTurrets', 'a Bunker or Turrets'),
+        detector: t('myStats.coach.words.turretComsat', 'a Turret or a Comsat'),
       }
     case 'p':
       return {
@@ -506,6 +534,7 @@ export function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         supply: t('myStats.coach.words.pylons', 'Pylons'),
         production: t('myStats.coach.words.gateways', 'Gateways'),
         defense: t('myStats.coach.words.cannons', 'a few Cannons'),
+        detector: t('myStats.coach.words.observerCannon', 'an Observer or a Cannon'),
       }
     case 'z':
       return {
@@ -515,6 +544,7 @@ export function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         supply: t('myStats.coach.words.overlords', 'Overlords'),
         production: t('myStats.coach.words.macroHatcheries', 'macro Hatcheries'),
         defense: t('myStats.coach.words.sunkens', 'a Sunken or Spores'),
+        detector: t('myStats.coach.words.sporeOverlord', 'a Spore Colony'),
       }
     default:
       return race satisfies never
@@ -576,6 +606,24 @@ export function getTip(
             'Keep your {{townHalls}} making {{workers}} without a break. Check on them every time you cycle through your hotkeys.',
             words,
           )
+    case 'larvaeFull':
+      return t(
+        'myStats.coach.tip.larvaeFull',
+        'Your Hatcheries sit on three larvae. Spend them as they come: inject your hotkeyed Hatcheries every time you pass your base, and add a macro Hatchery if minerals pile up anyway.',
+        words,
+      )
+    case 'scoutTime':
+      return t(
+        'myStats.coach.tip.scoutTime',
+        'Send a worker to scout at a set point in your build, so you see what is coming before it hits you.',
+        words,
+      )
+    case 'detection':
+      return t(
+        'myStats.coach.tip.detection',
+        'Get {{detector}} out earlier, before Dark Templar or Lurkers can reach you. Losing a game to them once costs more than the detection ever would.',
+        words,
+      )
     case 'workerProduction':
       return t(
         'myStats.coach.tip.workerProduction',

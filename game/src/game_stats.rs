@@ -119,6 +119,17 @@ const SUPPLY_LIMIT: u32 = 200 * 2;
 const LEFT_EARLY_FRAMES: u32 = 24 * 5;
 /// How often each player's progress is recorded: every 10 seconds of game time on Fastest.
 const SNAPSHOT_FRAMES: u32 = 238;
+/// How often the game's units are looked through for larvae and scouting: every second.
+const SCAN_FRAMES: u32 = 24;
+/// A gap between scans longer than this, like a replay seeking, isn't counted, since what happened
+/// in it can't be told.
+const MAX_SCAN_GAP: u32 = SCAN_FRAMES * 4;
+/// Larvae this close to a Hatchery, Lair or Hive are taken to be its own, in pixels.
+const LARVA_REACH: i32 = 6 * 32;
+/// The larvae a Hatchery holds before it stops making more.
+const LARVA_CAP: u32 = 3;
+/// A unit this close to an enemy's starting base has scouted it, in pixels.
+const SCOUT_REACH: i32 = 12 * 32;
 /// How many of a player's latest actions are kept for judging whether their next one is effective.
 const RECENT_ACTIONS: usize = 16;
 
@@ -156,6 +167,10 @@ pub struct GameStatsTracker {
     units: Box<UnitCatalog>,
     /// Counts each slot's bases, or returns `None` if the game's units can't be looked through.
     count_bases: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
+    /// Lists the game's units for larvae and scouting, or returns `None` if they can't be looked
+    /// through.
+    list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
+    scouting: Box<Scouting>,
     /// The frames each slot's progress was recorded on.
     snapshot_frames: Vec<u32>,
     /// Each slot's recorded progress, one per frame in `snapshot_frames` for as long as the slot
@@ -168,6 +183,32 @@ pub struct GameStatsTracker {
     /// the game starts, so until a slot has finished units, whatever shows up for it is what it
     /// started with rather than anything it made.
     started: [bool; PLAYER_COUNT],
+}
+
+/// One of the game's units, as much as larvae and scouting need.
+#[derive(Copy, Clone, Debug)]
+struct SeenUnit {
+    slot: usize,
+    id: UnitId,
+    position: bw::Point,
+    /// A building, finished or not, which can't scout.
+    building: bool,
+    /// Finished, or a Hatchery or Lair morphing into the next, which still makes larvae.
+    working: bool,
+}
+
+/// Where each slot started, who scouted whom when, and how long Zerg Hatcheries sat full of larvae.
+#[derive(Default)]
+struct Scouting {
+    last_scan_frame: Option<u32>,
+    /// Where each slot's first town hall was.
+    start_bases: [Option<bw::Point>; PLAYER_COUNT],
+    /// The frame each slot first had a unit near an enemy's starting base.
+    first_scout_frame: [Option<u32>; PLAYER_COUNT],
+    /// Frames each slot's Hatcheries, Lairs and Hives spent working, added up over all of them.
+    hatchery_frames: [u32; PLAYER_COUNT],
+    /// Of those, frames they spent holding all the larvae they can, which wastes the next ones.
+    larva_capped_frames: [u32; PLAYER_COUNT],
 }
 
 /// What each slot started making, researching and upgrading, and what's needed to notice it.
@@ -225,6 +266,8 @@ struct Snapshot {
     resources_lost: u32,
     bases: u32,
     supply_blocked_frames: u32,
+    hatchery_frames: u32,
+    larva_capped_frames: u32,
 }
 
 /// A slot's supply, in halves.
@@ -577,6 +620,12 @@ struct Timeline {
     bases: Vec<u32>,
     /// How many frames the player had been out of supply so far.
     supply_blocked_frames: Vec<u32>,
+    /// For Zerg, frames their Hatcheries, Lairs and Hives had worked so far, added up over all of
+    /// them, and of those, frames they held all the larvae they could.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hatchery_frames: Option<Vec<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    larva_capped_frames: Option<Vec<u32>>,
 }
 
 #[derive(Serialize)]
@@ -625,6 +674,9 @@ struct PlayerStats {
     timeline: Option<Timeline>,
     /// What the player started making, researching and upgrading, in order.
     build_order: Option<Vec<BuildStep>>,
+    /// The frame the player first had a unit near an enemy's starting base.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    first_scout_frame: Option<u32>,
 }
 
 /// Live games are tracked so they can be reported when they end, and so are replays being
@@ -741,6 +793,7 @@ impl GameStatsTracker {
                 game_thread::is_team_game(),
                 UnitCatalog::from_game_data(),
                 count_bases_in_game,
+                list_units_in_game,
             )
         }
     }
@@ -751,6 +804,7 @@ impl GameStatsTracker {
         is_team_game: bool,
         units: UnitCatalog,
         count_bases: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
+        list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
     ) -> GameStatsTracker {
         unsafe {
             let starting_players: [Option<StartingPlayer>; PLAYER_COUNT] =
@@ -784,6 +838,8 @@ impl GameStatsTracker {
                 activity: Default::default(),
                 units: Box::new(units),
                 count_bases,
+                list_units,
+                scouting: Default::default(),
                 snapshot_frames: Vec::new(),
                 snapshots: Default::default(),
                 supply_blocked_frames: [0; PLAYER_COUNT],
@@ -873,6 +929,14 @@ impl GameStatsTracker {
                     let blocked = &mut self.supply_blocked_frames[slot];
                     *blocked = blocked.saturating_add(1);
                 }
+            }
+
+            let scan_due = self
+                .scouting
+                .last_scan_frame
+                .is_none_or(|last| frame >= last.saturating_add(SCAN_FRAMES));
+            if scan_due && let Some(units) = (self.list_units)() {
+                self.record_scan(&units, frame);
             }
 
             let due = self
@@ -1097,7 +1161,96 @@ impl GameStatsTracker {
                 // Without the units to look at, every town hall is taken to be a base.
                 bases: bases_by_slot.map_or(town_halls, |bases| bases[slot]),
                 supply_blocked_frames: self.supply_blocked_frames[slot],
+                hatchery_frames: self.scouting.hatchery_frames[slot],
+                larva_capped_frames: self.scouting.larva_capped_frames[slot],
             });
+        }
+    }
+
+    /// Notes where each slot started, who first had a unit near an enemy's starting base, and how
+    /// long Zerg Hatcheries held all the larvae they could, from the units the game has at `frame`.
+    fn record_scan(&mut self, units: &[SeenUnit], frame: u32) {
+        let scouting = &mut *self.scouting;
+        let elapsed = scouting
+            .last_scan_frame
+            .map_or(0, |last| frame.saturating_sub(last))
+            .min(MAX_SCAN_GAP);
+        scouting.last_scan_frame = Some(frame);
+
+        for unit in units
+            .iter()
+            .filter(|u| u.working && TOWN_HALLS[u.id.0 as usize])
+        {
+            let start = &mut scouting.start_bases[unit.slot];
+            if start.is_none() {
+                *start = Some(unit.position);
+            }
+        }
+
+        // Without teams, everyone plays for themselves.
+        let first_team = self.players.iter().flatten().map(|p| p.team).next();
+        let has_teams = self
+            .players
+            .iter()
+            .flatten()
+            .any(|p| Some(p.team) != first_team);
+        let side = |slot: usize| match &self.players[slot] {
+            Some(player) if has_teams => usize::from(player.team),
+            _ => slot,
+        };
+        for slot in (0..PLAYER_COUNT).filter(|&slot| self.following[slot]) {
+            if scouting.first_scout_frame[slot].is_some() {
+                continue;
+            }
+            let enemy_bases: Vec<bw::Point> = (0..PLAYER_COUNT)
+                .filter(|&other| other != slot && side(other) != side(slot))
+                .filter_map(|other| scouting.start_bases[other])
+                .collect();
+            let scouted = units
+                .iter()
+                .filter(|u| u.slot == slot && !u.building && u.id != unit::LARVA)
+                .any(|u| {
+                    enemy_bases
+                        .iter()
+                        .any(|b| within(&u.position, b, SCOUT_REACH))
+                });
+            if scouted {
+                scouting.first_scout_frame[slot] = Some(frame);
+            }
+        }
+
+        if elapsed == 0 {
+            return;
+        }
+        for slot in (0..PLAYER_COUNT).filter(|&slot| self.following[slot]) {
+            let hatcheries: Vec<bw::Point> = units
+                .iter()
+                .filter(|u| u.slot == slot && u.working && is_larva_maker(u.id))
+                .map(|u| u.position)
+                .collect();
+            if hatcheries.is_empty() {
+                continue;
+            }
+            let mut larvae = vec![0u32; hatcheries.len()];
+            for larva in units
+                .iter()
+                .filter(|u| u.slot == slot && u.id == unit::LARVA)
+            {
+                let nearest = hatcheries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, h)| within(&larva.position, h, LARVA_REACH))
+                    .min_by_key(|(_, h)| distance_squared(&larva.position, h));
+                if let Some((i, _)) = nearest {
+                    larvae[i] += 1;
+                }
+            }
+            let capped = larvae.iter().filter(|&&count| count >= LARVA_CAP).count() as u32;
+            let hatchery_frames = &mut scouting.hatchery_frames[slot];
+            *hatchery_frames =
+                hatchery_frames.saturating_add(elapsed.saturating_mul(hatcheries.len() as u32));
+            let capped_frames = &mut scouting.larva_capped_frames[slot];
+            *capped_frames = capped_frames.saturating_add(elapsed.saturating_mul(capped));
         }
     }
 
@@ -1192,6 +1345,7 @@ impl GameStatsTracker {
                     supply_blocked_frames: counts_units.then_some(self.supply_blocked_frames[slot]),
                     timeline: counts_units.then(|| self.timeline(slot)),
                     build_order: counts_units.then(|| self.build_order(slot)),
+                    first_scout_frame: self.scouting.first_scout_frame[slot],
                 })
             })
             .collect()
@@ -1215,8 +1369,43 @@ impl GameStatsTracker {
             resources_lost: each(|s| s.resources_lost),
             bases: each(|s| s.bases),
             supply_blocked_frames: each(|s| s.supply_blocked_frames),
+            hatchery_frames: (self.race_of(slot) == bw::RACE_ZERG)
+                .then(|| each(|s| s.hatchery_frames)),
+            larva_capped_frames: (self.race_of(slot) == bw::RACE_ZERG)
+                .then(|| each(|s| s.larva_capped_frames)),
         }
     }
+}
+
+/// Hatcheries, Lairs and Hives, which make larvae.
+fn is_larva_maker(id: UnitId) -> bool {
+    matches!(id, unit::HATCHERY | unit::LAIR | unit::HIVE)
+}
+
+fn distance_squared(a: &bw::Point, b: &bw::Point) -> i32 {
+    let dx = i32::from(a.x) - i32::from(b.x);
+    let dy = i32::from(a.y) - i32::from(b.y);
+    dx * dx + dy * dy
+}
+
+fn within(a: &bw::Point, b: &bw::Point, distance: i32) -> bool {
+    distance_squared(a, b) <= distance * distance
+}
+
+/// The game's units, for larvae and scouting. Hallucinations aren't real units, so they're left
+/// out.
+unsafe fn list_units_in_game() -> Option<Vec<SeenUnit>> {
+    let units = unsafe { get_bw().active_units() }
+        .filter(|unit| !unit.is_hallucination() && usize::from(unit.player()) < PLAYER_COUNT)
+        .map(|unit| SeenUnit {
+            slot: usize::from(unit.player()),
+            id: unit.id(),
+            position: unit.position(),
+            building: unit.is_landed_building() || unit.id().is_building(),
+            working: unit.is_completed_or_morphing_to_higher_tier(),
+        })
+        .collect();
+    Some(units)
 }
 
 /// Each slot's bases, counted from the game's units: see [`count_bases`].
@@ -1245,11 +1434,6 @@ unsafe fn count_bases_in_game() -> Option<[u32; PLAYER_COUNT]> {
 /// are. A base is a town hall with minerals left near it, and town halls close together make one
 /// base, so a macro Hatchery doesn't count as a base of its own.
 fn count_bases(town_halls: &[(usize, bw::Point)], minerals: &[bw::Point]) -> [u32; PLAYER_COUNT] {
-    let within = |a: &bw::Point, b: &bw::Point, distance: i32| {
-        let dx = i32::from(a.x) - i32::from(b.x);
-        let dy = i32::from(a.y) - i32::from(b.y);
-        dx * dx + dy * dy <= distance * distance
-    };
     let mut bases: [Vec<bw::Point>; PLAYER_COUNT] = Default::default();
     for (slot, position) in town_halls {
         let Some(slot_bases) = bases.get_mut(*slot) else {
@@ -1858,6 +2042,7 @@ mod test {
             supply_blocked_frames: Some(0),
             timeline: None,
             build_order: None,
+            first_scout_frame: None,
         }
     }
 
@@ -2211,6 +2396,7 @@ mod test {
                     is_team_game,
                     test_catalog(),
                     no_units,
+                    no_seen_units,
                 )
             }
         }
@@ -2244,6 +2430,10 @@ mod test {
 
     /// The test games have no units to look through.
     unsafe fn no_units() -> Option<[u32; PLAYER_COUNT]> {
+        None
+    }
+
+    unsafe fn no_seen_units() -> Option<Vec<SeenUnit>> {
         None
     }
 
@@ -2886,5 +3076,84 @@ mod test {
                 (6000, BuildStepKind::Upgrade, Some(1)),
             ]
         );
+    }
+
+    fn seen(slot: usize, id: UnitId, x: i16, y: i16) -> SeenUnit {
+        let building = is_larva_maker(id) || id == unit::COMMAND_CENTER;
+        SeenUnit {
+            slot,
+            id,
+            position: point(x, y),
+            building,
+            working: true,
+        }
+    }
+
+    #[test]
+    fn scouting_is_the_first_unit_near_an_enemy_starting_base() {
+        let mut game = TestGame::new(&[(bw::PLAYER_TYPE_HUMAN, 0), (bw::PLAYER_TYPE_HUMAN, 0)]);
+        game.give_starting_unit(0);
+        game.give_starting_unit(1);
+        let mut tracker = game.start(false);
+        let bases = [
+            seen(0, unit::HATCHERY, 100, 100),
+            seen(1, unit::HATCHERY, 3000, 3000),
+        ];
+        tracker.record_scan(&bases, 24);
+        // An Overlord on its way, still far off.
+        let far = [bases[0], bases[1], seen(0, unit::OVERLORD, 2000, 2000)];
+        tracker.record_scan(&far, 48);
+        assert_eq!(tracker.scouting.first_scout_frame, [None; PLAYER_COUNT]);
+
+        let near = [bases[0], bases[1], seen(0, unit::DRONE, 2800, 2900)];
+        tracker.record_scan(&near, 72);
+        tracker.record_scan(&near, 96);
+        assert_eq!(tracker.scouting.first_scout_frame[0], Some(72));
+        assert_eq!(tracker.scouting.first_scout_frame[1], None);
+    }
+
+    #[test]
+    fn teammates_bases_are_not_scouting() {
+        let mut game = TestGame::new(&[
+            (bw::PLAYER_TYPE_HUMAN, 1),
+            (bw::PLAYER_TYPE_HUMAN, 1),
+            (bw::PLAYER_TYPE_HUMAN, 2),
+        ]);
+        for slot in 0..3 {
+            game.give_starting_unit(slot);
+        }
+        let mut tracker = game.start(false);
+        let units = [
+            seen(0, unit::HATCHERY, 100, 100),
+            seen(1, unit::HATCHERY, 300, 100),
+            seen(2, unit::HATCHERY, 3000, 3000),
+            seen(0, unit::ZERGLING, 300, 120),
+        ];
+        tracker.record_scan(&units, 24);
+        assert_eq!(tracker.scouting.first_scout_frame[0], None);
+    }
+
+    #[test]
+    fn hatcheries_holding_three_larvae_are_counted_as_full() {
+        let mut game = TestGame::new(&[(bw::PLAYER_TYPE_HUMAN, 0)]);
+        game.give_starting_unit(0);
+        let mut tracker = game.start(false);
+        let units = [
+            seen(0, unit::HATCHERY, 100, 100),
+            seen(0, unit::LARVA, 90, 140),
+            seen(0, unit::LARVA, 100, 140),
+            seen(0, unit::LARVA, 110, 140),
+            // A macro Hatchery with one larva to spare.
+            seen(0, unit::HATCHERY, 600, 100),
+            seen(0, unit::LARVA, 600, 140),
+        ];
+        tracker.record_scan(&units, 24);
+        tracker.record_scan(&units, 48);
+        assert_eq!(tracker.scouting.hatchery_frames[0], 48);
+        assert_eq!(tracker.scouting.larva_capped_frames[0], 24);
+
+        // A replay seeking far ahead isn't counted as all that time full.
+        tracker.record_scan(&units, 10_000);
+        assert_eq!(tracker.scouting.larva_capped_frames[0], 24 + MAX_SCAN_GAP);
     }
 }
