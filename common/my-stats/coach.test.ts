@@ -694,6 +694,34 @@ describe('common/my-stats/coach', () => {
     expect(gaps.find(g => g.key === 'supplyBlocked')!.beats).toBeGreaterThan(0.3)
   })
 
+  test('points a goal at the moment in the game that missed it by the most', () => {
+    const blocked = (share: number, name: string, startMs = 0) =>
+      game('1v1', [
+        player(name, 'p', 0, 'win', {
+          supplyBlockedShare: share,
+          moments: { supplyBlock: { startMs, endMs: startMs + 30_000 } },
+        }),
+        player(`${name}-zerg`, 'z', 1, 'loss'),
+      ])
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      blocked(i === 10 ? 0.2 : 0.12, me, 60_000 * (i + 1)),
+    )
+    const coach = computeCoach(
+      [...mine, ...Array.from({ length: 40 }, (_, i) => blocked(0.02, `toss${i}`))],
+      query,
+    )
+    const goal = coach.status === 'ready' ? coach.buckets[0].goals[0] : undefined
+    expect(goal).toMatchObject({
+      key: 'supplyBlocked',
+      review: {
+        game: { gameId: mine[10].gameId },
+        atMs: 660_000,
+        endMs: 690_000,
+        kind: 'supplyBlock',
+      },
+    })
+  })
+
   test("doesn't count a difference between wins and losses that's mostly chance", () => {
     const coach = computeCoach(
       [

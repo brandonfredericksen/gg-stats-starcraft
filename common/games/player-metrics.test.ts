@@ -218,6 +218,46 @@ describe('common/games/player-metrics', () => {
 
 describe('common/games/player-metrics/getGameShape', () => {
   const p = (team: number) => player('x', 60_000, { team })
+  test('finds the moments worth watching again', () => {
+    const [p] = computeGameMetrics('g', game([player('Bisu', 20 * 60_000)])).players
+    expect(p.moments?.supplyBlock).toEqual({ startMs: 180_000, endMs: 240_000 })
+    expect(p.moments?.bankPeak).toEqual({ atMs: 360_000, amount: 500 })
+    expect(p.moments?.workerLoss).toBeUndefined()
+
+    const durationMs = 20 * 60_000
+    const minutes = samples(durationMs).map(ms => ms / 60_000)
+    const base = player('Harassed', durationMs)
+    // 20 workers, down to 12 within half a minute at 7 minutes.
+    const workers = minutes.map(m => {
+      if (m < 7) {
+        return 20
+      }
+      return m < 7.2 ? 16 : 12
+    })
+    const harassed = player('Harassed', durationMs, {
+      timeline: { ...base.timeline!, workers },
+    })
+    const [h] = computeGameMetrics('g', game([harassed])).players
+    expect(h.moments?.workerLoss).toEqual({ startMs: 410_000, endMs: 440_000, count: 8 })
+  })
+
+  test("measures how steadily a Terran or Protoss made workers, but not a Zerg's", () => {
+    const durationMs = 20 * 60_000
+    // A Probe every 25.2 seconds from one Nexus: busy half the time and a bit.
+    const probes = Array.from({ length: 20 }, (_, i) => step((i * 25.2) / 60, 64))
+    const [p] = computeGameMetrics(
+      'g',
+      game([player('Bisu', durationMs, { buildOrder: probes })]),
+    ).players
+    expect(p.workerProduction8).toBeCloseTo(0.525)
+
+    const [z] = computeGameMetrics(
+      'g',
+      game([player('Jaedong', durationMs, { race: 'z', buildOrder: probes })]),
+    ).players
+    expect(z.workerProduction8).toBeUndefined()
+  })
+
   test('tells game types apart', () => {
     expect(getGameShape([p(0), p(0)])).toBe('1v1')
     expect(getGameShape([p(0), p(0), p(0)])).toBe('ffa')

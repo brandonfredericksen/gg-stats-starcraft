@@ -529,7 +529,6 @@
       "winRate": "Win rate"
     },
     "coach": {
-      "againstRace": "Against other {{race}} players",
       "againstWhere": "{{where}}, over {{floor}} EAPM",
       "aimAtLeast": "At least {{value}}",
       "aimAtMost": "At most {{value}}",
@@ -548,6 +547,7 @@
       "build": "Build",
       "checksHelpGames": "Your latest games with this number, oldest first: {{games}}.",
       "checksHelpTeam": "A team game where someone left before this point doesn't have it, so it's skipped.",
+      "compareWithRace": "How you compare with other {{race}} players",
       "coverage": "{{analyzed}} of your {{total}} games of {{shape}} are analyzed.",
       "difference": "Difference",
       "earlier": "{{time}} earlier",
@@ -597,6 +597,7 @@
         "thirdBase": "When you started your third town hall.",
         "unspent": "Minerals and gas you had banked, on average. Lower means you spent faster.",
         "workerLead": "Your workers minus your opponent's at 8 minutes. Below 0 means they were ahead.",
+        "workerProduction": "The share of the first 8 minutes your Command Centers or Nexuses spent making workers, each from when it was done.",
         "workers": "Finished workers you had at that point.",
         "workersLostRate": "Workers of yours that died, for every 10 minutes you played, so a player who left early doesn't look careful."
       },
@@ -644,6 +645,7 @@
         "unitsPerBuilding": "Units queued per production building, {{phase}}",
         "unspent": "Unspent, {{phase}}",
         "workerLead": "Worker lead at 8 min",
+        "workerProduction": "Worker production, first 8 min",
         "workers": "Workers at {{minute}} min",
         "workersLost": "Workers lost"
       },
@@ -706,6 +708,13 @@
       "progressEnough_one": "{{count}}, enough",
       "progressEnough_other": "{{count}}, enough",
       "races": "Your race",
+      "review": {
+        "bankPeak": "Worst lately: {{date}} on {{map}}, {{amount}} banked at {{start}}.",
+        "minute": "Worst lately: {{date}} on {{map}}, {{value}} at {{start}}.",
+        "supplyBlock": "Worst lately: {{date}} on {{map}}, supply blocked from {{start}} to {{end}}.",
+        "timing": "Worst lately: {{date}} on {{map}}, started at {{value}}.",
+        "workerLoss": "Worst lately: {{date}} on {{map}}, {{amount}} {{workers}} lost from {{start}} to {{end}}."
+      },
       "sameAlly": "All of them had a {{ally}} ally, like you.",
       "sameOpening": "Compared with players who opened the same way.",
       "sameTime": "Same",
@@ -764,6 +773,7 @@
         "winsProduction": "You add {{production}} later in your losses. Make it part of the build, so it happens every game, not only the good ones.",
         "winsSupply": "You get supply blocked more in your losses. Keep building {{supply}} when the game gets busy, since that is when it slips.",
         "workerLead": "You fall behind your opponent's economy. Keep making {{workers}} through the early pressure instead of stopping to make units you don't need yet, and scout to know when you can.",
+        "workerProduction": "Your {{townHalls}} sit idle between {{workers}}. Queue two at a time, and go back to them every time you return to your base.",
         "workers": "Keep your {{townHalls}} making {{workers}} without a break. Check on them every time you cycle through your hotkeys.",
         "workersLost": "Protect your mineral lines. Keep {{defense}} or a few units near them, and pull {{workers}} away when harass comes.",
         "workersLostWatch": "Watch two of those games and see what killed your {{workers}}: a drop, Zerglings, Dark Templar or Storm. Fix that one thing, and keep {{defense}} and detection at home.",
@@ -777,6 +787,7 @@
       "unlockUser_one": "Analyze {{count}} more of your games here to unlock the coach",
       "unlockUser_other": "Analyze {{count}} more of your games here to unlock the coach",
       "upToMinute": "Up to {{minute}} min",
+      "watchFrom": "Watch from {{time}}",
       "windowAll": "All games",
       "windowFewMonths_one": "Last {{count}} games, since 3 months have fewer",
       "windowFewMonths_other": "Last {{count}} games, since 3 months have fewer",
@@ -1169,7 +1180,8 @@
       "showMine": "My games",
       "showOthers": "Other players' replays",
       "showResults": "Show results"
-    }
+    },
+    "watchMissing": "Couldn't find this game's replay."
   },
   "rootErrorBoundary": {
     "reloadApp": "Reload app",

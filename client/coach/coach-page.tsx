@@ -1270,7 +1270,9 @@ function Comparison({
           <PanelTitle>
             <TitleRace>
               <RaceTag race={bucket.race} />
-              {t('myStats.coach.againstRace', 'Against other {{race}} players', { race })}
+              {t('myStats.coach.compareWithRace', 'How you compare with other {{race}} players', {
+                race,
+              })}
             </TitleRace>
           </PanelTitle>
           <TitleNote>

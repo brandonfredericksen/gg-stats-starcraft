@@ -31,6 +31,8 @@ export interface ReplayLaunchOptions {
   linkedGameId?: string
   /** The replay's recorded start time, which seeds the game. 0 if it couldn't be read. */
   seed: number
+  /** Opens a watched replay at this frame instead of its start. */
+  startFrame?: number
 }
 
 /** Builds the config that launches StarCraft to watch or analyze a replay. */
@@ -41,6 +43,7 @@ export function makeReplayAnalysisConfig({
   analyze,
   linkedGameId,
   seed,
+  startFrame,
 }: ReplayLaunchOptions): GameLaunchConfig {
   const player: PlayerInfo = {
     type: SlotType.Human,
@@ -56,7 +59,7 @@ export function makeReplayAnalysisConfig({
     setup: {
       gameId,
       name,
-      map: { isReplay: true, path, analyze, linkedGameId },
+      map: { isReplay: true, path, analyze, linkedGameId, startFrame },
       gameType: GameType.Melee,
       gameSubType: 0,
       slots: [player],

@@ -207,6 +207,14 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
       return workers(12)
     case 'workers15':
       return workers(15)
+    case 'workerProduction8':
+      return [
+        t('myStats.coach.metric.workerProduction', 'Worker production, first 8 min'),
+        t(
+          'myStats.coach.help.workerProduction',
+          'The share of the first 8 minutes your Command Centers or Nexuses spent making workers, each from when it was done.',
+        ),
+      ]
     case 'workerLead8':
       return [
         t('myStats.coach.metric.workerLead', 'Worker lead at 8 min'),
@@ -452,7 +460,7 @@ export function getScopeName(scope: Omit<CoachScope, 'games'>, t: TFunction) {
 export type MetricGroup = 'economy' | 'growth' | 'spending' | 'fights' | 'speed'
 
 export function getMetricGroup(key: CoachMetricKey): MetricGroup {
-  if (key.startsWith('workers') && key !== 'workersLost') {
+  if ((key.startsWith('workers') && key !== 'workersLost') || key === 'workerProduction8') {
     return 'economy'
   }
   if (key.startsWith('income')) {
@@ -479,7 +487,7 @@ export function getMetricGroup(key: CoachMetricKey): MetricGroup {
 }
 
 /** The race's own words for what the tips talk about. */
-function getRaceWords(race: AssignedRaceChar, t: TFunction) {
+export function getRaceWords(race: AssignedRaceChar, t: TFunction) {
   switch (race) {
     case 't':
       return {
@@ -568,6 +576,12 @@ export function getTip(
             'Keep your {{townHalls}} making {{workers}} without a break. Check on them every time you cycle through your hotkeys.',
             words,
           )
+    case 'workerProduction':
+      return t(
+        'myStats.coach.tip.workerProduction',
+        'Your {{townHalls}} sit idle between {{workers}}. Queue two at a time, and go back to them every time you return to your base.',
+        words,
+      )
     case 'income':
       if (bgh) {
         return t(

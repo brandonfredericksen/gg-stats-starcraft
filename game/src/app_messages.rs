@@ -291,6 +291,14 @@ impl GameSetupInfo {
         }
     }
 
+    /// The frame a watched replay opens at, if it isn't the start.
+    pub fn replay_start_frame(&self) -> Option<u32> {
+        match &self.map {
+            MapInfo::Replay(replay) if !replay.analyze => replay.start_frame,
+            _ => None,
+        }
+    }
+
     pub fn bw_game_type(&self) -> Option<BwGameType> {
         match self.game_type {
             GameType::Melee => Some(BwGameType::melee()),
@@ -337,6 +345,9 @@ pub struct ReplayMapInfo {
     /// instead of letting someone watch it.
     #[serde(default)]
     pub analyze: bool,
+    /// Opens the replay at this frame instead of its start, like a moment the coach points to.
+    #[serde(default)]
+    pub start_frame: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

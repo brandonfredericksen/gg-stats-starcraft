@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { getErrorStack } from '../../common/errors'
+import { FASTEST_MS_PER_FRAME } from '../../common/games/game-stats'
 import { makeReplayAnalysisConfig } from '../../common/games/replay-analysis-config'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { urlPath } from '../../common/urls'
@@ -20,6 +21,7 @@ import { jotaiStore } from '../jotai-store'
 import logger from '../logging/logger'
 import { push, replace } from '../navigation/routing'
 import { RootState } from '../root-reducer'
+import { externalShowSnackbar } from '../snackbars/snackbar-controller-registry'
 import { healthChecked } from '../starcraft/health-checked'
 
 const ipcRenderer = new TypedIpcRenderer()
@@ -30,6 +32,7 @@ async function setGameConfig(replay: {
   analyze?: boolean
   linkedGameId?: string
   gameId?: string
+  startFrame?: number
 }) {
   const header = (await ipcRenderer.invoke('replayParseMetadata', replay.path))?.headerData
   return ipcRenderer.invoke(
@@ -45,12 +48,16 @@ async function setGameConfig(replay: {
 export function startReplay({
   path,
   name = 'Replay',
+  startMs,
 }: {
   path: string
   name?: string
+  /** Where in the game to open it, rather than its start. */
+  startMs?: number
 }): ThunkAction {
   return healthChecked(dispatch => {
-    setGameConfig({ path, name }).then(
+    const startFrame = startMs ? Math.round(startMs / FASTEST_MS_PER_FRAME) : undefined
+    setGameConfig({ path, name, startFrame }).then(
       gameId => {
         if (gameId) {
           dispatch(openDialog({ type: DialogType.ReplayLoad, initData: { gameId } }))
@@ -71,6 +78,29 @@ export function startReplay({
       },
     )
   })
+}
+
+/**
+ * Watches a game's replay from `atMs` into it, for a moment worth seeing again. Says so when the
+ * game's replay can't be found.
+ */
+export function watchGameAt(gameId: string, atMs: number): ThunkAction {
+  return dispatch => {
+    Promise.resolve(ipcRenderer.invoke('gameStatsGet', gameId))
+      .then(saved => {
+        const source = saved?.source
+        const path = source?.kind === 'replay' ? source.path : source?.replayPath
+        if (!path) {
+          externalShowSnackbar(i18n.t('replays.watchMissing', "Couldn't find this game's replay."))
+          return
+        }
+        const name = path.split(/[\\/]/).at(-1) ?? path
+        dispatch(startReplay({ path, name, startMs: atMs }))
+      })
+      .catch(err => {
+        logger.error(`Error finding the replay of game ${gameId}: ${getErrorStack(err)}`)
+      })
+  }
 }
 
 /** Where the stats of a game played or replay analyzed are shown. */

@@ -390,6 +390,11 @@ pub fn is_replay_analysis() -> bool {
     SETUP_INFO.get().is_some_and(|x| x.is_replay_analysis())
 }
 
+/// The frame a watched replay opens at, if it isn't the start.
+pub fn replay_start_frame() -> Option<u32> {
+    SETUP_INFO.get().and_then(|x| x.replay_start_frame())
+}
+
 pub fn setup_info() -> Option<&'static GameSetupInfo> {
     SETUP_INFO.get()
 }
