@@ -94,7 +94,57 @@ describe('common/games/player-metrics', () => {
     expect(p.income[at(8)]).toBe(600)
     expect(p.armyScore[at(5)]).toBe(500)
     expect(p.supplyTimesMs).toEqual([300_000, 450_000, 600_000])
-    expect(p.bank).toEqual([100, 500, 500])
+    // 190 supply from 9.5 minutes on, so nothing in the late game counts toward the bank.
+    expect(p.bank).toEqual([100, 500, null])
+  })
+
+  test('leaves money saved while maxed out of the bank', () => {
+    const durationMs = 20 * 60_000
+    const times = samples(durationMs)
+    const minutes = times.map(ms => ms / 60_000)
+    const base = player('Maxed', durationMs)
+    const maxed = player('Maxed', durationMs, {
+      timeline: {
+        ...base.timeline!,
+        unspent: minutes.map(m => (m < 13 ? 400 : 3000)),
+        supplyUsed: minutes.map(m => (m < 13 ? 120 : 200)),
+      },
+    })
+    const [p] = computeGameMetrics('g', game([maxed])).players
+    expect(p.bank[2]).toBe(400)
+  })
+
+  test('tells a player who quit from one who was defeated', () => {
+    const durationMs = 20 * 60_000
+    const quitter = player('Quitter', durationMs, { leftAtMs: 6 * 60_000 })
+    const defeatedBase = player('Defeated', durationMs, { leftAtMs: 6 * 60_000 })
+    const defeated = {
+      ...defeatedBase,
+      timeline: {
+        ...defeatedBase.timeline!,
+        // Down to their last worker when the last building fell.
+        workers: defeatedBase.timeline!.workers.map((w, i, all) => (i === all.length - 1 ? 1 : w)),
+      },
+    }
+    const [q, d, stayer] = computeGameMetrics(
+      'g',
+      game([quitter, defeated, player('Stayer', durationMs)]),
+    ).players
+    expect(q.quit).toBe(true)
+    expect(d.quit).toBe(false)
+    expect(stayer.quit).toBeUndefined()
+  })
+
+  test('reads bases at each checkpoint', () => {
+    const base = player('Bisu', 20 * 60_000)
+    const times = samples(20 * 60_000)
+    const withBases = player('Bisu', 20 * 60_000, {
+      timeline: { ...base.timeline!, bases: times.map(ms => (ms < 4 * 60_000 ? 1 : 2)) },
+    })
+    const [p] = computeGameMetrics('g', game([withBases])).players
+    expect(p.bases[at(4)]).toBe(2)
+    expect(p.bases[0]).toBe(2)
+    expect(computeGameMetrics('g', game([base])).players[0].bases[at(6)]).toBeNull()
   })
 
   test("leaves checkpoints the player didn't reach empty rather than zero", () => {
@@ -182,6 +232,8 @@ describe('common/games/map-family', () => {
     expect(getMapFamily('4v4 Fastest')).toBe('fastest')
     expect(getMapFamily('Big Game Hunters')).toBe('bgh')
     expect(getMapFamily('BGH 2v2v2v2')).toBe('bgh')
+    expect(getMapFamily('Fastest3v3 ver2')).toBe('fastest')
+    expect(getMapFamily('BGH3v3')).toBe('bgh')
     expect(getMapFamily('Polypoid 1.65')).toBe('standard')
   })
 })

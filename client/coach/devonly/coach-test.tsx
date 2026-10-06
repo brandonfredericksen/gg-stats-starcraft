@@ -109,6 +109,7 @@ const recentForm: CoachRecentForm = {
   earlierGames: 32,
   earlierWins: 14,
   earlierLosses: 18,
+  newPartnerGames: 0,
   changes: [
     change('workers6', 'count', 20, 23, 'better'),
     change('workers8', 'count', 30, 32, 'better'),
@@ -125,6 +126,8 @@ const recentForm: CoachRecentForm = {
 
 const pvz: CoachBucket = {
   recentForm,
+  anyAlly: false,
+  poolFromUserGames: 64,
   goals: [
     {
       key: 'workers8',
@@ -150,6 +153,19 @@ const pvz: CoachBucket = {
       beats: 0.18,
       inLosses: false,
       lastValue: 910,
+      lastHit: false,
+    },
+    {
+      key: 'buildTiming',
+      buildKey: 'u163',
+      unit: 'time',
+      higherIsBetter: false,
+      basis: 'others',
+      target: 290_000,
+      userValue: 335_000,
+      recentValue: 330_000,
+      inLosses: false,
+      lastValue: 300_000,
       lastHit: false,
     },
     {
@@ -424,33 +440,34 @@ const fewGamesForm: CoachRecentForm = {
   earlierGames: 0,
   earlierWins: 0,
   earlierLosses: 0,
+  newPartnerGames: 0,
   changes: [],
 }
 
 /** Goals from the user's own games, before there are enough other players to compare with. */
 const ownGoals: CoachBucket['goals'] = [
   {
-    key: 'workers6',
+    key: 'army7',
     unit: 'count',
     higherIsBetter: true,
     basis: 'wins',
-    target: 24,
-    userValue: 21,
-    recentValue: 22,
+    target: 1400,
+    userValue: 900,
+    recentValue: 1150,
     inLosses: true,
-    lastValue: 20,
+    lastValue: 1250,
     lastHit: false,
   },
   {
     key: 'workersLost',
-    unit: 'count',
+    unit: 'perTenMinutes',
     higherIsBetter: false,
     basis: 'earlier',
-    target: 8,
-    userValue: 9,
-    recentValue: 12,
+    target: 2.4,
+    userValue: 3.1,
+    recentValue: 4.2,
     inLosses: false,
-    lastValue: 6,
+    lastValue: 1.8,
     lastHit: true,
   },
 ]
@@ -515,6 +532,47 @@ const cases: Array<[string, CoachResult | undefined]> = [
       eapmFloor: 100,
       scope: pvzScope,
       buckets: [{ ...pvz, ...empty, wins: 12, losses: 3 }],
+    },
+  ],
+  [
+    'A 2v2 pairing with too few other players like it, and a teammate who often falls first',
+    {
+      status: 'ready',
+      scopes: [{ shape: '2v2', race: 'z', allyRace: 't', games: 24 }, ...scopes],
+      eapmFloor: 100,
+      scope: { shape: '2v2', race: 'z', allyRace: 't' },
+      buckets: [
+        {
+          ...pvz,
+          shape: '2v2',
+          race: 'z',
+          opponentRace: undefined,
+          allyRace: 't',
+          anyAlly: true,
+          poolFromUserGames: 0,
+          userGames: 24,
+          goals: ownGoals,
+          recentForm: { ...recentForm, newPartnerGames: 6 },
+          firstOut: { losses: 11, firstOut: 7, poolShare: 0.48 },
+          notes: [
+            { kind: 'form', form: { ...recentForm, newPartnerGames: 6 } },
+            {
+              kind: 'inLosses',
+              finding: {
+                key: 'army7',
+                unit: 'count',
+                higherIsBetter: true,
+                winValue: 1400,
+                lossValue: 900,
+                wins: 13,
+                losses: 11,
+                notable: true,
+              },
+            },
+            { kind: 'firstOut', firstOut: { losses: 11, firstOut: 7, poolShare: 0.48 } },
+          ],
+        },
+      ],
     },
   ],
   ['No games to coach', { status: 'noGames', scopes: [], eapmFloor: 100 }],

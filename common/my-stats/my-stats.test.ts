@@ -32,6 +32,7 @@ function player(
     mined: empty,
     income: empty,
     armyScore: empty,
+    bases: empty,
     production: empty,
     supplyTimesMs: [null, null, null],
     bank: [null, null, null],

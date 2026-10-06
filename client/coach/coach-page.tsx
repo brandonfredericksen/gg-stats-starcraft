@@ -375,10 +375,11 @@ function ScopePicker({
           picked?.shape === scope.shape &&
           picked.race === scope.race &&
           picked.opponentRace === scope.opponentRace &&
+          picked.allyRace === scope.allyRace &&
           picked.mapFamily === scope.mapFamily
         return (
           <ScopeChip
-            key={`${scope.shape}${scope.race}${scope.opponentRace ?? ''}${scope.mapFamily ?? ''}`}
+            key={`${scope.shape}${scope.race}${scope.opponentRace ?? ''}${scope.allyRace ?? ''}${scope.mapFamily ?? ''}`}
             type='button'
             $selected={selected}
             aria-pressed={selected}
@@ -393,10 +394,17 @@ function ScopePicker({
                 shape: scope.shape,
                 race: scope.race,
                 opponentRace: scope.opponentRace,
+                allyRace: scope.allyRace,
                 mapFamily: scope.mapFamily,
               })
             }>
             <RaceTag race={scope.race} />
+            {scope.allyRace ? (
+              <>
+                +
+                <RaceTag race={scope.allyRace} />
+              </>
+            ) : null}
             {scope.opponentRace ? (
               <>
                 {t('myStats.vs', 'vs')}
@@ -843,13 +851,40 @@ function BucketView({
       },
     ),
   ]
+  if (bucket.shape === '1v1' && bucket.poolGames) {
+    // In a mirror, other players are mostly the user's own opponents; otherwise they can only come
+    // from other people's games, so the benchmark means something different.
+    about.push(
+      t(
+        'myStats.coach.poolSourceSplit',
+        '{{fromYours}} of theirs are from your own games, {{fromOthers}} from other replays.',
+        {
+          fromYours: bucket.poolFromUserGames,
+          fromOthers: bucket.poolGames - bucket.poolFromUserGames,
+        },
+      ),
+    )
+  }
+  if (bucket.allyRace) {
+    about.push(
+      bucket.anyAlly
+        ? t(
+            'myStats.coach.anyAlly',
+            'Too few of them had a {{ally}} ally, so they are compared whatever their ally played.',
+            { ally: raceCharToLabel(bucket.allyRace, t) },
+          )
+        : t('myStats.coach.sameAlly', 'All of them had a {{ally}} ally, like you.', {
+            ally: raceCharToLabel(bucket.allyRace, t),
+          }),
+    )
+  }
   if (bucket.skippedGames) {
     about.push(
-      t('myStats.coach.skipped', {
+      t('myStats.coach.skippedQuit', {
         defaultValue:
-          '{{count}} more of yours are left out, since someone left in the first 5 minutes.',
+          '{{count}} more of yours are left out, since someone quit in the first 5 minutes.',
         defaultValue_one:
-          '{{count}} more of yours is left out, since someone left in the first 5 minutes.',
+          '{{count}} more of yours is left out, since someone quit in the first 5 minutes.',
         count: bucket.skippedGames,
       }),
     )

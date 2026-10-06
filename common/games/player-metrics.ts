@@ -7,7 +7,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 5
+export const GAME_METRICS_VERSION = 6
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -41,6 +41,19 @@ const MIN_PHASE_SAMPLES = 3
 const MIN_PHASE_MINUTES = 1
 /** How many buildings make up an opening. */
 const OPENING_LENGTH = 4
+/**
+ * Supply in use from which money on hand is left out of the bank. A player who's maxed out, or
+ * nearly, has nothing left to spend it on but more production, and often rightly saves it.
+ */
+const MAXED_SUPPLY = 190
+/**
+ * A player who left with at least this share of their most workers was still standing, so they
+ * quit rather than being defeated. Defeat in a melee game means every building destroyed, which
+ * takes the workers with it.
+ */
+const STANDING_WORKER_SHARE = 0.3
+/** Fewer workers than this is nothing to keep playing on, whatever the share. */
+const MIN_STANDING_WORKERS = 4
 
 const WORKER_IDS: ReadonlySet<number> = new Set([7, 41, 64])
 const OVERLORD_ID = 42
@@ -72,7 +85,13 @@ export interface PlayerMetrics {
   team: number
   /** The result the game reported, before a game the user left is counted as a loss. */
   result: GameStatsResult
+  /** When the player left or was defeated, if that was before the game ended. */
   leftAtMs?: number
+  /**
+   * Whether the player left while they were still standing, rather than being defeated. Only set
+   * for players who went out before the game ended.
+   */
+  quit?: boolean
   /** False for computers, which play without issuing commands. */
   human: boolean
   apm?: number
@@ -84,6 +103,8 @@ export interface PlayerMetrics {
   /** Minerals and gas mined in the minute before each checkpoint. */
   income: Array<number | null>
   armyScore: Array<number | null>
+  /** Bases the player had at each checkpoint. */
+  bases: Array<number | null>
   /**
    * Production buildings started so far, at each checkpoint. For Zerg this counts Hatcheries,
    * including the first.
@@ -91,7 +112,10 @@ export interface PlayerMetrics {
   production: Array<number | null>
   /** When the player first had each of {@link SUPPLY_MILESTONES} in use. */
   supplyTimesMs: Array<number | null>
-  /** The minerals and gas on hand, on average, in each of {@link PHASE_MINUTES}. */
+  /**
+   * The minerals and gas on hand, on average, in each of {@link PHASE_MINUTES}, while the player
+   * was under {@link MAXED_SUPPLY} supply.
+   */
   bank: Array<number | null>
   /** The share of the game the player was out of supply, after the first few minutes. */
   supplyBlockedShare: number | null
@@ -257,6 +281,23 @@ function getSupplyBlockedShare(times: PlayerTimes, player: GamePlayerStats) {
   return Math.max(0, blocked[last] - before) / (lastMs - SUPPLY_BLOCK_GRACE_MS)
 }
 
+/**
+ * Whether a player who went out before the game ended was still standing: they had a good part of
+ * their workers left, which a defeated player doesn't.
+ */
+function hasQuit(times: PlayerTimes, player: GamePlayerStats, game: GameStats) {
+  if (player.leftAtMs === undefined || player.leftAtMs >= game.durationMs) {
+    return undefined
+  }
+  const workers = player.timeline?.workers
+  const last = times.lastSampleIndex(workers)
+  if (!workers || last < 0) {
+    return undefined
+  }
+  const most = Math.max(...workers.slice(0, last + 1))
+  return workers[last] >= Math.max(MIN_STANDING_WORKERS, most * STANDING_WORKER_SHARE)
+}
+
 /** Effective actions per minute in each phase, for as long as the player played in it. */
 function getEapmByPhase(
   times: PlayerTimes,
@@ -320,6 +361,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     team: player.team,
     result: player.result,
     leftAtMs: player.leftAtMs,
+    quit: hasQuit(times, player, game),
     human: player.apm !== undefined,
     apm: player.apm,
     eapm: player.eapm,
@@ -331,10 +373,14 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
       return now !== null && before !== null ? now - before : null
     }),
     armyScore: checkpointsMs.map(ms => times.valueAt(timeline?.armyScore, ms)),
+    bases: checkpointsMs.map(ms => times.valueAt(timeline?.bases, ms)),
     production: checkpointsMs.map(productionAt),
     supplyTimesMs: SUPPLY_MILESTONES.map(supply => times.timeToReach(timeline?.supplyUsed, supply)),
     bank: PHASE_MINUTES.map(([start, end]) => {
-      const samples = times.between(timeline?.unspent, start * 60_000, end * 60_000)
+      const supply = times.between(timeline?.supplyUsed, start * 60_000, end * 60_000)
+      const samples = times
+        .between(timeline?.unspent, start * 60_000, end * 60_000)
+        .filter((_, i) => supply[i] === undefined || supply[i] < MAXED_SUPPLY)
       return samples.length >= MIN_PHASE_SAMPLES ? Math.round(sum(samples) / samples.length) : null
     }),
     supplyBlockedShare: getSupplyBlockedShare(times, player),

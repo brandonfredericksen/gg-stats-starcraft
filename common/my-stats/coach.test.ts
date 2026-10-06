@@ -34,6 +34,7 @@ function player(
     mined: empty,
     income: empty,
     armyScore: empty,
+    bases: empty,
     production: empty,
     supplyTimesMs: [null, null, null],
     bank: [null, null, null],
@@ -179,9 +180,9 @@ describe('common/my-stats/coach', () => {
     ])
   })
 
-  test('counts the games it skipped because someone left early', () => {
+  test('counts the games it skipped because someone quit early', () => {
     const left = game('1v1', [
-      player(me, 'p', 0, 'win', { leftAtMs: 2 * 60_000 }),
+      player(me, 'p', 0, 'win', { leftAtMs: 2 * 60_000, quit: true }),
       player('quitter', 'z', 1, 'loss'),
     ])
     const coach = computeCoach([...myGames(3, 18), left], query)
@@ -326,5 +327,325 @@ describe('common/my-stats/coach', () => {
     expect(goals).toEqual([
       expect.objectContaining({ key: 'workers6', basis: 'earlier', target: 20, beats: undefined }),
     ])
+  })
+
+  test('keeps team games where a rush defeated someone early', () => {
+    const rushed = Array.from({ length: 4 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win', { workers6: 14 }),
+        player('ally', 't', 0, 'win'),
+        player(`rushed${i}`, 'p', 1, 'loss', { leftAtMs: 3 * 60_000, quit: false }),
+        player(`foe${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const quit = game('2v2', [
+      player(me, 'z', 0, 'win'),
+      player('ally', 't', 0, 'win'),
+      player('quitter', 'p', 1, 'loss', { leftAtMs: 3 * 60_000, quit: true }),
+      player('foe', 'p', 1, 'loss'),
+    ])
+    const coach = computeCoach([...rushed, quit], { names: [me], shape: '2v2', race: 'z' })
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket).toMatchObject({ userGames: 4, skippedGames: 1, wins: 4 })
+  })
+
+  test('only reads numbers from before anyone in a team game went out', () => {
+    const games = Array.from({ length: 12 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win', { workers6: 14 }),
+        player('ally', 't', 0, 'win'),
+        // Out at 5 minutes, so workers at 6 come from a game played a player up.
+        player(`early${i}`, 'p', 1, 'loss', { leftAtMs: 5 * 60_000 }),
+        player(`foe${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const coach = computeCoach(games, { names: [me], shape: '2v2', race: 'z' })
+    const form = coach.status === 'ready' ? coach.buckets[0].recentForm : undefined
+    expect(form?.games).toHaveLength(10)
+    const goals = coach.status === 'ready' ? coach.buckets[0].goals : []
+    expect(goals).toEqual([])
+  })
+
+  test('splits 2v2 by the teammate race, falling back to any ally when too few match', () => {
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win', { workers6: 14 }),
+        player('partner', 't', 0, 'win'),
+        player(`foeA${i}`, 'p', 1, 'loss'),
+        player(`foeB${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const zergWith = (ally: AssignedRaceChar, count: number, workers6: number) =>
+      Array.from({ length: count }, (_, i) =>
+        game('2v2', [
+          player(`zerg${ally}${i}`, 'z', 0, 'win', { workers6 }),
+          player(`ally${ally}${i}`, ally, 0, 'win'),
+          player(`other${ally}${i}`, 'p', 1, 'loss'),
+          player(`another${ally}${i}`, 'p', 1, 'loss'),
+        ]),
+      )
+    const query: CoachQuery = { names: [me], shape: '2v2', race: 'z', allyRace: 't' }
+    const enough = computeCoach(
+      [...mine, ...zergWith('t', 30, 20), ...zergWith('z', 30, 10)],
+      query,
+    )
+    expect(enough.status === 'ready' && enough.buckets[0]).toMatchObject({
+      allyRace: 't',
+      anyAlly: false,
+      poolGames: 30,
+    })
+    expect(enough.status === 'ready' && enough.buckets[0].gaps[0]).toMatchObject({
+      key: 'workers6',
+      poolValue: 20,
+    })
+    const few = computeCoach([...mine, ...zergWith('t', 10, 20), ...zergWith('z', 30, 10)], query)
+    expect(few.status === 'ready' && few.buckets[0]).toMatchObject({ anyAlly: true, poolGames: 70 })
+    // The kinds of game name the teammate's race.
+    expect(enough.status === 'ready' && enough.scopes[0]).toMatchObject({ allyRace: 't' })
+  })
+
+  test('keeps teammates a lobby gave the user once among the players compared with', () => {
+    const withRandoms = Array.from({ length: 12 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win'),
+        player(`random${i}`, 'z', 0, 'win'),
+        player(`foeA${i}`, 'p', 1, 'loss'),
+        player(`foeB${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const coach = computeCoach(withRandoms, { names: [me], shape: '2v2', race: 'z' })
+    expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(12)
+  })
+
+  test("leaves the user's regular partners out of the players they're compared with", () => {
+    const withPartner = Array.from({ length: 12 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win'),
+        player('partner', 'z', 0, 'win'),
+        player(`foeA${i}`, 'p', 1, 'loss'),
+        player(`foeB${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const coach = computeCoach(withPartner, { names: [me], shape: '2v2', race: 'z' })
+    expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
+  })
+
+  test('compares speed with every player, not only those over the EAPM floor', () => {
+    const slowMe = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', { eapm: 90 }),
+        player(`zerg${i}`, 'z', 0, 'loss', { eapm: 90 }),
+      ]),
+    )
+    const others = [
+      ...poolGames(40, () => 18, 150),
+      ...Array.from({ length: 40 }, (_, i) =>
+        game('1v1', [
+          player(`slow${i}`, 'p', 0, 'win', { eapm: 80 }),
+          player(`slowz${i}`, 'z', 0, 'loss', { eapm: 80 }),
+        ]),
+      ),
+    ]
+    const coach = computeCoach([...slowMe, ...others], query)
+    const eapm =
+      coach.status === 'ready' ? coach.buckets[0].compared.find(f => f.key === 'eapm') : undefined
+    expect(eapm).toMatchObject({ poolGames: 80, beats: 0.5 })
+  })
+
+  test('puts the basics ahead of speed, one goal of each kind, and never a target of nothing', () => {
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', {
+          workers6: 14,
+          eapm: 100,
+          eapmByPhase: [100, 100, 100],
+          workersLost: 6,
+        }),
+        player(`zerg${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const theirs = Array.from({ length: 40 }, (_, i) =>
+      game('1v1', [
+        player(`toss${i}`, 'p', 0, 'win', {
+          workers6: 16 + (i % 5),
+          eapm: 160 + (i % 5),
+          eapmByPhase: [160, 160, 160],
+          workersLost: 0,
+        }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const coach = computeCoach([...mine, ...theirs], query)
+    const goals = coach.status === 'ready' ? coach.buckets[0].goals : []
+    // EAPM and EAPM by phase are one kind, after the workers; no workers lost isn't a target.
+    expect(goals.map(g => g.key)).toEqual(['workers6', 'eapm'])
+  })
+
+  test('compares with players who opened the same broad way, whatever the order', () => {
+    const gatesFirst = { u160: 60_000, u166: 150_000 }
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', {
+          workers6: 14,
+          opening: ['u160', 'u160', 'u160', 'u166'],
+          firstStartsMs: gatesFirst,
+        }),
+        player(`zerg${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const sameWay = Array.from({ length: 20 }, (_, i) =>
+      game('1v1', [
+        player(`toss${i}`, 'p', 0, 'win', {
+          workers6: 15,
+          opening: ['u160', 'u160', 'u166', 'u160'],
+          firstStartsMs: gatesFirst,
+        }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const expanders = Array.from({ length: 30 }, (_, i) =>
+      game('1v1', [
+        player(`fe${i}`, 'p', 0, 'win', {
+          workers6: 22,
+          opening: ['u154', 'u166', 'u160', 'u160'],
+          firstStartsMs: { u154: 70_000, u166: 100_000 },
+          townHallTimesMs: [70_000, null],
+        }),
+        player(`ling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const coach = computeCoach([...mine, ...sameWay, ...expanders], query)
+    const workers =
+      coach.status === 'ready'
+        ? coach.buckets[0].compared.find(f => f.key === 'workers6')
+        : undefined
+    expect(workers).toMatchObject({ sameOpening: true, poolValue: 15, poolGames: 20 })
+  })
+
+  test("in team games, compares losses only where a teammate didn't fall first", () => {
+    const wins = Array.from({ length: 6 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'win', { workers6: 20 }),
+        player('ally', 't', 0, 'win'),
+        player(`a${i}`, 'p', 1, 'loss'),
+        player(`b${i}`, 'p', 1, 'loss'),
+      ]),
+    )
+    const lossesAlone = Array.from({ length: 6 }, (_, i) =>
+      game('2v2', [
+        player(me, 'z', 0, 'loss', { workers6: 12, leftAtMs: 14 * 60_000 }),
+        player('ally', 't', 0, 'loss', { leftAtMs: 9 * 60_000 }),
+        player(`c${i}`, 'p', 1, 'win'),
+        player(`d${i}`, 'p', 1, 'win'),
+      ]),
+    )
+    const coach = computeCoach([...wins, ...lossesAlone], { names: [me], shape: '2v2', race: 'z' })
+    expect(coach.status === 'ready' && coach.buckets[0].inLosses).toEqual([])
+  })
+
+  test('scales the difference that matters with the size of the number', () => {
+    const atMinute = (income: number) => {
+      const values = CHECKPOINT_MINUTES.map(() => null as number | null)
+      values[at(10)] = income
+      return values
+    }
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', { income: atMinute(1900) }),
+        player(`zerg${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const theirs = Array.from({ length: 40 }, (_, i) =>
+      game('1v1', [
+        player(`toss${i}`, 'p', 0, 'win', { income: atMinute(1980 + (i % 5)) }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    // 80 a minute behind is past the 60 that matters in a small game, but not 6% of 1,980.
+    const coach = computeCoach([...mine, ...theirs], query)
+    expect(coach.status === 'ready' && coach.buckets[0].gaps).toEqual([])
+  })
+
+  test('on Big Game Hunters, reads later numbers and never makes base timing a gap', () => {
+    const late = (minute: number, value: number) => {
+      const values = CHECKPOINT_MINUTES.map(() => null as number | null)
+      values[at(minute)] = value
+      return values
+    }
+    const bgh = (players: PlayerMetrics[]) => ({
+      ...game('3v3', players),
+      mapFamily: 'bgh' as const,
+    })
+    const team = (name: string, i: number, overrides: Partial<PlayerMetrics>) =>
+      bgh([
+        player(name, 'p', 0, 'win', overrides),
+        player(`${name}ally1`, 't', 0, 'win'),
+        player(`${name}ally2`, 'z', 0, 'win'),
+        player(`${name}foe1${i}`, 'p', 1, 'loss'),
+        player(`${name}foe2${i}`, 'p', 1, 'loss'),
+        player(`${name}foe3${i}`, 'p', 1, 'loss'),
+      ])
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      team(me, i, { workers: late(15, 50), townHallTimesMs: [400_000, null] }),
+    )
+    const theirs = Array.from({ length: 40 }, (_, i) =>
+      team(`toss${i}`, i, { workers: late(15, 70), townHallTimesMs: [200_000, null] }),
+    )
+    const coach = computeCoach([...mine, ...theirs], {
+      names: [me],
+      shape: '3v3',
+      race: 'p',
+      mapFamily: 'bgh',
+    })
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket?.gaps.map(g => g.key)).toEqual(['workers15'])
+    expect(bucket?.compared.map(f => f.key)).toContain('secondBase')
+  })
+
+  test('says when the user is the first of their team to fall in losses more than most', () => {
+    const loss = (name: string, i: number, firstOut: boolean) =>
+      game('2v2', [
+        player(name, 'z', 0, 'loss', { leftAtMs: firstOut ? 8 * 60_000 : 12 * 60_000 }),
+        player(`${name}ally${i}`, 't', 0, 'loss', {
+          leftAtMs: firstOut ? 12 * 60_000 : 8 * 60_000,
+        }),
+        player(`${name}foe1${i}`, 'p', 1, 'win'),
+        player(`${name}foe2${i}`, 'p', 1, 'win'),
+      ])
+    const mine = Array.from({ length: 12 }, (_, i) => loss(me, i, i < 10))
+    const theirs = Array.from({ length: 40 }, (_, i) => loss(`zerg${i}`, i, i % 2 === 0))
+    const coach = computeCoach([...mine, ...theirs], { names: [me], shape: '2v2', race: 'z' })
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket?.firstOut).toEqual({ losses: 12, firstOut: 10, poolShare: 0.5 })
+    expect(bucket?.notes.map(n => n.kind)).toContain('firstOut')
+  })
+
+  test('sets a goal to start tech on time, but not for buildings from the opening', () => {
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', {
+          opening: ['u160', 'u157', 'u164'],
+          firstStartsMs: { u160: 60_000, u157: 90_000, u164: 150_000, u163: 400_000 },
+        }),
+        player(`zerg${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const theirs = Array.from({ length: 40 }, (_, i) =>
+      game('1v1', [
+        player(`toss${i}`, 'p', 0, 'win', {
+          opening: ['u160', 'u157', 'u164'],
+          firstStartsMs: { u160: 60_000, u157: 90_000, u164: 110_000, u163: 330_000 },
+        }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const coach = computeCoach([...mine, ...theirs], query)
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket?.goals).toEqual([
+      expect.objectContaining({ key: 'buildTiming', buildKey: 'u163', target: 330_000 }),
+    ])
+    expect(bucket?.notes.find(n => n.kind === 'timing')).toMatchObject({
+      timing: { buildKey: 'u163' },
+    })
   })
 })

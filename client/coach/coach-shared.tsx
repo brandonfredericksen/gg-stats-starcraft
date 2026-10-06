@@ -4,7 +4,7 @@ import styled, { css } from 'styled-components'
 import { MapFamily } from '../../common/games/map-family'
 import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
-import { CoachMetricKey, CoachScope, CoachUnit } from '../../common/my-stats/coach'
+import { CoachMetricKey, CoachScope, CoachUnit, getMetricFamily } from '../../common/my-stats/coach'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
 import { useStatFormat } from '../games/game-stats-shared'
 import { bodyMedium, labelMedium, titleSmall } from '../styles/typography'
@@ -181,10 +181,10 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     `${t('myStats.coach.help.hotkeys', 'Times a minute you selected a hotkeyed group, from the replay.')} ${phaseHelp}`,
   ]
   const productionCommands = (phase: keyof typeof phases): [string, string] => [
-    t('myStats.coach.metric.productionCommands', 'Production orders, {{phase}}', {
+    t('myStats.coach.metric.productionPerBuilding', 'Orders per production building, {{phase}}', {
       phase: phases[phase],
     }),
-    `${t('myStats.coach.help.productionCommands', 'Times a minute you ordered a unit or building, which shows how steadily you produce.')} ${phaseHelp}`,
+    `${t('myStats.coach.help.productionPerBuilding', 'Times a minute you ordered a unit, for each production building you had, which shows how often they sat idle.')} ${phaseHelp}`,
   ]
   switch (key) {
     case 'workers4':
@@ -195,16 +195,44 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
       return workers(8)
     case 'workers10':
       return workers(10)
+    case 'workers12':
+      return workers(12)
+    case 'workers15':
+      return workers(15)
+    case 'workerLead8':
+      return [
+        t('myStats.coach.metric.workerLead', 'Worker lead at 8 min'),
+        t(
+          'myStats.coach.help.workerLead',
+          "Your workers minus your opponent's at 8 minutes. Below 0 means they were ahead.",
+        ),
+      ]
+    case 'baseLead10':
+      return [
+        t('myStats.coach.metric.baseLead', 'Base lead at 10 min'),
+        t(
+          'myStats.coach.help.baseLead',
+          "Your bases minus your opponent's at 10 minutes. Below 0 means they were on more.",
+        ),
+      ]
     case 'income6':
       return mining(6)
     case 'income10':
       return mining(10)
+    case 'income12':
+      return mining(12)
+    case 'income15':
+      return mining(15)
     case 'production6':
       return production(6)
     case 'production8':
       return production(8)
     case 'production10':
       return production(10)
+    case 'production12':
+      return production(12)
+    case 'production15':
+      return production(15)
     case 'secondBase':
       return [
         t('myStats.coach.metric.secondBase', 'Second base'),
@@ -231,15 +259,17 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
       return [
         t('myStats.coach.metric.supplyBlocked', 'Time supply blocked'),
         t(
-          'myStats.help.supplyBlocked',
-          "The share of the game you couldn't make units because you were out of supply. The first 3 minutes are left out, since early blocks are often part of a build.",
+          'myStats.coach.help.supplyBlocked',
+          "How long you couldn't make units because you were out of supply, for every 10 minutes played. The first 3 minutes are left out, since early blocks are often part of a build, and so is time maxed out.",
         ),
       ]
     case 'army7':
     case 'army10':
+    case 'army12':
+    case 'army15':
       return [
         t('myStats.coach.metric.army', 'Army at {{minute}} min', {
-          minute: key === 'army7' ? 7 : 10,
+          minute: Number(key.slice('army'.length)),
         }),
         t('myStats.coach.help.army', "What your army was worth then, in the game's score."),
       ]
@@ -254,12 +284,18 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     case 'workersLost':
       return [
         t('myStats.coach.metric.workersLost', 'Workers lost'),
-        t('myStats.coach.help.workersLost', 'Workers of yours that died, over the whole game.'),
+        t(
+          'myStats.coach.help.workersLostRate',
+          "Workers of yours that died, for every 10 minutes you played, so a player who left early doesn't look careful.",
+        ),
       ]
     case 'overlordsLost':
       return [
         t('myStats.coach.metric.overlordsLost', 'Overlords lost'),
-        t('myStats.coach.help.overlordsLost', 'Overlords of yours that died, over the whole game.'),
+        t(
+          'myStats.coach.help.overlordsLostRate',
+          'Overlords of yours that died, for every 10 minutes you played.',
+        ),
       ]
     case 'eapm':
       return [
@@ -305,7 +341,12 @@ export function useFormatValue() {
       case 'time':
         return formatGameTime(value)
       case 'share':
-        return `${(value * 100).toFixed(1)}%`
+        // Time supply blocked, which reads better as seconds than as a share of the game.
+        return t('myStats.coach.secondsPerTen', '{{count}}s per 10 min', {
+          count: Math.round(value * 600),
+        })
+      case 'perTenMinutes':
+        return t('myStats.coach.perTen', '{{amount}} per 10 min', { amount: number(value) })
       case 'ratio':
         return value.toFixed(2)
       case 'perMinute':
@@ -316,6 +357,9 @@ export function useFormatValue() {
   }
 }
 
+/** Armor, weapons and Plasma Shields, the upgrades with levels. The rest have only one. */
+const LAST_LEVELED_UPGRADE_ID = 15
+
 export function getBuildName(buildKey: string, t: TFunction) {
   const [, kind, id, level] = /^([utg])(\d+)(?:\.(\d+))?$/.exec(buildKey) ?? []
   switch (kind) {
@@ -324,7 +368,9 @@ export function getBuildName(buildKey: string, t: TFunction) {
     case 't':
       return getTechName(Number(id), t)
     case 'g':
-      return `${getUpgradeName(Number(id), t)} +${level}`
+      return Number(id) <= LAST_LEVELED_UPGRADE_ID
+        ? `${getUpgradeName(Number(id), t)} +${level}`
+        : getUpgradeName(Number(id), t)
     default:
       return buildKey
   }
@@ -359,6 +405,13 @@ export function getMapFamilyShortName(family: MapFamily, t: TFunction) {
 
 export function getScopeName(scope: Omit<CoachScope, 'games'>, t: TFunction) {
   const race = raceCharToLabel(scope.race, t)
+  if (scope.allyRace) {
+    return t('myStats.coach.scopeAlly', '{{race}} with a {{ally}} ally in {{shape}}', {
+      race,
+      ally: raceCharToLabel(scope.allyRace, t),
+      shape: scope.shape,
+    })
+  }
   if (scope.mapFamily) {
     return t('myStats.coach.scopeTeamMap', '{{race}} in {{shape}} on {{map}}', {
       race,
@@ -417,6 +470,7 @@ function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         townHall: t('myStats.coach.words.commandCenter', 'Command Center'),
         supply: t('myStats.coach.words.depots', 'Supply Depots'),
         production: t('myStats.coach.words.barracksFactories', 'Barracks and Factories'),
+        defense: t('myStats.coach.words.bunkersTurrets', 'a Bunker or Turrets'),
       }
     case 'p':
       return {
@@ -425,6 +479,7 @@ function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         townHall: t('myStats.coach.words.nexus', 'Nexus'),
         supply: t('myStats.coach.words.pylons', 'Pylons'),
         production: t('myStats.coach.words.gateways', 'Gateways'),
+        defense: t('myStats.coach.words.cannons', 'a few Cannons'),
       }
     case 'z':
       return {
@@ -432,100 +487,196 @@ function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         townHalls: t('myStats.coach.words.hatcheries', 'Hatcheries'),
         townHall: t('myStats.coach.words.hatchery', 'Hatchery'),
         supply: t('myStats.coach.words.overlords', 'Overlords'),
-        production: t('myStats.coach.words.hatcheriesProduction', 'Hatcheries'),
+        production: t('myStats.coach.words.macroHatcheries', 'macro Hatcheries'),
+        defense: t('myStats.coach.words.sunkens', 'a Sunken or Spores'),
       }
     default:
       return race satisfies never
   }
 }
 
-/** What to do about a number, the way a coach would put it. */
-export function getTip(key: CoachMetricKey, race: AssignedRaceChar, t: TFunction): string {
-  const words = getRaceWords(race, t)
+/** The kind of game a tip is for, which changes what a coach would say. */
+export interface TipContext {
+  race: AssignedRaceChar
+  opponentRace?: AssignedRaceChar
+  teamGame: boolean
+  mapFamily?: MapFamily
+}
+
+/** What to do about a number, the way a coach would put it for this kind of game. */
+export function getTip(key: CoachMetricKey, context: TipContext, t: TFunction): string {
+  const words = getRaceWords(context.race, t)
+  const { teamGame, mapFamily } = context
+  const bgh = mapFamily === 'bgh'
+  const fastest = mapFamily === 'fastest'
+  const mirror = !teamGame && context.opponentRace === context.race
+
   switch (getMetricFamily(key)) {
     case 'workers':
-      return t(
-        'myStats.coach.tip.workers',
-        'Keep your {{townHalls}} making {{workers}} without a break. Queue one or two, and check on them every time you cycle through your hotkeys.',
-        words,
-      )
+      if (key === 'workerLead8') {
+        return t(
+          'myStats.coach.tip.workerLead',
+          "You fall behind your opponent's economy. Keep making {{workers}} through the early pressure instead of stopping to make units you don't need yet, and scout to know when you can.",
+          words,
+        )
+      }
+      return context.race === 'z'
+        ? t(
+            'myStats.coach.tip.workersZerg',
+            "Spend larvae on Drones whenever you aren't under pressure. Scout, so you know when you can drone hard and when you need units.",
+            words,
+          )
+        : t(
+            'myStats.coach.tip.workers',
+            'Keep your {{townHalls}} making {{workers}} without a break. Check on them every time you cycle through your hotkeys.',
+            words,
+          )
     case 'income':
+      if (bgh) {
+        return t(
+          'myStats.coach.tip.incomeBgh',
+          'Fill your main and take both gases early. On this map gas, not minerals, holds back your tech and upgrades.',
+          words,
+        )
+      }
+      if (fastest) {
+        return t(
+          'myStats.coach.tip.incomeFastest',
+          'Your main has more minerals than you can spend, so fill it with {{workers}} early and keep them mining while you fight.',
+          words,
+        )
+      }
       return t(
         'myStats.coach.tip.income',
         'Mining follows workers and bases. Fill each base with {{workers}}, take your gas on time, and expand before your main runs dry.',
         words,
       )
     case 'production':
-      return t(
-        'myStats.coach.tip.production',
-        'Add {{production}} sooner, so your money turns into units instead of sitting in the bank.',
-        words,
-      )
+      return context.race === 'z'
+        ? t(
+            'myStats.coach.tip.productionZerg',
+            'Add a macro Hatchery when minerals pile up and you run out of larvae.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.production',
+            'Add {{production}} sooner, so your money turns into units instead of sitting in the bank.',
+            words,
+          )
     case 'base':
-      return t(
-        'myStats.coach.tip.base',
-        'Plan your next {{townHall}} at a set supply in your build, and take it even when you feel unsafe. A late base holds back everything after it.',
-        words,
-      )
+      if (key === 'baseLead10') {
+        return t(
+          'myStats.coach.tip.baseLead',
+          'Your opponent is on more bases than you by 10 minutes. Take your next {{townHall}} as soon as you scout that you can hold it.',
+          words,
+        )
+      }
+      if (teamGame) {
+        return t(
+          'myStats.coach.tip.baseTeam',
+          'Expand when your allies can cover you, or right after you hold the first push. Agree on it before the game.',
+          words,
+        )
+      }
+      return mirror
+        ? t(
+            'myStats.coach.tip.baseMirror',
+            'Expand once you have scouted that they are not going all in. In a mirror, a one base build is often right, so this compares you with players who opened like you.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.base',
+            'Plan your next {{townHall}} at a set supply in your build, and take it once you have scouted no rush is coming. A late base holds back everything after it.',
+            words,
+          )
     case 'supply':
-      return t(
-        'myStats.coach.tip.supply',
-        'To max out sooner, keep making {{workers}} and add production as your income grows.',
-        words,
-      )
+      return bgh
+        ? t(
+            'myStats.coach.tip.supplyBgh',
+            'Max out sooner: add production as your income grows, and keep every building busy so you reach 200 before the big fights.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.supply',
+            'To grow faster, keep making {{workers}} and add production as your income grows.',
+            words,
+          )
     case 'bank':
-      return t(
-        'myStats.coach.tip.bank',
-        'When money piles up, spend it right away: queue units, add {{production}}, or take another base.',
-        words,
-      )
+      return bgh || fastest
+        ? t(
+            'myStats.coach.tip.bankMoney',
+            'When money piles up, add production or start your tech and upgrades. On this map there is always more to spend it on.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.bank',
+            'When money piles up, spend it right away: make units, add {{production}}, or take another base.',
+            words,
+          )
     case 'supplyBlocked':
-      return t(
-        'myStats.coach.tip.supplyBlocked',
-        'Build {{supply}} ahead of time. Start one whenever you get within about 8 supply of your cap, and two at once once you have a lot of production.',
-        words,
-      )
+      return bgh || fastest
+        ? t(
+            'myStats.coach.tip.supplyBlockedMoney',
+            'With this much production, build {{supply}} three or four at a time, and keep a worker on supply duty.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.supplyBlocked',
+            'Keep one round of production ahead in supply: one of your {{supply}} on one base, two or three at a time once you have a lot of production.',
+            words,
+          )
     case 'army':
-      return t(
-        'myStats.coach.tip.army',
-        'Your army is smaller than most at this point. Keep every production building busy and spend your money on units.',
-        words,
-      )
+      return teamGame
+        ? t(
+            'myStats.coach.tip.armyTeam',
+            'Your army is smaller than most at this point. Keep every production building busy, and move out with your allies rather than alone.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.army',
+            'Your army is smaller than most at this point. If you lose to pressure, scout earlier and make units when you see it coming. Otherwise keep every production building busy.',
+            words,
+          )
     case 'armyTrade':
-      return t(
-        'myStats.coach.tip.armyTrade',
-        "You lose more than you kill in fights. Fight where your units are strong, wait for your upgrades, and pull back from fights you're losing.",
-        words,
-      )
+      return teamGame
+        ? t(
+            'myStats.coach.tip.armyTradeTeam',
+            'You lose more than you kill in fights. Attack together with your allies: armies that hit one player at the same time trade far better than any one of them alone.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.armyTrade',
+            "You lose more than you kill in fights. Fight where your units are strong, wait for your upgrades, and pull back from fights you're losing.",
+            words,
+          )
     case 'workersLost':
-      return t(
-        'myStats.coach.tip.workersLost',
-        'Protect your mineral lines. Keep a few units or some static defense near them, and pull {{workers}} away when harass comes.',
-        words,
-      )
+      return teamGame
+        ? t(
+            'myStats.coach.tip.workersLostTeam',
+            'Protect your mineral line with {{defense}}, pull {{workers}} away when harass comes, and send units to an ally the moment they are hit.',
+            words,
+          )
+        : t(
+            'myStats.coach.tip.workersLost',
+            'Protect your mineral lines. Keep {{defense}} or a few units near them, and pull {{workers}} away when harass comes.',
+            words,
+          )
     case 'overlordsLost':
       return t(
         'myStats.coach.tip.overlordsLost',
         "Spread your Overlords out, away from the paths your opponent's army and air units take.",
         words,
       )
-    case 'eapm':
-    case 'apm':
+    case 'speed':
       return t(
         'myStats.coach.tip.speed',
-        "Speed comes from habits. Cycle through your bases and production with hotkeys, even when nothing's happening.",
-        words,
-      )
-    case 'hotkeys':
-      return t(
-        'myStats.coach.tip.hotkeys',
-        'Put your army and your production on hotkeys, and use them instead of clicking on the screen.',
+        "Speed comes from habits. Put your army and production on hotkeys, and cycle through your bases with them, even when nothing's happening.",
         words,
       )
     case 'productionCommands':
       return t(
         'myStats.coach.tip.productionCommands',
-        'Produce more steadily: check every production building each time you cycle through your hotkeys.',
+        'Your production buildings sit idle. Check every one each time you cycle through your hotkeys.',
         words,
       )
     default:
@@ -533,24 +684,11 @@ export function getTip(key: CoachMetricKey, race: AssignedRaceChar, t: TFunction
   }
 }
 
-/**
- * Numbers that come from the same thing, like workers at 6 and at 8 minutes, which share a tip.
- */
-function getMetricFamily(key: CoachMetricKey) {
-  return key.endsWith('Base') ? 'base' : key.replace(/(\d+|Early|Mid|Late)$/, '')
-}
-
-/**
- * A target to reach, rounded the way that still reaches it: up for numbers where more is better,
- * down where less is.
- */
-export function roundTarget(value: number, unit: CoachUnit, higherIsBetter: boolean) {
-  if (unit !== 'count' && unit !== 'perMinute') {
-    return value
-  }
-  if (Math.abs(value) < 10) {
-    const tenths = value * 10
-    return (higherIsBetter ? Math.ceil(tenths) : Math.floor(tenths)) / 10
-  }
-  return higherIsBetter ? Math.ceil(value) : Math.floor(value)
+/** What to do about a build that starts later than most. */
+export function getTimingTip(build: string, time: string, t: TFunction) {
+  return t(
+    'myStats.coach.tip.timing',
+    'Put {{build}} at a set point in your build and start it by {{time}}. If your build saves it for later on purpose, skip this one.',
+    { build, time },
+  )
 }

@@ -7,9 +7,11 @@ import {
   CoachGame,
   CoachGoal,
   CoachNote,
+  CoachRecentForm,
   MIN_EARLIER_GAMES,
   RECENT_FORM_GAMES,
 } from '../../common/my-stats/coach'
+import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
@@ -29,14 +31,15 @@ import { bodyMedium, labelLarge, labelMedium, titleLarge, titleSmall } from '../
 import {
   Cell,
   Columns,
+  formatGameTime,
   formatTimeDiff,
   getBuildName,
   getMetricGroup,
   getMetricText,
+  getTimingTip,
   getTip,
   GroupHead,
   MetricGroup,
-  roundTarget,
   Table,
   Text,
   Tone,
@@ -279,6 +282,29 @@ function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   }
 }
 
+/** What a tip needs to know about the kind of game. */
+function getTipContext(bucket: CoachBucket) {
+  return {
+    race: bucket.race,
+    opponentRace: bucket.opponentRace,
+    teamGame: isTeamGame(bucket.shape),
+    mapFamily: bucket.mapFamily,
+  }
+}
+
+/** A goal's name and what it means, for a number or for when to start something. */
+function getGoalText(goal: CoachGoal, t: TFunction): [label: string, help: string] {
+  if (goal.key === 'buildTiming') {
+    return [
+      t('myStats.coach.metric.buildTiming', '{{build}} timing', {
+        build: getBuildName(goal.buildKey ?? '', t),
+      }),
+      t('myStats.coach.help.buildTiming', 'When you usually start it, against other players.'),
+    ]
+  }
+  return getMetricText(goal.key, t)
+}
+
 function GoalItem({
   goal,
   index,
@@ -290,8 +316,8 @@ function GoalItem({
 }) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
-  const [label, help] = getMetricText(goal.key, t)
-  const target = roundTarget(goal.target, goal.unit, goal.higherIsBetter)
+  const [label, help] = getGoalText(goal, t)
+  const { target } = goal
   let lastTone: Tone | undefined
   if (goal.lastHit !== undefined) {
     lastTone = goal.lastHit ? 'good' : 'bad'
@@ -313,7 +339,9 @@ function GoalItem({
         </AimLine>
         <Facts>
           <Fact>
-            {t('myStats.coach.factTypical', 'You, typically')}
+            {goal.basis === 'wins'
+              ? t('myStats.coach.factLosses', 'In your losses')
+              : t('myStats.coach.factTypical', 'You, typically')}
             <strong>{formatValue(goal.userValue, goal.unit)}</strong>
           </Fact>
           {goal.recentValue !== undefined ? (
@@ -351,7 +379,11 @@ function GoalItem({
             </Fact>
           ) : null}
         </Facts>
-        <Tip>{getTip(goal.key, bucket.race, t)}</Tip>
+        <Tip>
+          {goal.key === 'buildTiming'
+            ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)
+            : getTip(goal.key, getTipContext(bucket), t)}
+        </Tip>
       </GoalBody>
     </GoalRow>
   )
@@ -398,7 +430,7 @@ export function NextGame({ bucket }: { bucket: CoachBucket }) {
       {bucket.goals.length ? (
         <Goals>
           {bucket.goals.map((goal, i) => (
-            <GoalItem key={goal.key} goal={goal} index={i} bucket={bucket} />
+            <GoalItem key={goal.buildKey ?? goal.key} goal={goal} index={i} bucket={bucket} />
           ))}
         </Goals>
       ) : (
@@ -436,6 +468,55 @@ function formatChange(
   return `${diff > 0 ? '+' : '-'}${amount}`
 }
 
+/** What the coach says about the latest results, against the games before them. */
+function getFormContent(
+  form: CoachRecentForm,
+  t: TFunction,
+): { icon: string; tone?: Tone; title: string; body: string } {
+  const rate = getWinRate(form.wins, form.losses) ?? 0
+  const earlierRate = getWinRate(form.earlierWins, form.earlierLosses)
+  const values = {
+    count: form.games.length,
+    wins: form.wins,
+    losses: form.losses,
+    rate: formatPercent(rate),
+    earlierRate: formatPercent(earlierRate),
+  }
+  if (earlierRate !== undefined && rate - earlierRate >= 0.1) {
+    return {
+      icon: 'trending_up',
+      tone: 'good',
+      title: t('myStats.coach.note.formUpTitle', "You're on a good run"),
+      body: t(
+        'myStats.coach.note.formUp',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, up from {{earlierRate}} before. Whatever changed, keep doing it.',
+        values,
+      ),
+    }
+  }
+  if (earlierRate !== undefined && earlierRate - rate >= 0.1) {
+    return {
+      icon: 'trending_down',
+      tone: 'bad',
+      title: t('myStats.coach.note.formDownTitle', 'A rough patch'),
+      body: t(
+        'myStats.coach.note.formDown',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, down from {{earlierRate}} before. Pick one goal for your next game and play a few games with only that in mind.',
+        values,
+      ),
+    }
+  }
+  return {
+    icon: 'trending_flat',
+    title: t('myStats.coach.note.formSteadyTitle', 'Steady results'),
+    body: t(
+      'myStats.coach.note.formSteady',
+      '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} before. To move up, work on the goals for your next game.',
+      values,
+    ),
+  }
+}
+
 function getNoteContent(
   note: CoachNote,
   bucket: CoachBucket,
@@ -444,63 +525,57 @@ function getNoteContent(
 ): { icon: string; tone?: Tone; title: string; body: string } {
   switch (note.kind) {
     case 'form': {
-      const { form } = note
-      const rate = getWinRate(form.wins, form.losses) ?? 0
-      const earlierRate = getWinRate(form.earlierWins, form.earlierLosses)
-      const values = {
-        count: form.games.length,
-        wins: form.wins,
-        losses: form.losses,
-        rate: formatPercent(rate),
-        earlierRate: formatPercent(earlierRate),
+      const content = getFormContent(note.form, t)
+      const partners = note.form.newPartnerGames
+      if (isTeamGame(bucket.shape) && partners * 2 >= note.form.games.length) {
+        content.body += ` ${t('myStats.coach.note.newPartners', {
+          defaultValue:
+            '{{count}} of them were with a teammate you had not played with before, which often explains a swing.',
+          defaultValue_one:
+            '{{count}} of them was with a teammate you had not played with before, which often explains a swing.',
+          count: partners,
+        })}`
       }
-      if (earlierRate !== undefined && rate - earlierRate >= 0.1) {
-        return {
-          icon: 'trending_up',
-          tone: 'good',
-          title: t('myStats.coach.note.formUpTitle', "You're on a good run"),
-          body: t(
-            'myStats.coach.note.formUp',
-            '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, up from {{earlierRate}} before. Whatever changed, keep doing it.',
-            values,
-          ),
-        }
-      }
-      if (earlierRate !== undefined && earlierRate - rate >= 0.1) {
-        return {
-          icon: 'trending_down',
-          tone: 'bad',
-          title: t('myStats.coach.note.formDownTitle', 'A rough patch'),
-          body: t(
-            'myStats.coach.note.formDown',
-            '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, down from {{earlierRate}} before. Pick one goal for your next game and play a few games with only that in mind.',
-            values,
-          ),
-        }
-      }
-      return {
-        icon: 'trending_flat',
-        title: t('myStats.coach.note.formSteadyTitle', 'Steady results'),
-        body: t(
-          'myStats.coach.note.formSteady',
-          '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} before. To move up, work on the goals for your next game.',
-          values,
-        ),
-      }
+      return content
     }
     case 'inLosses': {
       const { finding } = note
+      const values = {
+        metric: getMetricText(finding.key, t)[0],
+        win: formatValue(finding.winValue, finding.unit),
+        loss: formatValue(finding.lossValue, finding.unit),
+      }
       return {
         icon: 'flag',
         tone: 'bad',
         title: t('myStats.coach.note.inLossesTitle', 'Where your games slip away'),
+        body: isTeamGame(bucket.shape)
+          ? t(
+              'myStats.coach.note.inLossesTeam',
+              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss, leaving out losses where a teammate fell first. In team games that can also mean you were the one they attacked, so check a few of those games.',
+              values,
+            )
+          : t(
+              'myStats.coach.note.inLosses',
+              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss. It goes together with losing, so getting it right is worth more than anything else here.',
+              values,
+            ),
+      }
+    }
+    case 'firstOut': {
+      const { firstOut } = note
+      return {
+        icon: 'person_off',
+        tone: 'bad',
+        title: t('myStats.coach.note.firstOutTitle', 'First to fall'),
         body: t(
-          'myStats.coach.note.inLosses',
-          '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss. It goes together with losing, so getting it right is worth more than anything else here.',
+          'myStats.coach.note.firstOut',
+          'You were the first of your team out in {{firstOut}} of your {{losses}} losses, {{share}}, against {{poolShare}} for other players. Scout which way their first push is heading, and ask for help before it lands rather than after.',
           {
-            metric: getMetricText(finding.key, t)[0],
-            win: formatValue(finding.winValue, finding.unit),
-            loss: formatValue(finding.lossValue, finding.unit),
+            firstOut: firstOut.firstOut,
+            losses: firstOut.losses,
+            share: formatPercent(firstOut.firstOut / firstOut.losses),
+            poolShare: formatPercent(firstOut.poolShare),
           },
         ),
       }
