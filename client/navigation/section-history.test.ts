@@ -1,74 +1,55 @@
 import { describe, expect, test } from 'vitest'
-import { SectionHistory } from './section-history'
+import { EntrySections } from './section-history'
 
 describe('client/navigation/section-history', () => {
-  test('goes back and forward within a section', () => {
-    const history = new SectionHistory()
-    history.visit('/replays')
-    history.visit('/replays/stats/a')
-    expect(history.canGoBack()).toBe(true)
-    expect(history.canGoForward()).toBe(false)
-
-    const back = history.back()
-    expect(back).toBe('/replays')
-    history.visit(back!)
-    expect(history.canGoBack()).toBe(false)
-    expect(history.canGoForward()).toBe(true)
-
-    const forward = history.forward()
-    expect(forward).toBe('/replays/stats/a')
-    history.visit(forward!)
-    expect(history.canGoForward()).toBe(false)
+  test('lights the section a page is in', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/replays', 'reload')
+    expect(sections.section).toBe('library')
+    sections.visit('b', '/my-stats', 'push')
+    expect(sections.section).toBe('myStats')
+    sections.visit('c', '/last-game', 'push')
+    expect(sections.section).toBe('lastGame')
   })
 
-  test('keeps each section to itself, and remembers where each one was', () => {
-    const history = new SectionHistory()
-    history.visit('/replays')
-    history.visit('/replays/stats/a')
-    history.visit('/my-stats')
-    // My stats has just one page, so there's nowhere to go back to within it.
-    expect(history.canGoBack()).toBe(false)
+  test('keeps a game in the section it was opened from, going back and forward too', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/my-stats', 'reload')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('myStats')
 
-    history.visit('/replays/stats/a')
-    expect(history.canGoBack()).toBe(true)
-    expect(history.back()).toBe('/replays')
+    sections.visit('c', '/coach', 'push')
+    sections.visit('b', '/replays/stats/g1', 'traverse')
+    expect(sections.section).toBe('myStats')
+    sections.visit('a', '/my-stats', 'traverse')
+    expect(sections.section).toBe('myStats')
   })
 
-  test('keeps a game opened from My stats in My stats, so going back returns there', () => {
-    const history = new SectionHistory()
-    history.visit('/replays')
-    history.visit('/my-stats')
-    history.visit('/replays/stats/b')
-    expect(history.section).toBe('myStats')
-    const back = history.back()
-    expect(back).toBe('/my-stats')
-    history.visit(back!)
-    expect(history.canGoForward()).toBe(true)
+  test('puts a game in the section asked for, like the last game', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/coach', 'reload')
+    sections.openNextIn('lastGame')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('lastGame')
 
-    const forward = history.forward()
-    expect(forward).toBe('/replays/stats/b')
-    history.visit(forward!)
-    expect(history.section).toBe('myStats')
+    // A new analysis replacing the page stays where the page was.
+    sections.visit('b', '/replays/stats/g2', 'replace')
+    expect(sections.section).toBe('lastGame')
   })
 
-  test('drops the pages ahead when going somewhere new after going back', () => {
-    const history = new SectionHistory()
-    history.visit('/replays')
-    history.visit('/replays/stats/a')
-    history.visit(history.back()!)
-    history.visit('/replays/stats/b')
-    expect(history.canGoForward()).toBe(false)
-    expect(history.back()).toBe('/replays')
+  test("only asks for the very next page, so one that never comes doesn't claim a later one", () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/coach', 'reload')
+    sections.openNextIn('lastGame')
+    sections.visit('b', '/my-stats', 'push')
+    sections.visit('c', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('myStats')
   })
 
-  test('updates a page in place when only its search changes, like a filter', () => {
-    const history = new SectionHistory()
-    history.visit('/replays')
-    history.visit('/replays?teams=1v1')
-    history.visit('/replays?teams=1v1&q=flash')
-    expect(history.canGoBack()).toBe(false)
-
-    history.visit('/replays/stats/a')
-    expect(history.back()).toBe('/replays?teams=1v1&q=flash')
+  test('puts a game opened from settings in the library', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/settings', 'reload')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('library')
   })
 })

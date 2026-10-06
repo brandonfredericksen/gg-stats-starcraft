@@ -2,6 +2,7 @@ import { getErrorStack } from '../../common/errors'
 import { ThunkAction } from '../dispatch-registry'
 import i18n from '../i18n/i18next'
 import logger from '../logging/logger'
+import { openNextPageIn } from '../navigation/page-nav'
 import { push } from '../navigation/routing'
 import { analyzeReplay } from '../replays/action-creators'
 import { externalShowSnackbar } from '../snackbars/snackbar-controller-registry'
@@ -17,6 +18,7 @@ export function openLastGame(): ThunkAction {
       .then(result => {
         if (result.state === 'found') {
           const { entry } = result
+          openNextPageIn('lastGame')
           dispatch(
             analyzeReplay({
               path: entry.path,
