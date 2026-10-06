@@ -146,10 +146,15 @@ const HelpTooltip = styled(Tooltip)`
   display: inline-block;
 `
 
-const HelpTrigger = styled.span`
-  text-decoration: underline dotted rgb(from currentColor r g b / 0.5);
+const HelpTrigger = styled.span<{ $quiet?: boolean }>`
+  text-decoration: underline dotted
+    rgb(from currentColor r g b / ${props => (props.$quiet ? 0 : 0.5)});
   text-underline-offset: 3px;
   cursor: help;
+
+  &:hover {
+    text-decoration-color: rgb(from currentColor r g b / 0.5);
+  }
 `
 
 const HelpText = styled.span`
@@ -159,10 +164,19 @@ const HelpText = styled.span`
 `
 
 /** A metric's name, which explains what the metric means when hovered or focused. */
-export function HelpLabel({ label, help }: { label: string; help: string }) {
+export function HelpLabel({
+  label,
+  help,
+  quiet = false,
+}: {
+  label: string
+  help: string
+  /** No underline until hovered, for a table full of them where it would only be noise. */
+  quiet?: boolean
+}) {
   return (
     <HelpTooltip position='top' text={<HelpText>{help}</HelpText>}>
-      <HelpTrigger>{label}</HelpTrigger>
+      <HelpTrigger $quiet={quiet}>{label}</HelpTrigger>
     </HelpTooltip>
   )
 }

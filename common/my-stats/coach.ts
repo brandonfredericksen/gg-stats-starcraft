@@ -11,8 +11,13 @@ export const COACH_MIN_USER_GAMES = 10
 export const COACH_MIN_POOL_GAMES = 30
 /** The EAPM floors the user can pick for other players, lowest first. */
 export const EAPM_FLOORS = [100, 150, 200, 250] as const
-/** The EAPM other players need to count, unless the user picks another. */
+/** The lowest EAPM other players need to count, and the floor My stats starts on. */
 export const DEFAULT_EAPM_FLOOR = EAPM_FLOORS[0]
+/**
+ * Unless the user picks a floor, other players need about this share of the user's own EAPM, so
+ * they're compared with players about as fast as they are: the ones they play against.
+ */
+const AUTO_FLOOR_SHARE = 0.9
 /** How many of the user's latest games the user can pick to look at, besides `auto` and `all`. */
 export const COACH_WINDOW_GAMES = [25, 50, 100] as const
 /**
@@ -72,6 +77,13 @@ const BGH_EARLY_MINUTE = 15
 export const RECENT_FORM_GAMES = 10
 /** How many of the user's latest games each goal is checked against. */
 export const GOAL_CHECK_GAMES = 5
+/** How far back a goal's check looks for games that have its number, like ones nobody left early. */
+const GOAL_CHECK_LOOKBACK = 15
+/**
+ * How far apart the user's wins and losses have to be for a difference to count, in steps of how
+ * much the number usually varies. With a dozen of each, smaller differences are mostly chance.
+ */
+const MIN_RESULT_SIZE = 0.75
 /** How many games before those recent form needs to compare them with. */
 export const MIN_EARLIER_GAMES = 5
 /** The most things the coach asks the user to work on in their next game. */
@@ -91,13 +103,41 @@ const REGULAR_PARTNER_GAMES = 3
 const BASIC_BUILDING_IDS: ReadonlySet<number> = new Set([
   106, 109, 110, 111, 124, 125, 131, 142, 143, 144, 146, 149, 154, 156, 157, 160, 162, 172,
 ])
+/**
+ * Buildings that only unlock upgrades or static defense: the Forge, Engineering Bay and Evolution
+ * Chamber. When they come follows the plan; the upgrade they start is what to time.
+ */
+const UPGRADE_BUILDING_IDS: ReadonlySet<number> = new Set([122, 139, 166])
+/** Photon Cannons, Bunkers, Missile Turrets and Creep, Sunken and Spore Colonies. */
+const STATIC_DEFENSE_IDS: ReadonlySet<number> = new Set([124, 125, 143, 144, 146, 162])
+const GATEWAY_KEY = 'u160'
+const CYBERNETICS_CORE_KEY = 'u164'
+const FORGE_KEY = 'u166'
+const BARRACKS_KEY = 'u111'
+const HATCHERY_KEY = 'u131'
+const SPAWNING_POOL_KEY = 'u142'
+/** A Spawning Pool started before this is an early pool, like a 9 pool, rather than a 12 pool. */
+const EARLY_POOL_MS = 90_000
+/**
+ * About what one production building spends a minute making units nonstop: Zealots and Dragoons
+ * from a Gateway, Marines from a Barracks.
+ */
+const SPEND_PER_PRODUCTION: Partial<Record<AssignedRaceChar, number>> = { p: 250, t: 200 }
+
 /** Buildings that show which way a player is going: tech, and production beyond the first kind. */
 const TECH_BUILDING_IDS: ReadonlySet<number> = new Set([
   112, 113, 114, 115, 116, 117, 122, 123, 132, 133, 135, 136, 137, 138, 139, 140, 141, 155, 159,
   163, 164, 165, 166, 167, 169, 170, 171,
 ])
 
-export type CoachUnit = 'count' | 'perMinute' | 'perTenMinutes' | 'time' | 'share' | 'ratio'
+export type CoachUnit =
+  | 'count'
+  | 'perMinute'
+  | 'perTenMinutes'
+  | 'time'
+  | 'share'
+  | 'ratio'
+  | 'percent'
 
 export type CoachMetricKey =
   | 'workers4'
@@ -117,6 +157,7 @@ export type CoachMetricKey =
   | 'production10'
   | 'production12'
   | 'production15'
+  | 'productionForIncome10'
   | 'secondBase'
   | 'thirdBase'
   | 'supply100'
@@ -199,6 +240,11 @@ interface CoachMetric {
   shownIn?: (context: CoachContext) => boolean
   /** Whether it can be pointed out as a gap, strength or goal here, rather than only listed. */
   pointsOut?: (context: CoachContext) => boolean
+  /**
+   * Whether the user's typical number is a problem however many other players share it, like
+   * being supply blocked for a long time. Other players' typical number is passed too.
+   */
+  gapWhen?: (user: number, pool: number) => boolean
 }
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
@@ -274,7 +320,25 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     minute,
     openingDependent: minute <= 10,
     shownIn: minute > 10 ? onBgh : undefined,
+    // On a money map, how many buildings is right depends on the income, which the number
+    // for income covers.
+    pointsOut: context => !context.moneyMap || SPEND_PER_PRODUCTION[context.race] === undefined,
   })),
+  {
+    key: 'productionForIncome10',
+    value: s => {
+      const buildings = s.player.production[at(10)]
+      const income = s.player.income[at(10)]
+      const spend = s.player.race ? SPEND_PER_PRODUCTION[s.player.race] : undefined
+      return buildings !== null && income && spend ? buildings / (income / spend) : undefined
+    },
+    higherIsBetter: true,
+    minDiff: 0.15,
+    unit: 'percent',
+    minute: 10,
+    shownIn: context => context.moneyMap && SPEND_PER_PRODUCTION[context.race] !== undefined,
+    gapWhen: user => user < 0.8,
+  },
   ...(['secondBase', 'thirdBase'] as const).map((key, i): CoachMetric => ({
     key,
     value: s => s.player.townHallTimesMs[i],
@@ -312,6 +376,8 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     higherIsBetter: false,
     minDiff: 0.02,
     unit: 'share',
+    // 30 seconds every 10 minutes is a habit to fix, even when most players have it too.
+    gapWhen: user => user >= 0.05,
   },
   ...[7, 10, 12, 15].map((minute): CoachMetric => ({
     key: `army${minute}` as CoachMetricKey,
@@ -344,6 +410,9 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     minDiff: 1.5,
     unit: 'perTenMinutes',
     minPlayedMs: MIN_WHOLE_GAME_PLAYED_MS,
+    // Most players lose almost none, so how many fewer than the user they lose says more than
+    // how many players lose fewer.
+    gapWhen: (user, pool) => user >= 2 && user >= pool * 2,
   },
   {
     key: 'overlordsLost',
@@ -386,6 +455,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     value: s => s.player.hotkeyRecallsPerMin?.[i],
     higherIsBetter: true,
     minDiff: 1.5,
+    relativeDiff: 0.15,
     unit: 'perMinute',
     minute: [6, 12, undefined][i],
     speed: true,
@@ -522,10 +592,11 @@ export interface CoachGoal {
   /** It's also worse in the user's losses than in their wins, so it's likely costing games. */
   inLosses: boolean
   /**
-   * The user's latest {@link GOAL_CHECK_GAMES} games, oldest first: whether each reached the
-   * target, or null for one without this number.
+   * Whether each of the user's latest {@link GOAL_CHECK_GAMES} games with this number reached the
+   * target, oldest first. A team game where someone left before the number's minute doesn't have
+   * it.
    */
-  checks: Array<boolean | null>
+  checks: boolean[]
 }
 
 /** How often the user is the first of their team out in losses, against other players. */
@@ -570,11 +641,18 @@ export interface CoachBucket {
   wins: number
   losses: number
   poolGames: number
+  /** How many different players {@link poolGames} come from. */
+  poolPlayers: number
   /** Of {@link poolGames}, how many are from games the user played in, like their opponents'. */
   poolFromUserGames: number
   /** The opening the user plays most here, as build keys. */
   opening: string[]
   gaps: CoachFinding[]
+  /**
+   * With no gaps, the number the user is furthest behind other players on, if they're behind
+   * most of them, so an empty list can still say what's closest.
+   */
+  closestGap?: CoachFinding
   strengths: CoachFinding[]
   inLosses: CoachResultFinding[]
   timings: CoachTiming[]
@@ -634,6 +712,11 @@ export type CoachResult = {
       window: CoachWindow
       /** How many of the user's latest games `auto` looks at here. */
       autoGames: number
+      /**
+       * Whether those are the user's last 3 months of games, rather than the fewest `auto` looks
+       * at, for a player with fewer games than that in 3 months.
+       */
+      autoMonths: boolean
       /**
        * The time of the first game looked at, when the window leaves some out. Other players'
        * games before it are left out too, so both come from the same patch and meta.
@@ -706,15 +789,24 @@ function isTechKey(buildKey: string) {
   return kind === 't' || kind === 'g' || (kind === 'u' && TECH_BUILDING_IDS.has(Number(id)))
 }
 
+/** Buildings whose timing follows the plan rather than showing it: upgrade buildings, defense. */
+function isPlanFollower(buildKey: string) {
+  const [, id] = /^u(\d+)$/.exec(buildKey) ?? []
+  return (
+    id !== undefined && (UPGRADE_BUILDING_IDS.has(Number(id)) || STATIC_DEFENSE_IDS.has(Number(id)))
+  )
+}
+
 function isBasicBuilding(buildKey: string) {
   const [, id] = /^u(\d+)$/.exec(buildKey) ?? []
   return id !== undefined && BASIC_BUILDING_IDS.has(Number(id))
 }
 
 /**
- * How a player opened, broadly: whether they expanded first, and the first tech they went for.
- * Close enough that the order of the first few buildings doesn't split players who play the same
- * way.
+ * How a player opened, broadly: whether they expanded first, and what their opening was built
+ * around. Protoss by how many Gateways came before the Cybernetics Core, or a Forge first; Zerg by
+ * Hatchery first or how early the Spawning Pool came; Terran by what followed the first Barracks.
+ * Other races, or an opening none of those fit, by the first tech they went for.
  */
 function openingFamily(p: PlayerMetrics) {
   if (!p.opening.length) {
@@ -723,10 +815,51 @@ function openingFamily(p: PlayerMetrics) {
   }
   const secondBase = p.townHallTimesMs[0]
   const expanded = secondBase !== null && secondBase <= FAST_EXPAND_MS
+  return `${expanded ? 'expand' : 'oneBase'}:${openingCore(p)}`
+}
+
+function openingCore(p: PlayerMetrics) {
+  const { opening } = p
+  if (p.race === 'p') {
+    if (
+      opening.indexOf(FORGE_KEY) !== -1 &&
+      opening.indexOf(FORGE_KEY) < opening.indexOf(GATEWAY_KEY)
+    ) {
+      return 'forge'
+    }
+    const core = opening.indexOf(CYBERNETICS_CORE_KEY)
+    const gates = (core === -1 ? opening : opening.slice(0, core)).filter(k => k === GATEWAY_KEY)
+    if (gates.length) {
+      return `gates${Math.min(gates.length, 3)}`
+    }
+  }
+  if (p.race === 'z') {
+    const pool = opening.indexOf(SPAWNING_POOL_KEY)
+    const hatch = opening.indexOf(HATCHERY_KEY)
+    if (hatch !== -1 && (pool === -1 || hatch < pool)) {
+      return 'hatch'
+    }
+    const poolMs = p.firstStartsMs[SPAWNING_POOL_KEY]
+    if (poolMs !== undefined) {
+      return poolMs < EARLY_POOL_MS ? 'earlyPool' : 'pool'
+    }
+  }
+  if (p.race === 't') {
+    const rax = opening.indexOf(BARRACKS_KEY)
+    const next = rax === -1 ? undefined : opening.slice(rax + 1).find(k => !isRefinery(k))
+    if (next) {
+      return `rax:${next}`
+    }
+  }
   const tech = Object.entries(p.firstStartsMs)
     .filter(([key, ms]) => ms <= OPENING_TECH_MS && key.startsWith('u') && isTechKey(key))
     .sort(([, a], [, b]) => a - b)[0]?.[0]
-  return `${expanded ? 'expand' : 'oneBase'}:${tech ?? ''}`
+  return `tech:${tech ?? ''}`
+}
+
+/** Refineries, Assimilators and Extractors, which come wherever the gas is wanted. */
+function isRefinery(buildKey: string) {
+  return buildKey === 'u110' || buildKey === 'u149' || buildKey === 'u157'
 }
 
 function mostCommon<T>(values: ReadonlyArray<T>): T | undefined {
@@ -868,10 +1001,11 @@ function getResultFindings(
     const lossValue = median(lossValues)
     const diff = Math.abs(winValue - lossValue)
     const minDiff = minDiffFor(metric, winValue)
-    const notable = isBetter(metric, winValue, lossValue) && diff >= minDiff
     const all = [...winValues, ...lossValues]
     const middle = median(all)
     const spread = median(all.map(v => Math.abs(v - middle))) || minDiff
+    const notable =
+      isBetter(metric, winValue, lossValue) && diff >= minDiff && diff / spread >= MIN_RESULT_SIZE
     findings.push({
       key: metric.key,
       unit: metric.unit,
@@ -939,6 +1073,7 @@ function getTimings(
       sameOpening,
       notable:
         bothUsual &&
+        !isPlanFollower(key) &&
         userMs !== undefined &&
         poolMs !== undefined &&
         Math.abs(userMs - poolMs) >= MIN_TIMING_DIFF_MS,
@@ -1150,6 +1285,8 @@ export function roundTarget(value: number, unit: CoachUnit, higherIsBetter: bool
       return round(value * 10) / 10
     case 'time':
       return round(value / 1000) * 1000
+    case 'percent':
+      return round(value * 100) / 100
     default:
       return value
   }
@@ -1168,6 +1305,8 @@ function roundShown(value: number, unit: CoachUnit) {
       return Math.round(value * 10) / 10
     case 'time':
       return Math.round(value / 1000) * 1000
+    case 'percent':
+      return Math.round(value * 100) / 100
     default:
       return value
   }
@@ -1187,8 +1326,8 @@ interface GoalCandidate {
   /** Where the user is now, when it isn't their typical game, like their typical loss. */
   userValue?: number
   recentValues: number[]
-  /** The values in the user's latest {@link GOAL_CHECK_GAMES} games, oldest first. */
-  checkValues: Array<number | undefined>
+  /** The values in the user's latest {@link GOAL_CHECK_GAMES} games that have it, oldest first. */
+  checkValues: number[]
 }
 
 const BASIS_ORDER: Record<CoachGoalBasis, number> = { others: 0, wins: 1, earlier: 2 }
@@ -1207,9 +1346,12 @@ function getGoals({
   timings,
   opening,
   user,
+  strengths,
 }: {
   context: CoachContext
   gaps: ReadonlyArray<CoachFinding & { metric: CoachMetric }>
+  /** Where the user is ahead of other players, which no goal should contradict. */
+  strengths: ReadonlyArray<CoachFinding>
   inLosses: ReadonlyArray<CoachResultFinding>
   changes: ReadonlyArray<CoachChange>
   timings: ReadonlyArray<CoachTiming>
@@ -1218,7 +1360,15 @@ function getGoals({
 }): CoachGoal[] {
   const samples = user.map(g => g.sample)
   const recent = samples.slice(-RECENT_FORM_GAMES)
-  const checked = samples.slice(-GOAL_CHECK_GAMES)
+  const lookback = samples.slice(-GOAL_CHECK_LOOKBACK)
+  /** The latest few values a number has, skipping games that don't have it. */
+  const latest = (valueAt: (s: Sample) => number | undefined) =>
+    lookback
+      .flatMap(s => {
+        const value = valueAt(s)
+        return value === undefined ? [] : [value]
+      })
+      .slice(-GOAL_CHECK_GAMES)
   const costly = new Set(inLosses.filter(f => f.notable).map(f => f.key))
   const metricOf = (key: CoachMetricKey) => METRICS.find(m => m.key === key)!
 
@@ -1238,7 +1388,7 @@ function getGoals({
       tier: metric.speed ? 2 : 0,
       userValues: numbersOf(samples, metric),
       recentValues: numbersOf(recent, metric),
-      checkValues: checked.map(s => valueOf(s, metric)),
+      checkValues: latest(s => valueOf(s, metric)),
     }
   }
 
@@ -1261,13 +1411,15 @@ function getGoals({
         tier: 1,
         userValues: timesOf(samples, t.buildKey),
         recentValues: timesOf(recent, t.buildKey),
-        checkValues: checked.map(s => timeOf(s.player, t.buildKey)),
+        checkValues: latest(s => timeOf(s.player, t.buildKey)),
       })),
     ...inLosses
       .filter(f => f.notable)
-      // In a team game, fewer workers in losses is mostly from being the one attacked, which a
-      // goal to make more of them wouldn't fix.
-      .filter(f => !context.teamGame || !['workers', 'income'].includes(getMetricFamily(f.key)))
+      // In a team game, less of these in losses mostly comes from losing a fight or being the
+      // one attacked, which a goal to make more wouldn't fix.
+      .filter(f => !context.teamGame || !isFightDriven(f.key))
+      // How fast someone plays changes slowly, so it's no target for one game.
+      .filter(f => !metricOf(f.key).speed)
       .map(f => ({ ...fromMetric(metricOf(f.key), 'wins', f.winValue), userValue: f.lossValue })),
     ...changes
       .filter(c => c.direction === 'worse')
@@ -1275,7 +1427,8 @@ function getGoals({
       .map(c => fromMetric(metricOf(c.key), 'earlier', c.earlierValue)),
   ]
 
-  const families = new Set<string>()
+  // Nothing the user is already good at becomes a goal, so a goal never argues with a strength.
+  const families = new Set<string>(strengths.map(f => getMetricFamily(f.key)))
   const goals: CoachGoal[] = []
   const ranked = candidates
     .map((candidate, order) => ({ candidate, order }))
@@ -1314,14 +1467,25 @@ function getGoals({
           : undefined,
       beats: candidate.beats,
       inLosses: candidate.key !== 'buildTiming' && costly.has(candidate.key),
-      checks: candidate.checkValues.map(value =>
-        value === undefined
-          ? null
-          : roundShown(value, candidate.unit) === target || isBetter(candidate, value, target),
+      checks: candidate.checkValues.map(
+        value => roundShown(value, candidate.unit) === target || isBetter(candidate, value, target),
       ),
     })
   }
   return goals
+}
+
+/**
+ * Numbers a team game's fights decide as much as the player does: workers, mining, army and early
+ * production. In a loss they're lower mostly because the player was attacked or lost a fight.
+ */
+function isFightDriven(key: CoachMetricKey) {
+  const family = getMetricFamily(key)
+  if (family === 'workers' || family === 'income' || family === 'army') {
+    return true
+  }
+  const minute = /^production(\d+)$/.exec(key)?.[1]
+  return minute !== undefined && Number(minute) < 10
 }
 
 /** How often the user went out first in their team's losses, against other players. */
@@ -1351,7 +1515,8 @@ function getNotes(
   if (form.earlierGames >= MIN_EARLIER_GAMES && form.wins + form.losses > 0) {
     notes.push({ kind: 'form', form })
   }
-  const inLosses = bucket.inLosses.find(f => f.notable)
+  const isSpeed = (key: CoachMetricKey) => getMetricFamily(key) === 'speed'
+  const inLosses = bucket.inLosses.find(f => f.notable && !isSpeed(f.key))
   if (inLosses) {
     notes.push({ kind: 'inLosses', finding: inLosses })
   }
@@ -1360,7 +1525,9 @@ function getNotes(
     notes.push({ kind: 'firstOut', firstOut })
   }
   const biggest = (direction: CoachChange['direction']) =>
-    form.changes.filter(c => c.direction === direction).sort((a, b) => b.size - a.size)[0]
+    form.changes
+      .filter(c => c.direction === direction && !isSpeed(c.key))
+      .sort((a, b) => b.size - a.size)[0]
   const slipping = biggest('worse')
   if (slipping) {
     notes.push({ kind: 'slipping', change: slipping })
@@ -1389,12 +1556,11 @@ export function computeCoach(
   allGames: ReadonlyArray<DatedGameMetrics>,
   query: CoachQuery,
 ): CoachResult {
-  const eapmFloor = query.eapmFloor ?? DEFAULT_EAPM_FLOOR
   const scopes = getScopes(allGames, query.names)
   const picked =
     query.shape && query.race && (query.shape !== '1v1' || query.opponentRace) ? query : scopes[0]
   if (!picked?.shape || !picked.race) {
-    return { status: 'noGames', scopes, eapmFloor }
+    return { status: 'noGames', scopes, eapmFloor: query.eapmFloor ?? DEFAULT_EAPM_FLOOR }
   }
   const shape = picked.shape
   const race = picked.race
@@ -1449,10 +1615,8 @@ export function computeCoach(
     .sort((a, b) => a - b)
   const window = query.window ?? 'auto'
   // Counted back from the latest game rather than today, so a break from playing doesn't empty it.
-  const autoGames = Math.max(
-    AUTO_WINDOW_MIN_GAMES,
-    myTimes.filter(time => time >= (myTimes.at(-1) ?? 0) - AUTO_WINDOW_MS).length,
-  )
+  const monthsGames = myTimes.filter(time => time >= (myTimes.at(-1) ?? 0) - AUTO_WINDOW_MS).length
+  const autoGames = Math.max(AUTO_WINDOW_MIN_GAMES, monthsGames)
   let windowGames: number | undefined
   if (window === 'auto') {
     windowGames = autoGames
@@ -1465,6 +1629,15 @@ export function computeCoach(
       : undefined
   const games =
     sinceMs === undefined ? allGames : allGames.filter(game => game.gameTimeMs >= sinceMs)
+
+  const myEapms = games.flatMap(game => {
+    const me = findMe(game, query.names)
+    return me?.eapm !== undefined && isOfKind(game, me) && hasAlly(game, me) ? [me.eapm] : []
+  })
+  const autoFloor = myEapms.length
+    ? EAPM_FLOORS.filter(floor => floor <= median(myEapms) * AUTO_FLOOR_SHARE).at(-1)
+    : undefined
+  const eapmFloor = query.eapmFloor ?? autoFloor ?? DEFAULT_EAPM_FLOOR
 
   // The user's regular partners make poor benchmarks: their games go with the user's, win or
   // lose. Someone a lobby put them with once is as good a benchmark as anyone.
@@ -1584,7 +1757,11 @@ export function computeCoach(
       ) {
         continue
       }
-      if (finding.beats < GAP_SCORE && isConsistent(metric, user, finding, false)) {
+      if (
+        (finding.beats < GAP_SCORE && isConsistent(metric, user, finding, false)) ||
+        (metric.gapWhen?.(finding.userValue, finding.poolValue) &&
+          isBetter(metric, finding.poolValue, finding.userValue))
+      ) {
         gaps.push({ ...finding, metric })
       } else if (finding.beats > STRENGTH_SCORE && isConsistent(metric, user, finding, true)) {
         strengths.push({ ...finding, metric })
@@ -1605,7 +1782,21 @@ export function computeCoach(
     }
 
     const strip = ({ metric: _, ...finding }: CoachFinding & { metric: CoachMetric }) => finding
-    const topGaps = gaps.sort((a, b) => a.beats - b.beats).slice(0, MAX_GAPS)
+    // Problems whatever other players do come first, then the furthest behind them.
+    const urgent = (gap: CoachFinding & { metric: CoachMetric }) =>
+      gap.metric.gapWhen?.(gap.userValue, gap.poolValue) ? 0 : 1
+    const topGaps = gaps
+      .sort((a, b) => urgent(a) - urgent(b) || a.beats - b.beats)
+      .slice(0, MAX_GAPS)
+    const closestGap = gaps.length
+      ? undefined
+      : compared
+          .filter(f => f.beats < 0.5 && metrics.some(m => m.key === f.key && !m.speed))
+          .sort((a, b) => a.beats - b.beats)[0]
+    const topStrengths = strengths
+      .sort((a, b) => b.beats - a.beats)
+      .slice(0, MAX_STRENGTHS)
+      .map(strip)
     // In team games, a loss where a teammate fell first says little about how the user played.
     const lossesToCompare = userGames.filter(
       g => g.result === 'loss' && !(teamGame && wasLeftAlone(g.sample)),
@@ -1633,13 +1824,12 @@ export function computeCoach(
         .map(([name]) => name),
       ...countResults(userGames),
       poolGames: pool.length,
+      poolPlayers: new Set(pool.map(sample => nameOf(sample.player))).size,
       poolFromUserGames,
       opening: openingKeys,
       gaps: topGaps.map(strip),
-      strengths: strengths
-        .sort((a, b) => b.beats - a.beats)
-        .slice(0, MAX_STRENGTHS)
-        .map(strip),
+      closestGap,
+      strengths: topStrengths,
       inLosses,
       timings,
       compared,
@@ -1655,6 +1845,7 @@ export function computeCoach(
               timings,
               opening: openingKeys,
               user: userGames,
+              strengths: topStrengths,
             })
           : [],
     }
@@ -1668,6 +1859,7 @@ export function computeCoach(
     scope: { shape, race, opponentRace, allyRace, mapFamily },
     window,
     autoGames,
+    autoMonths: monthsGames >= AUTO_WINDOW_MIN_GAMES,
     sinceMs,
     mapKey,
     maps,

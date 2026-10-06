@@ -3,13 +3,7 @@ import { debounce } from 'lodash-es'
 import { useEffect, useState } from 'react'
 import { getErrorStack } from '../../common/errors'
 import { TypedIpcRenderer } from '../../common/ipc'
-import {
-  CoachResult,
-  CoachScope,
-  CoachWindow,
-  computeCoach,
-  DEFAULT_EAPM_FLOOR,
-} from '../../common/my-stats/coach'
+import { CoachResult, CoachScope, CoachWindow, computeCoach } from '../../common/my-stats/coach'
 import { MyStatsShape } from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
@@ -117,22 +111,19 @@ export function useShapeCounts(): ShapeCount[] {
 }
 
 /**
- * The EAPM other players need to count. My stats compares with the same players, so both pages
- * share it.
+ * The coach's look at the picked kind of game, again whenever games are analyzed, or `error` when
+ * it couldn't be worked out. `retry` asks again.
  */
-export function useEapmFloor() {
-  return useAtomValue(myStatsFiltersAtom).eapmFloor ?? DEFAULT_EAPM_FLOOR
-}
-
-/** The coach's look at the picked kind of game, again whenever games are analyzed. */
-export function useCoach(): CoachResult | undefined {
+export function useCoach(): { coach: CoachResult | 'error' | undefined; retry: () => void } {
   const names = useStatsPlayerNames()
   const scope = useAtomValue(coachScopeAtom)
   const window = useAtomValue(coachWindowAtom)
   const mapKey = useAtomValue(coachMapAtom)
-  const eapmFloor = useEapmFloor()
+  // Only a floor the user picked; otherwise the coach picks one from how fast they play.
+  const eapmFloor = useAtomValue(myStatsFiltersAtom).eapmFloor
   const demo = useDemoPlayer()
-  const [data, setData] = useState<CoachResult>()
+  const [data, setData] = useState<CoachResult | 'error'>()
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!names?.length) {
@@ -152,6 +143,9 @@ export function useCoach(): CoachResult | undefined {
         })
         .catch(err => {
           logger.error(`Error loading the coach: ${getErrorStack(err)}`)
+          if (current) {
+            setData('error')
+          }
         })
     }
     load()
@@ -165,7 +159,7 @@ export function useCoach(): CoachResult | undefined {
       ipcRenderer.removeListener('activeGameStats', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, scope, mapKey, eapmFloor, window, demo])
+  }, [names, scope, mapKey, eapmFloor, window, demo, attempt])
 
-  return data
+  return { coach: data, retry: () => setAttempt(a => a + 1) }
 }

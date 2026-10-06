@@ -675,4 +675,55 @@ describe('common/my-stats/coach', () => {
       timing: { buildKey: 'u163' },
     })
   })
+
+  test('points out long supply blocks even when many players have them too', () => {
+    const blocked = (share: number, name: string, result: GameStatsResult = 'win') =>
+      game('1v1', [
+        player(name, 'p', 0, result, { supplyBlockedShare: share }),
+        player(`${name}-zerg`, 'z', 1, result === 'win' ? 'loss' : 'win'),
+      ])
+    const coach = computeCoach(
+      [
+        ...Array.from({ length: 12 }, (_, i) => blocked(0.12, me, i % 2 ? 'win' : 'loss')),
+        ...Array.from({ length: 40 }, (_, i) => blocked(0.01 * (i % 20), `toss${i}`)),
+      ],
+      query,
+    )
+    const gaps = coach.status === 'ready' ? coach.buckets[0].gaps : []
+    expect(gaps.map(g => g.key)).toContain('supplyBlocked')
+    expect(gaps.find(g => g.key === 'supplyBlocked')!.beats).toBeGreaterThan(0.3)
+  })
+
+  test("doesn't count a difference between wins and losses that's mostly chance", () => {
+    const coach = computeCoach(
+      [
+        ...myGames(12, 0).map((g, i) => {
+          g.players[0].workers[at(6)] = i % 2 ? 26 : 14
+          return g
+        }),
+        ...myGames(12, 0, () => 'loss').map((g, i) => {
+          g.players[0].workers[at(6)] = i % 2 ? 24 : 12
+          return g
+        }),
+      ],
+      query,
+    )
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket?.inLosses.find(f => f.key === 'workers6')).toMatchObject({
+      winValue: 20,
+      lossValue: 18,
+      notable: false,
+    })
+  })
+
+  test('compares with players about as fast as the user, unless a floor is picked', () => {
+    const fast = myGames(12, 18).map(g => {
+      g.players[0].eapm = 250
+      return g
+    })
+    const auto = computeCoach(fast, query)
+    expect(auto.eapmFloor).toBe(200)
+    const picked = computeCoach(fast, { ...query, eapmFloor: 100 })
+    expect(picked.eapmFloor).toBe(100)
+  })
 })
