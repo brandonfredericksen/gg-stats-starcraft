@@ -1,0 +1,12 @@
+[package]
+name = "overlay-ui"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "overlay_ui"
+
+[dependencies]
+# Same egui the injected game DLL renders through, referenced via the workspace dependency so the
+# two can never drift on version/features.
+egui = { workspace = true }

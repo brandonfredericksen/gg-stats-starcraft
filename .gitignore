@@ -1,0 +1,22 @@
+build/
+coverage/
+dist/
+node_modules/
+test-results/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.env
+.env-build
+npm-debug.log
+yarn-error.log
+electron-builder.env
+
+.playwright-cli/
+
+# Agent and editor tooling, plans and notes stay local.
+.local/
+.claude/
+CLAUDE.local.md
+.mcp.json
+

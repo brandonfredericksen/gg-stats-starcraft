@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noImplicitOverride": true,
+    "strict": true,
+
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+
+  "include": [
+    "app/**/*",
+    "build-plugins/**/*",
+    "client/**/*",
+    "common/**/*",
+    "tools/**/*",
+    "typings/**/*",
+    "*.ts"
+  ],
+
+  "exclude": ["app/dist", "app/node_modules"]
+}

@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GG Stats for StarCraft</title>
+    <meta
+      name="description"
+      content="Post game stats for StarCraft: Remastered. Army, economy, build orders and your own record, a minute after every game. Free and open source." />
+    <meta property="og:title" content="GG Stats for StarCraft" />
+    <meta
+      property="og:description"
+      content="Post game stats for StarCraft: Remastered, a minute after every game." />
+    <meta property="og:url" content="https://ggstats.app/" />
+    <link rel="icon" href="logo.svg" type="image/svg+xml" />
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-weight: 400;
+        font-display: swap;
+        src: url('fonts/Inter-normal-400-latin.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Inter';
+        font-weight: 600;
+        font-display: swap;
+        src: url('fonts/Inter-normal-600-latin.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Inter';
+        font-weight: 700;
+        font-display: swap;
+        src: url('fonts/Inter-normal-700-latin.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Sofia Sans';
+        font-weight: 700;
+        font-display: swap;
+        src: url('fonts/Sofia_Sans-normal-700-latin.woff2') format('woff2');
+      }
+
+      :root {
+        color-scheme: dark;
+        --surface: #0f0f11;
+        --container-low: #17171a;
+        --container: #1c1c20;
+        --container-high: #212125;
+        --outline-variant: #2c2c31;
+        --on-surface: #f4f4f5;
+        --on-surface-variant: #a1a1aa;
+        --positive: #4ade80;
+        --negative: #f87171;
+        --library: #38c6f4;
+        --stats: #a78bfa;
+        --last-game: #fbbf24;
+        --terran: #60a5fa;
+        --zerg: #c084fc;
+        --protoss: #facc15;
+        --body: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, sans-serif;
+        --display: Bahnschrift, 'Sofia Sans', 'Segoe UI', system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--on-surface);
+        font-family: var(--body);
+        font-size: 17px;
+        line-height: 1.6;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 24px 0;
+      }
+
+      .wordmark {
+        font-family: var(--display);
+        font-stretch: semi-condensed;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 0.04em;
+      }
+
+      header nav {
+        margin-left: auto;
+        display: flex;
+        gap: 20px;
+        font-size: 15px;
+        color: var(--on-surface-variant);
+      }
+
+      header nav a {
+        text-decoration: none;
+      }
+
+      header nav a:hover {
+        color: var(--on-surface);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 48px;
+        align-items: center;
+        padding: 56px 0 80px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-stretch: semi-condensed;
+        font-weight: 700;
+        line-height: 1.1;
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(40px, 6vw, 64px);
+      }
+
+      .lede {
+        margin: 20px 0 32px;
+        font-size: 19px;
+        color: var(--on-surface-variant);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .download {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 48px;
+        padding: 0 22px;
+        border-radius: 999px;
+        background: var(--on-surface);
+        color: var(--surface);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .download:hover {
+        background: #ffffff;
+      }
+
+      .small {
+        font-size: 14px;
+        color: var(--on-surface-variant);
+      }
+
+      /* A small picture of the stats page, drawn rather than screenshotted so it stays sharp. */
+      .mock {
+        border: 1px solid var(--outline-variant);
+        border-radius: 16px;
+        background: var(--container-low);
+        padding: 18px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .mock-title {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      .mock-title strong {
+        font-family: var(--display);
+        font-stretch: semi-condensed;
+        font-size: 24px;
+      }
+
+      .teams {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .team {
+        border: 1px solid var(--outline-variant);
+        border-radius: 12px;
+        background: var(--container);
+        padding: 12px 14px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .chip {
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .chip::before {
+        content: '';
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        vertical-align: 1px;
+      }
+
+      .win {
+        color: var(--positive);
+      }
+
+      .loss {
+        color: var(--negative);
+      }
+
+      .player {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--display);
+        font-stretch: semi-condensed;
+        font-weight: 700;
+      }
+
+      .race {
+        width: 20px;
+        height: 20px;
+        border-radius: 5px;
+        display: inline-grid;
+        place-items: center;
+        font-family: var(--body);
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--container-high);
+      }
+
+      .race.t {
+        color: var(--terran);
+      }
+
+      .race.z {
+        color: var(--zerg);
+      }
+
+      .race.p {
+        color: var(--protoss);
+      }
+
+      .chart {
+        border: 1px solid var(--outline-variant);
+        border-radius: 12px;
+        background: var(--container);
+        padding: 12px 14px 6px;
+      }
+
+      .chart svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      section {
+        padding: 64px 0;
+        border-top: 1px solid var(--outline-variant);
+      }
+
+      h2 {
+        font-size: 36px;
+        margin-bottom: 28px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        border: 1px solid var(--outline-variant);
+        border-radius: 14px;
+        background: var(--container-low);
+        padding: 20px;
+      }
+
+      .card h3 {
+        font-size: 21px;
+        margin-bottom: 8px;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--on-surface-variant);
+        font-size: 16px;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      ol.steps {
+        list-style: none;
+        counter-reset: step;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 16px;
+      }
+
+      ol.steps li {
+        counter-increment: step;
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 16px;
+        color: var(--on-surface-variant);
+      }
+
+      ol.steps li::before {
+        content: counter(step);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--container-high);
+        color: var(--on-surface);
+        font-family: var(--display);
+        font-weight: 700;
+      }
+
+      ol.steps strong {
+        color: var(--on-surface);
+      }
+
+      .faq details {
+        border-bottom: 1px solid var(--outline-variant);
+        padding: 16px 0;
+      }
+
+      .faq summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .faq p {
+        margin: 10px 0 0;
+        color: var(--on-surface-variant);
+      }
+
+      footer {
+        padding: 40px 0 56px;
+        border-top: 1px solid var(--outline-variant);
+        font-size: 14px;
+        color: var(--on-surface-variant);
+      }
+
+      footer p {
+        margin: 6px 0;
+      }
+
+      @media (max-width: 820px) {
+        .hero {
+          grid-template-columns: 1fr;
+          padding-top: 24px;
+        }
+
+        header nav {
+          display: none;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .wrap {
+          padding: 0 16px;
+        }
+
+        .teams {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <img src="logo.svg" width="28" height="28" alt="" />
+        <span class="wordmark">GG Stats</span>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#faq">FAQ</a>
+          <a href="https://github.com/brandonfredericksen/gg-stats-starcraft">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="hero">
+        <div>
+          <h1>Post game stats for StarCraft</h1>
+          <p class="lede">
+            Play a game. A minute later you have the numbers: army, economy, supply blocks and every
+            build order. Free, open source, and it all stays on your computer.
+          </p>
+          <div class="actions">
+            <a
+              class="download"
+              href="https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest">
+              Download for Windows
+            </a>
+            <span class="small">Needs StarCraft: Remastered</span>
+          </div>
+        </div>
+
+        <div class="mock" aria-hidden="true">
+          <div class="mock-title">
+            <strong>Fighting Spirit</strong>
+            <span class="small">14:32 · 1v1</span>
+          </div>
+          <div class="teams">
+            <div class="team">
+              <span class="chip win">Victory</span>
+              <span class="player"><span class="race p">P</span>Arbiter</span>
+            </div>
+            <div class="team">
+              <span class="chip loss">Defeat</span>
+              <span class="player"><span class="race z">Z</span>Hydralisk</span>
+            </div>
+          </div>
+          <div class="chart">
+            <span class="small">Army supply</span>
+            <svg viewBox="0 0 300 110" role="presentation">
+              <g stroke="#2c2c31" stroke-width="1">
+                <line x1="0" y1="20" x2="300" y2="20" />
+                <line x1="0" y1="55" x2="300" y2="55" />
+                <line x1="0" y1="90" x2="300" y2="90" />
+              </g>
+              <polyline
+                fill="none"
+                stroke="#facc15"
+                stroke-width="2.5"
+                stroke-linejoin="round"
+                points="0,100 30,98 60,92 90,84 120,70 150,62 180,48 210,40 240,30 270,22 300,14" />
+              <polyline
+                fill="none"
+                stroke="#c084fc"
+                stroke-width="2.5"
+                stroke-linejoin="round"
+                points="0,100 30,96 60,86 90,74 120,66 150,50 180,58 210,72 240,80 270,88 300,94" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>What you get</h2>
+        <div class="grid">
+          <div class="card">
+            <h3><span class="dot" style="background: var(--last-game)"></span>Every game, automatically</h3>
+            <p>
+              GG Stats notices when a Battle.net or ShieldBattery game ends and analyzes it on its
+              own. No buttons to press.
+            </p>
+          </div>
+          <div class="card">
+            <h3><span class="dot" style="background: var(--library)"></span>The whole game</h3>
+            <p>
+              Scoreboard, army and economy over time, supply blocks, bases, unit breakdowns, and
+              every player's build order with timings.
+            </p>
+          </div>
+          <div class="card">
+            <h3><span class="dot" style="background: var(--stats)"></span>Your own stats</h3>
+            <p>
+              Your record by matchup and map, your macro, who you play with and against, and how it
+              all moves over your last hundred games.
+            </p>
+          </div>
+          <div class="card">
+            <h3><span class="dot" style="background: var(--positive)"></span>Old replays too</h3>
+            <p>
+              Point it at your replay folders and it builds a library you can browse, filter and
+              analyze.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li>
+            <span><strong>You finish a game.</strong> StarCraft saves the replay like it always does.</span>
+          </li>
+          <li>
+            <span>
+              <strong>GG Stats plays it back.</strong> A replay only holds each player's commands, so
+              GG Stats starts a second, invisible StarCraft from your install and fast forwards
+              through the game, reading its numbers as it goes. It runs at low priority, so it won't
+              lag your next game.
+            </span>
+          </li>
+          <li>
+            <span>
+              <strong>The stats are ready.</strong> Usually 10 to 30 seconds later. You get a
+              notification if the app is in the tray.
+            </span>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="faq" class="faq">
+      <div class="wrap">
+        <h2>Questions</h2>
+        <details>
+          <summary>Does it touch the game I'm playing?</summary>
+          <p>
+            No. It only ever loads replays, in a separate StarCraft it starts itself. It never
+            injects into a game you play, and it never joins online games.
+          </p>
+        </details>
+        <details>
+          <summary>Do I have to close StarCraft?</summary>
+          <p>No. The analysis runs next to it, and you don't need to be logged in to Battle.net.</p>
+        </details>
+        <details>
+          <summary>Windows says the installer isn't safe.</summary>
+          <p>
+            The installer isn't signed yet, so SmartScreen warns about it. Click More info, then Run
+            anyway. The code is all on
+            <a href="https://github.com/brandonfredericksen/gg-stats-starcraft">GitHub</a> if you
+            want to check it or build it yourself.
+          </p>
+        </details>
+        <details>
+          <summary>Does it send my data anywhere?</summary>
+          <p>
+            No. Replays and stats stay on your computer. The only thing it asks the internet is
+            whether there's a new version, and you can turn that off.
+          </p>
+        </details>
+        <details>
+          <summary>Does it work on Mac?</summary>
+          <p>Not yet. It needs Windows 10 or 11.</p>
+        </details>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          Built on <a href="https://github.com/ShieldBattery/ShieldBattery">ShieldBattery</a>'s
+          open source code. MIT licensed.
+        </p>
+        <p>
+          Not affiliated with or endorsed by ShieldBattery or Blizzard Entertainment. StarCraft is a
+          trademark of Blizzard Entertainment, Inc.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

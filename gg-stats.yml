@@ -1,0 +1,40 @@
+# The electron-builder config for GG Stats. Builds are unsigned for now.
+appId: app.ggstats
+productName: GG Stats
+executableName: GGStats
+# The app takes its name, and with it the user data folder and app id, from the packaged
+# package.json, whose own productName is the dev build's `GG Stats-Local`.
+extraMetadata:
+  productName: GG Stats
+extraResources:
+  - game/dist/**
+# Next to GGStats.exe, where people look for them. `pnpm run gen-notices` writes the notices.
+extraFiles:
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: app/dist/THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+files:
+  - 'assets/**/*'
+  - 'dist/**/*'
+  # Exclusions last: a later pattern wins, so these would be undone by the includes above.
+  # node_modules is excluded because everything the app runs is bundled into dist/.
+  - '!node_modules/**/*'
+  - '!build/**/*'
+  - '!**/*.map'
+nsis:
+  artifactName: 'GGStats-setup-${version}.${ext}'
+  # The installer's id. It would otherwise come from appId, and was made from the first one
+  # (io.github.brandonfredericksen.ggstats), so installs from then upgrade in place.
+  guid: 9363fc74-f913-5f88-8f82-ffb845b0258e
+  include: tools/nsis/gg-stats.nsh
+win:
+  icon: icon.ico
+  target: nsis
+# Releases live on GitHub, where the app looks for updates. The release workflow uploads a draft;
+# publishing it is what ships the update.
+publish:
+  provider: github
+  owner: brandonfredericksen
+  repo: gg-stats-starcraft
+  releaseType: draft

@@ -1,0 +1,73 @@
+name: Release
+
+# Pushing a version tag (v1.2.3) builds the installer and uploads it, with the files the app's
+# updater reads, to a draft GitHub release. Publishing the draft is what ships it.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          app_version=$(node -p "require('./app/package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ] || [ "$version" != "$app_version" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match package.json ($version) and app/package.json ($app_version)."
+            exit 1
+          fi
+
+      - name: Using pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Using Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'pnpm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-pc-windows-msvc, x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./game
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install app dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./app
+
+      - name: Build native modules for Electron
+        run: pnpm exec electron-builder install-app-deps
+
+      - name: Run unit tests
+        run: pnpm test --run
+
+      - name: Build the app
+        run: |
+          pnpm run clean
+          pnpm run build-app-client
+          pnpm run build-game
+          pnpm run gen-notices
+
+      - name: Package and upload a draft release
+        run: pnpm exec electron-builder build --win --x64 --publish always -c gg-stats.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

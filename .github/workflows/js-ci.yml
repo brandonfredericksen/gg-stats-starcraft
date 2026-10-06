@@ -1,0 +1,54 @@
+name: JS CI
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Using pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Using Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install app dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./app
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Check for circular dependencies
+        run: pnpm run check-circular
+
+      - name: Check translation files
+        id: check-translation-files
+        run: pnpm gen-translations --ci
+
+      - name: Display translation error
+        if: ${{ failure() && steps.check-translation-files.conclusion == 'failure' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.setFailed('The translation files are not up to date. Please run "pnpm gen-translations" in the directory root and commit the updated translation files.')
