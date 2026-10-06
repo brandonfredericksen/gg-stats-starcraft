@@ -1,5 +1,5 @@
 import { GameStatsResult } from '../games/game-stats'
-import { MapFamily } from '../games/map-family'
+import { getMapBaseName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
@@ -13,6 +13,17 @@ export const COACH_MIN_POOL_GAMES = 30
 export const EAPM_FLOORS = [100, 150, 200, 250] as const
 /** The EAPM other players need to count, unless the user picks another. */
 export const DEFAULT_EAPM_FLOOR = EAPM_FLOORS[0]
+/** How many of the user's latest games the user can pick to look at, besides `auto` and `all`. */
+export const COACH_WINDOW_GAMES = [25, 50, 100] as const
+/**
+ * Which of the user's games the coach looks at: their latest few, every one, or `auto`, which
+ * looks at the last {@link AUTO_WINDOW_MS} of their games but no fewer than
+ * {@link AUTO_WINDOW_MIN_GAMES}, so someone who plays a lot gets their latest weeks and someone
+ * who plays a little still gets enough games.
+ */
+export type CoachWindow = 'auto' | 'all' | (typeof COACH_WINDOW_GAMES)[number]
+const AUTO_WINDOW_MS = 90 * 24 * 60 * 60_000
+const AUTO_WINDOW_MIN_GAMES = 30
 /** The fewest of the user's games a kind of game needs to be offered, so a stray game isn't. */
 const MIN_SCOPE_GAMES = 3
 /** How many wins and how many losses comparing them needs. */
@@ -59,6 +70,8 @@ const EARLY_MINUTE = 8
 const BGH_EARLY_MINUTE = 15
 /** How many of the user's latest games their recent form looks at. */
 export const RECENT_FORM_GAMES = 10
+/** How many of the user's latest games each goal is checked against. */
+export const GOAL_CHECK_GAMES = 5
 /** How many games before those recent form needs to compare them with. */
 export const MIN_EARLIER_GAMES = 5
 /** The most things the coach asks the user to work on in their next game. */
@@ -508,9 +521,11 @@ export interface CoachGoal {
   beats?: number
   /** It's also worse in the user's losses than in their wins, so it's likely costing games. */
   inLosses: boolean
-  /** The user's latest game, and whether it reached the target. Missing if it didn't have it. */
-  lastValue?: number
-  lastHit?: boolean
+  /**
+   * The user's latest {@link GOAL_CHECK_GAMES} games, oldest first: whether each reached the
+   * target, or null for one without this number.
+   */
+  checks: Array<boolean | null>
 }
 
 /** How often the user is the first of their team out in losses, against other players. */
@@ -544,6 +559,8 @@ export interface CoachBucket {
    */
   anyAlly: boolean
   mapFamily?: MapFamily
+  /** The one map these games are on, when one was picked, named without versions or tags. */
+  onMap?: string
   userGames: number
   /** The user's games of this kind left out because someone quit in the first few minutes. */
   skippedGames: number
@@ -596,8 +613,12 @@ export interface CoachQuery {
   allyRace?: AssignedRaceChar
   /** Only used in game types that split by map, see `splitsByMap`. */
   mapFamily?: MapFamily
+  /** One map to look at, in game types that don't split by map, see `getMapKey`. */
+  mapKey?: string
   /** The EAPM other players need to count. */
   eapmFloor?: number
+  /** Which of the user's games to look at. `auto` unless picked. */
+  window?: CoachWindow
 }
 
 export type CoachResult = {
@@ -610,6 +631,21 @@ export type CoachResult = {
       status: 'ready'
       /** The kind of game coached: the one asked for, or the most played. */
       scope: Omit<CoachScope, 'games'>
+      window: CoachWindow
+      /** How many of the user's latest games `auto` looks at here. */
+      autoGames: number
+      /**
+       * The time of the first game looked at, when the window leaves some out. Other players'
+       * games before it are left out too, so both come from the same patch and meta.
+       */
+      sinceMs?: number
+      /** The one map looked at, when one was picked, see `getMapKey`. */
+      mapKey?: string
+      /**
+       * In game types that don't split by map, the maps the user played this kind of game on,
+       * named without their versions and tags, with their games, most played first.
+       */
+      maps: Array<{ key: string; name: string; games: number }>
       buckets: CoachBucket[]
     }
 )
@@ -1151,7 +1187,8 @@ interface GoalCandidate {
   /** Where the user is now, when it isn't their typical game, like their typical loss. */
   userValue?: number
   recentValues: number[]
-  lastValue?: number
+  /** The values in the user's latest {@link GOAL_CHECK_GAMES} games, oldest first. */
+  checkValues: Array<number | undefined>
 }
 
 const BASIS_ORDER: Record<CoachGoalBasis, number> = { others: 0, wins: 1, earlier: 2 }
@@ -1181,7 +1218,7 @@ function getGoals({
 }): CoachGoal[] {
   const samples = user.map(g => g.sample)
   const recent = samples.slice(-RECENT_FORM_GAMES)
-  const last = samples.at(-1)
+  const checked = samples.slice(-GOAL_CHECK_GAMES)
   const costly = new Set(inLosses.filter(f => f.notable).map(f => f.key))
   const metricOf = (key: CoachMetricKey) => METRICS.find(m => m.key === key)!
 
@@ -1191,7 +1228,6 @@ function getGoals({
     target: number,
     beats?: number,
   ): GoalCandidate => {
-    const lastValue = last ? valueOf(last, metric) : undefined
     return {
       key: metric.key,
       unit: metric.unit,
@@ -1202,7 +1238,7 @@ function getGoals({
       tier: metric.speed ? 2 : 0,
       userValues: numbersOf(samples, metric),
       recentValues: numbersOf(recent, metric),
-      lastValue,
+      checkValues: checked.map(s => valueOf(s, metric)),
     }
   }
 
@@ -1225,7 +1261,7 @@ function getGoals({
         tier: 1,
         userValues: timesOf(samples, t.buildKey),
         recentValues: timesOf(recent, t.buildKey),
-        lastValue: last ? timeOf(last.player, t.buildKey) : undefined,
+        checkValues: checked.map(s => timeOf(s.player, t.buildKey)),
       })),
     ...inLosses
       .filter(f => f.notable)
@@ -1278,12 +1314,11 @@ function getGoals({
           : undefined,
       beats: candidate.beats,
       inLosses: candidate.key !== 'buildTiming' && costly.has(candidate.key),
-      lastValue: candidate.lastValue,
-      lastHit:
-        candidate.lastValue === undefined
-          ? undefined
-          : roundShown(candidate.lastValue, candidate.unit) === target ||
-            isBetter(candidate, candidate.lastValue, target),
+      checks: candidate.checkValues.map(value =>
+        value === undefined
+          ? null
+          : roundShown(value, candidate.unit) === target || isBetter(candidate, value, target),
+      ),
     })
   }
   return goals
@@ -1369,14 +1404,67 @@ export function computeCoach(
   const splitByMap = splitsByMap(shape)
   const mapFamily = splitByMap ? picked.mapFamily : undefined
 
-  const isOfKind = (game: DatedGameMetrics, player: PlayerMetrics) =>
+  const mapKey = splitByMap ? undefined : query.mapKey
+
+  const isOfKindOnAnyMap = (game: DatedGameMetrics, player: PlayerMetrics) =>
     game.shape === shape &&
     (!mapFamily || game.mapFamily === mapFamily) &&
     player.race === race &&
     player.human &&
     (shape !== '1v1' || getSidesOf(game, player).opponents[0]?.race === opponentRace)
+  const isOfKind = (game: DatedGameMetrics, player: PlayerMetrics) =>
+    isOfKindOnAnyMap(game, player) && (!mapKey || getMapKey(game.mapName) === mapKey)
   const hasAlly = (game: DatedGameMetrics, player: PlayerMetrics) =>
     !allyRace || getSidesOf(game, player).teammates[0]?.race === allyRace
+
+  // Every version of a map counts toward it, and the one played most names it.
+  const mapGames = new Map<string, Map<string, number>>()
+  if (!splitByMap) {
+    for (const game of allGames) {
+      const me = findMe(game, query.names)
+      if (me && isOfKindOnAnyMap(game, me) && hasAlly(game, me) && isComparable(game, me)) {
+        const key = getMapKey(game.mapName)
+        const names = mapGames.get(key) ?? new Map<string, number>()
+        names.set(game.mapName, (names.get(game.mapName) ?? 0) + 1)
+        mapGames.set(key, names)
+      }
+    }
+  }
+  const maps = Array.from(mapGames, ([key, names]) => {
+    const versions = Array.from(names).sort(([, a], [, b]) => b - a)
+    return {
+      key,
+      name: getMapBaseName(versions[0][0]),
+      games: versions.reduce((sum, [, n]) => sum + n, 0),
+    }
+  }).sort((a, b) => b.games - a.games)
+
+  const myTimes = allGames
+    .flatMap(game => {
+      const me = findMe(game, query.names)
+      return me && isOfKind(game, me) && hasAlly(game, me) && isComparable(game, me)
+        ? [game.gameTimeMs]
+        : []
+    })
+    .sort((a, b) => a - b)
+  const window = query.window ?? 'auto'
+  // Counted back from the latest game rather than today, so a break from playing doesn't empty it.
+  const autoGames = Math.max(
+    AUTO_WINDOW_MIN_GAMES,
+    myTimes.filter(time => time >= (myTimes.at(-1) ?? 0) - AUTO_WINDOW_MS).length,
+  )
+  let windowGames: number | undefined
+  if (window === 'auto') {
+    windowGames = autoGames
+  } else if (window !== 'all') {
+    windowGames = window
+  }
+  const sinceMs =
+    windowGames !== undefined && myTimes.length > windowGames
+      ? myTimes[myTimes.length - windowGames]
+      : undefined
+  const games =
+    sinceMs === undefined ? allGames : allGames.filter(game => game.gameTimeMs >= sinceMs)
 
   // The user's regular partners make poor benchmarks: their games go with the user's, win or
   // lose. Someone a lobby put them with once is as good a benchmark as anyone.
@@ -1400,7 +1488,7 @@ export function computeCoach(
     buckets.set(family, bucket)
     return bucket
   }
-  for (const game of allGames) {
+  for (const game of games) {
     const me = findMe(game, query.names)
     if (me && isOfKind(game, me) && hasAlly(game, me)) {
       const bucket = bucketFor(game)
@@ -1537,6 +1625,7 @@ export function computeCoach(
       allyRace,
       anyAlly,
       mapFamily: bucket.mapFamily,
+      onMap: mapKey ? maps.find(m => m.key === mapKey)?.name : undefined,
       userGames: user.length,
       skippedGames: bucket.skipped,
       mapNames: Array.from(bucket.maps)
@@ -1577,6 +1666,11 @@ export function computeCoach(
     scopes,
     eapmFloor,
     scope: { shape, race, opponentRace, allyRace, mapFamily },
+    window,
+    autoGames,
+    sinceMs,
+    mapKey,
+    maps,
     buckets: results.sort((a, b) => b.userGames - a.userGames),
   }
 }

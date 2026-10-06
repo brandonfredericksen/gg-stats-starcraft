@@ -285,7 +285,36 @@ describe('common/my-stats/coach', () => {
     })
   })
 
-  test('sets goals for the next game, and checks the latest game against them', () => {
+  test('looks at the latest games picked, and other players from the same stretch', () => {
+    const earlier = [...myGames(30, 14), ...poolGames(40, () => 10)]
+    const recent = [...myGames(10, 20), ...poolGames(40, () => 16), ...myGames(15, 20)]
+    const coach = computeCoach([...earlier, ...recent], { ...query, window: 25 })
+    expect(coach.status === 'ready' && coach.sinceMs).toBe(recent[0].gameTimeMs)
+    expect(coach.status === 'ready' && coach.buckets[0]).toMatchObject({
+      userGames: 25,
+      poolGames: 40,
+    })
+  })
+
+  test('by default looks at the last 3 months, but no fewer than 30 games', () => {
+    const later = (games: DatedGameMetrics[]) =>
+      games.map(g => ({ ...g, gameTimeMs: g.gameTimeMs + 100 * 24 * 60 * 60_000 }))
+    const few = computeCoach([...myGames(40, 14), ...later(myGames(20, 20))], query)
+    expect(few.status === 'ready' && few.autoGames).toBe(30)
+    expect(few.status === 'ready' && few.buckets[0].userGames).toBe(30)
+
+    const many = computeCoach([...myGames(40, 14), ...later(myGames(35, 20))], query)
+    expect(many.status === 'ready' && many.buckets[0].userGames).toBe(35)
+
+    const all = computeCoach([...myGames(40, 14), ...later(myGames(35, 20))], {
+      ...query,
+      window: 'all',
+    })
+    expect(all.status === 'ready' && all.sinceMs).toBeUndefined()
+    expect(all.status === 'ready' && all.buckets[0].userGames).toBe(75)
+  })
+
+  test('sets goals for the next game, and checks the latest games against them', () => {
     const coach = computeCoach(
       [...myGames(11, 14), ...myGames(1, 19), ...poolGames(40, i => 16 + (i % 5))],
       query,
@@ -297,8 +326,7 @@ describe('common/my-stats/coach', () => {
         target: 18,
         userValue: 14,
         recentValue: 14,
-        lastValue: 19,
-        lastHit: true,
+        checks: [false, false, false, false, true],
         inLosses: false,
       }),
     ])
@@ -315,8 +343,7 @@ describe('common/my-stats/coach', () => {
         basis: 'wins',
         target: 20,
         inLosses: true,
-        lastValue: 21,
-        lastHit: true,
+        checks: [false, false, false, false, true],
       }),
     ])
   })

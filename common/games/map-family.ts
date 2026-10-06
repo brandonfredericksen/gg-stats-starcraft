@@ -20,3 +20,32 @@ export function getMapFamily(mapName: string): MapFamily {
   }
   return 'standard'
 }
+
+/**
+ * A map's own name, without what one upload of it adds: versions ("Polypoid 1.65", "Fighting
+ * Spirit ver 1.3"), tags ("| iCCup |", "[AI]", "(2)"), a "Remastered" that's sometimes cut short,
+ * and the color codes StarCraft map names can carry. A name that's nothing but those stays as it is.
+ */
+export function getMapBaseName(mapName: string): string {
+  const visible = Array.from(mapName)
+    .filter(char => {
+      const code = char.charCodeAt(0)
+      return code >= 0x20 && code !== 0x7f
+    })
+    .join('')
+  const base = visible
+    .replace(/\[[^\]]*\]|\([^)]*\)|\|[^|]*\|/g, ' ')
+    .replace(/\biccup\b/gi, ' ')
+    .replace(/\bremaster\w*/gi, ' ')
+    .replace(/\b(ver|v)\.?\s*\d+(\.\d+)*[a-z]?\b/gi, ' ')
+    .replace(/(^|\s)\d+(\.\d+)*[a-z]?(?=\s|$)/gi, ' ')
+    .replace(/[_\-:.,!|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return base || visible.trim()
+}
+
+/** The map a name is a version of, to group by. See `getMapBaseName`. */
+export function getMapKey(mapName: string): string {
+  return getMapBaseName(mapName).toLowerCase()
+}

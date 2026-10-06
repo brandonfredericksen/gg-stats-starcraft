@@ -3,44 +3,25 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import {
   CoachBucket,
-  CoachChange,
-  CoachGame,
   CoachGoal,
   CoachNote,
   CoachRecentForm,
-  MIN_EARLIER_GAMES,
   RECENT_FORM_GAMES,
 } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { MaterialIcon } from '../icons/material/material-icon'
-import { buttonReset } from '../material/button-reset'
-import {
-  formatPercent,
-  getResultLetter,
-  getResultWord,
-  HelpLabel,
-  PaddedPanel,
-  PanelTitle,
-  RecentChip,
-  RecentTooltip,
-} from '../my-stats/my-stats-panels'
-import { push } from '../navigation/routing'
-import { getGameStatsUrl } from '../replays/action-creators'
+
+import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
+
 import { bodyMedium, labelLarge, labelMedium, titleLarge, titleSmall } from '../styles/typography'
 import {
-  Cell,
-  Columns,
   formatGameTime,
   formatTimeDiff,
   getBuildName,
-  getMetricGroup,
   getMetricText,
   getTimingTip,
   getTip,
-  GroupHead,
-  MetricGroup,
-  Table,
   Text,
   Tone,
   toneColor,
@@ -54,27 +35,9 @@ const PanelHeader = styled.div`
   gap: 4px 12px;
 `
 
-const PanelNote = styled.span`
+const CheckSummary = styled.span`
   ${bodyMedium};
   color: var(--theme-on-surface-variant);
-`
-
-const LastGameButton = styled.button`
-  ${buttonReset};
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--theme-on-surface);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
-  }
 `
 
 const Goals = styled.ol`
@@ -184,6 +147,26 @@ const Fact = styled.span<{ $tone?: Tone }>`
   }
 `
 
+const CheckDots = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+`
+
+/** One of the latest games: reached the target, missed it, or didn't have the number. */
+const CheckDot = styled.span<{ $hit: boolean | null }>`
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background-color: ${props => {
+    if (props.$hit === null) {
+      return 'transparent'
+    }
+    return props.$hit ? 'var(--theme-positive)' : 'var(--theme-negative)'
+  }};
+  box-shadow: ${props => (props.$hit === null ? 'inset 0 0 0 1.5px var(--theme-outline)' : 'none')};
+`
+
 const Tip = styled.p`
   ${bodyMedium};
   margin: 0;
@@ -226,33 +209,8 @@ const NoteTitle = styled.span`
   ${titleSmall};
 `
 
-const RecentStrip = styled.div`
-  display: grid;
-  grid-template-columns: repeat(${RECENT_FORM_GAMES}, minmax(0, 1fr));
-  gap: 5px;
-  max-width: 520px;
-`
-
-const Record = styled.div`
-  ${bodyMedium};
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  color: var(--theme-on-surface-variant);
-
-  & strong {
-    color: var(--theme-on-surface);
-    font-weight: 600;
-  }
-`
-
 function getWinRate(wins: number, losses: number) {
   return wins + losses ? wins / (wins + losses) : undefined
-}
-
-/** A short date for one of the user's games, like "Oct 4". */
-function formatGameDate(gameTimeMs: number) {
-  return new Date(gameTimeMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 function getAimText(goal: CoachGoal, value: string, t: TFunction) {
@@ -318,9 +276,11 @@ function GoalItem({
   const formatValue = useFormatValue()
   const [label, help] = getGoalText(goal, t)
   const { target } = goal
-  let lastTone: Tone | undefined
-  if (goal.lastHit !== undefined) {
-    lastTone = goal.lastHit ? 'good' : 'bad'
+  const checkWord = (hit: boolean | null) => {
+    if (hit === null) {
+      return t('myStats.coach.checkNone', "Didn't have it")
+    }
+    return hit ? t('myStats.coach.hit', 'Reached') : t('myStats.coach.missed', 'Not reached')
   }
 
   return (
@@ -352,23 +312,23 @@ function GoalItem({
               <strong>{formatValue(goal.recentValue, goal.unit)}</strong>
             </Fact>
           ) : null}
-          <Fact $tone={lastTone}>
-            {t('myStats.coach.factLast', 'Last game')}
-            <strong>
-              {goal.lastValue !== undefined ? formatValue(goal.lastValue, goal.unit) : '-'}
-            </strong>
-            {goal.lastHit !== undefined ? (
-              <MaterialIcon
-                icon={goal.lastHit ? 'check' : 'close'}
-                size={18}
-                aria-label={
-                  goal.lastHit
-                    ? t('myStats.coach.hit', 'Reached')
-                    : t('myStats.coach.missed', 'Not reached')
-                }
-              />
-            ) : null}
-          </Fact>
+          {goal.checks.length ? (
+            <Fact>
+              {t('myStats.coach.factChecks', 'Last {{count}} games', {
+                count: goal.checks.length,
+              })}
+              <CheckDots
+                role='img'
+                aria-label={goal.checks.map(checkWord).join(', ')}
+                title={t('myStats.coach.checksHelp', 'Oldest to newest: {{games}}', {
+                  games: goal.checks.map(checkWord).join(', ').toLowerCase(),
+                })}>
+                {goal.checks.map((hit, i) => (
+                  <CheckDot key={i} $hit={hit} />
+                ))}
+              </CheckDots>
+            </Fact>
+          ) : null}
           {goal.beats !== undefined ? (
             <Fact>
               {t('myStats.coach.factBeats', 'Better than')}
@@ -389,43 +349,25 @@ function GoalItem({
   )
 }
 
-/** How the user's latest game went against the goals, which opens that game. */
-function LastGameCheck({ game, goals }: { game: CoachGame; goals: ReadonlyArray<CoachGoal> }) {
+/**
+ * A few things to aim for, from the games the coach is looking at, each with a target, a tip, and
+ * how the latest games did.
+ */
+export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: boolean }) {
   const { t } = useTranslation()
-  const checked = goals.filter(g => g.lastHit !== undefined)
-  const hit = checked.filter(g => g.lastHit).length
-  return (
-    <LastGameButton type='button' onClick={() => push(getGameStatsUrl(game.gameId))}>
-      {checked.length
-        ? t('myStats.coach.lastGameCheck', {
-            defaultValue:
-              'Your last game ({{result}} on {{map}}, {{date}}) reached {{hit}} of {{count}}.',
-            result: getResultWord(game.result, t).toLowerCase(),
-            map: game.mapName,
-            date: formatGameDate(game.gameTimeMs),
-            hit,
-            count: checked.length,
-          })
-        : t('myStats.coach.lastGameOnly', 'Your last game: {{result}} on {{map}}, {{date}}.', {
-            result: getResultWord(game.result, t).toLowerCase(),
-            map: game.mapName,
-            date: formatGameDate(game.gameTimeMs),
-          })}
-    </LastGameButton>
-  )
-}
-
-/** A few things to aim for in the next game, each with a target, a tip, and how the last game did. */
-export function NextGame({ bucket }: { bucket: CoachBucket }) {
-  const { t } = useTranslation()
-  const lastGame = bucket.recentForm.games.at(-1)
   return (
     <PaddedPanel>
       <PanelHeader>
-        <PanelTitle>{t('myStats.coach.nextGame', 'For your next game')}</PanelTitle>
-        {lastGame && bucket.goals.length ? (
-          <LastGameCheck game={lastGame} goals={bucket.goals} />
-        ) : null}
+        <PanelTitle>{t('myStats.coach.goals', 'Your goals')}</PanelTitle>
+        <CheckSummary>
+          {allGames
+            ? t('myStats.coach.goalsFromAll', 'From all {{count}} of your games.', {
+                count: bucket.userGames,
+              })
+            : t('myStats.coach.goalsFrom', 'From your last {{count}} games.', {
+                count: bucket.userGames,
+              })}
+        </CheckSummary>
       </PanelHeader>
       {bucket.goals.length ? (
         <Goals>
@@ -443,29 +385,6 @@ export function NextGame({ bucket }: { bucket: CoachBucket }) {
       )}
     </PaddedPanel>
   )
-}
-
-function formatChange(
-  change: CoachChange,
-  formatValue: ReturnType<typeof useFormatValue>,
-  t: TFunction,
-) {
-  const diff = change.recentValue - change.earlierValue
-  if (change.unit === 'time') {
-    const seconds = Math.round(Math.abs(diff) / 1000)
-    if (!seconds) {
-      return t('myStats.coach.sameTime', 'Same')
-    }
-    const time = formatTimeDiff(Math.abs(diff), t)
-    return diff > 0
-      ? t('myStats.coach.later', '{{time}} later', { time })
-      : t('myStats.coach.earlier', '{{time}} earlier', { time })
-  }
-  const amount = formatValue(Math.abs(diff), change.unit === 'perMinute' ? 'count' : change.unit)
-  if (amount === formatValue(0, change.unit === 'perMinute' ? 'count' : change.unit)) {
-    return t('myStats.coach.sameTime', 'Same')
-  }
-  return `${diff > 0 ? '+' : '-'}${amount}`
 }
 
 /** What the coach says about the latest results, against the games before them. */
@@ -685,167 +604,6 @@ export function CoachNotes({ bucket }: { bucket: CoachBucket }) {
             'myStats.coach.noNotes',
             'Nothing to say yet. Notes come once there are wins and losses to compare, and earlier games to compare your latest ones with.',
           )}
-        </Text>
-      )}
-    </PaddedPanel>
-  )
-}
-
-function ChangeGroup({
-  title,
-  changes,
-  recentCount,
-}: {
-  title: string
-  changes: ReadonlyArray<CoachChange>
-  recentCount: number
-}) {
-  const { t } = useTranslation()
-  const formatValue = useFormatValue()
-  return (
-    <>
-      <GroupHead>{title}</GroupHead>
-      <GroupHead $end={true}>{t('myStats.coach.before', 'Before')}</GroupHead>
-      <GroupHead $end={true}>
-        {t('myStats.coach.lastCount', 'Last {{count}}', { count: recentCount })}
-      </GroupHead>
-      <GroupHead $end={true}>{t('myStats.coach.change', 'Change')}</GroupHead>
-      {changes.map(change => {
-        const [label, help] = getMetricText(change.key, t)
-        let tone: Tone | 'muted' = 'muted'
-        if (change.direction !== 'same') {
-          tone = change.direction === 'better' ? 'good' : 'bad'
-        }
-        return [
-          <Cell key={`${change.key}-label`}>
-            <HelpLabel
-              label={label}
-              help={`${help} ${t(
-                'myStats.coach.changeGames',
-                'From {{recentGames}} of your latest games and {{earlierGames}} before them.',
-                { recentGames: change.recentGames, earlierGames: change.earlierGames },
-              )}`}
-            />
-          </Cell>,
-          <Cell key={`${change.key}-before`} $end={true} $tone='muted'>
-            {formatValue(change.earlierValue, change.unit)}
-          </Cell>,
-          <Cell key={`${change.key}-recent`} $end={true}>
-            {formatValue(change.recentValue, change.unit)}
-          </Cell>,
-          <Cell key={`${change.key}-change`} $end={true} $tone={tone}>
-            {formatChange(change, formatValue, t)}
-          </Cell>,
-        ]
-      })}
-    </>
-  )
-}
-
-/** The user's latest games: their results, and every number next to the games before them. */
-export function RecentForm({ bucket }: { bucket: CoachBucket }) {
-  const { t } = useTranslation()
-  const form = bucket.recentForm
-  const rate = getWinRate(form.wins, form.losses)
-  const earlierRate = getWinRate(form.earlierWins, form.earlierLosses)
-  const titles: Record<MetricGroup, string> = {
-    economy: t('myStats.coach.groupEconomy', 'Economy'),
-    growth: t('myStats.coach.groupGrowth', 'Growth'),
-    spending: t('myStats.coach.groupSpending', 'Spending'),
-    fights: t('myStats.coach.groupFights', 'Fights'),
-    speed: t('myStats.coach.groupSpeed', 'Speed'),
-  }
-  const sides: ReadonlyArray<ReadonlyArray<MetricGroup>> = [
-    ['economy', 'growth', 'spending'],
-    ['fights', 'speed'],
-  ]
-
-  return (
-    <PaddedPanel>
-      <PanelHeader>
-        <PanelTitle>{t('myStats.coach.recentForm', 'Recent form')}</PanelTitle>
-        <PanelNote>{t('myStats.coach.recentNote', 'Newest first')}</PanelNote>
-      </PanelHeader>
-      <RecentStrip>
-        {form.games.toReversed().map(game => (
-          <RecentTooltip
-            key={game.gameId}
-            tabIndex={-1}
-            position='top'
-            text={[
-              getResultWord(game.result, t),
-              game.mapName,
-              new Date(game.gameTimeMs).toLocaleString(),
-            ].join(', ')}>
-            <RecentChip
-              type='button'
-              $result={game.result}
-              $tall={false}
-              aria-label={getResultWord(game.result, t)}
-              onClick={() => push(getGameStatsUrl(game.gameId))}>
-              <span>{getResultLetter(game.result, t)}</span>
-            </RecentChip>
-          </RecentTooltip>
-        ))}
-      </RecentStrip>
-      <Record>
-        <span>
-          {t('myStats.coach.recentRecord', 'Last {{count}}:', { count: form.games.length })}{' '}
-          <strong>
-            {t('myStats.coach.winsLosses', '{{wins}} wins, {{losses}} losses', {
-              wins: form.wins,
-              losses: form.losses,
-            })}
-          </strong>{' '}
-          ({formatPercent(rate)})
-        </span>
-        {form.earlierGames ? (
-          <span>
-            {t('myStats.coach.earlierRecord', 'The {{count}} before:', {
-              count: form.earlierGames,
-            })}{' '}
-            <strong>
-              {t('myStats.coach.winsLosses', '{{wins}} wins, {{losses}} losses', {
-                wins: form.earlierWins,
-                losses: form.earlierLosses,
-              })}
-            </strong>{' '}
-            ({formatPercent(earlierRate)})
-          </span>
-        ) : null}
-      </Record>
-      {form.changes.length ? (
-        <Columns>
-          {sides.map(groups => (
-            <Table key={groups.join()} $columns='minmax(0, 1fr) auto auto auto'>
-              {groups.map(group => {
-                const inGroup = form.changes.filter(c => getMetricGroup(c.key) === group)
-                return inGroup.length ? (
-                  <ChangeGroup
-                    key={group}
-                    title={titles[group]}
-                    changes={inGroup}
-                    recentCount={form.games.length}
-                  />
-                ) : null
-              })}
-            </Table>
-          ))}
-        </Columns>
-      ) : (
-        <Text>
-          {form.earlierGames < MIN_EARLIER_GAMES
-            ? t('myStats.coach.recentNeeds', {
-                defaultValue:
-                  'Once you have {{count}} more games here, this compares your latest ones with the ones before.',
-                defaultValue_one:
-                  'Once you have {{count}} more game here, this compares your latest ones with the ones before.',
-                count: RECENT_FORM_GAMES + MIN_EARLIER_GAMES - bucket.userGames,
-              })
-            : t(
-                'myStats.coach.recentNoNumbers',
-                "These games don't have enough numbers in common to compare.",
-              )}
         </Text>
       )}
     </PaddedPanel>
