@@ -124,6 +124,8 @@ const RECENT_ACTIONS: usize = 16;
 
 /// Each game runs in its own process, so these only ever need to latch once.
 static SEEK_REQUESTED: AtomicBool = AtomicBool::new(false);
+/// Whether a watched replay that opens at a later frame has been sent there.
+static START_SEEK_REQUESTED: AtomicBool = AtomicBool::new(false);
 static REPORTED: AtomicBool = AtomicBool::new(false);
 
 /// Stats gathered as a game goes, since much of what the game keeps is cleared as players leave
@@ -663,6 +665,15 @@ fn is_player_type(player_type: u8) -> bool {
 /// Runs after every game step. Keeps the stats up to date, and while analyzing a replay, seeks to
 /// its end once it has started and reports when it gets there.
 pub unsafe fn after_step() {
+    // A watched replay that opens at a moment, like one the coach points to, jumps there once it
+    // has started.
+    if let Some(start_frame) = game_thread::replay_start_frame()
+        && !START_SEEK_REQUESTED.swap(true, Ordering::Relaxed)
+    {
+        debug!("Opening replay at frame {start_frame}");
+        unsafe { get_bw().seek_replay(start_frame) };
+    }
+
     // Nothing more is reported after the stats are, even if the game goes on.
     if !is_tracking() || REPORTED.load(Ordering::Relaxed) {
         return;

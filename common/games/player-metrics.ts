@@ -56,6 +56,20 @@ const STANDING_WORKER_SHARE = 0.3
 const MIN_STANDING_WORKERS = 4
 
 const WORKER_IDS: ReadonlySet<number> = new Set([7, 41, 64])
+/** How long an SCV or a Probe takes to make, at the speed games are timed at. */
+const WORKER_BUILD_MS = 300 * 42
+/** How long a Command Center or Nexus takes to build before it can make workers. */
+const TOWN_HALL_BUILD_MS = 1800 * 42
+/** Command Centers and Nexuses, whose time making workers says how steadily a player made them. */
+const WORKER_TOWN_HALL_IDS: ReadonlySet<number> = new Set([106, 154])
+/** The part of the game worker production is measured over. */
+const WORKER_PRODUCTION_MS = 8 * 60_000
+/** Worker losses are looked for within this long, so a run of them counts as one. */
+const WORKER_LOSS_WINDOW_MS = 30_000
+/** Fewer workers lost at once than this is ordinary attrition, not a moment to watch. */
+const MIN_WORKER_LOSS = 3
+/** How long before a player went out their losses are left out of the moments to watch. */
+const FINAL_MINUTE_MS = 60_000
 const OVERLORD_ID = 42
 const HATCHERY_ID = 131
 const TOWN_HALL_IDS: ReadonlySet<number> = new Set([106, HATCHERY_ID, 154])
@@ -156,6 +170,23 @@ export interface PlayerMetrics {
   teamShare?: { income: number; armyProduced: number; armyKilled: number }
   /** In team games, 1 if the player was the first of their team to leave or be defeated, and so on. */
   outOrder?: number
+  /**
+   * For Terran and Protoss, the share of their town halls' time spent making workers in the first
+   * 8 minutes, from when each could. Zerg make workers from larvae, which this can't tell.
+   */
+  workerProduction8?: number | null
+  /** Moments in the game worth watching again, for a coach to point to. */
+  moments?: PlayerMoments
+}
+
+/** Moments in one player's game worth watching again. */
+export interface PlayerMoments {
+  /** The longest stretch out of supply, after the first few minutes. */
+  supplyBlock?: { startMs: number; endMs: number }
+  /** The most money on hand at once, while not maxed out. */
+  bankPeak?: { atMs: number; amount: number }
+  /** The most workers lost within half a minute. */
+  workerLoss?: { startMs: number; endMs: number; count: number }
 }
 
 /** The numbers My stats works from for one game, small enough to keep for thousands of games. */
@@ -320,6 +351,92 @@ function getEapmByPhase(
   })
 }
 
+/**
+ * The share of a Terran's or Protoss's town hall time spent making workers in the first 8 minutes.
+ * Each town hall counts from when it could make them, until the 8 minutes are up or the player
+ * left.
+ */
+function getWorkerProduction(
+  player: GamePlayerStats,
+  playedMs: number,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number }>,
+) {
+  if (player.race !== 't' && player.race !== 'p') {
+    return undefined
+  }
+  const endMs = Math.min(WORKER_PRODUCTION_MS, playedMs)
+  if (endMs < WORKER_PRODUCTION_MS / 2) {
+    return null
+  }
+  const readyTimes = [
+    0,
+    ...unitSteps
+      .filter(step => WORKER_TOWN_HALL_IDS.has(step.id))
+      .map(step => step.timeMs + TOWN_HALL_BUILD_MS),
+  ].filter(ms => ms < endMs)
+  const capacity = sum(readyTimes.map(ms => endMs - ms))
+  const used = unitSteps.filter(step => WORKER_IDS.has(step.id) && step.timeMs < endMs).length
+  return capacity > 0 ? Math.min(1, (used * WORKER_BUILD_MS) / capacity) : null
+}
+
+/** The moments in a player's game a coach would point to, from its timeline. */
+function getMoments(times: PlayerTimes, player: GamePlayerStats): PlayerMoments | undefined {
+  const timeline = player.timeline
+  if (!timeline) {
+    return undefined
+  }
+  const moments: PlayerMoments = {}
+
+  const blocked = timeline.supplyBlockedMs ?? []
+  const last = times.lastSampleIndex(blocked)
+  let run: { startMs: number; endMs: number } | undefined
+  for (let i = 1; i <= last; i++) {
+    const growing = blocked[i] > blocked[i - 1] && times.sampleTime(i) > SUPPLY_BLOCK_GRACE_MS
+    if (growing) {
+      run = run
+        ? { ...run, endMs: times.sampleTime(i) }
+        : {
+            startMs: times.sampleTime(i - 1),
+            endMs: times.sampleTime(i),
+          }
+      const longest = moments.supplyBlock
+      if (!longest || run.endMs - run.startMs > longest.endMs - longest.startMs) {
+        moments.supplyBlock = run
+      }
+    } else {
+      run = undefined
+    }
+  }
+
+  const unspent = timeline.unspent ?? []
+  for (let i = 0; i <= times.lastSampleIndex(unspent); i++) {
+    const maxed = (timeline.supplyUsed?.[i] ?? 0) >= MAXED_SUPPLY
+    if (!maxed && unspent[i] > (moments.bankPeak?.amount ?? 0)) {
+      moments.bankPeak = { atMs: times.sampleTime(i), amount: unspent[i] }
+    }
+  }
+
+  const workers = timeline.workers ?? []
+  // A player's last minute is their defeat, when everything dies, which isn't a moment to learn
+  // from like a raid is.
+  const lastMs = times.playedMs - FINAL_MINUTE_MS
+  for (let i = 0; i <= times.lastSampleIndex(workers); i++) {
+    const endMs = times.sampleTime(i)
+    if (endMs > lastMs) {
+      break
+    }
+    let start = i
+    while (start > 0 && endMs - times.sampleTime(start - 1) <= WORKER_LOSS_WINDOW_MS) {
+      start -= 1
+    }
+    const count = Math.max(...workers.slice(start, i + 1)) - workers[i]
+    if (count >= MIN_WORKER_LOSS && count > (moments.workerLoss?.count ?? 0)) {
+      moments.workerLoss = { startMs: times.sampleTime(start), endMs, count }
+    }
+  }
+  return moments
+}
+
 function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerMetrics {
   const times = new PlayerTimes(game, player)
   const timeline = player.timeline
@@ -401,6 +518,8 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     armyLost: player.armyLost?.score,
     workersLost: deathsOf(player, WORKER_IDS),
     overlordsLost: player.race === 'z' ? deathsOf(player, new Set([OVERLORD_ID])) : undefined,
+    workerProduction8: getWorkerProduction(player, times.playedMs, unitSteps),
+    moments: getMoments(times, player),
   }
 }
 

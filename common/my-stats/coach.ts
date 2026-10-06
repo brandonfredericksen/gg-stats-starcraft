@@ -147,6 +147,7 @@ export type CoachMetricKey =
   | 'workers12'
   | 'workers15'
   | 'workerLead8'
+  | 'workerProduction8'
   | 'baseLead10'
   | 'income6'
   | 'income10'
@@ -269,6 +270,19 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     // Once bases are full in a team game, more isn't better.
     pointsOut: minute === 10 ? context => !context.teamGame : undefined,
   })),
+  {
+    key: 'workerProduction8',
+    value: s => s.player.workerProduction8,
+    higherIsBetter: true,
+    minDiff: 0.05,
+    unit: 'percent',
+    minute: 8,
+    openingDependent: true,
+    // Zerg make workers from larvae, which the number can't tell.
+    shownIn: context => context.race !== 'z',
+    // A player can be fully saturated on a money map's main and rightly stop.
+    gapWhen: (user, pool) => user < 0.75 && user < pool,
+  },
   {
     key: 'workerLead8',
     value: s => {
@@ -524,6 +538,25 @@ export interface CoachTiming {
   notable: boolean
 }
 
+/**
+ * A moment in one of the user's latest games that shows a goal going wrong, to watch again: the
+ * game that missed it by the most, and when.
+ */
+export interface CoachReview {
+  game: CoachGame
+  /** When it went wrong, or started to. */
+  atMs: number
+  /** When it stopped going wrong, for something that lasted, like a supply block. */
+  endMs?: number
+  /** What happened then, for numbers with a moment of their own. */
+  kind: 'supplyBlock' | 'bankPeak' | 'workerLoss' | 'minute' | 'timing'
+  /**
+   * The amount at that moment, like the money on hand or the workers lost: the number itself, for
+   * one read at a minute, or when the build started, for a timing.
+   */
+  amount?: number
+}
+
 /** One of the user's games, enough to name it and open it. */
 export interface CoachGame {
   gameId: string
@@ -597,6 +630,8 @@ export interface CoachGoal {
    * it.
    */
   checks: boolean[]
+  /** The moment in those games that missed the target by the most, to watch again. */
+  review?: CoachReview
 }
 
 /** How often the user is the first of their team out in losses, against other players. */
@@ -1328,6 +1363,10 @@ interface GoalCandidate {
   recentValues: number[]
   /** The values in the user's latest {@link GOAL_CHECK_GAMES} games that have it, oldest first. */
   checkValues: number[]
+  /** The games {@link checkValues} come from, in the same order. */
+  checkGames: UserGame[]
+  /** The minute the number is read at, if it has one. */
+  minute?: number
 }
 
 const BASIS_ORDER: Record<CoachGoalBasis, number> = { others: 0, wins: 1, earlier: 2 }
@@ -1360,15 +1399,17 @@ function getGoals({
 }): CoachGoal[] {
   const samples = user.map(g => g.sample)
   const recent = samples.slice(-RECENT_FORM_GAMES)
-  const lookback = samples.slice(-GOAL_CHECK_LOOKBACK)
-  /** The latest few values a number has, skipping games that don't have it. */
-  const latest = (valueAt: (s: Sample) => number | undefined) =>
-    lookback
-      .flatMap(s => {
-        const value = valueAt(s)
-        return value === undefined ? [] : [value]
+  const lookback = user.slice(-GOAL_CHECK_LOOKBACK)
+  /** The latest few values a number has, and their games, skipping games that don't have it. */
+  const latest = (valueAt: (s: Sample) => number | undefined) => {
+    const found = lookback
+      .flatMap(game => {
+        const value = valueAt(game.sample)
+        return value === undefined ? [] : [{ game, value }]
       })
       .slice(-GOAL_CHECK_GAMES)
+    return { checkValues: found.map(f => f.value), checkGames: found.map(f => f.game) }
+  }
   const costly = new Set(inLosses.filter(f => f.notable).map(f => f.key))
   const metricOf = (key: CoachMetricKey) => METRICS.find(m => m.key === key)!
 
@@ -1388,7 +1429,8 @@ function getGoals({
       tier: metric.speed ? 2 : 0,
       userValues: numbersOf(samples, metric),
       recentValues: numbersOf(recent, metric),
-      checkValues: latest(s => valueOf(s, metric)),
+      ...latest(s => valueOf(s, metric)),
+      minute: metric.minute,
     }
   }
 
@@ -1411,7 +1453,7 @@ function getGoals({
         tier: 1,
         userValues: timesOf(samples, t.buildKey),
         recentValues: timesOf(recent, t.buildKey),
-        checkValues: latest(s => timeOf(s.player, t.buildKey)),
+        ...latest(s => timeOf(s.player, t.buildKey)),
       })),
     ...inLosses
       .filter(f => f.notable)
@@ -1470,9 +1512,64 @@ function getGoals({
       checks: candidate.checkValues.map(
         value => roundShown(value, candidate.unit) === target || isBetter(candidate, value, target),
       ),
+      review: getReview(candidate, target),
     })
   }
   return goals
+}
+
+/**
+ * The moment to watch for a goal: in the latest games that missed it, the one that missed by the
+ * most, and when in it. Numbers with moments of their own, like a supply block, point to that;
+ * numbers read at a minute point to that minute, and a build to when it should have started.
+ */
+function getReview(candidate: GoalCandidate, target: number): CoachReview | undefined {
+  const missed = candidate.checkValues
+    .map((value, i) => ({ value, game: candidate.checkGames[i] }))
+    .filter(
+      ({ value }) =>
+        !(roundShown(value, candidate.unit) === target || isBetter(candidate, value, target)),
+    )
+  const worst = missed.sort((a, b) =>
+    candidate.higherIsBetter ? a.value - b.value : b.value - a.value,
+  )[0]
+  if (!worst) {
+    return undefined
+  }
+  const { sample, teammates: _, ...game } = worst.game
+  const moments = sample.player.moments
+  const family = candidate.key === 'buildTiming' ? 'buildTiming' : getMetricFamily(candidate.key)
+  switch (family) {
+    case 'buildTiming':
+      return { game, atMs: target, amount: worst.value, kind: 'timing' }
+    case 'supplyBlocked':
+      return moments?.supplyBlock
+        ? {
+            game,
+            atMs: moments.supplyBlock.startMs,
+            endMs: moments.supplyBlock.endMs,
+            kind: 'supplyBlock',
+          }
+        : undefined
+    case 'bank':
+      return moments?.bankPeak
+        ? { game, atMs: moments.bankPeak.atMs, amount: moments.bankPeak.amount, kind: 'bankPeak' }
+        : undefined
+    case 'workersLost':
+      return moments?.workerLoss
+        ? {
+            game,
+            atMs: moments.workerLoss.startMs,
+            endMs: moments.workerLoss.endMs,
+            amount: moments.workerLoss.count,
+            kind: 'workerLoss',
+          }
+        : undefined
+    default:
+      return candidate.minute !== undefined
+        ? { game, atMs: candidate.minute * 60_000, amount: worst.value, kind: 'minute' }
+        : undefined
+  }
 }
 
 /**

@@ -1,10 +1,19 @@
 import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { CoachBucket, CoachGoal, CoachNote, CoachRecentForm } from '../../common/my-stats/coach'
+import {
+  CoachBucket,
+  CoachGoal,
+  CoachNote,
+  CoachRecentForm,
+  CoachReview,
+} from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { MaterialIcon } from '../icons/material/material-icon'
+import { buttonReset } from '../material/button-reset'
+import { useAppDispatch } from '../redux-hooks'
+import { watchGameAt } from '../replays/action-creators'
 
 import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
 
@@ -14,6 +23,7 @@ import {
   formatTimeDiff,
   getBuildName,
   getMetricText,
+  getRaceWords,
   getTimingTip,
   getTip,
   Text,
@@ -156,6 +166,43 @@ const CheckDot = styled.span<{ $hit: boolean }>`
   background-color: ${props => (props.$hit ? 'var(--theme-positive)' : 'var(--theme-negative)')};
 `
 
+/** The game that missed a goal by the most, and a way to watch that moment. */
+const Review = styled.div`
+  ${bodyMedium};
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--theme-on-surface-variant);
+`
+
+const WatchButton = styled.button`
+  ${buttonReset};
+  ${labelLarge};
+  height: 28px;
+  padding: 0 12px 0 8px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  border-radius: var(--radius-full);
+  background-color: var(--theme-container-high);
+  color: var(--theme-on-surface);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--theme-container-highest);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`
+
 const Tip = styled.p`
   ${bodyMedium};
   margin: 0;
@@ -234,6 +281,67 @@ function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   }
 }
 
+/** How far before a moment a replay opens, so what led up to it can be seen. */
+const WATCH_LEAD_MS = 20_000
+
+/** A short date for one of the user's games, like "Oct 4". */
+function formatGameDate(gameTimeMs: number) {
+  return new Date(gameTimeMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/** What happened in the game that missed a goal by the most, in a sentence. */
+function getReviewText(
+  review: CoachReview,
+  goal: CoachGoal,
+  bucket: CoachBucket,
+  formatValue: ReturnType<typeof useFormatValue>,
+  t: TFunction,
+) {
+  const values = {
+    date: formatGameDate(review.game.gameTimeMs),
+    map: review.game.mapName,
+    start: formatGameTime(review.atMs),
+    end: formatGameTime(review.endMs ?? review.atMs),
+    amount: review.amount ?? 0,
+    value: review.amount !== undefined ? formatValue(review.amount, goal.unit) : '-',
+    workers: getRaceWords(bucket.race, t).workers,
+  }
+  switch (review.kind) {
+    case 'supplyBlock':
+      return t(
+        'myStats.coach.review.supplyBlock',
+        'Worst lately: {{date}} on {{map}}, supply blocked from {{start}} to {{end}}.',
+        values,
+      )
+    case 'bankPeak':
+      return t(
+        'myStats.coach.review.bankPeak',
+        'Worst lately: {{date}} on {{map}}, {{amount}} banked at {{start}}.',
+        values,
+      )
+    case 'workerLoss':
+      return t(
+        'myStats.coach.review.workerLoss',
+        'Worst lately: {{date}} on {{map}}, {{amount}} {{workers}} lost from {{start}} to {{end}}.',
+        values,
+      )
+    case 'timing':
+      return t(
+        'myStats.coach.review.timing',
+        'Worst lately: {{date}} on {{map}}, started at {{value}}.',
+        values,
+      )
+    case 'minute':
+      return t(
+        'myStats.coach.review.minute',
+        'Worst lately: {{date}} on {{map}}, {{value}} at {{start}}.',
+        values,
+      )
+    default:
+      return review.kind satisfies never
+  }
+}
+
 /** What a tip needs to know about the kind of game. */
 function getTipContext(bucket: CoachBucket) {
   return {
@@ -267,9 +375,11 @@ function GoalItem({
   bucket: CoachBucket
 }) {
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const formatValue = useFormatValue()
   const [label, help] = getGoalText(goal, t)
-  const { target } = goal
+  const { target, review } = goal
+  const watchFromMs = review ? Math.max(0, review.atMs - WATCH_LEAD_MS) : 0
   const checkWord = (hit: boolean) =>
     hit ? t('myStats.coach.hit', 'Reached') : t('myStats.coach.missed', 'Not reached')
   const checksHelp = [
@@ -331,6 +441,19 @@ function GoalItem({
             </Fact>
           ) : null}
         </Facts>
+        {review ? (
+          <Review>
+            <span>{getReviewText(review, goal, bucket, formatValue, t)}</span>
+            <WatchButton
+              type='button'
+              onClick={() => dispatch(watchGameAt(review.game.gameId, watchFromMs))}>
+              <MaterialIcon icon='play_arrow' size={18} />
+              {t('myStats.coach.watchFrom', 'Watch from {{time}}', {
+                time: formatGameTime(watchFromMs),
+              })}
+            </WatchButton>
+          </Review>
+        ) : null}
         <Tip>
           {goal.key === 'buildTiming'
             ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)

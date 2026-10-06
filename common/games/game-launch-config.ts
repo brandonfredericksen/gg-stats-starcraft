@@ -48,6 +48,8 @@ export interface ReplayMapInfo {
    * of letting someone watch it.
    */
   analyze?: boolean
+  /** Opens a watched replay at this frame instead of its start, like a moment worth seeing. */
+  startFrame?: number
   /**
    * The game these stats belong with: the game id the replay records, if the client that saved it
    * records one, or the game whose page asked for the analysis.
