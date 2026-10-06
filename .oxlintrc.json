@@ -16,7 +16,6 @@
     { "name": "@stylistic", "specifier": "@stylistic/eslint-plugin" }
   ],
   "ignorePatterns": [
-    ".claude/**",
     ".local/**",
     ".playwright-cli/**",
     "build/**",

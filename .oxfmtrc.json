@@ -22,7 +22,6 @@
     "partitionByNewline": true
   },
   "ignorePatterns": [
-    ".claude/**",
     ".local/**",
     ".playwright-cli/**",
     "game/**",

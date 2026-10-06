@@ -16,7 +16,5 @@ electron-builder.env
 
 # Agent and editor tooling, plans and notes stay local.
 .local/
-.claude/
-CLAUDE.local.md
 .mcp.json
 

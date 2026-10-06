@@ -40,7 +40,7 @@ const LOCALES_DIR = path.join(REPO_ROOT, 'app', 'assets', 'locales')
 const NAMESPACE = 'global'
 
 /** Blizzard-matched terminology glossaries (CSV per language), used by the `terms` command. */
-const TERMS_DIR = path.join(REPO_ROOT, '.claude', 'skills', 'translate-i18n', 'terms')
+const TERMS_DIR = path.join(REPO_ROOT, '.local', 'skills', 'translate-i18n', 'terms')
 
 const TARGET_LANGUAGES: ReadonlyArray<string> = ALL_TRANSLATION_LANGUAGES.filter(
   l => l !== SOURCE_LANG,
