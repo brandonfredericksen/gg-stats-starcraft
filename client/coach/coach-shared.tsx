@@ -112,6 +112,7 @@ export const HeadCell = styled.span<{ $end?: boolean }>`
   ${columnSpace};
   color: var(--theme-on-surface-variant);
   font-weight: 600;
+  white-space: nowrap;
   text-align: ${props => (props.$end ? 'right' : 'left')};
 `
 

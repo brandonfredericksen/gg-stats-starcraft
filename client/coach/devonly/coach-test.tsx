@@ -19,7 +19,7 @@ const CaseLabel = styled.h2`
   color: var(--theme-on-surface-variant);
 `
 
-const scopes: CoachScope[] = [
+export const scopes: CoachScope[] = [
   { shape: '1v1', race: 'p', opponentRace: 'z', games: 42 },
   { shape: '3v3', race: 'p', games: 31 },
   { shape: '1v1', race: 'p', opponentRace: 't', games: 18 },
@@ -124,10 +124,11 @@ const recentForm: CoachRecentForm = {
   ],
 }
 
-const pvz: CoachBucket = {
+export const pvz: CoachBucket = {
   recentForm,
   anyAlly: false,
   poolPlayers: 74,
+  builds: [],
   poolFromUserGames: 64,
   goals: [
     {
@@ -469,7 +470,7 @@ const ownGoals: CoachBucket['goals'] = [
   },
 ]
 
-const recentWindow = {
+export const recentWindow = {
   window: 'auto' as const,
   autoGames: 42,
   autoMonths: true,
@@ -480,7 +481,7 @@ const recentWindow = {
   ],
 }
 
-const pvzScope = { shape: '1v1', race: 'p', opponentRace: 'z' } as const
+export const pvzScope = { shape: '1v1', race: 'p', opponentRace: 'z' } as const
 const teamScope = { shape: '3v3', race: 'p', mapFamily: 'bgh' } as const
 
 const cases: Array<[string, CoachResult | undefined]> = [

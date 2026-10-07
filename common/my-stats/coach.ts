@@ -2,6 +2,7 @@ import { GameStatsResult } from '../games/game-stats'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
+import { CoachBuild, summarizeBuilds } from './builds'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
@@ -729,6 +730,10 @@ export interface CoachBucket {
   strengths: CoachFinding[]
   inLosses: CoachResultFinding[]
   timings: CoachTiming[]
+  /** The builds played here, the most played first, with how the user plays theirs. */
+  builds: CoachBuild[]
+  /** The build the user plays most here, see `openingFamily`. */
+  userBuild?: string
   /** Every number with enough games on both sides to compare, flagged or not, in a fixed order. */
   compared: CoachFinding[]
   recentForm: CoachRecentForm
@@ -1944,6 +1949,15 @@ export function computeCoach(
       metrics.filter(m => m.minute !== undefined && m.minute <= earlyMinute),
     )
     const timings = getTimings(user, pool, samePool)
+    const builds = summarizeBuilds(
+      userGames.map(g => ({ player: g.sample.player, name: '', result: g.result })),
+      pool.map(sample => ({
+        player: sample.player,
+        name: nameOf(sample.player),
+        result: sample.player.result,
+      })),
+      openingFamily,
+    )
     const recentForm = getRecentForm(userGames, shownMetrics)
     const firstOut = teamGame ? getFirstOut(userGames, pool) : undefined
     const withoutNotes = {
@@ -1969,6 +1983,8 @@ export function computeCoach(
       strengths: topStrengths,
       inLosses,
       timings,
+      builds,
+      userBuild: family,
       compared,
       recentForm,
       firstOut,
