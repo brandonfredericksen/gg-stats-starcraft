@@ -52,15 +52,16 @@ export const PanelTitle = styled.h2`
 
 export const PanelNote = styled.p`
   ${bodySmall};
+  max-width: 80ch;
   margin: 0;
   color: var(--theme-on-surface-variant);
 `
 
 export const PaddedPanel = styled(StatsPanel)`
-  padding: 16px 20px;
+  padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /**
