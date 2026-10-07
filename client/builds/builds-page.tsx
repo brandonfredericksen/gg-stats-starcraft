@@ -35,6 +35,7 @@ import {
   Text,
 } from '../coach/coach-shared'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
+import { TextButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { useDemoPlayer } from '../my-stats/demo-player'
@@ -48,6 +49,9 @@ import {
   PanelTitle,
 } from '../my-stats/my-stats-panels'
 import { LoadingDotsArea } from '../progress/dots'
+import { useAppDispatch } from '../redux-hooks'
+import { openSettings } from '../settings/action-creators'
+import { AppSettingsPage } from '../settings/settings-page'
 import { labelMedium } from '../styles/typography'
 import { OwnGamesNeeded, useOwnGamesState } from '../system-bar/own-games-needed'
 
@@ -852,14 +856,14 @@ function ArmyMix({ build }: { build: CoachBuild }) {
   )
 }
 
-/** The builds for the kind of game picked, with the one picked shown in detail. */
-function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }> }) {
+/**
+ * Why there are no builds to show. Off the mirror in 1v1, the user's own games never add to the
+ * pool, since their opponents play the other race, so only replays of games they weren't in can.
+ */
+function NoBuilds({ bucket }: { bucket: CoachBucket | undefined }) {
   const { t } = useTranslation()
-  const bucket = coach.buckets[0]
-  const [picked, setPicked] = useState<string>()
-  const [against, setAgainst] = useState('')
-  const view = bucket?.buildsAgainst?.find(b => b.opponents === against) ?? bucket
-  if (!bucket || !view?.builds.length) {
+  const dispatch = useAppDispatch()
+  if (!bucket?.opponentRace || bucket.opponentRace === bucket.race) {
     return (
       <Message>
         <Text>
@@ -870,6 +874,43 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
         </Text>
       </Message>
     )
+  }
+
+  const race = raceCharToLabel(bucket.race, t)
+  const opponent = raceCharToLabel(bucket.opponentRace, t)
+  return (
+    <Message>
+      <PanelTitle>
+        {t('builds.noneOffMirrorTitle', 'Not enough {{race}} vs {{opponent}} games yet', {
+          race,
+          opponent,
+        })}
+      </PanelTitle>
+      <Text>
+        {t(
+          'builds.noneOffMirror',
+          "Your opponents here play {{opponent}}, so their builds count toward {{opponent}} vs {{race}}. Other {{race}} players' builds against {{opponent}} only come from games you weren't in, like a replay pack. Add a folder of them to your library and analyze them.",
+          { race, opponent },
+        )}
+      </Text>
+      <div>
+        <TextButton
+          label={t('builds.replayFolders', 'Replay folders')}
+          onClick={() => dispatch(openSettings(AppSettingsPage.Replays))}
+        />
+      </div>
+    </Message>
+  )
+}
+
+/** The builds for the kind of game picked, with the one picked shown in detail. */
+function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }> }) {
+  const bucket = coach.buckets[0]
+  const [picked, setPicked] = useState<string>()
+  const [against, setAgainst] = useState('')
+  const view = bucket?.buildsAgainst?.find(b => b.opponents === against) ?? bucket
+  if (!bucket || !view?.builds.length) {
+    return <NoBuilds bucket={bucket} />
   }
   const selected =
     view.builds.find(b => b.family === picked) ??
