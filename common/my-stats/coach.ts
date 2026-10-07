@@ -2,7 +2,15 @@ import { GameStatsResult } from '../games/game-stats'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { CoachBuild, summarizeBuilds } from './builds'
+import { getBuildFamily } from './build-family'
+import {
+  BuildSample,
+  CoachBuild,
+  CoachTeamBuild,
+  summarizeBuilds,
+  summarizeTeamBuilds,
+  TeamBuildSample,
+} from './builds'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
@@ -691,6 +699,15 @@ export type CoachNote =
   | { kind: 'strength'; finding: CoachFinding }
   | { kind: 'timing'; timing: CoachTiming }
 
+/** The builds played against one pair of races. */
+export interface CoachBuildsAgainst {
+  /** The opponents' races, in alphabetical order, like `pz`. */
+  opponents: string
+  games: number
+  builds: CoachBuild[]
+  userBuild?: string
+}
+
 /** The coach's look at one kind of game: a game type, the user's race, and what else matters. */
 export interface CoachBucket {
   shape: MyStatsShape
@@ -732,8 +749,12 @@ export interface CoachBucket {
   timings: CoachTiming[]
   /** The builds played here, the most played first, with how the user plays theirs. */
   builds: CoachBuild[]
-  /** The build the user plays most here, see `openingFamily`. */
+  /** The build the user plays most here, see `getBuildFamily`. */
   userBuild?: string
+  /** In 2v2, the builds played here against each pair of races, for pairs with enough games. */
+  buildsAgainst?: CoachBuildsAgainst[]
+  /** In 2v2, the pairs of builds teams played here, the most played first. */
+  teamBuilds?: CoachTeamBuild[]
   /** Every number with enough games on both sides to compare, flagged or not, in a fixed order. */
   compared: CoachFinding[]
   recentForm: CoachRecentForm
@@ -1216,6 +1237,70 @@ interface BucketGames {
 }
 
 /** Every kind of game the user played enough of, as the coach would count them, most first. */
+/** The fewest games against a pair of races for their builds to be shown apart. */
+const MIN_BUILDS_AGAINST_GAMES = 10
+
+/**
+ * In 2v2, the builds played against each pair of opponents' races, and the pairs of builds teams
+ * played. Each team is counted once, from whichever of its players comes first.
+ */
+function getPairBuilds(
+  user: ReadonlyArray<BuildSample>,
+  pool: ReadonlyArray<BuildSample>,
+  games: ReadonlyMap<string, DatedGameMetrics>,
+): Pick<CoachBucket, 'buildsAgainst' | 'teamBuilds'> {
+  const sidesOf = (s: BuildSample) => {
+    const game = games.get(s.gameId)
+    return game ? getSidesOf(game, s.player) : undefined
+  }
+  const opponentsOf = (s: BuildSample) =>
+    (sidesOf(s)?.opponents ?? [])
+      .map(p => p.race ?? '')
+      .sort()
+      .join('')
+  const groups = new Map<string, { user: BuildSample[]; pool: BuildSample[] }>()
+  for (const [side, samples] of [
+    ['user', user],
+    ['pool', pool],
+  ] as const) {
+    for (const s of samples) {
+      const opponents = opponentsOf(s)
+      if (opponents.length !== 2) {
+        continue
+      }
+      const group = groups.get(opponents) ?? { user: [], pool: [] }
+      group[side].push(s)
+      groups.set(opponents, group)
+    }
+  }
+  const buildsAgainst = Array.from(groups)
+    .filter(([, group]) => group.pool.length >= MIN_BUILDS_AGAINST_GAMES)
+    .sort(([, a], [, b]) => b.pool.length + b.user.length - a.pool.length - a.user.length)
+    .map(([opponents, group]) => ({
+      opponents,
+      games: group.pool.length,
+      builds: summarizeBuilds(group.user, group.pool, getBuildFamily),
+      userBuild: mostCommon(group.user.flatMap(s => getBuildFamily(s.player) ?? [])),
+    }))
+
+  const teams = new Map<string, TeamBuildSample>()
+  for (const [isUser, samples] of [
+    [true, user],
+    [false, pool],
+  ] as const) {
+    for (const s of samples) {
+      const id = `${s.gameId}:${s.player.team}`
+      const teammate = sidesOf(s)?.teammates[0]
+      const mine = getBuildFamily(s.player)
+      const theirs = teammate && getBuildFamily(teammate)
+      if (!teams.has(id) && mine && theirs) {
+        teams.set(id, { families: [mine, theirs], result: s.result, user: isUser })
+      }
+    }
+  }
+  return { buildsAgainst, teamBuilds: summarizeTeamBuilds(Array.from(teams.values())) }
+}
+
 function getScopes(
   allGames: ReadonlyArray<DatedGameMetrics>,
   names: ReadonlyArray<string>,
@@ -1949,15 +2034,30 @@ export function computeCoach(
       metrics.filter(m => m.minute !== undefined && m.minute <= earlyMinute),
     )
     const timings = getTimings(user, pool, samePool)
-    const builds = summarizeBuilds(
-      userGames.map(g => ({ player: g.sample.player, name: '', result: g.result })),
-      pool.map(sample => ({
-        player: sample.player,
-        name: nameOf(sample.player),
-        result: sample.player.result,
-      })),
-      openingFamily,
+    const fromUserGames = new Set(floored.flatMap(e => (e.withUser ? [e.sample] : [])))
+    const toBuildSample = (sample: Sample, result: GameStatsResult, withUser: boolean) => ({
+      player: sample.player,
+      name: nameOf(sample.player),
+      result,
+      gameId: sample.game.gameId,
+      withUser,
+      carried: teamGame && wentOutFirst(sample),
+      playedMs: sample.playedMs,
+    })
+    const userBuildSamples = userGames.map(g => toBuildSample(g.sample, g.result, true))
+    const poolBuildSamples = pool.map(sample =>
+      toBuildSample(sample, sample.player.result, fromUserGames.has(sample)),
     )
+    const builds = summarizeBuilds(userBuildSamples, poolBuildSamples, getBuildFamily)
+    const userBuild = mostCommon(user.flatMap(s => getBuildFamily(s.player) ?? []))
+    const pairBuilds =
+      shape === '2v2'
+        ? getPairBuilds(
+            userBuildSamples,
+            poolBuildSamples,
+            new Map([...user, ...pool].map(sample => [sample.game.gameId, sample.game])),
+          )
+        : {}
     const recentForm = getRecentForm(userGames, shownMetrics)
     const firstOut = teamGame ? getFirstOut(userGames, pool) : undefined
     const withoutNotes = {
@@ -1984,7 +2084,8 @@ export function computeCoach(
       inLosses,
       timings,
       builds,
-      userBuild: family,
+      userBuild,
+      ...pairBuilds,
       compared,
       recentForm,
       firstOut,
