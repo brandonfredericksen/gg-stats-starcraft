@@ -37,6 +37,7 @@ import {
   headlineMedium,
   labelLarge,
   labelSmall,
+  titleLarge,
   titleMedium,
   titleSmall,
 } from '../styles/typography'
@@ -54,7 +55,6 @@ import { CoachNotes, GoalNumber, NextGame } from './coach-plan'
 import {
   Cell,
   Columns,
-  ColumnTitle,
   formatGameTime,
   formatTimeDiff,
   getBuildName,
@@ -65,6 +65,8 @@ import {
   GroupHead,
   HeadCell,
   MetricGroup,
+  PanelHead,
+  PanelHeadNote,
   Table,
   Text,
   Tone,
@@ -200,26 +202,10 @@ const About = styled(Text)`
 `
 
 /** A title with a muted note after it on the same line. */
-/**
- * A title with a muted note after it. Centered rather than on a baseline, since the race tag in
- * the title has no text baseline of its own to line up by.
- */
-const TitleLine = styled.div`
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-`
-
 const TitleRace = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-`
-
-const TitleNote = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
 `
 
 /**
@@ -333,21 +319,87 @@ const HowItWorksButton = styled.button`
   }
 `
 
-/** Which games the page looks at, and how many more could be analyzed, with a way to do it. */
-const Scope = styled.div`
+/** What the page looks at, as a few numbers side by side, stacking once there's no room. */
+const Tiles = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+
+  @container coach (width < 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const Tile = styled(PaddedPanel)`
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  gap: var(--space-1);
+`
+
+const TileValue = styled.span`
+  ${titleLarge};
+  font-variant-numeric: tabular-nums;
+`
+
+const TileUnit = styled.span`
   ${bodyMedium};
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  margin-left: var(--space-1);
   color: var(--theme-on-surface-variant);
 `
 
-/** How many of the replays are analyzed, with the button to analyze more right after it. */
-const ScopeCoverage = styled.div`
+const TileLabel = styled.span`
+  ${labelLarge};
+  font-weight: 600;
+`
+
+const TileDetail = styled.span`
+  ${bodyMedium};
+  color: var(--theme-on-surface-variant);
+`
+
+/** The bar and button at a tile's foot, the same height in every tile that has one. */
+const TileFoot = styled.div`
+  margin-top: auto;
+  padding-top: var(--space-2);
+
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+`
+
+const TileTrack = styled.span`
+  position: relative;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--theme-container-highest);
+`
+
+/**
+ * The goals beside the trends and strengths, which together come close to the goals' height. They
+ * stack once there's no room for both.
+ */
+const PlanColumns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+
+  @container coach (width < 880px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const SideColumn = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+`
+
+const OthersNote = styled(Text)`
+  margin-top: calc(-1 * var(--space-2));
 `
 
 /** Tabs over the comparison: everything against other players, wins against losses, timings. */
@@ -376,11 +428,6 @@ const ComparePanel = styled(PaddedPanel)`
 
 const Message = styled(PaddedPanel)`
   gap: var(--space-3);
-`
-
-const UnlockTitle = styled.h4`
-  ${titleSmall};
-  margin: 0;
 `
 
 const Progress = styled.div`
@@ -792,8 +839,8 @@ function RacePicker({
   )
 }
 
-/** How many of the user's replays of a game type are analyzed, and a way to analyze more. */
-function Coverage({
+/** How many of the user's replays of a game type are analyzed, with a way to analyze more. */
+function CoverageTile({
   shape,
   counts,
 }: {
@@ -807,22 +854,120 @@ function Coverage({
     return null
   }
   return (
-    <>
+    <Tile>
       <span>
-        <Trans
-          t={t}
-          i18nKey='myStats.coach.coverageAnalyzed'
-          defaults='<b>{{analyzed}}</b> of your {{total}} games of {{shape}} are analyzed.'
-          values={{
-            analyzed: count.analyzed.toLocaleString(),
-            total: count.total.toLocaleString(),
-            shape: getShapeName(shape, t),
-          }}
-          components={{ b: <Key /> }}
-        />
+        <TileValue>{count.analyzed.toLocaleString()}</TileValue>
+        <TileUnit>
+          {t('myStats.coach.tileOfTotal', 'of {{total}}', { total: count.total.toLocaleString() })}
+        </TileUnit>
       </span>
-      <AnalyzeMine names={names} filters={{ range: 'all', shape }} compact={true} />
-    </>
+      <TileLabel>
+        {t('myStats.coach.tileAnalyzed', 'Your {{shape}} replays analyzed', {
+          shape: getShapeName(shape, t),
+        })}
+      </TileLabel>
+      <TileDetail>
+        {t(
+          'myStats.coach.tileAnalyzedDetail',
+          'More analyzed means more of your games and more players to compare with.',
+        )}
+      </TileDetail>
+      <TileFoot>
+        <TileTrack>
+          <Fill $tone='good' style={{ width: `${(count.analyzed / count.total) * 100}%` }} />
+        </TileTrack>
+        <AnalyzeMine names={names} filters={{ range: 'all', shape }} compact={true} />
+      </TileFoot>
+    </Tile>
+  )
+}
+
+/**
+ * What the coach is looking at, in three numbers: the user's games, and how far back the filter
+ * reaches; other players' games from the same dates; and how many replays are analyzed.
+ */
+function ScopeTiles({
+  bucket,
+  eapmFloor,
+  sinceMs,
+  window,
+  autoGames,
+  autoMonths,
+  counts,
+}: {
+  bucket: CoachBucket
+  eapmFloor: number
+  sinceMs?: number
+  window: CoachWindow
+  autoGames: number
+  autoMonths: boolean
+  counts: ReadonlyArray<ShapeCount>
+}) {
+  const { t } = useTranslation()
+  const race = raceCharToLabel(bucket.race, t)
+
+  let reach: string
+  if (sinceMs === undefined) {
+    reach = t('myStats.coach.tileReachAll', 'Every one you have analyzed.')
+  } else if (window === 'auto' && autoMonths) {
+    reach = t(
+      'myStats.coach.tileReachMonths',
+      'Back to {{date}}: your last 3 months, from the You filter.',
+      {
+        date: formatDate(sinceMs),
+      },
+    )
+  } else {
+    reach = t(
+      'myStats.coach.tileReachGames',
+      'Back to {{date}}: your last {{count}}, from the You filter.',
+      {
+        date: formatDate(sinceMs),
+        count: window === 'auto' || window === 'all' ? autoGames : window,
+      },
+    )
+  }
+
+  return (
+    <Tiles>
+      <Tile>
+        <span>
+          <TileValue>{bucket.userGames}</TileValue>
+          <TileUnit>{t('myStats.coach.tileGames', 'games')}</TileUnit>
+        </span>
+        <TileLabel>
+          {t('myStats.coach.tileYours', 'Your {{race}} games in {{where}}', {
+            race,
+            where: getPoolPlace(bucket, t),
+          })}
+        </TileLabel>
+        <TileDetail>{reach}</TileDetail>
+        {bucket.skippedGames ? (
+          <TileDetail>
+            {t('myStats.coach.tileSkipped', {
+              defaultValue: '{{count}} more left out: someone quit in the first 5 minutes.',
+              defaultValue_one: '{{count}} more left out: someone quit in the first 5 minutes.',
+              count: bucket.skippedGames,
+            })}
+          </TileDetail>
+        ) : null}
+      </Tile>
+      <Tile>
+        <span>
+          <TileValue>{bucket.poolGames}</TileValue>
+          <TileUnit>{t('myStats.coach.tileGames', 'games')}</TileUnit>
+        </span>
+        <TileLabel>{t('myStats.coach.tileTheirs', 'Other {{race}} players', { race })}</TileLabel>
+        <TileDetail>
+          {t(
+            'myStats.coach.tileTheirsDetail',
+            '{{players}} players over {{floor}} EAPM in your replays, from the same dates, up to 5 games each.',
+            { players: bucket.poolPlayers, floor: eapmFloor },
+          )}
+        </TileDetail>
+      </Tile>
+      <CoverageTile shape={bucket.shape} counts={counts} />
+    </Tiles>
   )
 }
 
@@ -834,11 +979,13 @@ function LockedView({ locked }: { locked: ShapeCount }) {
 
   return (
     <PaddedPanel>
-      <UnlockTitle>
-        {t('myStats.coach.lockedTitle', 'Analyze more of your {{shape}} games to coach them', {
-          shape: name,
-        })}
-      </UnlockTitle>
+      <PanelHead>
+        <PanelTitle>
+          {t('myStats.coach.lockedTitle', 'Analyze more of your {{shape}} games to coach them', {
+            shape: name,
+          })}
+        </PanelTitle>
+      </PanelHead>
       <Progress>
         <span>{t('myStats.coach.lockedReplays', 'Your {{shape}} replays', { shape: name })}</span>
         <Track>
@@ -877,12 +1024,15 @@ function ComparedGroup({
   findings,
   first,
   goalNumbers,
+  compact = false,
 }: {
   title: string
   findings: ReadonlyArray<CoachFinding>
   first: boolean
   /** Each goal's number, by the number it's about. */
   goalNumbers: ReadonlyMap<string, number>
+  /** For a narrow column: the share without its bar. */
+  compact?: boolean
 }) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
@@ -903,18 +1053,20 @@ function ComparedGroup({
         const tone = getStandingTone(finding.beats)
         return [
           <Cell key={`${finding.key}-label`}>
-            {goalNumbers.has(finding.key) ? (
-              <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
-            ) : null}
-            <HelpLabel
-              quiet={true}
-              label={label}
-              help={`${help} ${t(
-                'myStats.coach.fromGames',
-                'From {{userGames}} of your games and {{poolGames}} of theirs.',
-                { userGames: finding.userGames, poolGames: finding.poolGames },
-              )}`}
-            />
+            <RowName>
+              {goalNumbers.has(finding.key) ? (
+                <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
+              ) : null}
+              <HelpLabel
+                quiet={true}
+                label={label}
+                help={`${help} ${t(
+                  'myStats.coach.fromGames',
+                  'From {{userGames}} of your games and {{poolGames}} of theirs.',
+                  { userGames: finding.userGames, poolGames: finding.poolGames },
+                )}`}
+              />
+            </RowName>
           </Cell>,
           <Cell key={`${finding.key}-you`} $end={true} $tone={tone}>
             {formatValue(finding.userValue, finding.unit)}
@@ -924,10 +1076,12 @@ function ComparedGroup({
           </Cell>,
           <Cell key={`${finding.key}-standing`} $end={true}>
             <MiniStanding>
-              <MiniTrack aria-hidden={true}>
-                <StandingMiddle />
-                <MiniMarker $tone={tone} style={{ left: `${finding.beats * 100}%` }} />
-              </MiniTrack>
+              {compact ? null : (
+                <MiniTrack aria-hidden={true}>
+                  <StandingMiddle />
+                  <MiniMarker $tone={tone} style={{ left: `${finding.beats * 100}%` }} />
+                </MiniTrack>
+              )}
               {formatPercent(finding.beats)}
             </MiniStanding>
           </Cell>,
@@ -949,9 +1103,13 @@ const TABLE_COLUMNS = `minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN} ${LAST_COL
 const RowGoal = styled(GoalNumber)`
   width: 20px;
   height: 20px;
-  margin-right: var(--space-2);
+`
+
+/** A row's name with a goal's number in front of it, the name wrapping beside the number. */
+const RowName = styled.span`
   display: inline-flex;
-  vertical-align: top;
+  align-items: flex-start;
+  gap: var(--space-2);
 `
 
 /** Every number the coach compared, pointed out or not, grouped by what it's about. */
@@ -1017,10 +1175,12 @@ function LossesTable({
         const [label, help] = getMetricText(finding.key, t)
         return [
           <Cell key={`${finding.key}-label`}>
-            {goalNumbers.has(finding.key) ? (
-              <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
-            ) : null}
-            <HelpLabel quiet={true} label={label} help={help} />
+            <RowName>
+              {goalNumbers.has(finding.key) ? (
+                <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
+              ) : null}
+              <HelpLabel quiet={true} label={label} help={help} />
+            </RowName>
           </Cell>,
           <Cell key={`${finding.key}-wins`} $end={true}>
             {formatValue(finding.winValue, finding.unit)}
@@ -1071,10 +1231,12 @@ function TimingsTable({
         }
         return [
           <Cell key={`${timing.buildKey}-name`}>
-            {goalNumbers.has(timing.buildKey) ? (
-              <RowGoal>{goalNumbers.get(timing.buildKey)}</RowGoal>
-            ) : null}
-            {getBuildName(timing.buildKey, t)}
+            <RowName>
+              {goalNumbers.has(timing.buildKey) ? (
+                <RowGoal>{goalNumbers.get(timing.buildKey)}</RowGoal>
+              ) : null}
+              {getBuildName(timing.buildKey, t)}
+            </RowName>
           </Cell>,
           <Cell key={`${timing.buildKey}-you`} $end={true}>
             {userMs !== undefined ? formatGameTime(userMs) : '-'}
@@ -1083,7 +1245,18 @@ function TimingsTable({
             {poolMs !== undefined ? formatGameTime(poolMs) : '-'}
           </Cell>,
           <Cell key={`${timing.buildKey}-diff`} $end={true} $tone='muted' $strong={timing.notable}>
-            {difference}
+            {!timing.notable && timing.userMs !== undefined && timing.poolMs !== undefined ? (
+              <HelpLabel
+                quiet={true}
+                label={difference}
+                help={t(
+                  'myStats.coach.timingNotBoth',
+                  'Only one side usually builds it, so the difference says more about the build than the timing.',
+                )}
+              />
+            ) : (
+              difference
+            )}
           </Cell>,
         ]
       })}
@@ -1153,7 +1326,9 @@ function Unlock({
 
   return (
     <PaddedPanel>
-      <UnlockTitle>{title}</UnlockTitle>
+      <PanelHead>
+        <PanelTitle>{title}</PanelTitle>
+      </PanelHead>
       <Text>
         {sinceMs === undefined ? (
           <Trans
@@ -1255,13 +1430,21 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
   const { t } = useTranslation()
   return (
     <PaddedPanel>
-      <ColumnTitle $tone='good'>{t('myStats.coach.keepDoing', 'Keep doing')}</ColumnTitle>
-      <Table $columns={TABLE_COLUMNS}>
+      <PanelHead>
+        <PanelTitle>{t('myStats.coach.keepDoing', 'Keep doing')}</PanelTitle>
+        <PanelHeadNote>
+          {t('myStats.coach.keepDoingNote', 'Where you are ahead of most {{race}} players.', {
+            race: raceCharToLabel(bucket.race, t),
+          })}
+        </PanelHeadNote>
+      </PanelHead>
+      <Table $columns='minmax(0, 1fr) auto auto auto'>
         <ComparedGroup
           title={t('myStats.coach.number', 'Number')}
           findings={bucket.strengths}
           first={true}
           goalNumbers={new Map()}
+          compact={true}
         />
       </Table>
     </PaddedPanel>
@@ -1287,20 +1470,13 @@ function Comparison({
   const goalNumbers = getGoalNumbers(bucket)
   const [tab, setTab] = useState(readCompareTab)
 
-  const source = [
+  const source: string[] = [
     t(
-      'myStats.coach.sourceLine',
-      'From your own replays: {{games}} games of {{players}} {{race}} players, up to 5 games each.',
-      { games: bucket.poolGames, players: bucket.poolPlayers, race },
+      'myStats.coach.othersFloor',
+      'Against {{race}} players over {{floor}} EAPM from your replays, from the same dates. Speed rows count every EAPM.',
+      { race, floor: eapmFloor },
     ),
   ]
-  if (sinceMs !== undefined) {
-    source.push(
-      t('myStats.coach.sourceSince', 'Only games since {{date}}, like yours.', {
-        date: formatDate(sinceMs),
-      }),
-    )
-  }
   if (isTeamGame(bucket.shape)) {
     source.push(t('myStats.coach.sourceTeammates', "Your regular teammates aren't counted."))
   }
@@ -1336,17 +1512,8 @@ function Comparison({
   if (tab === 'all') {
     content = bucket.compared.length ? (
       <>
-        <About>{source.join(' ')}</About>
+        {source.length ? <About>{source.join(' ')}</About> : null}
         <ComparedTable findings={bucket.compared} goalNumbers={goalNumbers} />
-        {bucket.compared.some(f => getMetricGroup(f.key) === 'speed') ? (
-          <Text>
-            {t(
-              'myStats.coach.speedAnyEapm',
-              'Speed is compared with every {{race}} player here, at any EAPM, since a floor would only keep the fast ones.',
-              { race },
-            )}
-          </Text>
-        ) : null}
       </>
     ) : (
       <Text>
@@ -1421,26 +1588,27 @@ function Comparison({
 
   return (
     <ComparePanel>
-      <TitleLine>
+      <PanelHead>
         <PanelTitle>
           <TitleRace>
             <RaceTag race={bucket.race} />
-            {t('myStats.coach.compareWithRace', 'How you compare with other {{race}} players', {
-              race,
-            })}
+            {t('myStats.coach.allNumbers', 'All the numbers')}
           </TitleRace>
         </PanelTitle>
-        <TitleNote>
-          {t('myStats.coach.againstWhere', '{{where}}, over {{floor}} EAPM', {
+        <PanelHeadNote>
+          {t('myStats.coach.allNumbersNote', 'Your {{race}} games in {{where}}.', {
+            race,
             where: getPoolPlace(bucket, t),
-            floor: eapmFloor,
           })}
-        </TitleNote>
-      </TitleLine>
+        </PanelHeadNote>
+      </PanelHead>
       <CompareTabs
         label={t('myStats.coach.compareTabs', 'What to compare')}
         options={[
-          { value: 'all', label: t('myStats.coach.tabAll', 'Everything compared') },
+          {
+            value: 'all',
+            label: t('myStats.coach.tabOthers', 'Against other {{race}} players', { race }),
+          },
           { value: 'losses', label: t('myStats.coach.tabLosses', 'Wins against losses') },
           { value: 'timings', label: t('myStats.coach.tabTimings', 'Timings') },
         ]}
@@ -1462,12 +1630,18 @@ function BucketView({
   showTitle,
   counts,
   others,
+  window,
+  autoGames,
+  autoMonths,
 }: {
   bucket: CoachBucket
   eapmFloor: number
   sinceMs?: number
   showTitle: boolean
   counts: ReadonlyArray<ShapeCount>
+  window: CoachWindow
+  autoGames: number
+  autoMonths: boolean
   /** The groups of games too small to show, named in the scope line. */
   others?: string
 }) {
@@ -1479,70 +1653,38 @@ function BucketView({
   const title = getBucketTitle(bucket, t)
   const showStrengths = ready && bucket.strengths.length > 0
 
-  const raceName = raceCharToLabel(bucket.race, t)
-  const place = getPoolPlace(bucket, t)
-  const count = bucket.userGames
-  const scope = (
-    <span>
-      {sinceMs === undefined ? (
-        <Trans
-          t={t}
-          i18nKey='myStats.coach.scopeAll'
-          defaults='All <b>{{count}}</b> of your {{race}} games in {{place}}.'
-          count={count}
-          values={{ race: raceName, place }}
-          components={{ b: <Key /> }}
-        />
-      ) : (
-        <Trans
-          t={t}
-          i18nKey='myStats.coach.scopeSince'
-          defaults='Your last <b>{{count}}</b> {{race}} games in {{place}}, since <b>{{date}}</b>.'
-          count={count}
-          values={{ race: raceName, place, date: formatDate(sinceMs) }}
-          components={{ b: <Key /> }}
-        />
-      )}
-      {bucket.skippedGames ? (
-        <>
-          {' '}
-          <Trans
-            t={t}
-            i18nKey='myStats.coach.scopeSkipped'
-            defaults='<b>{{count}}</b> more left out, since someone quit in the first 5 minutes.'
-            count={bucket.skippedGames}
-            components={{ b: <Key /> }}
-          />
-        </>
-      ) : null}
-      {others ? ` ${others}` : null}
-    </span>
-  )
-
   return (
     <Bucket>
       {showTitle && title ? <BucketTitle>{title}</BucketTitle> : null}
-      <Scope>
-        {scope}
-        <ScopeCoverage>
-          <Coverage shape={bucket.shape} counts={counts} />
-        </ScopeCoverage>
-      </Scope>
-      <SectionErrorBoundary>
-        <CoachNotes bucket={bucket} hideStrength={showStrengths} />
-      </SectionErrorBoundary>
-      <SectionErrorBoundary>
-        {showNextGame ? (
-          <NextGame bucket={bucket} allGames={sinceMs === undefined} />
-        ) : (
-          <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
-        )}
-      </SectionErrorBoundary>
-      {showStrengths ? (
+      <ScopeTiles
+        bucket={bucket}
+        eapmFloor={eapmFloor}
+        sinceMs={sinceMs}
+        window={window}
+        autoGames={autoGames}
+        autoMonths={autoMonths}
+        counts={counts}
+      />
+      {others ? <OthersNote>{others}</OthersNote> : null}
+      <PlanColumns>
         <SectionErrorBoundary>
-          <KeepDoing bucket={bucket} />
+          {showNextGame ? (
+            <NextGame bucket={bucket} allGames={sinceMs === undefined} />
+          ) : (
+            <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
+          )}
         </SectionErrorBoundary>
-      ) : null}
+        <SideColumn>
+          <SectionErrorBoundary>
+            <CoachNotes bucket={bucket} hideStrength={showStrengths} />
+          </SectionErrorBoundary>
+          {showStrengths ? (
+            <SectionErrorBoundary>
+              <KeepDoing bucket={bucket} />
+            </SectionErrorBoundary>
+          ) : null}
+        </SideColumn>
+      </PlanColumns>
       {ready ? (
         <SectionErrorBoundary>
           <Comparison bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
@@ -1683,6 +1825,9 @@ function CoachBody({ coach, counts }: { coach: CoachResult; counts: ReadonlyArra
           showTitle={shown.length > 1 && bucket.mapFamily !== undefined}
           counts={counts}
           others={i === 0 ? others : undefined}
+          window={coach.window}
+          autoGames={coach.autoGames}
+          autoMonths={coach.autoMonths}
         />
       ))}
     </>
