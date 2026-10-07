@@ -75,8 +75,8 @@ const Lockup = styled.div`
 `
 
 const LogoMark = styled.img`
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
 `
 
 const Wordmark = styled.div`
