@@ -258,6 +258,40 @@ describe('common/games/player-metrics/getGameShape', () => {
     expect(z.workerProduction8).toBeUndefined()
   })
 
+  test('counts every worker started on the same frame', () => {
+    const durationMs = 20 * 60_000
+    // Two Probes at a time from the starting Nexus and one started right away, every 25.2 seconds.
+    const nexus = step(0, 154)
+    const probes = Array.from({ length: 20 }, (_, i) => step((i * 25.2) / 60, 64, { count: 2 }))
+    const [p] = computeGameMetrics(
+      'g',
+      game([player('Bisu', durationMs, { buildOrder: [nexus, ...probes] })]),
+    ).players
+    const [single] = computeGameMetrics(
+      'g',
+      game([
+        player('Bisu', durationMs, {
+          buildOrder: [nexus, ...probes.map(s => ({ ...s, count: 1 }))],
+        }),
+      ]),
+    ).players
+    expect(p.workerProduction8).toBeGreaterThan(single.workerProduction8!)
+  })
+
+  test('leaves a share out when the team had nothing to share', () => {
+    const ms = 20 * 60_000
+    const metrics = computeGameMetrics(
+      'g',
+      game([
+        player('A', ms, { team: 1, armyKilled: undefined }),
+        player('B', ms, { team: 1, armyKilled: undefined }),
+        player('C', ms, { team: 2 }),
+        player('D', ms, { team: 2 }),
+      ]),
+    )
+    expect(metrics.players[0].teamShare?.armyKilled).toBeUndefined()
+  })
+
   test('tells when a player stopped making workers, apart from supply blocks and the game ending', () => {
     const durationMs = 20 * 60_000
     // A Probe every 20 seconds until 4:40.

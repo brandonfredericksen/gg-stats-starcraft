@@ -1262,7 +1262,7 @@ export function MacroAveragesPanel({
           t('myStats.macro.armyKilled', 'Army killed'),
           t(
             'myStats.help.armyKilled',
-            "What the enemy army units you killed were worth, in the game's score. Workers, buildings and Overlords don't count.",
+            "What the enemy army units you killed were worth, by StarCraft's score for each unit. Workers, buildings, Overlords, Interceptors, Scarabs and Spider Mines don't count.",
           ),
           'armyKilled',
           whole,
@@ -1273,7 +1273,7 @@ export function MacroAveragesPanel({
           t('myStats.macro.armyLost', 'Army lost'),
           t(
             'myStats.help.armyLost',
-            "What the army units you lost were worth, in the game's score. Workers, buildings and Overlords don't count.",
+            "What the army units you lost were worth, by StarCraft's score for each unit. Workers, buildings, Overlords, Interceptors, Scarabs and Spider Mines don't count.",
           ),
           'armyLost',
           whole,
@@ -1306,7 +1306,7 @@ export function MacroAveragesPanel({
                     label={t('myStats.macro.others', 'Others')}
                     help={t(
                       'myStats.help.others',
-                      'Other players in the same kind of games, with the same race as the filters and at least {{floor}} EAPM.',
+                      'Other players in the same kind of games, with the same races as the filters, at least {{floor}} EAPM and at least 5 minutes played. Their games from any time count. Your games under 5 minutes are left out too.',
                       { floor: eapmFloor },
                     )}
                   />

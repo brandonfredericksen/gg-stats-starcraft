@@ -218,8 +218,8 @@ function zergFamily(steps: Steps): string[] | undefined {
 
 /**
  * The build a player went with, by the names players use for them, like a 2 Gate, a Forge expand,
- * a Rax CC with bio, or a 12 hatch into 3 hatch Mutalisks. It's the race, the opening, then what it
- * led to, joined by spaces, like `p gates1 expand u155`. Undefined without a build order to tell.
+ * a Rax CC with bio, or a hatch first into 3 hatch Mutalisks. It's the race, the opening, then what
+ * it led to, joined by spaces, like `p gates1 expand u155`. Undefined without a build order to tell.
  */
 export function getBuildFamily(player: PlayerMetrics): string | undefined {
   if (!player.buildSteps?.length) {

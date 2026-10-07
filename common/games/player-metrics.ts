@@ -7,7 +7,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 10
+export const GAME_METRICS_VERSION = 11
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -223,7 +223,7 @@ export interface PlayerMetrics {
   /** Commands to cast each spell, keyed by the spell's name. */
   casts?: Record<string, number>
   /** In team games, the player's part of what their team did, from 0 to 1. */
-  teamShare?: { income: number; armyProduced: number; armyKilled: number }
+  teamShare?: { income?: number; armyProduced?: number; armyKilled?: number }
   /** In team games, 1 if the player was the first of their team to leave or be defeated, and so on. */
   outOrder?: number
   /**
@@ -333,8 +333,9 @@ function sum(values: ReadonlyArray<number>) {
   return values.reduce((total, value) => total + value, 0)
 }
 
+/** A part of a whole, or nothing when there was nothing to have a part of. */
 function share(part: number | undefined, whole: number) {
-  return whole > 0 ? (part ?? 0) / whole : 0
+  return whole > 0 ? (part ?? 0) / whole : undefined
 }
 
 function deathsOf(player: GamePlayerStats, ids: ReadonlySet<number>) {
@@ -451,7 +452,7 @@ function getEapmByPhase(
 function getWorkerProduction(
   player: GamePlayerStats,
   playedMs: number,
-  unitSteps: ReadonlyArray<{ id: number; timeMs: number }>,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
 ) {
   if (player.race !== 't' && player.race !== 'p') {
     return undefined
@@ -460,14 +461,17 @@ function getWorkerProduction(
   if (endMs < WORKER_PRODUCTION_MS / 2) {
     return null
   }
+  // A step is every one of a kind started on the same frame, so it can be more than one.
   const readyTimes = [
     0,
     ...unitSteps
       .filter(step => WORKER_TOWN_HALL_IDS.has(step.id))
-      .map(step => step.timeMs + TOWN_HALL_BUILD_MS),
+      .flatMap(step => Array<number>(step.count).fill(step.timeMs + TOWN_HALL_BUILD_MS)),
   ].filter(ms => ms < endMs)
   const capacity = sum(readyTimes.map(ms => endMs - ms))
-  const used = unitSteps.filter(step => WORKER_IDS.has(step.id) && step.timeMs < endMs).length
+  const used = sum(
+    unitSteps.filter(step => WORKER_IDS.has(step.id) && step.timeMs < endMs).map(s => s.count),
+  )
   return capacity > 0 ? Math.min(1, (used * WORKER_BUILD_MS) / capacity) : null
 }
 

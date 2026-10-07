@@ -443,13 +443,19 @@ function getTeamStatsByRace(games: ReadonlyArray<MyGame>): MyStatsResult['team']
   return byRace
 }
 
-/** Players who didn't play long enough to compare with. */
-const MIN_OTHER_PLAYED_MS = 5 * 60_000
+/** Players who didn't play long enough to compare with, the user included. */
+const MIN_COMPARED_PLAYED_MS = 5 * 60_000
+
+/** Whether a player played long enough in a game for their numbers to be compared. */
+function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
+  return (player.leftAtMs ?? game.durationMs) >= MIN_COMPARED_PLAYED_MS
+}
 
 /**
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
- * filters pick, playing the race they pick, at or above the EAPM floor. Games from any time count,
- * since how others play doesn't depend on when the user did.
+ * filters pick, playing the race they pick against the opponent race they pick, at or above the
+ * EAPM floor, who played at least 5 minutes. Games from any time count, since how others play
+ * doesn't depend on when the user did.
  */
 function getOthers(
   allGames: ReadonlyArray<DatedGameMetrics>,
@@ -469,7 +475,7 @@ function getOthers(
         p !== me &&
         p.human &&
         (p.eapm ?? 0) >= floor &&
-        (p.leftAtMs === undefined || p.leftAtMs >= MIN_OTHER_PLAYED_MS) &&
+        playedEnough(game, p) &&
         (!query.race || p.race === query.race) &&
         (!query.opponentRace ||
           (game.shape === '1v1' && getSidesOf(game, p).opponents[0]?.race === query.opponentRace)),
@@ -483,10 +489,11 @@ export function computeMyStats(
   query: MyStatsQuery,
   nowMs: number,
 ): MyStatsResult {
-  const games = allGames
+  const myGames = allGames
     .map(game => toMyGame(game, query.names))
-    .filter((g): g is MyGame => g !== undefined && matchesQuery(g, query, nowMs))
+    .filter((g): g is MyGame => g !== undefined)
     .sort((a, b) => a.game.gameTimeMs - b.game.gameTimeMs)
+  const games = myGames.filter(g => matchesQuery(g, query, nowMs))
 
   const record = emptyRecord()
   const apm = new Averager()
@@ -511,12 +518,16 @@ export function computeMyStats(
     trend: games.slice(-TREND_GAMES).map(toGame),
     byMatchup: getMatchupRows(games),
     byLength: getLengthRows(games),
-    macro: getMacroAverages(games.map(g => g.me)),
+    // Held to the same rule as the others they're compared with.
+    macro: getMacroAverages(games.filter(g => playedEnough(g.game, g.me)).map(g => g.me)),
     macroOthers: getMacroAverages(others),
     othersGames: others.length,
     teammates: people.filter(p => p.relation === 'teammate').slice(0, MAX_PEOPLE),
     opponents: people.filter(p => p.relation === 'opponent').slice(0, MAX_PEOPLE),
     maps: getMaps(games),
-    team: getTeamStatsByRace(games),
+    // The panel picks its own race, so it gets the user's games of every race.
+    team: getTeamStatsByRace(
+      myGames.filter(g => matchesQuery(g, { ...query, race: undefined }, nowMs)),
+    ),
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
-import { BuildSample, summarizeBuilds } from './builds'
+import { BuildSample, isArmyMixUnit, summarizeBuilds, summarizeTeamBuilds } from './builds'
 
 const empty = CHECKPOINT_MINUTES.map(() => null)
 
@@ -104,7 +104,11 @@ describe('common/my-stats/builds', () => {
   })
 
   test('counts a team once, leaves carried players out of the winners and keeps the user build', () => {
-    const teammates = ['a', 'b'].map(name => ({ ...threeGate(name, 'win'), gameId: 'team' }))
+    const teammates = ['a', 'b'].map(name => ({
+      ...threeGate(name, 'win'),
+      gameId: 'team',
+      side: '0',
+    }))
     const carried = ['c', 'd', 'e', 'f', 'g'].map(name => ({
       ...threeGate(name, 'win'),
       carried: true,
@@ -136,5 +140,89 @@ describe('common/my-stats/builds', () => {
     expect(build.winners?.games).toBe(5)
     expect(build.user?.games).toBe(3)
     expect(build.user?.steps.find(s => s.key === 'u157')?.timeMs).toBe(330_000)
+  })
+
+  test('counts each player once in a melee game, where everyone is on one team', () => {
+    const mirror = ['a', 'b'].map((name, i) => ({
+      ...threeGate(name, i ? 'loss' : 'win'),
+      gameId: 'mirror',
+    }))
+    const [build] = summarizeBuilds([], [...mirror, threeGate('c', 'win')], familyOf)
+    expect(build.others).toMatchObject({ games: 3, wins: 2, losses: 1 })
+
+    const sided = mirror.map(s => ({ ...s, side: s.name }))
+    const [sidedBuild] = summarizeBuilds([], [...sided, threeGate('c', 'win')], familyOf)
+    expect(sidedBuild.others).toMatchObject({ wins: 2, losses: 1 })
+  })
+
+  test('counts teammates once when their teams differ from their opponents', () => {
+    const game = ['a', 'b', 'c'].map((name, i) => {
+      const sample = threeGate(name, i < 2 ? 'win' : 'loss')
+      return { ...sample, gameId: 'team', player: { ...sample.player, team: i < 2 ? 1 : 2 } }
+    })
+    const [build] = summarizeBuilds([], game, familyOf)
+    expect(build.others).toMatchObject({ games: 3, wins: 1, losses: 1 })
+  })
+
+  test('keeps every unit made, so a side shows its real count of a unit another makes more of', () => {
+    const pool = ['a', 'b', 'c'].map(name => {
+      const sample = threeGate(name, 'win')
+      return { ...sample, player: { ...sample.player, armyMix: { 65: [0, 0, 0.2, 0.3] } } }
+    })
+    const [build] = summarizeBuilds([], pool, familyOf)
+    const [entry] = build.others.armyMix
+    expect(entry.unitId).toBe(65)
+    expect(entry.counts.at(-1)).toBeCloseTo(0.3)
+    expect(isArmyMixUnit(entry)).toBe(false)
+    expect(isArmyMixUnit({ unitId: 65, counts: [0, 0.5, 1, 2] })).toBe(true)
+  })
+})
+
+describe('common/my-stats/builds summarizeTeamBuilds', () => {
+  const team = (families: [string, string], user = false, result: 'win' | 'loss' = 'win') => ({
+    families,
+    result,
+    user,
+  })
+
+  test('counts two builds of one race as one pair in either order', () => {
+    const pairs = summarizeTeamBuilds([
+      team(['z pool9', 'z hatch']),
+      team(['z hatch', 'z pool9']),
+      team(['z hatch', 'z pool9'], false, 'loss'),
+    ])
+    expect(pairs).toEqual([
+      expect.objectContaining({ families: ['z hatch', 'z pool9'], games: 3, wins: 2, losses: 1 }),
+    ])
+  })
+
+  test("keeps the race asked about first, and the user's own build first", () => {
+    const pairs = summarizeTeamBuilds([
+      ...[1, 2, 3].map(() => team(['p gates2', 'z pool9'])),
+      ...[1, 2, 3].map(() => team(['z hatch', 'z pool9'])),
+      team(['z pool9', 'z hatch'], true),
+    ])
+    expect(pairs.map(p => [p.families, p.games, p.userGames])).toEqual([
+      [['z pool9', 'z hatch'], 3, 1],
+      [['p gates2', 'z pool9'], 3, 0],
+    ])
+  })
+
+  test("leaves the user's teams out of other players' win rate", () => {
+    const pairs = summarizeTeamBuilds([
+      ...[1, 2, 3].map(() => team(['t rax', 't factory'], false, 'loss')),
+      ...[1, 2].map(() => team(['t rax', 't factory'], true, 'win')),
+    ])
+    expect(pairs[0]).toMatchObject({
+      games: 3,
+      wins: 0,
+      losses: 3,
+      userGames: 2,
+      userWins: 2,
+      userLosses: 0,
+    })
+
+    const userOnly = summarizeTeamBuilds([1, 2, 3].map(() => team(['p gates1', 'p forge'], true)))
+    expect(userOnly[0]).toMatchObject({ games: 0, userGames: 3 })
   })
 })

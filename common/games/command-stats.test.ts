@@ -56,6 +56,24 @@ describe('common/games/command-stats', () => {
     expect(stork.phases[0].actions).toBe(0)
   })
 
+  test('counts only army unit orders as production', () => {
+    const stats = summarizeCommands(
+      players,
+      [
+        at(1, 0, { type: 'train', unitType: 65 }),
+        at(1, 0, { type: 'unitMorph', unitType: 43 }),
+        at(1, 0, { type: 'train', unitType: 64 }),
+        at(1, 0, { type: 'unitMorph', unitType: 42 }),
+        at(1, 0, { type: 'unitMorph', unitType: 103 }),
+        at(1, 0, { type: 'build', order: 0, x: 0, y: 0, unitType: 160 }),
+        at(1, 0, { type: 'buildingMorph', unitType: 132 }),
+        at(1, 0, { type: 'trainFighter' }),
+      ],
+      Math.round(20 * MINUTE),
+    )
+    expect(stats.players[0].phases[0]).toMatchObject({ production: 2, actions: 8 })
+  })
+
   test('only counts the time a player was in the game', () => {
     const stats = summarizeCommands(
       players,

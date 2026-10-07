@@ -44,6 +44,26 @@ export function groupSides(players: ReadonlyArray<GamePlayerStats>): Side[] {
     .map((side, i): Side => ({ ...side, number: i + 1 }))
 }
 
+/**
+ * Free for all players in the order they finished: the winner, then whoever stayed in longest. A
+ * player still in when the game ended outlasted everyone who left. A player who lost with no time
+ * of leaving is the one whose replay stopped when they left: everyone still in outlasted them, and
+ * they outlasted everyone who left before them.
+ */
+export function toFinishingOrder(sides: ReadonlyArray<Side>): Side[] {
+  const lastedMs = (side: Side) => {
+    if (side.result === 'win') {
+      return Infinity
+    }
+    const leftAtMs = side.players[0]?.leftAtMs
+    if (leftAtMs !== undefined) {
+      return leftAtMs
+    }
+    return side.result === 'loss' ? Number.MAX_SAFE_INTEGER - 1 : Number.MAX_SAFE_INTEGER
+  }
+  return sides.toSorted((a, b) => lastedMs(b) - lastedMs(a))
+}
+
 /** Each player's team, for players who were on one. */
 export function getTeamsByPlayer(sides: ReadonlyArray<Side>): ReadonlyMap<number, Side> {
   return new Map(

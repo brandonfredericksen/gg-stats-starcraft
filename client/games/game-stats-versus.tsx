@@ -7,7 +7,7 @@ import { GameStatsResult } from '../../common/games/game-stats'
 import { RaceTag } from '../material/race-tag'
 import { PlayerNameButton } from '../players/player-card'
 import { bahnschrift, bodyMedium, bodySmall, labelSmall, singleLine } from '../styles/typography'
-import { getSideTotals, Side } from './game-stats-model'
+import { getSideTotals, Side, toFinishingOrder } from './game-stats-model'
 import {
   GAS_COLOR,
   getStatsResultLabel,
@@ -160,16 +160,6 @@ const SidePlayerName = styled.span<{ $lead: boolean; $large: boolean }>`
   transform: translateY(0.08em);
 `
 
-/**
- * Free for all players in the order they finished: the winner, then whoever stayed in longest. A
- * player still in when the game ended outlasted everyone who left.
- */
-function toFinishingOrder(sides: ReadonlyArray<Side>): Side[] {
-  const lastedMs = (side: Side) =>
-    side.result === 'win' ? Infinity : (side.players[0]?.leftAtMs ?? Number.MAX_SAFE_INTEGER)
-  return sides.toSorted((a, b) => lastedMs(b) - lastedMs(a))
-}
-
 function getPlaceLabel(place: number, t: TFunction) {
   return t('gameStats.place', {
     defaultValue_ordinal_one: '{{count}}st',
@@ -188,9 +178,10 @@ function getPlaceLabel(place: number, t: TFunction) {
 export function Versus({ sides }: { sides: ReadonlyArray<Side> }) {
   const { t } = useTranslation()
   const isFreeForAll = sides.length > 2 && !sides.some(side => side.isTeam)
-  const hasResults = sides.some(side => side.result !== 'unknown')
 
   if (isFreeForAll) {
+    // Without a winner, the players still in when the replay ended have no order between them.
+    const hasResults = sides.some(side => side.result === 'win')
     const ordered = hasResults ? toFinishingOrder(sides) : sides
     return (
       <Banner $columns={`repeat(${Math.min(ordered.length, 4)}, minmax(0, 1fr))`}>

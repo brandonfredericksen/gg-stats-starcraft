@@ -226,6 +226,52 @@ describe('common/my-stats', () => {
       expect.objectContaining({ mapName: 'Eclipse', family: 'standard', games: 1 }),
     ])
   })
+  test('lists a teammate in an uneven game as a teammate', () => {
+    const games = [
+      game('other', [
+        player(me, 'p', 0, 'win'),
+        player('Friend', 't', 0, 'win'),
+        player('Mordant', 'z', 1, 'loss'),
+      ]),
+    ]
+    const stats = computeMyStats(games, { names: [me], range: 'all' }, NOW)
+    expect(stats.teammates.map(p => p.name)).toEqual(['Friend'])
+    expect(stats.opponents.map(p => p.name)).toEqual(['Mordant'])
+  })
+
+  test('gives the team games panel every race, whatever race the filters pick', () => {
+    const teamGame = (race: AssignedRaceChar) =>
+      game('2v2', [
+        player(me, race, 0, 'win'),
+        player('Friend', 't', 0, 'win'),
+        player('Mordant', 'z', 1, 'loss'),
+        player('Vex', 'z', 1, 'loss'),
+      ])
+    const games = [teamGame('p'), teamGame('t')]
+    const stats = computeMyStats(games, { names: [me], range: 'all', race: 'p' }, NOW)
+    expect(stats.games).toBe(1)
+    expect(stats.team?.any?.byTeamRaces.reduce((sum, row) => sum + row.games, 0)).toBe(2)
+    expect(stats.team?.t?.byTeamRaces[0]?.games).toBe(1)
+  })
+
+  test("leaves the user's games under 5 minutes out of the macro averages, like others'", () => {
+    const games = [
+      game(
+        '1v1',
+        [player(me, 'p', 0, 'loss', { armyKilled: 0 }), player('Mordant', 'z', 0, 'win')],
+        {
+          durationMs: 3 * 60_000,
+        },
+      ),
+      game('1v1', [
+        player(me, 'p', 0, 'win', { armyKilled: 2000 }),
+        player('Mordant', 'z', 0, 'loss'),
+      ]),
+    ]
+    const stats = computeMyStats(games, { names: [me], range: 'all' }, NOW)
+    expect(stats.games).toBe(2)
+    expect(stats.macro.armyKilled).toEqual({ value: 2000, games: 1 })
+  })
 })
 
 function share(income: number) {

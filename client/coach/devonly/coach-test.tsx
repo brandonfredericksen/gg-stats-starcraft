@@ -231,6 +231,7 @@ export const pvz: CoachBucket = {
   mapNames: ['Polypoid', 'Eclipse', 'Vermeer', 'Radeon'],
   wins: 24,
   losses: 18,
+  lossesCompared: 18,
   poolGames: 186,
   opening: ['u156', 'u166', 'u154', 'u160'],
   gaps: [

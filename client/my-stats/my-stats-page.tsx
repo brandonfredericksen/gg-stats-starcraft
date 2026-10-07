@@ -158,7 +158,7 @@ function getCoverageText(data: MyStatsData, filters: MyStatsFilters, t: TFunctio
  */
 function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFilters }) {
   const { t } = useTranslation()
-  const { coach } = useFilteredCoach()
+  const coach = useFilteredCoach()
   const oneKind = picksOneKind(filters)
   const buckets =
     oneKind && coach && coach !== 'error' && coach.status === 'ready'
@@ -169,7 +169,12 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
     return (
       <Buckets>
         {buckets.map(bucket => (
-          <Comparison key={bucket.mapFamily ?? 'any'} bucket={bucket} eapmFloor={coach.eapmFloor} />
+          <Comparison
+            key={bucket.mapFamily ?? 'any'}
+            bucket={bucket}
+            eapmFloor={coach.eapmFloor}
+            sameDates={filters.range !== 'all'}
+          />
         ))}
       </Buckets>
     )

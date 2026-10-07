@@ -8,6 +8,7 @@ import {
   BuildStepSummary,
   CoachBuild,
   CoachTeamBuild,
+  isArmyMixUnit,
   WORKER_MINUTES,
   WorkerStopSummary,
 } from '../../common/my-stats/builds'
@@ -60,8 +61,8 @@ const OFF_STEP_MS = 20_000
 /** A step fewer games than this share take is marked as one only some players add. */
 const OPTIONAL_STEP_SHARE = 0.8
 /**
- * A win rate from fewer decided games than this is shown faded, since it's mostly chance. Winners
- * need this many games to be what the user's steps are compared with.
+ * A win rate from fewer games than this, as the Games column counts them, is shown faded, since
+ * it's mostly chance. Winners need this many games to be what the user's steps are compared with.
  */
 const MIN_RATE_GAMES = 10
 /** A win rate this far from other players', both from enough games, is pointed out. */
@@ -213,11 +214,11 @@ const OPENER_NAMES: Record<string, (t: TFunction) => string> = {
   siegeExpand: t => t('builds.family.siegeExpand', 'Siege expand'),
   factExpand: t => t('builds.family.factExpand', 'Factory expand'),
   factory: t => t('builds.family.factory', 'Factory'),
-  pool4: t => t('builds.family.pool4', '4 pool'),
+  pool4: t => t('builds.family.earlyPool', 'Early pool'),
   pool9: t => t('builds.family.pool9', '9 pool'),
   overpool: t => t('builds.family.overpool', 'Overpool'),
   pool12: t => t('builds.family.pool12', '12 pool'),
-  hatch: t => t('builds.family.hatch', '12 hatch'),
+  hatch: t => t('builds.family.hatchFirst', 'Hatch first'),
   hatch3: t => t('builds.family.hatch3', '3 hatch before pool'),
 }
 
@@ -236,7 +237,7 @@ const FOLLOW_UP_NAMES: Record<string, (t: TFunction) => string> = {
 }
 
 /**
- * A build's name from its family, like "1 Gate expand, Robo" or "12 hatch, 3 hatch muta". See
+ * A build's name from its family, like "1 Gate expand, Robo" or "Hatch first, 3 hatch muta". See
  * `getBuildFamily`.
  */
 export function getBuildFamilyName(family: string, t: TFunction) {
@@ -254,11 +255,12 @@ function getStepName(step: Pick<BuildStepSummary, 'key' | 'nth'>, t: TFunction) 
   return step.nth > 1 ? `${name} ${step.nth}` : name
 }
 
-type WinLoss = Pick<BuildSide, 'wins' | 'losses'>
+/** A record, with the games it's from as the Games column next to it counts them. */
+type WinLoss = Pick<BuildSide, 'games' | 'wins' | 'losses'>
 
 function rateOf(record: WinLoss | undefined) {
   const decided = record ? record.wins + record.losses : 0
-  return record && decided ? { rate: record.wins / decided, decided } : undefined
+  return record && decided ? { rate: record.wins / decided, games: record.games } : undefined
 }
 
 /**
@@ -277,11 +279,11 @@ function WinRateCell({ record, compare }: { record: WinLoss | undefined; compare
   }
   const other = rateOf(compare)
   const diff =
-    other && other.decided >= MIN_RATE_GAMES && own.decided >= MIN_RATE_GAMES
+    other && other.games >= MIN_RATE_GAMES && own.games >= MIN_RATE_GAMES
       ? own.rate - other.rate
       : 0
   let tone: 'muted' | 'bad' | undefined
-  if (own.decided < MIN_RATE_GAMES) {
+  if (own.games < MIN_RATE_GAMES) {
     tone = 'muted'
   } else if (diff <= -OFF_WIN_RATE) {
     tone = 'bad'
@@ -339,6 +341,11 @@ function getWinRateHelp(bucket: CoachBucket, builds: ReadonlyArray<CoachBuild>, 
   return notes.join(' ')
 }
 
+/** The pairs of opponents' races that have builds to show, for the picker. */
+function getPickablePairs(bucket: CoachBucket) {
+  return bucket.buildsAgainst?.filter(b => b.builds.length) ?? []
+}
+
 /** In 2v2, picks the pair of races the builds were played against. */
 function AgainstPicker({
   bucket,
@@ -350,7 +357,8 @@ function AgainstPicker({
   onPick: (against: string) => void
 }) {
   const { t } = useTranslation()
-  if (!bucket.buildsAgainst?.length) {
+  const pairs = getPickablePairs(bucket)
+  if (!pairs.length) {
     return null
   }
   return (
@@ -363,7 +371,7 @@ function AgainstPicker({
         onClick={() => onPick('')}>
         <span>{t('builds.againstAny', 'Any team')}</span>
       </RaceButton>
-      {bucket.buildsAgainst.map(({ opponents }) => {
+      {pairs.map(({ opponents }) => {
         const [first, second] = [...opponents] as AssignedRaceChar[]
         return (
           <RaceButton
@@ -408,7 +416,7 @@ function BuildsTable({
   const { t } = useTranslation()
   return (
     <PaddedPanel>
-      <PanelHead $spread={!!bucket.buildsAgainst?.length}>
+      <PanelHead $spread={getPickablePairs(bucket).length > 0}>
         <PanelTitle>{t('builds.popular', 'Builds played here')}</PanelTitle>
         <PanelHeadNote>{t('builds.popularNote', 'Pick one to see how it goes.')}</PanelHeadNote>
         {picker}
@@ -478,8 +486,18 @@ function BuildsTable({
   )
 }
 
-/** In 2v2, the builds teammates paired, and how those teams did. */
-function TeamBuilds({ teams }: { teams: ReadonlyArray<CoachTeamBuild> }) {
+/**
+ * In 2v2, the builds teammates paired, and how those teams did, against every pair of opponents'
+ * races whichever is picked for the builds above.
+ */
+function TeamBuilds({
+  teams,
+  anyOpponents,
+}: {
+  teams: ReadonlyArray<CoachTeamBuild>
+  /** Whether a pair of opponents' races can be picked above, which this doesn't follow. */
+  anyOpponents: boolean
+}) {
   const { t } = useTranslation()
   const named = (family: string) => (
     <RacedName>
@@ -492,7 +510,13 @@ function TeamBuilds({ teams }: { teams: ReadonlyArray<CoachTeamBuild> }) {
       <PanelHead>
         <PanelTitle>{t('builds.teamTitle', 'Team builds')}</PanelTitle>
         <PanelHeadNote>
-          {t('builds.teamBuildsNote', 'What teammates opened together, each team counted once.')}
+          {t(
+            'builds.teamBuildsOthersNote',
+            "What other players' teams opened together, each team counted once, next to yours.",
+          )}
+          {anyOpponents
+            ? ` ${t('builds.teamBuildsAnyNote', 'Against any team, whichever is picked above.')}`
+            : null}
         </PanelHeadNote>
       </PanelHead>
       <Table $columns='minmax(0, 1fr) minmax(0, 1fr) 96px 96px 112px 112px'>
@@ -516,7 +540,11 @@ function TeamBuilds({ teams }: { teams: ReadonlyArray<CoachTeamBuild> }) {
             </Cell>,
             <WinRateCell
               key={`${id}-user-rate`}
-              record={team.userGames ? { wins: team.userWins, losses: team.userLosses } : undefined}
+              record={
+                team.userGames
+                  ? { games: team.userGames, wins: team.userWins, losses: team.userLosses }
+                  : undefined
+              }
               compare={team}
             />,
           ]
@@ -764,7 +792,7 @@ function ArmyMix({ build }: { build: CoachBuild }) {
   const units: number[] = []
   for (const [, side] of sides) {
     for (const entry of side?.armyMix ?? []) {
-      if (!units.includes(entry.unitId)) {
+      if (isArmyMixUnit(entry) && !units.includes(entry.unitId)) {
         units.push(entry.unitId)
       }
     }
@@ -941,7 +969,10 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
       </SectionErrorBoundary>
       {bucket.teamBuilds?.length ? (
         <SectionErrorBoundary>
-          <TeamBuilds teams={bucket.teamBuilds} />
+          <TeamBuilds
+            teams={bucket.teamBuilds}
+            anyOpponents={getPickablePairs(bucket).length > 0}
+          />
         </SectionErrorBoundary>
       ) : null}
     </Panels>

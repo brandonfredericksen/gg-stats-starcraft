@@ -7,6 +7,7 @@ import {
   GameStats,
   GameStatsPayload,
   GameStatsSource,
+  ReplayFileInfo,
   ReplayStatsSource,
   SavedGameStats,
 } from '../../common/games/game-stats'
@@ -95,21 +96,38 @@ export const cancelReplayAnalysisAtom = atom(null, (_get, set, gameId: string) =
   })
 })
 
-/** Shows the stats a game reported, as it reported them or as they were saved. */
+/**
+ * Shows the stats a game reported, as it reported them or as they were saved. Saved stats come with
+ * the replay file they were saved for, which dates them when the replay doesn't say when its game
+ * started.
+ */
 export const showGameStatsAtom = atom(
   null,
   (
     get,
     set,
-    { gameId, source, stats }: { gameId: string; source: GameStatsSource; stats: GameStatsPayload },
+    {
+      gameId,
+      source,
+      stats,
+      replayFile,
+      savedAt,
+    }: {
+      gameId: string
+      source: GameStatsSource
+      stats: GameStatsPayload
+      replayFile?: ReplayFileInfo
+      savedAt?: number
+    },
   ) => {
     const replayPath = getReplayPath(source)
     const done: GameStatsState = {
       status: 'done',
       source,
       stats: fromGameStatsPayload(stats),
-      // Without a replay to say when the game started, the game just ended.
-      playedAtMs: replayPath ? undefined : Date.now(),
+      // Without a replay to say when the game started, it ended when its stats were saved, or just
+      // now if they haven't been.
+      playedAtMs: replayPath ? undefined : (savedAt ?? Date.now()),
     }
     set(gameStatsByIdAtom, draft => {
       setGameStats(draft, gameId, done)
@@ -120,7 +138,10 @@ export const showGameStatsAtom = atom(
           // Only fill in the stats this looked up, not newer ones that replaced them.
           if (get(gameStatsByIdAtom).get(gameId) === done) {
             set(gameStatsByIdAtom, draft => {
-              draft.set(gameId, { ...done, playedAtMs: gameTime ?? Date.now() })
+              draft.set(gameId, {
+                ...done,
+                playedAtMs: gameTime ?? replayFile?.modifiedMs ?? savedAt ?? Date.now(),
+              })
             })
           }
         })

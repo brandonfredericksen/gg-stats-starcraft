@@ -50,7 +50,8 @@ export function getMyResult(
 /** The other human players in a game, split into a player's teammates and opponents. */
 export function getSidesOf(game: GameMetrics, player: PlayerMetrics) {
   const others = game.players.filter(p => p !== player && p.human)
-  const hasTeams = isTeamGame(game.shape)
+  // Without teams, everyone plays for themselves. Uneven games like 2v1 have teams too.
+  const hasTeams = new Set(game.players.map(p => p.team)).size > 1
   return {
     teammates: hasTeams ? others.filter(p => p.team === player.team) : [],
     opponents: hasTeams ? others.filter(p => p.team !== player.team) : others,

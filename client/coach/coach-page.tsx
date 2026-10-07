@@ -964,11 +964,17 @@ function ScopeTiles({
         </span>
         <TileLabel>{t('myStats.coach.tileTheirs', 'Other {{race}} players', { race })}</TileLabel>
         <TileDetail>
-          {t(
-            'myStats.coach.tileTheirsDetail',
-            '{{players}} players over {{floor}} EAPM in your replays, from the same dates, up to 5 games each.',
-            { players: bucket.poolPlayers, floor: eapmFloor },
-          )}
+          {sinceMs === undefined
+            ? t(
+                'myStats.coach.tileTheirsDetailAll',
+                '{{players}} players over {{floor}} EAPM in your replays, up to 5 games each.',
+                { players: bucket.poolPlayers, floor: eapmFloor },
+              )
+            : t(
+                'myStats.coach.tileTheirsDetail',
+                '{{players}} players over {{floor}} EAPM in your replays, from the same dates, up to 5 games each.',
+                { players: bucket.poolPlayers, floor: eapmFloor },
+              )}
         </TileDetail>
       </Tile>
       <CoverageTile shape={bucket.shape} counts={counts} />
@@ -1250,14 +1256,21 @@ function TimingsTable({
             {poolMs !== undefined ? formatGameTime(poolMs) : '-'}
           </Cell>,
           <Cell key={`${timing.buildKey}-diff`} $end={true} $tone='muted' $strong={timing.notable}>
-            {!timing.notable && timing.userMs !== undefined && timing.poolMs !== undefined ? (
+            {timing.quietBecause === 'oneSide' || timing.quietBecause === 'followsPlan' ? (
               <HelpLabel
                 quiet={true}
                 label={difference}
-                help={t(
-                  'myStats.coach.timingNotBoth',
-                  'Only one side usually builds it, so the difference says more about the build than the timing.',
-                )}
+                help={
+                  timing.quietBecause === 'oneSide'
+                    ? t(
+                        'myStats.coach.timingNotBoth',
+                        'Only one side usually builds it, so the difference says more about the build than the timing.',
+                      )
+                    : t(
+                        'myStats.coach.timingFollowsPlan',
+                        'Upgrade and defense buildings go up when the plan or the opponent calls for them, so their timing says little on its own.',
+                      )
+                }
               />
             ) : (
               difference
@@ -1374,11 +1387,20 @@ function Unlock({
         <ProgressCount>{progressText(bucket.poolGames, COACH_MIN_POOL_GAMES)}</ProgressCount>
       </Progress>
       <Text>
-        {poolShort
+        {poolShort && sinceMs === undefined
+          ? t(
+              'myStats.coach.unlockPoolHowAll',
+              'Other players come from your own replays. To count more of them: analyze more replays or lower the EAPM floor under Them.',
+            )
+          : null}
+        {poolShort && sinceMs !== undefined
           ? t(
               'myStats.coach.unlockPoolHow',
               'Other players come from your own replays, from the same dates as your games. To count more of them: analyze more replays, pick more of your games under You, or lower the EAPM floor under Them.',
             )
+          : null}
+        {poolShort
+          ? null
           : t(
               'myStats.coach.unlockUserHow',
               'Analyze more of your replays of this kind, or pick more of your games under You.',
@@ -1463,10 +1485,13 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
 export function Comparison({
   bucket,
   eapmFloor,
+  sameDates,
   goalNumbers = new Map(),
 }: {
   bucket: CoachBucket
   eapmFloor: number
+  /** Whether other players' games are limited to the dates of the user's. */
+  sameDates: boolean
   /** Each goal's number, by the number it's about, for the goals shown beside the panel. */
   goalNumbers?: ReadonlyMap<string, number>
 }) {
@@ -1476,11 +1501,17 @@ export function Comparison({
   const [tab, setTab] = useState(readCompareTab)
 
   const source: string[] = [
-    t(
-      'myStats.coach.othersFloor',
-      'Against {{race}} players over {{floor}} EAPM from your replays, from the same dates. Speed rows count every EAPM.',
-      { race, floor: eapmFloor },
-    ),
+    sameDates
+      ? t(
+          'myStats.coach.othersFloor',
+          'Against {{race}} players over {{floor}} EAPM from your replays, from the same dates. Speed rows count every EAPM.',
+          { race, floor: eapmFloor },
+        )
+      : t(
+          'myStats.coach.othersFloorAll',
+          'Against {{race}} players over {{floor}} EAPM from your replays. Speed rows count every EAPM.',
+          { race, floor: eapmFloor },
+        ),
   ]
   if (isTeamGame(bucket.shape)) {
     source.push(t('myStats.coach.sourceTeammates', "Your regular teammates aren't counted."))
@@ -1539,14 +1570,23 @@ export function Comparison({
           <LossesTable findings={bucket.inLosses} minute={lossesMinute} goalNumbers={goalNumbers} />
         </>
       )
-    } else if (bucket.wins < COACH_MIN_RESULT_GAMES || bucket.losses < COACH_MIN_RESULT_GAMES) {
+    } else if (
+      bucket.wins < COACH_MIN_RESULT_GAMES ||
+      bucket.lossesCompared < COACH_MIN_RESULT_GAMES
+    ) {
       content = (
         <Text>
           {t(
             'myStats.coach.lossesNeed',
             'Comparing needs {{needed}} wins and {{needed}} losses here. So far: {{wins}} and {{losses}}.',
-            { needed: COACH_MIN_RESULT_GAMES, wins: bucket.wins, losses: bucket.losses },
+            { needed: COACH_MIN_RESULT_GAMES, wins: bucket.wins, losses: bucket.lossesCompared },
           )}
+          {bucket.lossesCompared < bucket.losses
+            ? ` ${t(
+                'myStats.coach.lossesLeftAlone',
+                "Losses where a teammate went out first don't count.",
+              )}`
+            : null}
         </Text>
       )
     } else {
@@ -1571,7 +1611,7 @@ export function Comparison({
               : '',
             t(
               'myStats.coach.timingsHelpLine',
-              'When you and other players usually start each building, tech and upgrade in the first 15 minutes. Bold: both sides usually make it, 15 seconds or more apart. Earlier is not always better: it depends on your build.',
+              'When you and other players usually start each building, tech and upgrade in the first 15 minutes. Bold: both sides usually make it, 15 seconds or more apart, except upgrade and defense buildings. Earlier is not always better: it depends on your build.',
             ),
           ]
             .filter(Boolean)
@@ -1692,7 +1732,12 @@ function BucketView({
       </PlanColumns>
       {ready ? (
         <SectionErrorBoundary>
-          <Comparison bucket={bucket} eapmFloor={eapmFloor} goalNumbers={getGoalNumbers(bucket)} />
+          <Comparison
+            bucket={bucket}
+            eapmFloor={eapmFloor}
+            sameDates={sinceMs !== undefined}
+            goalNumbers={getGoalNumbers(bucket)}
+          />
         </SectionErrorBoundary>
       ) : null}
       {showNextGame && !ready ? (
