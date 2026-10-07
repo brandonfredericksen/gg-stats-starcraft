@@ -191,7 +191,10 @@ export interface PlayerMetrics {
   supplyBlockedShare: number | null
   /** How long the player was out of supply over the whole game. */
   supplyBlockedMs?: number
-  /** When the player started their second and third town halls. */
+  /**
+   * When the player started their second and third bases: town halls near minerals and away from
+   * their other town halls, so a Zerg's Hatchery built for larvae isn't one.
+   */
   townHallTimesMs: Array<number | null>
   /**
    * When the player first started each building, tech and upgrade level, keyed by
@@ -392,6 +395,43 @@ class PlayerTimes {
   lastSampleIndex(list: ReadonlyArray<number> | undefined) {
     return list ? Math.min(list.length, this.game.snapshotTimesMs.length) - 1 : -1
   }
+}
+
+/**
+ * When a player started their second and third bases. Each is the town hall started latest that
+ * had finished by the time their base count first went up to it. Without a base count, the second
+ * and third town halls started.
+ */
+function getBaseTimesMs(
+  times: PlayerTimes,
+  bases: ReadonlyArray<number> | undefined,
+  townHalls: ReadonlyArray<{ timeMs: number; count: number }>,
+): Array<number | null> {
+  const starts = townHalls.flatMap(step => Array<number>(step.count).fill(step.timeMs))
+  if (!bases) {
+    return [starts[0] ?? null, starts[1] ?? null]
+  }
+  const used = new Set<number>()
+  const found = [2, 3].map(count => {
+    const reachedMs = times.timeToReach(bases, count)
+    if (reachedMs === null) {
+      return null
+    }
+    let pick = -1
+    starts.forEach((ms, i) => {
+      if (!used.has(i) && ms + TOWN_HALL_BUILD_MS <= reachedMs) {
+        pick = i
+      }
+    })
+    if (pick < 0) {
+      return null
+    }
+    used.add(pick)
+    return starts[pick]
+  })
+  // Two bases that went up at once are found latest first.
+  const [second, third] = found
+  return second !== null && third !== null && third < second ? [third, second] : found
 }
 
 function getSupplyBlockedShare(times: PlayerTimes, player: GamePlayerStats) {
@@ -732,7 +772,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     supplyBlockedShare: getSupplyBlockedShare(times, player),
     eapmByPhase: getEapmByPhase(times, timeline?.effectiveActions),
     supplyBlockedMs: player.supplyBlockedMs,
-    townHallTimesMs: [townHalls[0]?.timeMs ?? null, townHalls[1]?.timeMs ?? null],
+    townHallTimesMs: getBaseTimesMs(times, timeline?.bases, townHalls),
     firstStartsMs,
     opening: buildings
       .filter(step => !SUPPLY_BUILDING_IDS.has(step.id))

@@ -25,6 +25,8 @@ import {
 import { AssignedRaceChar } from '../../common/races'
 import { TICK_FONT_SIZE } from '../games/game-stats-charts'
 import { RESULT_COLORS, StatsPanel, useStatFormat } from '../games/game-stats-shared'
+import { MaterialIcon } from '../icons/material/material-icon'
+import { IconButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { RaceMix } from '../material/race-mix'
 import { RaceTag } from '../material/race-tag'
@@ -1388,6 +1390,74 @@ const RightAligned = styled.span`
   font-variant-numeric: tabular-nums;
 `
 
+/** Rows a list of people or maps shows at a time. */
+const LIST_PAGE_SIZE = 8
+
+const PagerRoot = styled.div`
+  ${bodyMedium};
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--theme-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+`
+
+/** Which rows of a long list are showing, with buttons to the ones before and after. */
+function Pager({
+  page,
+  total,
+  onPage,
+}: {
+  page: number
+  total: number
+  onPage: (page: number) => void
+}) {
+  const { t } = useTranslation()
+  const pages = Math.ceil(total / LIST_PAGE_SIZE)
+  return (
+    <PagerRoot>
+      <span>
+        {t('myStats.pageRange', '{{from}} to {{to}} of {{total}}', {
+          from: page * LIST_PAGE_SIZE + 1,
+          to: Math.min(total, (page + 1) * LIST_PAGE_SIZE),
+          total,
+        })}
+      </span>
+      <IconButton
+        icon={<MaterialIcon icon='chevron_left' />}
+        title={t('myStats.pagePrevious', 'Previous')}
+        disabled={page === 0}
+        onClick={() => onPage(page - 1)}
+      />
+      <IconButton
+        icon={<MaterialIcon icon='chevron_right' />}
+        title={t('myStats.pageNext', 'Next')}
+        disabled={page >= pages - 1}
+        onClick={() => onPage(page + 1)}
+      />
+    </PagerRoot>
+  )
+}
+
+/**
+ * A list's rows a page at a time, with a pager for the panel head when there's more than a page.
+ * Goes back to the first page when the list changes length, like after a filter changes.
+ */
+function usePaged<T>(rows: ReadonlyArray<T>) {
+  const [paged, setPaged] = useState({ page: 0, total: rows.length })
+  const page = paged.total === rows.length ? paged.page : 0
+  const shown = rows.slice(page * LIST_PAGE_SIZE, (page + 1) * LIST_PAGE_SIZE)
+  const pager =
+    rows.length > LIST_PAGE_SIZE ? (
+      <Pager
+        page={page}
+        total={rows.length}
+        onPage={next => setPaged({ page: next, total: rows.length })}
+      />
+    ) : null
+  return { shown, pager }
+}
+
 function PersonName({ person }: { person: PersonRow }) {
   return (
     <>
@@ -1402,12 +1472,14 @@ function PersonName({ person }: { person: PersonRow }) {
 }
 
 export function People({ title, people }: { title: string; people: ReadonlyArray<PersonRow> }) {
+  const { shown, pager } = usePaged(people)
   return (
     <PaddedPanel>
-      <PanelHead>
+      <PanelHead $spread={!!pager}>
         <PanelTitle>{title}</PanelTitle>
+        {pager}
       </PanelHead>
-      {people.map(person => (
+      {shown.map(person => (
         <ListRow key={person.name}>
           <ListName>
             <PersonName person={person} />
@@ -1439,12 +1511,14 @@ function getMapLabel(map: MapRow, t: TFunction) {
 
 export function Maps({ maps }: { maps: ReadonlyArray<MapRow> }) {
   const { t } = useTranslation()
+  const { shown, pager } = usePaged(maps)
   return (
     <PaddedPanel>
-      <PanelHead>
+      <PanelHead $spread={!!pager}>
         <PanelTitle>{t('myStats.maps.title', 'Maps')}</PanelTitle>
+        {pager}
       </PanelHead>
-      {maps.slice(0, 8).map(map => (
+      {shown.map(map => (
         <ListRow key={`${map.family}${map.mapName}`}>
           <ListName>
             <ListNameText>{getMapLabel(map, t)}</ListNameText>

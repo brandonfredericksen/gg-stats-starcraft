@@ -347,10 +347,10 @@ function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   switch (goal.basis) {
     case 'others':
       return goal.unit === 'time'
-        ? t('myStats.coach.basisOthersTime', 'when most {{race}} players here start it', {
+        ? t('myStats.coach.basisOthersTime', 'when {{race}} players here start it on average', {
             race: raceCharToLabel(bucket.race, t),
           })
-        : t('myStats.coach.basisOthers', 'where most {{race}} players here are', {
+        : t('myStats.coach.basisOthers', 'where {{race}} players here are on average', {
             race: raceCharToLabel(bucket.race, t),
           })
     case 'wins':
@@ -835,12 +835,12 @@ function getNoteContent(
           userMs > poolMs
             ? t(
                 'myStats.coach.note.timingLate',
-                'You start {{build}} {{time}} later than most.',
+                'You start {{build}} {{time}} later than other players on average.',
                 values,
               )
             : t(
                 'myStats.coach.note.timingEarly',
-                'You start {{build}} {{time}} earlier than most.',
+                'You start {{build}} {{time}} earlier than other players on average.',
                 values,
               ),
       }

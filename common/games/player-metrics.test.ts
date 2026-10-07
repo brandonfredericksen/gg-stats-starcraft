@@ -147,6 +147,31 @@ describe('common/games/player-metrics', () => {
     expect(computeGameMetrics('g', game([base])).players[0].bases[at(6)]).toBeNull()
   })
 
+  test('times bases by when they count as bases, not every town hall', () => {
+    const durationMs = 20 * 60_000
+    const base = player('Jaedong', durationMs, { race: 'z' })
+    const times = samples(durationMs)
+    // A Hatchery for larvae at 2:00, then bases at 3:00 and 5:00, each done 75.6 seconds later.
+    const bases = times.map(ms => {
+      if (ms < 3 * 60_000 + 75_600) {
+        return 1
+      }
+      return ms < 5 * 60_000 + 75_600 ? 2 : 3
+    })
+    const hatcheries = [step(2, 131), step(3, 131), step(5, 131)]
+    const [z] = computeGameMetrics(
+      'g',
+      game([
+        player('Jaedong', durationMs, {
+          race: 'z',
+          buildOrder: hatcheries,
+          timeline: { ...base.timeline!, bases },
+        }),
+      ]),
+    ).players
+    expect(z.townHallTimesMs).toEqual([3 * 60_000, 5 * 60_000])
+  })
+
   test("leaves checkpoints the player didn't reach empty rather than zero", () => {
     const durationMs = 7 * 60_000
     const [p] = computeGameMetrics('g', game([player('Bisu', durationMs)], durationMs)).players

@@ -10,8 +10,6 @@ import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './play
 export const RECENT_GAMES = 20
 /** The most games the trends can show. */
 export const TREND_GAMES = 100
-/** How many teammates, and how many opponents, are listed. */
-const MAX_PEOPLE = 8
 
 export type MyStatsRange = '7d' | '30d' | 'all'
 export type MyStatsShape = Exclude<GameShape, 'other'>
@@ -522,8 +520,8 @@ export function computeMyStats(
     macro: getMacroAverages(games.filter(g => playedEnough(g.game, g.me)).map(g => g.me)),
     macroOthers: getMacroAverages(others),
     othersGames: others.length,
-    teammates: people.filter(p => p.relation === 'teammate').slice(0, MAX_PEOPLE),
-    opponents: people.filter(p => p.relation === 'opponent').slice(0, MAX_PEOPLE),
+    teammates: people.filter(p => p.relation === 'teammate'),
+    opponents: people.filter(p => p.relation === 'opponent'),
     maps: getMaps(games),
     // The panel picks its own race, so it gets the user's games of every race.
     team: getTeamStatsByRace(
