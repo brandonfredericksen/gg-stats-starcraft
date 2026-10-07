@@ -796,6 +796,8 @@ export interface CoachQuery {
   eapmFloor?: number
   /** Which of the user's games to look at. `auto` unless picked. */
   window?: CoachWindow
+  /** Leaves out every game played before this time, the user's and other players' alike. */
+  fromMs?: number
 }
 
 export type CoachResult = {
@@ -1779,9 +1781,12 @@ function getNotes(
  * kind of game picked, it looks at the one the user played most.
  */
 export function computeCoach(
-  allGames: ReadonlyArray<DatedGameMetrics>,
+  everyGame: ReadonlyArray<DatedGameMetrics>,
   query: CoachQuery,
 ): CoachResult {
+  const { fromMs } = query
+  const allGames =
+    fromMs === undefined ? everyGame : everyGame.filter(game => game.gameTimeMs >= fromMs)
   const scopes = getScopes(allGames, query.names)
   const picked =
     query.shape && query.race && (query.shape !== '1v1' || query.opponentRace) ? query : scopes[0]

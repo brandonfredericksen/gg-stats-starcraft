@@ -3,6 +3,9 @@ import { useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { DEFAULT_EAPM_FLOOR } from '../../common/my-stats/coach'
+import { MyStatsResult } from '../../common/my-stats/my-stats'
+import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
+import { Comparison } from '../coach/coach-page'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
 import { LoadingDotsArea } from '../progress/dots'
@@ -112,6 +115,12 @@ const Column = styled.div`
   min-width: 0;
 `
 
+const Buckets = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`
+
 const Message = styled(StatsPanel)`
   ${bodyMedium};
   padding: 24px;
@@ -141,6 +150,49 @@ function getCoverageText(data: MyStatsData, filters: MyStatsFilters, t: TFunctio
         defaultValue_one: '{{count}} of your {{total}} games is analyzed.',
         ...counts,
       })
+}
+
+/**
+ * The numbers against other players: every number the coach compares when the filters pick one
+ * kind of game, or the main ones on average when they don't.
+ */
+function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFilters }) {
+  const { t } = useTranslation()
+  const { coach } = useFilteredCoach()
+  const oneKind = picksOneKind(filters)
+  const buckets =
+    oneKind && coach && coach !== 'error' && coach.status === 'ready'
+      ? coach.buckets.filter(bucket => bucket.userGames)
+      : []
+
+  if (buckets.length && coach && coach !== 'error') {
+    return (
+      <Buckets>
+        {buckets.map(bucket => (
+          <Comparison key={bucket.mapFamily ?? 'any'} bucket={bucket} eapmFloor={coach.eapmFloor} />
+        ))}
+      </Buckets>
+    )
+  }
+  if (oneKind && coach === undefined) {
+    return <LoadingDotsArea />
+  }
+  return (
+    <MacroAveragesPanel
+      macro={stats.macro}
+      others={stats.macroOthers}
+      othersGames={stats.othersGames}
+      eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
+      extraNote={
+        oneKind
+          ? undefined
+          : t(
+              'myStats.macro.pickForAll',
+              'Pick a game type and your race, and in 1v1 the race you played against, to see every number.',
+            )
+      }
+    />
+  )
 }
 
 /** The user's own stats across their analyzed games. */
@@ -191,12 +243,7 @@ export function MyStatsView() {
           </Column>
         </Columns>
         <SectionErrorBoundary>
-          <MacroAveragesPanel
-            macro={stats.macro}
-            others={stats.macroOthers}
-            othersGames={stats.othersGames}
-            eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
-          />
+          <Numbers stats={stats} filters={filters} />
         </SectionErrorBoundary>
         {/* Without teammates, Maps takes their place beside Opponents rather than leave a hole. */}
         <EvenColumns>

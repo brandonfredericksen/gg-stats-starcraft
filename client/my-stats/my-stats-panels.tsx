@@ -1148,11 +1148,14 @@ export function MacroAveragesPanel({
   others,
   othersGames,
   eapmFloor,
+  extraNote,
 }: {
   macro: MyStatsResult['macro']
   others: MyStatsResult['macroOthers']
   othersGames: number
   eapmFloor: number
+  /** A last sentence for the note under the numbers. */
+  extraNote?: string
 }) {
   const { t } = useTranslation()
   const format = useStatFormat()
@@ -1344,6 +1347,7 @@ export function MacroAveragesPanel({
           'myStats.macro.note',
           'Each number only counts games that lasted that long. Supply blocks in the first 3 minutes, often part of a build, are left out.',
         )}
+        {extraNote ? ` ${extraNote}` : null}
       </MacroNote>
     </StatsPanel>
   )

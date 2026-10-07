@@ -1460,19 +1460,19 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
  * How the user's games compare: every number against other players, their wins against their
  * losses, and when they start each build, one at a time.
  */
-function Comparison({
+export function Comparison({
   bucket,
   eapmFloor,
-  sinceMs,
+  goalNumbers = new Map(),
 }: {
   bucket: CoachBucket
   eapmFloor: number
-  sinceMs?: number
+  /** Each goal's number, by the number it's about, for the goals shown beside the panel. */
+  goalNumbers?: ReadonlyMap<string, number>
 }) {
   const { t } = useTranslation()
   const race = raceCharToLabel(bucket.race, t)
   const lossesMinute = bucket.mapFamily === 'bgh' ? 15 : 8
-  const goalNumbers = getGoalNumbers(bucket)
   const [tab, setTab] = useState(readCompareTab)
 
   const source: string[] = [
@@ -1692,7 +1692,7 @@ function BucketView({
       </PlanColumns>
       {ready ? (
         <SectionErrorBoundary>
-          <Comparison bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
+          <Comparison bucket={bucket} eapmFloor={eapmFloor} goalNumbers={getGoalNumbers(bucket)} />
         </SectionErrorBoundary>
       ) : null}
       {showNextGame && !ready ? (
