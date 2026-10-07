@@ -156,7 +156,10 @@ function terranFamily(steps: Steps): string[] | undefined {
   return [opener, ...(expanded ? ['expand'] : []), ...terranStyle(steps)]
 }
 
-/** Mech or bio, from the production buildings a Terran had by 10 minutes. */
+/**
+ * Three Factories (`mech`, shown as a third Factory) or three Barracks with an Academy (`bio`) by 10
+ * minutes. A Terran with fewer of either gets no tag, even if they play that style.
+ */
 function terranStyle(steps: Steps) {
   if (steps.find(FACTORY, STYLE_BUILDINGS)) {
     return ['mech']

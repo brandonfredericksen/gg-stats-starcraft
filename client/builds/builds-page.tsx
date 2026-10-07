@@ -62,6 +62,9 @@ const OPTIONAL_STEP_SHARE = 0.8
 const MIN_RATE_GAMES = 10
 /** A win rate this far from other players', both from enough games, is pointed out. */
 const OFF_WIN_RATE = 0.15
+/** An army count is pointed out when it differs by at least this many units and by this ratio. */
+const ARMY_DIFF_MIN = 0.5
+const ARMY_DIFF_RATIO = 1.3
 
 /** The builds table, its highlight reaching a little past the text on each side. */
 const BuildsGrid = styled(Table)`
@@ -155,6 +158,18 @@ const LateCell = styled(Cell)`
   font-weight: 600;
 `
 
+/** A count of units the user has clearly more of than the side they're compared with. */
+const MoreCell = styled(Cell)`
+  color: var(--theme-positive);
+  font-weight: 600;
+`
+
+/** A count of units the user has clearly fewer of than the side they're compared with. */
+const FewerCell = styled(Cell)`
+  color: var(--theme-error);
+  font-weight: 600;
+`
+
 /** The first column of a group in a grouped table, set apart from the group before it. */
 const GroupStartCell = styled(Cell)`
   padding-left: var(--space-8);
@@ -208,7 +223,7 @@ const FOLLOW_UP_NAMES: Record<string, (t: TFunction) => string> = {
   u167: t => t('builds.family.stargate', 'Stargate'),
   u165: t => t('builds.family.templar', 'Templar'),
   bio: t => t('builds.family.bio', 'bio'),
-  mech: t => t('builds.family.mech', 'mech'),
+  mech: t => t('builds.family.mech', '3rd Factory'),
   muta2: t => t('builds.family.muta2', '2 hatch muta'),
   muta3: t => t('builds.family.muta3', '3 hatch muta'),
   lurker: t => t('builds.family.lurker', 'Lurker'),
@@ -396,16 +411,39 @@ function BuildsTable({
       </PanelHead>
       <BuildsGrid $columns='minmax(0, 1fr) 96px 96px 96px 112px 112px'>
         <HeadCell>{t('builds.build', 'Build')}</HeadCell>
-        <HeadCell $end={true}>{t('builds.players', 'Players')}</HeadCell>
-        <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.players', 'Players')}
+            help={t('builds.playersHelp', 'How many different players played this build.')}
+          />
+        </HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.games', 'Games')}
+            help={t(
+              'builds.gamesHelp',
+              'How many games had this build, counting each player in a game. One player can play it many times.',
+            )}
+          />
+        </HeadCell>
         <HeadCell $end={true}>
           <HelpLabel
             label={t('builds.winRate', 'Win rate')}
             help={getWinRateHelp(bucket, builds, t)}
           />
         </HeadCell>
-        <HeadCell $end={true}>{t('builds.yourGames', 'Your games')}</HeadCell>
-        <HeadCell $end={true}>{t('builds.yourWinRate', 'Your win rate')}</HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.yourGames', 'Your games')}
+            help={t('builds.yourGamesHelp', 'How many of your own games used this build.')}
+          />
+        </HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.yourWinRate', 'Your win rate')}
+            help={t('builds.yourWinRateHelp', 'How often you won when you played this build.')}
+          />
+        </HeadCell>
         {builds.map(build => (
           <BuildRow
             key={build.family}
@@ -539,7 +577,7 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
             label={t('builds.winners', 'Winners')}
             help={t(
               'builds.winnersHelp',
-              'Players who won with this build and were still in at the end.',
+              'Players who won with this build and were still in at the end. Empty until at least 5 such games have been analyzed.',
             )}
           />
         </HeadCell>
@@ -730,6 +768,7 @@ function ArmyMix({ build }: { build: CoachBuild }) {
   const countOf = (side: BuildSide | undefined, unitId: number, i: number) =>
     side ? (side.armyMix.find(e => e.unitId === unitId)?.counts[i] ?? 0) : undefined
   const minutes = ARMY_MIX_MINUTES
+  const basis = hasEnoughWinners(build) ? 1 : 0
 
   return (
     <PaddedPanel>
@@ -766,7 +805,20 @@ function ArmyMix({ build }: { build: CoachBuild }) {
             ...minutes.flatMap((_, i) =>
               sides.map(([label, side], s) => {
                 const count = countOf(side, unitId, i)
-                const Count = s === 0 ? GroupStartCell : Cell
+                let Count = s === 0 ? GroupStartCell : Cell
+                if (s === 2 && count !== undefined) {
+                  const compared = countOf(sides[basis][1], unitId, i)
+                  if (compared !== undefined) {
+                    if (count - compared >= ARMY_DIFF_MIN && count >= compared * ARMY_DIFF_RATIO) {
+                      Count = MoreCell
+                    } else if (
+                      compared - count >= ARMY_DIFF_MIN &&
+                      count <= compared / ARMY_DIFF_RATIO
+                    ) {
+                      Count = FewerCell
+                    }
+                  }
+                }
                 return (
                   <Count
                     key={`${unitId}-${label}-${i}`}
@@ -783,6 +835,19 @@ function ArmyMix({ build }: { build: CoachBuild }) {
       ) : (
         <Text>{t('builds.noArmy', 'No army units in enough of these games yet.')}</Text>
       )}
+      {units.length && build.user ? (
+        <PanelNote>
+          {t(
+            'builds.armyLegend',
+            'Your counts in green are well above {{basis}}, in red well below.',
+            {
+              basis: basis
+                ? t('builds.basisWinners', 'the winners')
+                : t('builds.basisMost', 'most players'),
+            },
+          )}
+        </PanelNote>
+      ) : null}
     </PaddedPanel>
   )
 }

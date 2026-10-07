@@ -8,6 +8,7 @@ import {
   CoachNote,
   CoachRecentForm,
   CoachReview,
+  getMetricFamily,
 } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
@@ -41,6 +42,7 @@ import {
   getRaceWords,
   getTimingTip,
   getTip,
+  getTipHeadline,
   Text,
   Tone,
   toneColor,
@@ -283,7 +285,15 @@ const Tip = styled.p`
   border-left: 3px solid var(--theme-outline);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: var(--theme-container-high);
+  color: var(--theme-on-surface-variant);
+`
+
+/** A tip's opening sentence, with the numbers behind it after. */
+const TipHeadline = styled.span`
+  display: block;
+  margin-bottom: var(--space-1);
   color: var(--theme-on-surface);
+  font-weight: 600;
 `
 
 /** The notes side by side, as many across as fit. */
@@ -328,8 +338,8 @@ function getAimText(goal: CoachGoal, value: string, t: TFunction) {
     return t('myStats.coach.aimBy', 'By {{value}}', { value })
   }
   return goal.higherIsBetter
-    ? t('myStats.coach.aimAtLeast', 'At least {{value}}', { value })
-    : t('myStats.coach.aimAtMost', 'At most {{value}}', { value })
+    ? t('myStats.coach.aimAtLeast', '{{value}} or more', { value })
+    : t('myStats.coach.aimAtMost', '{{value}} or less', { value })
 }
 
 /** Where a goal's target comes from, in a few words beside it. */
@@ -337,14 +347,14 @@ function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   switch (goal.basis) {
     case 'others':
       return goal.unit === 'time'
-        ? t('myStats.coach.basisOthersTime', 'when most {{race}} players start it', {
+        ? t('myStats.coach.basisOthersTime', 'when most {{race}} players here start it', {
             race: raceCharToLabel(bucket.race, t),
           })
-        : t('myStats.coach.basisOthers', 'what most {{race}} players reach', {
+        : t('myStats.coach.basisOthers', 'where most {{race}} players here are', {
             race: raceCharToLabel(bucket.race, t),
           })
     case 'wins':
-      return t('myStats.coach.basisWins', 'what you reach in your wins')
+      return t('myStats.coach.basisWins', 'where you are in your wins')
     case 'earlier':
       return t('myStats.coach.basisEarlier', 'where you were before your last {{count}}', {
         count: bucket.recentForm.games.length,
@@ -415,16 +425,6 @@ function getReviewText(
   }
 }
 
-/** What a tip needs to know about the kind of game. */
-function getTipContext(bucket: CoachBucket) {
-  return {
-    race: bucket.race,
-    opponentRace: bucket.opponentRace,
-    teamGame: isTeamGame(bucket.shape),
-    mapFamily: bucket.mapFamily,
-  }
-}
-
 /** A goal's name and what it means, for a number or for when to start something. */
 function getGoalText(goal: CoachGoal, t: TFunction): [label: string, help: string] {
   if (goal.key === 'buildTiming') {
@@ -442,11 +442,13 @@ function GoalItem({
   goal,
   index,
   bucket,
+  eapmFloor,
   compact = false,
 }: {
   goal: CoachGoal
   index: number
   bucket: CoachBucket
+  eapmFloor: number
   /** A later goal: its replay moment and tip stay hidden until asked for. */
   compact?: boolean
 }) {
@@ -457,6 +459,34 @@ function GoalItem({
   const [label, help] = getGoalText(goal, t)
   const { target, review } = goal
   const watchFromMs = review ? Math.max(0, review.atMs - WATCH_LEAD_MS) : 0
+  // A goal from the user's earlier games is about where their latest ones are now.
+  const shownUser = goal.basis === 'earlier' ? (goal.recentValue ?? goal.userValue) : goal.userValue
+  const tipValues = {
+    target: formatValue(target, goal.unit),
+    user: formatValue(shownUser, goal.unit),
+  }
+  // Rounded as the numbers are shown, so the gap is the difference between them.
+  const asShown = (n: number) =>
+    goal.unit === 'time' || goal.unit === 'percent' || Math.abs(n) >= 10
+      ? n
+      : Math.round(n * 10) / 10
+  const gap =
+    goal.unit === 'count' && Math.abs(shownUser) >= 10
+      ? Math.abs(Math.round(target) - Math.round(shownUser))
+      : Math.abs(asShown(target) - asShown(shownUser))
+  const race = raceCharToLabel(bucket.race, t)
+  const headlineValues = {
+    gap: goal.unit === 'time' ? formatTimeDiff(gap, t) : formatValue(gap, goal.unit),
+    // Speed is compared with every player, not only those over the EAPM floor.
+    players:
+      goal.key !== 'buildTiming' && getMetricFamily(goal.key) === 'speed'
+        ? t('myStats.coach.playersAll', '{{race}} players', { race })
+        : t('myStats.coach.playersOverFloor', '{{race}} players over {{floor}} EAPM', {
+            race,
+            floor: eapmFloor,
+          }),
+    build: goal.key === 'buildTiming' ? getBuildName(goal.buildKey ?? '', t) : undefined,
+  }
   const checkWord = (hit: boolean) =>
     hit ? t('myStats.coach.hit', 'Reached') : t('myStats.coach.missed', 'Not reached')
   const checksHelp = [
@@ -548,9 +578,12 @@ function GoalItem({
         ) : null}
         {open ? (
           <Tip>
+            <TipHeadline>
+              {getTipHeadline(goal.key, bucket.race, headlineValues, t, goal.basis)}
+            </TipHeadline>
             {goal.key === 'buildTiming'
-              ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)
-              : getTip(goal.key, getTipContext(bucket), t, goal.basis)}
+              ? getTimingTip(getBuildName(goal.buildKey ?? '', t), bucket.race, tipValues, t)
+              : getTip(goal.key, bucket.race, tipValues, t, goal.basis)}
           </Tip>
         ) : null}
       </GoalBody>
@@ -562,7 +595,15 @@ function GoalItem({
  * A few things to aim for, from the games the coach is looking at: the first one to play the next
  * game around, then the rest, each with a target, how the latest games did, and a tip.
  */
-export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: boolean }) {
+export function NextGame({
+  bucket,
+  allGames,
+  eapmFloor,
+}: {
+  bucket: CoachBucket
+  allGames: boolean
+  eapmFloor: number
+}) {
   const { t } = useTranslation()
   return (
     <PaddedPanel>
@@ -585,7 +626,7 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
               {t('myStats.coach.focusLabel', 'Play your next game around this')}
             </GoalsLabel>
             <Goals>
-              <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} />
+              <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} eapmFloor={eapmFloor} />
             </Goals>
           </Focus>
           {bucket.goals.length > 1 ? (
@@ -598,6 +639,7 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
                     goal={goal}
                     index={i + 1}
                     bucket={bucket}
+                    eapmFloor={eapmFloor}
                     compact={true}
                   />
                 ))}
@@ -642,7 +684,7 @@ function getFormContent(
           : t('myStats.coach.note.formBetterTitle', 'Winning more lately'),
       body: t(
         'myStats.coach.note.formUpBefore',
-        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before. Whatever changed, keep doing it.',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before.',
         values,
       ),
     }
@@ -654,7 +696,7 @@ function getFormContent(
       title: t('myStats.coach.note.formDownTitle', 'A rough patch'),
       body: t(
         'myStats.coach.note.formDownBefore',
-        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before. Pick one goal and play a few games with only that in mind.',
+        '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before.',
         values,
       ),
     }
@@ -664,7 +706,7 @@ function getFormContent(
     title: t('myStats.coach.note.formSteadyTitle', 'Steady results'),
     body: t(
       'myStats.coach.note.formSteadyBefore',
-      '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} in the {{earlierCount}} before. To move up, work on your goals.',
+      '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, about the same as the {{earlierRate}} in the {{earlierCount}} before.',
       values,
     ),
   }
@@ -682,10 +724,8 @@ function getNoteContent(
       const partners = note.form.newPartnerGames
       if (isTeamGame(bucket.shape) && partners * 2 >= note.form.games.length) {
         content.body += ` ${t('myStats.coach.note.newPartners', {
-          defaultValue:
-            '{{count}} of them were with a teammate you had not played with before, which often explains a swing.',
-          defaultValue_one:
-            '{{count}} of them was with a teammate you had not played with before, which often explains a swing.',
+          defaultValue: '{{count}} of them were with a teammate you had not played with before.',
+          defaultValue_one: '{{count}} of them was with a teammate you had not played with before.',
           count: partners,
         })}`
       }
@@ -701,16 +741,16 @@ function getNoteContent(
       return {
         icon: 'flag',
         tone: 'bad',
-        title: t('myStats.coach.note.lossesWrongTitle', 'Where losses go wrong'),
+        title: t('myStats.coach.note.lossesWrongTitle', 'Different in your losses'),
         body: isTeamGame(bucket.shape)
           ? t(
               'myStats.coach.note.inLossesTeamShort',
-              '{{metric}}: {{win}} in your wins, {{loss}} in your losses. In team games, check if you were the one they attacked.',
+              '{{metric}}: {{win}} in your wins, {{loss}} in your losses.',
               values,
             )
           : t(
               'myStats.coach.note.inLosses',
-              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss. It goes together with losing, so getting it right is worth more than anything else here.',
+              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss.',
               values,
             ),
       }
@@ -723,7 +763,7 @@ function getNoteContent(
         title: t('myStats.coach.note.firstOutTitle', 'First to fall'),
         body: t(
           'myStats.coach.note.firstOut',
-          'You were the first of your team out in {{firstOut}} of your {{losses}} losses, {{share}}, against {{poolShare}} for other players. Scout which way their first push is heading, and ask for help before it lands rather than after.',
+          'You were the first of your team out in {{firstOut}} of your {{losses}} losses, {{share}}, against {{poolShare}} for other players.',
           {
             firstOut: firstOut.firstOut,
             losses: firstOut.losses,
@@ -749,7 +789,7 @@ function getNoteContent(
             title: t('myStats.coach.note.improvingTitle', 'Getting better'),
             body: t(
               'myStats.coach.note.improving',
-              '{{metric}}: {{recent}} lately, from {{earlier}} before. The practice is paying off.',
+              '{{metric}}: {{recent}} lately, from {{earlier}} before.',
               values,
             ),
           }
@@ -759,7 +799,7 @@ function getNoteContent(
             title: t('myStats.coach.note.slippingTitle', 'Slipping lately'),
             body: t(
               'myStats.coach.note.slipping',
-              '{{metric}}: {{recent}} lately, from {{earlier}} before. Watch it in your next games before it becomes a habit.',
+              '{{metric}}: {{recent}} lately, from {{earlier}} before.',
               values,
             ),
           }
@@ -771,7 +811,7 @@ function getNoteContent(
         title: t('myStats.coach.note.strengthTitle', 'Your strength'),
         body: t(
           'myStats.coach.note.strengthUse',
-          '{{metric}}: {{you}} against {{them}}, better than {{percent}} of {{race}} players here. Plan your game around it: that is your window to attack.',
+          '{{metric}}: {{you}} against {{them}}, better than {{percent}} of {{race}} players here.',
           {
             metric: getMetricText(note.finding.key, t)[0],
             you: formatValue(note.finding.userValue, note.finding.unit),
@@ -795,12 +835,12 @@ function getNoteContent(
           userMs > poolMs
             ? t(
                 'myStats.coach.note.timingLate',
-                "You start {{build}} {{time}} later than most. If your build doesn't call for that, it's free time to win back.",
+                'You start {{build}} {{time}} later than most.',
                 values,
               )
             : t(
                 'myStats.coach.note.timingEarly',
-                'You start {{build}} {{time}} earlier than most. Make sure it pays for what it costs elsewhere.',
+                'You start {{build}} {{time}} earlier than most.',
                 values,
               ),
       }
