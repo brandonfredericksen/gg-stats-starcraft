@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { FilledButton } from '../material/button'
+import { useDemoPlayer } from '../my-stats/demo-player'
 import { MyStatsView } from '../my-stats/my-stats-page'
 import { LoadingDotsArea } from '../progress/dots'
 import { useAppDispatch } from '../redux-hooks'
@@ -47,11 +48,12 @@ export function LastGamePage() {
 /** The user's own stats across their games, which need their names to tell which games are theirs. */
 export function MyStatsPage() {
   const state = useOwnGamesState()
+  const demo = useDemoPlayer()
 
-  if (!state) {
+  if (!demo && !state) {
     return <LoadingDotsArea />
   }
-  if (state !== 'found') {
+  if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />
   }
   return <MyStatsView />

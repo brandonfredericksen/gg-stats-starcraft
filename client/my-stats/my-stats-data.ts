@@ -3,10 +3,15 @@ import { debounce } from 'lodash-es'
 import { useEffect, useState } from 'react'
 import { getErrorStack } from '../../common/errors'
 import { TypedIpcRenderer } from '../../common/ipc'
-import { MyStatsQuery, MyStatsResult, RANGE_MS } from '../../common/my-stats/my-stats'
+import {
+  computeMyStats,
+  MyStatsQuery,
+  MyStatsResult,
+  RANGE_MS,
+} from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
-import { useMyPlayerNames } from '../games/my-player-names'
 import logger from '../logging/logger'
+import { getDemoGames, useDemoPlayer, useStatsPlayerNames } from './demo-player'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -75,13 +80,27 @@ async function fetchMyStats(names: string[], filters: MyStatsFilters): Promise<M
   }
 }
 
+/** The made up player's stats, worked out here since the app doesn't have their games. */
+function computeDemoStats(names: string[], filters: MyStatsFilters): MyStatsData {
+  const games = getDemoGames()
+  const now = Date.now()
+  const stats = computeMyStats(games, { names, ...filters }, now)
+  const scoped = computeMyStats(games, { names, range: filters.range, shape: filters.shape }, now)
+  return {
+    stats,
+    analyzedGames: computeMyStats(games, { names, range: 'all' }, now).games,
+    scope: { analyzed: scoped.games, total: scoped.games },
+  }
+}
+
 /**
  * Sums up the user's games for the picked filters, again whenever games are analyzed or the
  * library changes.
  */
 export function useMyStats(): MyStatsData | undefined {
-  const names = useMyPlayerNames()
+  const names = useStatsPlayerNames()
   const filters = useAtomValue(myStatsFiltersAtom)
+  const demo = useDemoPlayer()
   const [data, setData] = useState<MyStatsData>()
 
   useEffect(() => {
@@ -90,7 +109,10 @@ export function useMyStats(): MyStatsData | undefined {
     }
     let current = true
     const load = () => {
-      fetchMyStats([...names], filters)
+      Promise.resolve()
+        .then(() =>
+          demo ? computeDemoStats([...names], filters) : fetchMyStats([...names], filters),
+        )
         .then(result => {
           if (current) {
             setData(result)
@@ -113,7 +135,7 @@ export function useMyStats(): MyStatsData | undefined {
       ipcRenderer.removeListener('replayLibraryChanged', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, filters])
+  }, [names, filters, demo])
 
   return data
 }

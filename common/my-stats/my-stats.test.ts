@@ -214,6 +214,18 @@ describe('common/my-stats', () => {
     // Oldest first, so the latest game is last.
     expect(stats.recent.at(-1)?.gameTimeMs).toBe(Math.max(...games.map(g => g.gameTimeMs)))
   })
+
+  test('groups versions of a map under the one played most', () => {
+    const names = ['Polypoid 1.65', 'Polypoid 1.75', 'Polypoid 1.75', '| iCCup | Eclipse 1.2']
+    const games = names.map(mapName =>
+      game('1v1', [player(me, 'p', 0, 'win'), player('X', 'z', 0, 'loss')], { mapName }),
+    )
+    const stats = computeMyStats(games, { names: [me], range: 'all' }, NOW)
+    expect(stats.maps).toEqual([
+      expect.objectContaining({ mapName: 'Polypoid', family: 'standard', games: 3 }),
+      expect.objectContaining({ mapName: 'Eclipse', family: 'standard', games: 1 }),
+    ])
+  })
 })
 
 function share(income: number) {

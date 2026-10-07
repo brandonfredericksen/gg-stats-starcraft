@@ -20,11 +20,11 @@ import {
 } from '../../common/my-stats/coach'
 import { raceCharToLabel } from '../../common/races'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
-import { useMyPlayerNames } from '../games/my-player-names'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { SegmentMenu, SegmentOption } from '../material/segmented'
 import { AnalyzeMine } from '../my-stats/analyze-mine'
+import { useDemoPlayer, useStatsPlayerNames } from '../my-stats/demo-player'
 import { MyStatsFilters, myStatsFiltersAtom } from '../my-stats/my-stats-data'
 import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
 import { LoadingDotsArea } from '../progress/dots'
@@ -673,7 +673,7 @@ function CoverageLine({
   counts: ReadonlyArray<ShapeCount>
 }) {
   const { t } = useTranslation()
-  const names = useMyPlayerNames() ?? []
+  const names = useStatsPlayerNames() ?? []
   const count = counts.find(c => c.shape === shape)
   if (!count) {
     return null
@@ -706,7 +706,7 @@ function CoverageLine({
 /** A game type the coach can't look at yet: how many of its replays are analyzed, and a way on. */
 function LockedView({ locked }: { locked: ShapeCount }) {
   const { t } = useTranslation()
-  const names = useMyPlayerNames() ?? []
+  const names = useStatsPlayerNames() ?? []
   const name = locked.shape === 'ffa' ? t('myStats.ffa', 'FFA') : locked.shape
 
   return (
@@ -968,7 +968,7 @@ function toFilters(scope: Omit<CoachScope, 'games'>): MyStatsFilters {
 /** How far the user is from enough games to compare, with a way to get there. */
 function Unlock({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number }) {
   const { t } = useTranslation()
-  const names = useMyPlayerNames() ?? []
+  const names = useStatsPlayerNames() ?? []
   const userShort = Math.max(0, COACH_MIN_USER_GAMES - bucket.userGames)
   const poolShort = bucket.poolGames < COACH_MIN_POOL_GAMES
   const progressText = (count: number, needed: number) =>
@@ -1312,7 +1312,7 @@ function WindowMenu({ autoGames }: { autoGames: number }) {
 /** Every group of the coached kind of game that's ready, then the rest in a line. */
 function CoachBody({ coach }: { coach: CoachResult }) {
   const { t } = useTranslation()
-  const names = useMyPlayerNames() ?? []
+  const names = useStatsPlayerNames() ?? []
 
   if (coach.status === 'noGames') {
     return (
@@ -1437,11 +1437,12 @@ export function CoachView({ coach }: { coach: CoachResult | undefined }) {
 export function CoachPage() {
   const state = useOwnGamesState()
   const coach = useCoach()
+  const demo = useDemoPlayer()
 
-  if (!state) {
+  if (!demo && !state) {
     return <LoadingDotsArea />
   }
-  if (state !== 'found') {
+  if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />
   }
   return <CoachView coach={coach} />

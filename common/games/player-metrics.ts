@@ -7,7 +7,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 6
+export const GAME_METRICS_VERSION = 7
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
