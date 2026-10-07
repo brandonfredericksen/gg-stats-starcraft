@@ -143,6 +143,20 @@ describe('common/my-stats/coach', () => {
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
   })
 
+  test('leaves out games from before the time range, on both sides', () => {
+    const before = [...myGames(4, 14), ...poolGames(10, () => 18)]
+    const after = [...myGames(12, 14), ...poolGames(40, () => 18)]
+    const coach = computeCoach([...before, ...after], {
+      ...query,
+      window: 'all',
+      fromMs: after[0].gameTimeMs,
+    })
+    expect(coach.status === 'ready' && coach.buckets[0]).toMatchObject({
+      userGames: 12,
+      poolGames: 40,
+    })
+  })
+
   test('counts at most a few games of any one player', () => {
     const sameOpponent = Array.from({ length: 40 }, () =>
       game('1v1', [player('Bisu', 'p', 0, 'win'), player('Jaedong', 'z', 0, 'loss')]),
