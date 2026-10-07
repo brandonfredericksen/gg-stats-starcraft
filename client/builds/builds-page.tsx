@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { ARMY_MIX_MINUTES } from '../../common/games/player-metrics'
 import {
-  ArmyMixEntry,
   BuildSide,
   BuildStepSummary,
   CoachBuild,
@@ -40,6 +39,7 @@ import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import {
   formatPercent,
+  HelpLabel,
   PaddedPanel,
   PanelHead,
   PanelHeadNote,
@@ -50,14 +50,32 @@ import { LoadingDotsArea } from '../progress/dots'
 import { labelMedium } from '../styles/typography'
 import { OwnGamesNeeded, useOwnGamesState } from '../system-bar/own-games-needed'
 
-/** A step this much later or earlier than most players is pointed out. */
+/** A step this much later or earlier than the players it's compared with is pointed out. */
 const OFF_STEP_MS = 20_000
 /** A step fewer games than this share take is marked as one only some players add. */
 const OPTIONAL_STEP_SHARE = 0.8
-/** A win rate from fewer decided games than this is shown faded, since it's mostly chance. */
+/**
+ * A win rate from fewer decided games than this is shown faded, since it's mostly chance. Winners
+ * need this many games to be what the user's steps are compared with.
+ */
 const MIN_RATE_GAMES = 10
-/** Past this share of other players' games played with or against the user, the page says so. */
-const WITH_USER_NOTE_SHARE = 0.5
+/** A win rate this far from other players', both from enough games, is pointed out. */
+const OFF_WIN_RATE = 0.15
+
+/** The builds table, its highlight reaching a little past the text on each side. */
+const BuildsGrid = styled(Table)`
+  margin-inline: calc(-1 * var(--space-3));
+
+  & > :first-child,
+  & > button > :first-child {
+    padding-left: var(--space-3);
+  }
+
+  & > :nth-child(6),
+  & > button > :last-child {
+    padding-right: var(--space-3);
+  }
+`
 
 /** A row of the builds table, which picks the build shown below it. */
 const BuildRow = styled.button<{ $selected: boolean }>`
@@ -66,15 +84,21 @@ const BuildRow = styled.button<{ $selected: boolean }>`
   cursor: pointer;
 
   & > * {
-    background-color: ${props => (props.$selected ? 'var(--theme-container-high)' : 'transparent')};
+    background-color: ${props =>
+      props.$selected ? 'var(--theme-tab-builds-tint)' : 'transparent'};
+  }
+
+  & > :first-child {
+    box-shadow: ${props => (props.$selected ? 'inset 3px 0 0 var(--theme-tab-builds)' : 'none')};
   }
 
   &:hover > * {
-    background-color: var(--theme-container-high);
+    background-color: ${props =>
+      props.$selected ? 'var(--theme-tab-builds-tint)' : 'var(--theme-container-high)'};
   }
 
   &:focus-visible > * {
-    outline: 2px solid var(--theme-grey-blue);
+    outline: 2px solid var(--theme-tab-builds-ring);
     outline-offset: -2px;
   }
 `
@@ -82,11 +106,13 @@ const BuildRow = styled.button<{ $selected: boolean }>`
 const YoursTag = styled.span`
   ${labelMedium};
   height: 20px;
+  margin-block: -2px;
   margin-left: var(--space-2);
   padding: 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
+  vertical-align: middle;
 
   border-radius: var(--radius-full);
   background: var(--theme-tab-builds-tint);
@@ -102,15 +128,48 @@ const Panels = styled.div`
 
 /** A build's name with its race in front, for tables that mix races. */
 const RacedName = styled.span`
+  margin-block: -2px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  vertical-align: middle;
 `
 
-/** How often a step comes up, after its name, when only some players take it. */
+/** How often a step comes up, or who takes it, after its name. */
 const StepShare = styled.span`
   margin-left: var(--space-2);
   color: var(--theme-on-surface-variant);
+`
+
+/** A step only the winners or only the user take, which says more than one most players take. */
+const StepOnly = styled.span`
+  margin-left: var(--space-2);
+  color: var(--theme-tab-builds);
+  font-weight: 600;
+`
+
+/** A step the user takes late, in a red that reads apart from the tab's pink. */
+const LateCell = styled(Cell)`
+  color: var(--theme-error);
+  font-weight: 600;
+`
+
+/** The first column of a group in a grouped table, set apart from the group before it. */
+const GroupStartCell = styled(Cell)`
+  padding-left: var(--space-8);
+`
+
+const GroupStartHead = styled(HeadCell)`
+  padding-left: var(--space-8);
+`
+
+/** A group's heading over its columns, with a line under it spanning them. */
+const SpanHead = styled(GroupHead)`
+  margin-left: var(--space-8);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--theme-outline-variant);
+  text-align: center;
 `
 
 const OPENER_NAMES: Record<string, (t: TFunction) => string> = {
@@ -175,39 +234,54 @@ function getStepName(step: Pick<BuildStepSummary, 'key' | 'nth'>, t: TFunction) 
   return step.nth > 1 ? `${name} ${step.nth}` : name
 }
 
-/** A win rate, faded when too few games decide it, with the record when hovered. */
-function WinRateCell({ record }: { record: Pick<BuildSide, 'wins' | 'losses'> | undefined }) {
-  const { t } = useTranslation()
+type WinLoss = Pick<BuildSide, 'wins' | 'losses'>
+
+function rateOf(record: WinLoss | undefined) {
   const decided = record ? record.wins + record.losses : 0
-  if (!record || !decided) {
+  return record && decided ? { rate: record.wins / decided, decided } : undefined
+}
+
+/**
+ * A win rate, faded when too few games decide it, with the record when hovered. Compared with
+ * another, both from enough games, it's red when well under it and bold when well over.
+ */
+function WinRateCell({ record, compare }: { record: WinLoss | undefined; compare?: WinLoss }) {
+  const { t } = useTranslation()
+  const own = rateOf(record)
+  if (!record || !own) {
     return (
       <Cell $end={true} $tone='muted'>
         -
       </Cell>
     )
   }
+  const other = rateOf(compare)
+  const diff =
+    other && other.decided >= MIN_RATE_GAMES && own.decided >= MIN_RATE_GAMES
+      ? own.rate - other.rate
+      : 0
+  let tone: 'muted' | 'bad' | undefined
+  if (own.decided < MIN_RATE_GAMES) {
+    tone = 'muted'
+  } else if (diff <= -OFF_WIN_RATE) {
+    tone = 'bad'
+  }
   return (
     <Cell
       $end={true}
-      $tone={decided < MIN_RATE_GAMES ? 'muted' : undefined}
+      $tone={tone}
+      $strong={diff >= OFF_WIN_RATE}
       title={t('builds.record', '{{wins}} wins, {{losses}} losses', {
         wins: record.wins,
         losses: record.losses,
       })}>
-      {formatPercent(record.wins / decided)}
+      {formatPercent(own.rate)}
     </Cell>
   )
 }
 
-/** Who the other players are here, and how much their results follow the user's. */
-function getPoolNote(
-  bucket: CoachBucket,
-  builds: ReadonlyArray<CoachBuild>,
-  eapmFloor: number,
-  t: TFunction,
-) {
-  const games = builds.reduce((sum, b) => sum + b.others.games, 0)
-  const withUser = builds.reduce((sum, b) => sum + b.others.withUser, 0)
+/** Who the other players are here. */
+function getPoolNote(bucket: CoachBucket, eapmFloor: number, t: TFunction) {
   const notes = [
     t('builds.poolNote', '{{race}} players over {{floor}} EAPM in {{where}}.', {
       race: raceCharToLabel(bucket.race, t),
@@ -224,23 +298,24 @@ function getPoolNote(
       ),
     )
   }
-  if (games && withUser / games > WITH_USER_NOTE_SHARE) {
-    notes.push(
-      t(
-        'builds.withUserNote',
-        '{{share}} of their games were with or against you, so their win rates partly follow yours.',
-        { share: formatPercent(withUser / games) },
-      ),
-    )
-  }
+  notes.push(t('builds.fadedNote', 'Faded: under {{minimum}} games.', { minimum: MIN_RATE_GAMES }))
+  return notes.join(' ')
+}
+
+/** What a win rate of other players' means here: how much it follows the user's own games. */
+function getWinRateHelp(bucket: CoachBucket, builds: ReadonlyArray<CoachBuild>, t: TFunction) {
+  const games = builds.reduce((sum, b) => sum + b.others.games, 0)
+  const withUser = builds.reduce((sum, b) => sum + b.others.withUser, 0)
+  const notes = [
+    t(
+      'builds.winRateHelp',
+      '{{share}} of these games were with or against you, so their win rates partly follow yours.',
+      { share: formatPercent(games ? withUser / games : 0) },
+    ),
+  ]
   if (bucket.shape !== '1v1' && bucket.shape !== 'ffa') {
     notes.push(t('builds.teamNote', 'Teammates on the same build count their result once.'))
   }
-  notes.push(
-    t('builds.fadedNote', 'Faded win rates come from fewer than {{count}} games.', {
-      count: MIN_RATE_GAMES,
-    }),
-  )
   return notes.join(' ')
 }
 
@@ -259,8 +334,13 @@ function AgainstPicker({
     return null
   }
   return (
-    <Races role='group' aria-label={t('builds.against', 'Against')}>
-      <RaceButton type='button' $on={!against} aria-pressed={!against} onClick={() => onPick('')}>
+    <Races $dense={true} role='group' aria-label={t('builds.against', 'Against')}>
+      <RaceButton
+        type='button'
+        $dense={true}
+        $on={!against}
+        aria-pressed={!against}
+        onClick={() => onPick('')}>
         <span>{t('builds.againstAny', 'Any team')}</span>
       </RaceButton>
       {bucket.buildsAgainst.map(({ opponents }) => {
@@ -269,6 +349,7 @@ function AgainstPicker({
           <RaceButton
             key={opponents}
             type='button'
+            $dense={true}
             $on={against === opponents}
             aria-pressed={against === opponents}
             aria-label={t('builds.againstPair', 'Against {{first}} and {{second}}', {
@@ -312,11 +393,16 @@ function BuildsTable({
         <PanelHeadNote>{t('builds.popularNote', 'Pick one to see how it goes.')}</PanelHeadNote>
         {picker}
       </PanelHead>
-      <Table $columns='minmax(0, 1fr) 96px 96px 96px 112px 112px'>
+      <BuildsGrid $columns='minmax(0, 1fr) 96px 96px 96px 112px 112px'>
         <HeadCell>{t('builds.build', 'Build')}</HeadCell>
         <HeadCell $end={true}>{t('builds.players', 'Players')}</HeadCell>
         <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
-        <HeadCell $end={true}>{t('builds.winRate', 'Win rate')}</HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.winRate', 'Win rate')}
+            help={getWinRateHelp(bucket, builds, t)}
+          />
+        </HeadCell>
         <HeadCell $end={true}>{t('builds.yourGames', 'Your games')}</HeadCell>
         <HeadCell $end={true}>{t('builds.yourWinRate', 'Your win rate')}</HeadCell>
         {builds.map(build => (
@@ -340,11 +426,11 @@ function BuildsTable({
             <Cell $end={true} $tone='muted'>
               {build.user?.games ?? '-'}
             </Cell>
-            <WinRateCell record={build.user} />
+            <WinRateCell record={build.user} compare={build.others} />
           </BuildRow>
         ))}
-      </Table>
-      <PanelNote>{getPoolNote(bucket, builds, eapmFloor, t)}</PanelNote>
+      </BuildsGrid>
+      <PanelNote>{getPoolNote(bucket, eapmFloor, t)}</PanelNote>
     </PaddedPanel>
   )
 }
@@ -388,6 +474,7 @@ function TeamBuilds({ teams }: { teams: ReadonlyArray<CoachTeamBuild> }) {
             <WinRateCell
               key={`${id}-user-rate`}
               record={team.userGames ? { wins: team.userWins, losses: team.userLosses } : undefined}
+              compare={team}
             />,
           ]
         })}
@@ -405,12 +492,18 @@ function formatStep(step: BuildStepSummary | undefined) {
   return step.supply !== undefined ? `${step.supply} · ${time}` : time
 }
 
+/** Whether the winners played enough games of a build to be what the user is compared with. */
+function hasEnoughWinners(build: CoachBuild): build is CoachBuild & { winners: BuildSide } {
+  return !!build.winners && build.winners.games >= MIN_RATE_GAMES
+}
+
 /** A build's steps as most players take them, next to the winners' and the user's. */
 function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar }) {
   const { t } = useTranslation()
   const id = (step: BuildStepSummary) => `${step.key}#${step.nth}`
   const sides = [build.others, build.winners, build.user]
   const byId = sides.map(side => new Map(side?.steps.map(step => [id(step), step])))
+  const basis = hasEnoughWinners(build) ? 1 : 0
   // Most players' order, then steps only winners or the user take, after the step before them.
   const steps: BuildStepSummary[] = [...build.others.steps]
   for (const side of sides.slice(1)) {
@@ -423,6 +516,7 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
       steps.splice(at + 1, 0, step)
     })
   }
+  const fewWinners = !!build.winners && !hasEnoughWinners(build)
 
   return (
     <PaddedPanel>
@@ -431,7 +525,7 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
         <PanelHeadNote>
           {t(
             'builds.stepsNote',
-            'Supply and time of each step, in the order {{race}} players usually take them.',
+            'Supply and time of each step, by when most {{race}} players take it.',
             { race: raceCharToLabel(race, t) },
           )}
         </PanelHeadNote>
@@ -439,7 +533,15 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
       <Table $columns='minmax(0, 1fr) 140px 140px 140px'>
         <HeadCell>{t('builds.step', 'Step')}</HeadCell>
         <HeadCell $end={true}>{t('builds.mostPlayers', 'Most players')}</HeadCell>
-        <HeadCell $end={true}>{t('builds.winners', 'Winners')}</HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.winners', 'Winners')}
+            help={t(
+              'builds.winnersHelp',
+              'Players who won with this build and were still in at the end.',
+            )}
+          />
+        </HeadCell>
         <HeadCell $end={true}>{t('builds.you', 'You')}</HeadCell>
         <Cell $tone='muted'>{t('builds.gamesRow', 'Games')}</Cell>
         {sides.map((side, i) => (
@@ -449,11 +551,21 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
         ))}
         {steps.map(step => {
           const others = byId[0].get(id(step))
+          const winners = byId[1].get(id(step))
           const user = byId[2].get(id(step))
-          const diff = others && user ? user.timeMs - others.timeMs : 0
+          const compared = byId[basis].get(id(step))
+          const diff = compared && user ? user.timeMs - compared.timeMs : 0
+          const UserCell = diff >= OFF_STEP_MS ? LateCell : Cell
+          let only: string | undefined
+          if (!others && winners) {
+            only = t('builds.winnersOnly', 'winners only')
+          } else if (!others && !winners && user) {
+            only = t('builds.youOnly', 'only you')
+          }
           return [
             <Cell key={`${id(step)}-name`}>
               {getStepName(step, t)}
+              {only ? <StepOnly>{only}</StepOnly> : null}
               {others && others.share < OPTIONAL_STEP_SHARE ? (
                 <StepShare>
                   {t('builds.stepShare', 'in {{share}} of games', {
@@ -465,16 +577,12 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
             <Cell key={`${id(step)}-others`} $end={true}>
               {formatStep(others)}
             </Cell>,
-            <Cell key={`${id(step)}-winners`} $end={true} $tone='muted'>
-              {build.winners ? formatStep(byId[1].get(id(step))) : '-'}
+            <Cell key={`${id(step)}-winners`} $end={true} $tone={fewWinners ? 'muted' : undefined}>
+              {build.winners ? formatStep(winners) : '-'}
             </Cell>,
-            <Cell
-              key={`${id(step)}-you`}
-              $end={true}
-              $tone={diff >= OFF_STEP_MS ? 'bad' : undefined}
-              $strong={diff <= -OFF_STEP_MS}>
+            <UserCell key={`${id(step)}-you`} $end={true} $strong={diff <= -OFF_STEP_MS}>
               {build.user ? formatStep(user) : '-'}
-            </Cell>,
+            </UserCell>,
           ]
         })}
       </Table>
@@ -482,15 +590,17 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
         {build.user
           ? t(
               'builds.stepsLegend',
-              'Your steps in red come {{seconds}} seconds or more after most players, in bold that much before.',
-              { seconds: OFF_STEP_MS / 1000 },
+              'Your steps in red come {{seconds}}s or more after {{basis}}, in bold that much before.',
+              {
+                seconds: OFF_STEP_MS / 1000,
+                basis: basis
+                  ? t('builds.basisWinners', 'the winners')
+                  : t('builds.basisMost', 'most players'),
+              },
             )
           : t('builds.notYours', "You haven't played this build in these games.")}{' '}
         {build.winners
-          ? t(
-              'builds.winnersNote',
-              "Winners leave out players their team carried after they'd gone out.",
-            )
+          ? ''
           : t('builds.fewWinners', 'Too few won games to show how winners play it.')}
       </PanelNote>
     </PaddedPanel>
@@ -499,12 +609,12 @@ function BuildSteps({ build, race }: { build: CoachBuild; race: AssignedRaceChar
 
 function getWorkerStopText(stop: WorkerStopSummary | undefined, t: TFunction) {
   if (!stop) {
-    return t('builds.workersNoData', 'Not enough games to tell.')
+    return '-'
   }
   if (stop.stopped * 2 < stop.games) {
-    return t('builds.workersKeepGoing', 'Keep going past 10 minutes in most games.')
+    return t('builds.workersKeepGoing', 'Past 10 min')
   }
-  return t('builds.workersStop', 'Stop at {{workers}}, around {{time}}.', {
+  return t('builds.workersStop', '{{workers}} · {{time}}', {
     workers: stop.workers,
     time: formatGameTime(stop.atMs),
   })
@@ -523,38 +633,62 @@ function Workers({ build, race }: { build: CoachBuild; race: AssignedRaceChar })
       <PanelHead>
         <PanelTitle>{t('builds.workersTitle', 'Workers')}</PanelTitle>
         <PanelHeadNote>
-          {t(
-            'builds.workersNote',
-            'How many in a typical game, and when players stop making them: the first 1:30 or more without a new one after 3:00, other than out of supply.',
-          )}
+          {t('builds.workersNote', 'How many by each minute, and when players stop making them.')}
         </PanelHeadNote>
       </PanelHead>
-      <Table $columns={`160px repeat(${WORKER_MINUTES.length}, 72px) minmax(0, 1fr) max-content`}>
+      <Table $columns={`minmax(0, 1fr) repeat(${WORKER_MINUTES.length}, 72px) 140px 140px`}>
         <HeadCell />
         {WORKER_MINUTES.map(minute => (
           <HeadCell key={minute} $end={true}>
             {t('builds.atMinute', '{{minute}} min', { minute })}
           </HeadCell>
         ))}
-        <HeadCell>{t('builds.workersStopHead', 'Stop making them')}</HeadCell>
-        <HeadCell />
-        {rows.map(([label, side], s) => [
-          <Cell key={`${label}-label`}>{label}</Cell>,
-          ...WORKER_MINUTES.map((minute, i) => (
-            <Cell key={`${label}-${minute}`} $end={true} $tone={s === 1 ? 'muted' : undefined}>
-              {side?.workersAt[i] ?? '-'}
-            </Cell>
-          )),
-          <Cell key={`${label}-stop`}>{side ? getWorkerStopText(side.workerStop, t) : '-'}</Cell>,
-          <Cell key={`${label}-games`} $end={true} $tone='muted'>
-            {side?.workerStop
-              ? t('builds.workersGames', '{{stopped}} of {{games}} games stop', {
-                  stopped: side.workerStop.stopped,
-                  games: side.workerStop.games,
-                })
-              : ''}
-          </Cell>,
-        ])}
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.workersStopHead', 'Stop at')}
+            help={t(
+              'builds.workersStopHelp',
+              'Workers and time when a typical game stops making them: the first 1:30 or more without a new one after 3:00, other than out of supply.',
+            )}
+          />
+        </HeadCell>
+        <HeadCell $end={true}>
+          <HelpLabel
+            label={t('builds.workersGamesHead', 'Games that stop')}
+            help={t(
+              'builds.workersGamesHelp',
+              'Of the games that stopped or went on past 10 minutes. Games over before either are left out.',
+            )}
+          />
+        </HeadCell>
+        {rows.map(([label, side], s) => {
+          const muted = s === 1 && !hasEnoughWinners(build)
+          return [
+            <Cell key={`${label}-label`} $tone={muted ? 'muted' : undefined}>
+              {label}
+            </Cell>,
+            ...WORKER_MINUTES.map((minute, i) => (
+              <Cell key={`${label}-${minute}`} $end={true} $tone={muted ? 'muted' : undefined}>
+                {side?.workersAt[i] ?? '-'}
+              </Cell>
+            )),
+            <Cell
+              key={`${label}-stop`}
+              $end={true}
+              $tone={muted ? 'muted' : undefined}
+              $strong={s === 2}>
+              {side ? getWorkerStopText(side.workerStop, t) : '-'}
+            </Cell>,
+            <Cell key={`${label}-games`} $end={true} $tone='muted'>
+              {side?.workerStop
+                ? t('builds.workersGames', '{{stopped}} of {{games}}', {
+                    stopped: side.workerStop.stopped,
+                    games: side.workerStop.games,
+                  })
+                : '-'}
+            </Cell>,
+          ]
+        })}
       </Table>
       {race === 'z' ? (
         <PanelNote>
@@ -568,11 +702,19 @@ function Workers({ build, race }: { build: CoachBuild; race: AssignedRaceChar })
   )
 }
 
+/** An average count of units, or a dash for a side with no games. */
+function formatCount(count: number | undefined) {
+  if (count === undefined) {
+    return '-'
+  }
+  return count < 0.05 ? '0' : count.toFixed(1)
+}
+
 /** How a build's army comes together over the first 10 minutes: most players, winners, the user. */
 function ArmyMix({ build }: { build: CoachBuild }) {
   const { t } = useTranslation()
   const sides: Array<[string, BuildSide | undefined]> = [
-    [t('builds.mostPlayers', 'Most players'), build.others],
+    [t('builds.mostShort', 'Most'), build.others],
     [t('builds.winners', 'Winners'), build.winners],
     [t('builds.you', 'You'), build.user],
   ]
@@ -584,14 +726,8 @@ function ArmyMix({ build }: { build: CoachBuild }) {
       }
     }
   }
-  const countOf = (side: BuildSide | undefined, unitId: number, i: number) => {
-    const entry: ArmyMixEntry | undefined = side?.armyMix.find(e => e.unitId === unitId)
-    if (!side) {
-      return '-'
-    }
-    const count = entry?.counts[i] ?? 0
-    return count < 0.05 ? '0' : count.toFixed(1)
-  }
+  const countOf = (side: BuildSide | undefined, unitId: number, i: number) =>
+    side ? (side.armyMix.find(e => e.unitId === unitId)?.counts[i] ?? 0) : undefined
   const minutes = ARMY_MIX_MINUTES
 
   return (
@@ -606,36 +742,40 @@ function ArmyMix({ build }: { build: CoachBuild }) {
         </PanelHeadNote>
       </PanelHead>
       {units.length ? (
-        <Table $columns={`minmax(0, 1fr) repeat(${minutes.length * sides.length}, 60px)`}>
+        <Table $columns={`minmax(0, 1fr) repeat(${minutes.length * sides.length}, 72px)`}>
           <GroupHead $first={true} />
-          {sides.map(([label]) => (
-            <GroupHead
-              key={label}
-              $first={true}
-              $end={true}
-              style={{ gridColumn: `span ${minutes.length}` }}>
-              {label}
-            </GroupHead>
+          {minutes.map(minute => (
+            <SpanHead key={minute} $first={true} style={{ gridColumn: `span ${sides.length}` }}>
+              {t('builds.atMinute', '{{minute}} min', { minute })}
+            </SpanHead>
           ))}
           <HeadCell>{t('builds.unit', 'Unit')}</HeadCell>
-          {sides.flatMap(([label]) =>
-            minutes.map(minute => (
-              <HeadCell key={`${label}-${minute}`} $end={true}>
-                {t('builds.atMinute', '{{minute}} min', { minute })}
-              </HeadCell>
-            )),
+          {minutes.flatMap(minute =>
+            sides.map(([label], s) => {
+              const Head = s === 0 ? GroupStartHead : HeadCell
+              return (
+                <Head key={`${minute}-${label}`} $end={true}>
+                  {label}
+                </Head>
+              )
+            }),
           )}
           {units.map(unitId => [
             <Cell key={`${unitId}-name`}>{getBuildName(`u${unitId}`, t)}</Cell>,
-            ...sides.flatMap(([label, side], s) =>
-              minutes.map((_, i) => (
-                <Cell
-                  key={`${unitId}-${label}-${i}`}
-                  $end={true}
-                  $tone={s === 1 ? 'muted' : undefined}>
-                  {countOf(side, unitId, i)}
-                </Cell>
-              )),
+            ...minutes.flatMap((_, i) =>
+              sides.map(([label, side], s) => {
+                const count = countOf(side, unitId, i)
+                const Count = s === 0 ? GroupStartCell : Cell
+                return (
+                  <Count
+                    key={`${unitId}-${label}-${i}`}
+                    $end={true}
+                    $tone={count === undefined || count < 0.05 ? 'muted' : undefined}
+                    $strong={s === 2 && count !== undefined && count >= 0.05}>
+                    {formatCount(count)}
+                  </Count>
+                )
+              }),
             ),
           ])}
         </Table>

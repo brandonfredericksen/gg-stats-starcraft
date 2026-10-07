@@ -117,31 +117,28 @@ function median(values: ReadonlyArray<number>): number {
 }
 
 /**
- * The steps most of these games take, each at its typical time and supply. They're in the order
- * players usually take them, by where each comes in its game's build, since each step's time is
- * from a different set of games and times alone can put them out of order.
+ * The steps most of these games take, each at its typical time and supply, in order of those
+ * times. The second of a building always comes after the first, wherever each one's time falls.
  */
 function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
   const games = samples.filter(s => s.player.buildSteps)
   const byStep = new Map<
     string,
-    { key: string; nth: number; times: number[]; supplies: number[]; places: number[] }
+    { key: string; nth: number; times: number[]; supplies: number[] }
   >()
   for (const { player } of games) {
     const seen = new Map<string, number>()
-    const steps = player.buildSteps ?? []
-    steps.forEach((step, i) => {
+    for (const step of player.buildSteps ?? []) {
       const nth = (seen.get(step.key) ?? 0) + 1
       seen.set(step.key, nth)
       const id = `${step.key}#${nth}`
-      const entry = byStep.get(id) ?? { key: step.key, nth, times: [], supplies: [], places: [] }
+      const entry = byStep.get(id) ?? { key: step.key, nth, times: [], supplies: [] }
       entry.times.push(step.timeMs)
-      entry.places.push(i)
       if (step.supply !== undefined) {
         entry.supplies.push(step.supply)
       }
       byStep.set(id, entry)
-    })
+    }
   }
   const steps = Array.from(byStep.values())
     .filter(entry => entry.times.length >= games.length * USUAL_STEP_SHARE)
@@ -151,12 +148,10 @@ function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
       timeMs: median(entry.times),
       supply: entry.supplies.length ? Math.round(median(entry.supplies)) : undefined,
       share: entry.times.length / games.length,
-      place: median(entry.places),
     }))
-    .sort((a, b) => a.place - b.place || a.timeMs - b.timeMs)
-  // The second Gateway always comes after the first, wherever each usually falls.
+    .sort((a, b) => a.timeMs - b.timeMs)
   const byKey = new Map<string, BuildStepSummary[]>()
-  for (const { place: _, ...step } of steps.toSorted((a, b) => a.nth - b.nth)) {
+  for (const step of steps.toSorted((a, b) => a.nth - b.nth)) {
     byKey.set(step.key, [...(byKey.get(step.key) ?? []), step])
   }
   return steps.map(step => byKey.get(step.key)!.shift()!)
