@@ -27,27 +27,6 @@ export function toneColor(tone: Tone | undefined) {
   return tone === 'bad' ? 'var(--theme-negative)' : 'var(--theme-on-surface-variant)'
 }
 
-/**
- * The top of a coach panel: its title, a muted note after it, and a line under both that runs to
- * the panel's edges. Centered, since a title can hold a race tag with no text baseline.
- */
-export const PanelHead = styled.div`
-  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-5)) 0;
-  padding: var(--space-4) var(--space-5) var(--space-3);
-
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-
-  border-bottom: 1px solid var(--theme-outline-variant);
-`
-
-export const PanelHeadNote = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-`
-
 export const Text = styled.p`
   ${bodyMedium};
   margin: 0;
