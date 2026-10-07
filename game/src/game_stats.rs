@@ -167,6 +167,9 @@ pub struct GameStatsTracker {
     units: Box<UnitCatalog>,
     /// Counts each slot's bases, or returns `None` if the game's units can't be looked through.
     count_bases: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
+    /// Counts each slot's eggs hatching a Drone, or returns `None` if the game's units can't be
+    /// looked through.
+    count_worker_eggs: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
     /// Lists the game's units for larvae and scouting, or returns `None` if they can't be looked
     /// through.
     list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
@@ -254,7 +257,10 @@ struct BuildStep {
 
 #[derive(Copy, Clone)]
 struct Snapshot {
+    /// Finished workers.
     workers: u32,
+    /// Workers finished or being made, which take supply from when they're started.
+    workers_started: u32,
     army_score: u32,
     resources_mined: u32,
     unspent: u32,
@@ -599,7 +605,11 @@ pub struct GameStats {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Timeline {
+    /// Finished workers.
     workers: Vec<u32>,
+    /// Workers finished or being made. Each uses one supply, so supply used less these is the
+    /// supply the rest of the player's units use.
+    workers_started: Vec<u32>,
     /// The game's score for the player's army, see [`Worth`]. Workers, buildings and Overlords
     /// aren't part of an army.
     army_score: Vec<u32>,
@@ -793,6 +803,7 @@ impl GameStatsTracker {
                 game_thread::is_team_game(),
                 UnitCatalog::from_game_data(),
                 count_bases_in_game,
+                count_worker_eggs_in_game,
                 list_units_in_game,
             )
         }
@@ -804,6 +815,7 @@ impl GameStatsTracker {
         is_team_game: bool,
         units: UnitCatalog,
         count_bases: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
+        count_worker_eggs: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
         list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
     ) -> GameStatsTracker {
         unsafe {
@@ -838,6 +850,7 @@ impl GameStatsTracker {
                 activity: Default::default(),
                 units: Box::new(units),
                 count_bases,
+                count_worker_eggs,
                 list_units,
                 scouting: Default::default(),
                 snapshot_frames: Vec::new(),
@@ -1123,8 +1136,12 @@ impl GameStatsTracker {
         }
         self.snapshot_frames.push(frame);
         let bases_by_slot = unsafe { (self.count_bases)() };
+        let worker_eggs = unsafe { (self.count_worker_eggs)() };
         for slot in (0..PLAYER_COUNT).filter(|&slot| self.following[slot]) {
             let mut workers = 0u32;
+            // Drones in eggs aren't counted by the game until they hatch, so they're added from
+            // the eggs, or left out without the units to look at.
+            let mut workers_started = worker_eggs.map_or(0, |eggs| eggs[slot]);
             let mut town_halls = 0u32;
             let completed =
                 |unit_id: usize| unsafe { (*game).completed_units_count[unit_id][slot] };
@@ -1132,6 +1149,10 @@ impl GameStatsTracker {
                 let count = completed(unit_id);
                 if kind == UnitKind::Worker {
                     workers = workers.saturating_add(count);
+                    let all = unsafe { (*game).all_units_count[unit_id][slot] };
+                    // The count of everything only includes what a slot starts with from the
+                    // game's first step, see `all_counts`.
+                    workers_started = workers_started.saturating_add(all.max(count));
                 }
                 if TOWN_HALLS[unit_id] {
                     town_halls = town_halls.saturating_add(count);
@@ -1149,6 +1170,7 @@ impl GameStatsTracker {
                 .value_of(column(&self.totals.deaths, slot), &NOT_FOUGHT);
             self.snapshots[slot].push(Snapshot {
                 workers,
+                workers_started,
                 army_score,
                 resources_mined: minerals
                     .saturating_sub(starting_minerals)
@@ -1359,6 +1381,7 @@ impl GameStatsTracker {
         // Supply is shown in whole units, with a half used counting as one.
         Timeline {
             workers: each(|s| s.workers),
+            workers_started: each(|s| s.workers_started),
             army_score: each(|s| s.army_score),
             resources_mined: each(|s| s.resources_mined),
             unspent: each(|s| s.unspent),
@@ -1428,6 +1451,25 @@ unsafe fn count_bases_in_game() -> Option<[u32; PLAYER_COUNT]> {
         }
     }
     Some(count_bases(&town_halls, &minerals))
+}
+
+/// Each slot's eggs hatching a Drone. A larva's egg holds a single unit, or a pair of Zerglings or
+/// Scourge, so each of these is one Drone. Lurkers and Guardians or Devourers morph in eggs and
+/// cocoons of their own unit types, which never hold a Drone.
+unsafe fn count_worker_eggs_in_game() -> Option<[u32; PLAYER_COUNT]> {
+    let mut eggs = [0u32; PLAYER_COUNT];
+    for unit in unsafe { get_bw().active_units() } {
+        if unit.id() != unit::EGG
+            || unit.is_hallucination()
+            || unit.first_queued_unit() != Some(unit::DRONE)
+        {
+            continue;
+        }
+        if let Some(count) = eggs.get_mut(usize::from(unit.player())) {
+            *count += 1;
+        }
+    }
+    Some(eggs)
 }
 
 /// Each slot's bases, from where its town halls (and which slot owns them) and the mineral fields
@@ -2396,6 +2438,7 @@ mod test {
                     is_team_game,
                     test_catalog(),
                     no_units,
+                    no_units,
                     no_seen_units,
                 )
             }
@@ -2443,6 +2486,7 @@ mod test {
         let mut listed = [(Resources::default(), 0); UNIT_TYPE_COUNT];
         for (id, unit_kind, minerals, gas, score) in [
             (unit::SCV, UnitKind::Worker, 50, 0, 50),
+            (unit::PROBE, UnitKind::Worker, 50, 0, 50),
             (unit::DRONE, UnitKind::Worker, 50, 0, 50),
             (unit::MARINE, UnitKind::Army, 50, 0, 50),
             (unit::OVERLORD, UnitKind::Other, 100, 0, 100),
@@ -2730,6 +2774,48 @@ mod test {
         assert_eq!(timeline.resources_mined, [0, 400, 400]);
         // Player 1 left before the third snapshot.
         assert_eq!(stats[1].timeline.as_ref().unwrap().workers.len(), 2);
+    }
+
+    #[test]
+    fn workers_being_made_are_counted_as_started_but_not_finished() {
+        let mut game = TestGame::new(&[(bw::PLAYER_TYPE_HUMAN, 0)]);
+        // Protoss, starting with 4 Probes the game counts as finished before counting them all.
+        game.players[0].race = bw::RACE_PROTOSS;
+        game.set_completed(unit::PROBE, 0, 4);
+        let mut tracker = game.start(false);
+
+        // A fifth Probe is being warped in.
+        game.game.all_units_count[unit::PROBE.0 as usize][0] = 5;
+        game.step_to(&mut tracker, SNAPSHOT_FRAMES);
+
+        let stats = tracker.player_stats(&game.game.victory_state, true);
+        let timeline = stats[0].timeline.as_ref().unwrap();
+        assert_eq!(timeline.workers, [4, 4]);
+        assert_eq!(timeline.workers_started, [4, 5]);
+    }
+
+    #[test]
+    fn drones_in_eggs_are_counted_as_started() {
+        unsafe fn one_drone_egg() -> Option<[u32; PLAYER_COUNT]> {
+            let mut eggs = [0; PLAYER_COUNT];
+            eggs[0] = 1;
+            Some(eggs)
+        }
+
+        let mut game = TestGame::new(&[(bw::PLAYER_TYPE_HUMAN, 0)]);
+        // Zerg, with 4 Drones, one more in an egg the game doesn't count until it hatches.
+        game.players[0].race = bw::RACE_ZERG;
+        game.set_completed(unit::DRONE, 0, 4);
+        game.game.all_units_count[unit::DRONE.0 as usize][0] = 4;
+        let mut tracker = game.start(false);
+        tracker.count_worker_eggs = one_drone_egg;
+        game.step_to(&mut tracker, SNAPSHOT_FRAMES);
+
+        let stats = tracker.player_stats(&game.game.victory_state, true);
+        let timeline = stats[0].timeline.as_ref().unwrap();
+        assert_eq!(timeline.workers, [4, 4]);
+        // The first snapshot had no units to look at, so it left the egg out.
+        assert_eq!(timeline.workers_started, [4, 5]);
     }
 
     #[test]

@@ -276,7 +276,9 @@ export function getSideTotals(players: ReadonlyArray<GamePlayerStats>): SideTota
   let tracksArmy = false
   for (const player of players) {
     const used = player.timeline?.supplyUsed
-    const workers = player.timeline?.workers
+    // Workers being made take supply too. Stats saved before those were counted only have the
+    // finished ones, which counts a few workers in training as army.
+    const workers = player.timeline?.workersStarted ?? player.timeline?.workers
     if (!used || !workers) {
       continue
     }
