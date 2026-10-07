@@ -31,6 +31,18 @@ const GlobalStyle = createGlobalStyle`
     --radius-md: 10px;
     --radius-lg: 14px;
     --radius-full: 999px;
+
+    /*
+     * Spacing by role: 4 and 8 inside a component, 12 between items in a group, 16 between
+     * sibling blocks, 20 for panel padding, and 24 between sections.
+     */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
   }
 
   @media (prefers-color-scheme: light) {
