@@ -606,7 +606,7 @@
       "inLossesHead": "In losses",
       "inWinsHead": "In wins",
       "keepDoing": "Keep doing",
-      "keepDoingNote": "Where you are ahead of most {{race}} players.",
+      "keepDoingAhead": "Ahead of most {{race}} players.",
       "later": "{{time}} later",
       "loadError": "The coach couldn't work out your games. Your replays and stats are fine.",
       "lockedCount": "{{analyzed}} of {{total}}",

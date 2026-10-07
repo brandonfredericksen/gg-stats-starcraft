@@ -16,7 +16,14 @@ import { buttonReset } from '../material/button-reset'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
 
-import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
+import {
+  formatPercent,
+  HelpLabel,
+  PaddedPanel,
+  PanelHead,
+  PanelHeadNote,
+  PanelTitle,
+} from '../my-stats/my-stats-panels'
 
 import {
   bodyMedium,
@@ -34,8 +41,6 @@ import {
   getRaceWords,
   getTimingTip,
   getTip,
-  PanelHead,
-  PanelHeadNote,
   Text,
   Tone,
   toneColor,

@@ -30,7 +30,14 @@ import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { AnalyzeMine } from '../my-stats/analyze-mine'
 import { useDemoPlayer, useStatsPlayerNames } from '../my-stats/demo-player'
 import { MyStatsFilters, myStatsFiltersAtom } from '../my-stats/my-stats-data'
-import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/my-stats-panels'
+import {
+  formatPercent,
+  HelpLabel,
+  PaddedPanel,
+  PanelHead,
+  PanelHeadNote,
+  PanelTitle,
+} from '../my-stats/my-stats-panels'
 import { LoadingDotsArea } from '../progress/dots'
 import {
   bodyMedium,
@@ -65,8 +72,6 @@ import {
   GroupHead,
   HeadCell,
   MetricGroup,
-  PanelHead,
-  PanelHeadNote,
   Table,
   Text,
   Tone,
@@ -75,7 +80,7 @@ import {
 } from './coach-shared'
 
 /** The page, as a container so its sections can stack in a narrow window. */
-const Root = styled.div`
+export const Root = styled.div`
   container: coach / inline-size;
   width: 100%;
   max-width: 1180px;
@@ -87,18 +92,18 @@ const Root = styled.div`
   gap: var(--space-4);
 `
 
-const Header = styled.div`
+export const Header = styled.div`
   display: flex;
   align-items: center;
   gap: var(--space-3);
 `
 
-const Title = styled.h1`
+export const Title = styled.h1`
   ${headlineMedium};
   margin: 0;
 `
 
-const Badge = styled.span`
+export const Badge = styled.span`
   ${labelSmall};
   height: 20px;
   padding: 0 8px;
@@ -426,7 +431,7 @@ const ComparePanel = styled(PaddedPanel)`
   gap: var(--space-4);
 `
 
-const Message = styled(PaddedPanel)`
+export const Message = styled(PaddedPanel)`
   gap: var(--space-3);
 `
 
@@ -550,7 +555,7 @@ function getBucketPlace(bucket: CoachBucket, t: TFunction) {
 }
 
 /** Which games the other players in a comparison come from, like "3v3 on BGH". */
-function getPoolPlace(bucket: CoachBucket, t: TFunction) {
+export function getPoolPlace(bucket: CoachBucket, t: TFunction) {
   const place = getPoolGameType(bucket, t)
   return bucket.onMap
     ? t('myStats.coach.poolOnMap', '{{place}} on {{map}}', { place, map: bucket.onMap })
@@ -589,7 +594,7 @@ function formatDate(ms: number) {
   })
 }
 
-function isReady(bucket: CoachBucket) {
+export function isReady(bucket: CoachBucket) {
   return bucket.userGames >= COACH_MIN_USER_GAMES && bucket.poolGames >= COACH_MIN_POOL_GAMES
 }
 
@@ -1433,7 +1438,7 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
       <PanelHead>
         <PanelTitle>{t('myStats.coach.keepDoing', 'Keep doing')}</PanelTitle>
         <PanelHeadNote>
-          {t('myStats.coach.keepDoingNote', 'Where you are ahead of most {{race}} players.', {
+          {t('myStats.coach.keepDoingAhead', 'Ahead of most {{race}} players.', {
             race: raceCharToLabel(bucket.race, t),
           })}
         </PanelHeadNote>
@@ -1873,6 +1878,47 @@ function useStuck() {
 }
 
 /**
+ * The bar picking the kind of game, the user's games and who they're compared with, shared by the
+ * Coach and Builds pages. Stays in view as the page scrolls, with an edge once it's stuck.
+ */
+export function CoachToolbar({
+  coach,
+  counts,
+}: {
+  coach: CoachResult
+  counts: ReadonlyArray<ShapeCount>
+}) {
+  const [sentinelRef, stuck] = useStuck()
+  const pickedShape = useAtomValue(coachLockedShapeAtom)
+  const pickedLocked = coach.scopes.some(s => s.shape === pickedShape)
+    ? undefined
+    : counts.find(c => c.shape === pickedShape)
+  const picked = coach.status === 'ready' ? coach.scope : undefined
+  return (
+    <>
+      <StuckSentinel ref={sentinelRef} />
+      <Toolbar $stuck={stuck}>
+        <ShapeMenu scopes={coach.scopes} picked={picked} counts={counts} />
+        {picked && !pickedLocked ? (
+          <>
+            <MapPicker scopes={coach.scopes} picked={picked} />
+            {coach.status === 'ready' ? (
+              <MapNameMenu maps={coach.maps} picked={coach.mapKey} />
+            ) : null}
+            <RacePicker scopes={coach.scopes} picked={picked} />
+          </>
+        ) : null}
+        <Spacer />
+        {coach.status === 'ready' ? (
+          <WindowMenu autoGames={coach.autoGames} autoMonths={coach.autoMonths} />
+        ) : null}
+        <FloorMenu floor={coach.eapmFloor} />
+      </Toolbar>
+    </>
+  )
+}
+
+/**
  * The experimental coach: what to work on, how the user has played lately, and where they stand
  * against other players of their race in the same kind of game.
  */
@@ -1886,13 +1932,11 @@ export function CoachView({
   const { t } = useTranslation()
   const counts = useShapeCounts()
   const [explainerClosed, setExplainerClosed] = useState(readExplainerClosed)
-  const [sentinelRef, stuck] = useStuck()
   const result = coach === 'error' ? undefined : coach
   const pickedShape = useAtomValue(coachLockedShapeAtom)
   const pickedLocked = result?.scopes.some(s => s.shape === pickedShape)
     ? undefined
     : counts.find(c => c.shape === pickedShape)
-  const picked = result?.status === 'ready' ? result.scope : undefined
   const toggleExplainer = () => {
     writeExplainerClosed(!explainerClosed)
     setExplainerClosed(!explainerClosed)
@@ -1918,24 +1962,7 @@ export function CoachView({
   } else if (coach) {
     content = (
       <>
-        <StuckSentinel ref={sentinelRef} />
-        <Toolbar $stuck={stuck}>
-          <ShapeMenu scopes={coach.scopes} picked={picked} counts={counts} />
-          {picked && !pickedLocked ? (
-            <>
-              <MapPicker scopes={coach.scopes} picked={picked} />
-              {coach.status === 'ready' ? (
-                <MapNameMenu maps={coach.maps} picked={coach.mapKey} />
-              ) : null}
-              <RacePicker scopes={coach.scopes} picked={picked} />
-            </>
-          ) : null}
-          <Spacer />
-          {coach.status === 'ready' ? (
-            <WindowMenu autoGames={coach.autoGames} autoMonths={coach.autoMonths} />
-          ) : null}
-          <FloorMenu floor={coach.eapmFloor} />
-        </Toolbar>
+        <CoachToolbar coach={coach} counts={counts} />
         {pickedLocked ? (
           <LockedView locked={pickedLocked} />
         ) : (

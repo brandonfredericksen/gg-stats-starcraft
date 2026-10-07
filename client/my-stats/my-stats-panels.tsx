@@ -63,8 +63,45 @@ export const PaddedPanel = styled(StatsPanel)`
   gap: 12px;
 `
 
-const TablePanelHeader = styled.div`
-  padding: 16px 20px 8px;
+/**
+ * The top of a panel: its title, a muted note or a control after it, and a line under them that
+ * runs to the panel's edges. Centered rather than on a baseline, since a title can hold a race tag
+ * with no text baseline.
+ */
+export const PanelHead = styled.div<{
+  /** In a panel without padding, like one holding a table, rather than a padded one. */
+  $flush?: boolean
+  /** A control at the far end, like a picker, rather than a note right after the title. */
+  $spread?: boolean
+}>`
+  margin: ${props => (props.$flush ? '0' : 'calc(-1 * var(--space-4)) calc(-1 * var(--space-5)) 0')};
+  padding: var(--space-4) var(--space-5) var(--space-3);
+
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+
+  border-bottom: 1px solid var(--theme-outline-variant);
+
+  /*
+   * A control sits at the far end, and is taller than a title, so it reaches past the bar's
+   * padding rather than making this header taller than the rest.
+   */
+  ${props =>
+    props.$spread
+      ? '& > :last-child:not(:first-child) { margin-left: auto; margin-block: -10px; }'
+      : ''}
+`
+
+export const PanelHeadNote = styled.span`
+  ${bodyMedium};
+  color: var(--theme-on-surface-variant);
+`
+
+/** A note under a table, at the foot of its panel. */
+const TablePanelFooter = styled.div`
+  padding: var(--space-3) var(--space-5) var(--space-4);
 `
 
 export const Muted = styled.span`
@@ -283,16 +320,6 @@ export function Totals({ stats }: { stats: MyStatsResult }) {
 
 // Recent games
 
-const RecentHeader = styled.div`
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-
-  & > ${PanelTitle} {
-    flex: 1;
-  }
-`
-
 const RecentStrip = styled.div`
   display: grid;
   grid-template-columns: repeat(20, minmax(0, 1fr));
@@ -380,7 +407,7 @@ export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
   const matchupsVary = matchups.size > 1
   return (
     <PaddedPanel>
-      <RecentHeader>
+      <PanelHead>
         <PanelTitle>
           {t('myStats.recent.title', {
             defaultValue: 'Last {{count}} games',
@@ -388,14 +415,14 @@ export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
             count: games.length,
           })}
         </PanelTitle>
-        <PanelNote>
+        <PanelHeadNote>
           {matchupsVary
             ? t('myStats.recent.note', 'Newest first')
             : t('myStats.recent.noteOne', '{{matchup}}, newest first', {
                 matchup: [...matchups][0] ?? '',
               })}
-        </PanelNote>
-      </RecentHeader>
+        </PanelHeadNote>
+      </PanelHead>
       <RecentStrip>
         {games.toReversed().map(game => (
           <RecentTooltip
@@ -525,9 +552,9 @@ export function ByMatchup({
   const format = useStatFormat()
   return (
     <StatsPanel>
-      <TablePanelHeader>
+      <PanelHead $flush={true}>
         <PanelTitle>{t('myStats.byMatchup.title', 'By matchup')}</PanelTitle>
-      </TablePanelHeader>
+      </PanelHead>
       <Table>
         <thead>
           <tr>
@@ -577,7 +604,7 @@ export function ByMatchup({
           ))}
         </tbody>
       </Table>
-      <TablePanelHeader>
+      <TablePanelFooter>
         <PanelNote>
           {t('myStats.byMatchup.note', {
             defaultValue: 'APM comes from the {{count}} games it was tracked in.',
@@ -585,7 +612,7 @@ export function ByMatchup({
             count: apmGames,
           })}
         </PanelNote>
-      </TablePanelHeader>
+      </TablePanelFooter>
     </StatsPanel>
   )
 }
@@ -605,9 +632,9 @@ export function ByLength({ rows }: { rows: MyStatsResult['byLength'] }) {
   }
   return (
     <StatsPanel>
-      <TablePanelHeader>
+      <PanelHead $flush={true}>
         <PanelTitle>{t('myStats.byLength.title', 'Win rate by game length')}</PanelTitle>
-      </TablePanelHeader>
+      </PanelHead>
       <Table>
         <tbody>
           {rows.map((row, i) =>
@@ -689,18 +716,6 @@ const AverageLegend = styled.span`
     content: '';
     width: 14px;
     border-top: 2px dotted var(--theme-on-surface-variant);
-  }
-`
-
-const TrendHeader = styled.div`
-  /* The count picker is taller than a title, so it sticks out to keep this title in line. */
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  & > ${PanelTitle} {
-    flex: 1;
   }
 `
 
@@ -905,7 +920,7 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
 
   return (
     <TrendsPanel>
-      <TrendHeader>
+      <PanelHead $spread={true}>
         <PanelTitle>{t('myStats.trends.title', 'Trends')}</PanelTitle>
         <Segmented
           label={t('myStats.trends.count', 'How many games')}
@@ -913,7 +928,7 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
           value={count}
           onChange={setCount}
         />
-      </TrendHeader>
+      </PanelHead>
       <div>
         <Segmented
           label={t('myStats.trends.metric', 'What to show')}
@@ -1272,9 +1287,9 @@ export function MacroAveragesPanel({
 
   return (
     <StatsPanel>
-      <TablePanelHeader>
+      <PanelHead $flush={true}>
         <PanelTitle>{t('myStats.macro.title', 'Macro, on average')}</PanelTitle>
-      </TablePanelHeader>
+      </PanelHead>
       <MacroGroups>
         {shownGroups.map(([title, rows]) => (
           <MacroGroup key={title}>
@@ -1384,7 +1399,9 @@ function PersonName({ person }: { person: PersonRow }) {
 export function People({ title, people }: { title: string; people: ReadonlyArray<PersonRow> }) {
   return (
     <PaddedPanel>
-      <PanelTitle>{title}</PanelTitle>
+      <PanelHead>
+        <PanelTitle>{title}</PanelTitle>
+      </PanelHead>
       {people.map(person => (
         <ListRow key={person.name}>
           <ListName>
@@ -1419,7 +1436,9 @@ export function Maps({ maps }: { maps: ReadonlyArray<MapRow> }) {
   const { t } = useTranslation()
   return (
     <PaddedPanel>
-      <PanelTitle>{t('myStats.maps.title', 'Maps')}</PanelTitle>
+      <PanelHead>
+        <PanelTitle>{t('myStats.maps.title', 'Maps')}</PanelTitle>
+      </PanelHead>
       {maps.slice(0, 8).map(map => (
         <ListRow key={`${map.family}${map.mapName}`}>
           <ListName>
@@ -1490,18 +1509,6 @@ const TeamFact = styled.div`
   gap: 4px;
 `
 
-const TeamHeader = styled.div`
-  /* The filter is taller than a title, so it sticks out to keep this title in line with others. */
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  & > ${PanelTitle} {
-    flex: 1;
-  }
-`
-
 const TeamSubtitle = styled.h3`
   ${labelMedium};
   margin: 4px 0 0;
@@ -1536,7 +1543,7 @@ export function TeamGames({
   ]
   return (
     <TeamPanel>
-      <TeamHeader>
+      <PanelHead $spread={true}>
         <PanelTitle>{t('myStats.team.title', 'Team games')}</PanelTitle>
         <Segmented
           label={t('myStats.team.race', 'Your race in team games')}
@@ -1544,7 +1551,7 @@ export function TeamGames({
           value={race}
           onChange={setRace}
         />
-      </TeamHeader>
+      </PanelHead>
       {team ? (
         <TeamBody>
           <TeamFacts>
