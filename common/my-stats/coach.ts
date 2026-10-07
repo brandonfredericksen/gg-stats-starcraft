@@ -184,6 +184,8 @@ export type CoachMetricKey =
   | 'army10'
   | 'army12'
   | 'army15'
+  | 'armyKilled'
+  | 'armyLost'
   | 'armyTrade'
   | 'workersLost'
   | 'overlordsLost'
@@ -255,6 +257,8 @@ interface CoachMetric {
   shownIn?: (context: CoachContext) => boolean
   /** Whether it can be pointed out as a gap, strength or goal here, rather than only listed. */
   pointsOut?: (context: CoachContext) => boolean
+  /** Only ever listed: never pointed out, and never a goal, even from how it changed lately. */
+  listedOnly?: boolean
   /**
    * Whether the user's typical number is a problem however many other players share it, like
    * being supply blocked for a long time. Other players' typical number is passed too.
@@ -452,6 +456,16 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     shownIn: minute > 10 ? onBgh : undefined,
     // In 1v1, the fewest units that keep a player safe early is the skill, not the most.
     pointsOut: minute === 7 ? context => !in1v1(context) : undefined,
+  })),
+  // Totals over the whole game grow with its length, so they're listed but never pointed out.
+  ...(['armyKilled', 'armyLost'] as const).map(key => ({
+    key,
+    value: (s: Sample) => s.player[key],
+    higherIsBetter: key === 'armyKilled',
+    minDiff: 300,
+    unit: 'count' as const,
+    minPlayedMs: MIN_WHOLE_GAME_PLAYED_MS,
+    listedOnly: true,
   })),
   {
     key: 'armyTrade',
@@ -1594,7 +1608,7 @@ function getGoals({
       .filter(f => !metricOf(f.key).speed)
       .map(f => ({ ...fromMetric(metricOf(f.key), 'wins', f.winValue), userValue: f.lossValue })),
     ...changes
-      .filter(c => c.direction === 'worse')
+      .filter(c => c.direction === 'worse' && !metricOf(c.key).listedOnly)
       .toSorted((a, b) => b.size - a.size)
       .map(c => fromMetric(metricOf(c.key), 'earlier', c.earlierValue)),
   ]
@@ -1950,7 +1964,9 @@ export function computeCoach(
     }
     // Every number that means something here is shown; only some can be pointed out.
     const shownMetrics = METRICS.filter(m => !m.shownIn || m.shownIn(bucketContext))
-    const metrics = shownMetrics.filter(m => !m.pointsOut || m.pointsOut(bucketContext))
+    const metrics = shownMetrics.filter(
+      m => !m.listedOnly && (!m.pointsOut || m.pointsOut(bucketContext)),
+    )
     const earlyMinute = bucketContext.mapFamily === 'bgh' ? BGH_EARLY_MINUTE : EARLY_MINUTE
 
     const userGames = bucket.user.toSorted((a, b) => a.gameTimeMs - b.gameTimeMs)

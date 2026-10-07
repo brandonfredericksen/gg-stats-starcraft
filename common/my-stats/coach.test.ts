@@ -143,6 +143,35 @@ describe('common/my-stats/coach', () => {
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
   })
 
+  test('lists army killed and lost without pointing them out', () => {
+    const mine = Array.from({ length: 12 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, 'win', { armyKilled: 1000, armyLost: 5000 }),
+        player(`zerg${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const theirs = Array.from({ length: 40 }, (_, i) =>
+      game('1v1', [
+        player(`toss${i}`, 'p', 0, 'win', { armyKilled: 4000, armyLost: 2000 }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const coach = computeCoach([...mine, ...theirs], query)
+    if (coach.status !== 'ready') {
+      throw new Error('Expected a ready coach')
+    }
+    const [bucket] = coach.buckets
+    expect(bucket.compared).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: 'armyKilled', userValue: 1000, poolValue: 4000 }),
+        expect.objectContaining({ key: 'armyLost', userValue: 5000, poolValue: 2000 }),
+      ]),
+    )
+    const pointedOut = [...bucket.gaps, ...bucket.strengths, ...bucket.goals].map(f => f.key)
+    expect(pointedOut).not.toContain('armyKilled')
+    expect(pointedOut).not.toContain('armyLost')
+  })
+
   test('leaves out games from before the time range, on both sides', () => {
     const before = [...myGames(4, 14), ...poolGames(10, () => 18)]
     const after = [...myGames(12, 14), ...poolGames(40, () => 18)]

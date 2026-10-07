@@ -316,6 +316,22 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
         }),
         t('myStats.coach.help.army', "What your army was worth then, in the game's score."),
       ]
+    case 'armyKilled':
+      return [
+        t('myStats.macro.armyKilled', 'Army killed'),
+        t(
+          'myStats.help.armyKilled',
+          "What the enemy army units you killed were worth, in the game's score. Workers, buildings and Overlords don't count.",
+        ),
+      ]
+    case 'armyLost':
+      return [
+        t('myStats.macro.armyLost', 'Army lost'),
+        t(
+          'myStats.help.armyLost',
+          "What the army units you lost were worth, in the game's score. Workers, buildings and Overlords don't count.",
+        ),
+      ]
     case 'armyTrade':
       return [
         t('myStats.coach.metric.armyKilledPerLost', 'Army killed per army lost'),
