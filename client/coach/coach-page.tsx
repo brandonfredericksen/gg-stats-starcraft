@@ -2,7 +2,7 @@ import { TFunction } from 'i18next'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { MapFamily } from '../../common/games/map-family'
 import {
@@ -22,10 +22,11 @@ import {
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
-import { OutlinedButton, TextButton } from '../material/button'
+import { MaterialIcon } from '../icons/material/material-icon'
+import { OutlinedButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
-import { SegmentMenu, SegmentOption } from '../material/segmented'
+import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { AnalyzeMine } from '../my-stats/analyze-mine'
 import { useDemoPlayer, useStatsPlayerNames } from '../my-stats/demo-player'
 import { MyStatsFilters, myStatsFiltersAtom } from '../my-stats/my-stats-data'
@@ -33,11 +34,9 @@ import { formatPercent, HelpLabel, PaddedPanel, PanelTitle } from '../my-stats/m
 import { LoadingDotsArea } from '../progress/dots'
 import {
   bodyMedium,
-  bodySmall,
   headlineMedium,
   labelLarge,
   labelSmall,
-  titleLarge,
   titleMedium,
   titleSmall,
 } from '../styles/typography'
@@ -51,11 +50,9 @@ import {
   useCoach,
   useShapeCounts,
 } from './coach-data'
-import { CoachNotes, NextGame } from './coach-plan'
+import { CoachNotes, GoalNumber, NextGame } from './coach-plan'
 import {
-  Card,
   Cell,
-  Column,
   Columns,
   ColumnTitle,
   formatGameTime,
@@ -81,17 +78,17 @@ const Root = styled.div`
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 22px 32px 56px;
+  padding: var(--space-6) var(--space-8) 48px;
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Header = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const Title = styled.h1`
@@ -121,13 +118,14 @@ const Toolbar = styled.div<{ $stuck: boolean }>`
   position: sticky;
   top: 0;
   z-index: 3;
-  margin: -12px 0;
-  padding: 12px 0;
+  /* Out to the page's edges, so the bar's edge spans the page rather than underlining it. */
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-8));
+  padding: var(--space-3) var(--space-8);
 
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   background-color: var(--theme-container-lowest);
   /* An edge once the page scrolls under it, so what passes beneath isn't cut off mid line. */
@@ -137,10 +135,13 @@ const Toolbar = styled.div<{ $stuck: boolean }>`
       : 'none'};
 `
 
-/** Sits right above the bar: once it scrolls out of view, the bar is stuck. */
+/**
+ * Sits right above the bar: once it scrolls out of view, the bar is stuck. It takes none of the
+ * page's gap, so the bar sits as far below what's above it as everything else.
+ */
 const StuckSentinel = styled.div`
   height: 1px;
-  margin-bottom: -1px;
+  margin-bottom: calc(-1px - var(--space-4));
 `
 
 /** The race the user played, among the kinds of game of the picked game type. */
@@ -187,17 +188,27 @@ const Spacer = styled.div`
   flex: 1;
 `
 
+/** A key number or date in a line of text, a little stronger than the words around it. */
+const Key = styled.strong`
+  color: var(--theme-on-surface);
+  font-weight: 600;
+`
+
 /** Lines this long are as wide as reads comfortably. */
 const About = styled(Text)`
   max-width: 80ch;
 `
 
 /** A title with a muted note after it on the same line. */
+/**
+ * A title with a muted note after it. Centered rather than on a baseline, since the race tag in
+ * the title has no text baseline of its own to line up by.
+ */
 const TitleLine = styled.div`
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: var(--space-1) var(--space-3);
 `
 
 const TitleRace = styled.span`
@@ -211,34 +222,96 @@ const TitleNote = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
-/** Cards for one list across the panel, when the other list has nothing to show beside it. */
-const CardsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px 20px;
-`
-
-/** The coach in a few lines, open until the user closes it. */
-const Explainer = styled(PaddedPanel)`
-  gap: 8px;
-`
-
-const ExplainerTop = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-`
-
-const ExplainerList = styled.ol`
-  ${bodyMedium};
-  margin: 0;
-  padding-left: 20px;
+/**
+ * How the coach works, as a callout in the Coach tab's own color: open on the first visit, and
+ * again when asked for. Its points sit side by side, each short enough to read at a glance.
+ */
+const Callout = styled.aside`
+  position: relative;
+  padding: var(--space-4) 48px var(--space-4) var(--space-4);
 
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-3);
+
+  border: 1px solid var(--theme-tab-coach-ring);
+  border-radius: var(--radius-md);
+  background: var(--theme-tab-coach-tint);
+`
+
+const CalloutTop = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+`
+
+const CalloutIcon = styled(MaterialIcon).attrs({ icon: 'lightbulb', size: 22 })`
+  color: var(--theme-tab-coach);
+`
+
+const CalloutTitle = styled.h2`
+  ${titleSmall};
+  margin: 0;
+`
+
+/** The points across the callout, stacking once there's no room for three. */
+const CalloutSteps = styled.ol`
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-6);
+
+  @container coach (width < 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+const CalloutStep = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+`
+
+const CalloutStepTitle = styled.span`
+  ${labelLarge};
+  color: var(--theme-tab-coach);
+  font-weight: 600;
+`
+
+/** Lighter than plain muted text, so it reads as part of the callout's color. */
+const CalloutStepText = styled.span`
+  ${bodyMedium};
+  color: color-mix(in srgb, var(--theme-tab-coach) 25%, var(--theme-on-surface));
+`
+
+const CalloutClose = styled.button`
+  ${buttonReset};
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  width: 28px;
+  height: 28px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--radius-full);
   color: var(--theme-on-surface-variant);
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgb(from var(--theme-on-surface) r g b / 0.08);
+    color: var(--theme-on-surface);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
 `
 
 const HowItWorksButton = styled.button`
@@ -260,15 +333,27 @@ const HowItWorksButton = styled.button`
   }
 `
 
-/** How much of the user's replays the coach has to go on, with a way to give it more. */
-const Coverage = styled.div`
+/** Which games the page looks at, and how many more could be analyzed, with a way to do it. */
+const Scope = styled.div`
   ${bodyMedium};
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--theme-on-surface-variant);
+`
+
+/** How many of the replays are analyzed, with the button to analyze more right after it. */
+const ScopeCoverage = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
-  color: var(--theme-on-surface-variant);
+  gap: var(--space-1) var(--space-3);
 `
+
+/** Tabs over the comparison: everything against other players, wins against losses, timings. */
+const CompareTabs = styled(Segmented)`
+  align-self: flex-start;
+` as typeof Segmented
 
 const Bucket = styled.section`
   display: flex;
@@ -285,24 +370,12 @@ const BucketTitle = styled.h2`
   margin: 0;
 `
 
-/** The next game's goals beside the coach's notes, stacking when there's no room. */
-const PlanColumns = styled.div`
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: stretch;
-
-  @container coach (width < 880px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-`
-
 const ComparePanel = styled(PaddedPanel)`
-  gap: 18px;
+  gap: var(--space-4);
 `
 
 const Message = styled(PaddedPanel)`
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const UnlockTitle = styled.h4`
@@ -313,7 +386,8 @@ const UnlockTitle = styled.h4`
 const Progress = styled.div`
   ${bodyMedium};
   display: grid;
-  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr) 100px;
+  /* The same label width in every row, so the bars start and end together. */
+  grid-template-columns: 180px minmax(0, 1fr) 100px;
   align-items: center;
   gap: 16px;
 `
@@ -343,43 +417,6 @@ const UnlockActions = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-`
-
-const CardTop = styled.div`
-  ${labelLarge};
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  font-weight: 600;
-`
-
-const Beats = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-  white-space: nowrap;
-`
-
-const Numbers = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 32px;
-`
-
-const NumberBlock = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const Big = styled.span<{ $tone?: Tone }>`
-  ${titleLarge};
-  font-variant-numeric: tabular-nums;
-  color: ${props => toneColor(props.$tone)};
-`
-
-const Caption = styled.span`
-  ${bodySmall};
-  color: var(--theme-on-surface-variant);
 `
 
 /** Where the user's typical game falls among other players: the marker sits at their share. */
@@ -755,8 +792,8 @@ function RacePicker({
   )
 }
 
-/** How many of the user's replays of the picked game type are analyzed, and of all of them. */
-function CoverageLine({
+/** How many of the user's replays of a game type are analyzed, and a way to analyze more. */
+function Coverage({
   shape,
   counts,
 }: {
@@ -769,22 +806,23 @@ function CoverageLine({
   if (!count) {
     return null
   }
-
   return (
-    <Coverage>
+    <>
       <span>
-        {t(
-          'myStats.coach.coverage',
-          '{{analyzed}} of your {{total}} games of {{shape}} are analyzed.',
-          {
+        <Trans
+          t={t}
+          i18nKey='myStats.coach.coverageAnalyzed'
+          defaults='<b>{{analyzed}}</b> of your {{total}} games of {{shape}} are analyzed.'
+          values={{
             analyzed: count.analyzed.toLocaleString(),
             total: count.total.toLocaleString(),
             shape: getShapeName(shape, t),
-          },
-        )}
+          }}
+          components={{ b: <Key /> }}
+        />
       </span>
       <AnalyzeMine names={names} filters={{ range: 'all', shape }} compact={true} />
-    </Coverage>
+    </>
   )
 }
 
@@ -826,62 +864,6 @@ function LockedView({ locked }: { locked: ShapeCount }) {
   )
 }
 
-function FindingCard({ finding }: { finding: CoachFinding }) {
-  const { t } = useTranslation()
-  const formatValue = useFormatValue()
-  const [label, help] = getMetricText(finding.key, t)
-  const tone: Tone = finding.beats >= 0.5 ? 'good' : 'bad'
-  const percent = Math.round(finding.beats * 100)
-  const notes: string[] = []
-  if (finding.sameOpening) {
-    notes.push(t('myStats.coach.sameOpening', 'Compared with players who opened the same way.'))
-  }
-  if (finding.fewerProduction) {
-    notes.push(
-      t(
-        'myStats.coach.fewerProduction',
-        'You had {{count}} fewer production buildings at 8 min than them, which is often why a bank builds up.',
-        { count: Math.round(finding.fewerProduction) },
-      ),
-    )
-  }
-
-  return (
-    <Card>
-      <CardTop>
-        <HelpLabel label={label} help={help} />
-        <Beats>
-          <HelpLabel
-            label={t('myStats.coach.beats', 'Better than {{percent}}%', { percent })}
-            help={t(
-              'myStats.coach.beatsHelp',
-              'In your typical game, you did better than {{percent}}% of the other players here. From {{userGames}} of your games and {{poolGames}} of theirs.',
-              { percent, userGames: finding.userGames, poolGames: finding.poolGames },
-            )}
-          />
-        </Beats>
-      </CardTop>
-      <Numbers>
-        <NumberBlock>
-          <Big $tone={tone}>{formatValue(finding.userValue, finding.unit)}</Big>
-          <Caption>{t('myStats.coach.youUsually', 'You usually')}</Caption>
-        </NumberBlock>
-        <NumberBlock>
-          <Big>{formatValue(finding.poolValue, finding.unit)}</Big>
-          <Caption>{t('myStats.coach.themUsually', 'Them usually')}</Caption>
-        </NumberBlock>
-      </Numbers>
-      <Standing aria-hidden={true}>
-        <StandingMiddle />
-        <StandingMarker $tone={tone} style={{ left: `${finding.beats * 100}%` }} />
-      </Standing>
-      {notes.map(note => (
-        <Text key={note}>{note}</Text>
-      ))}
-    </Card>
-  )
-}
-
 /** Where a number sits among other players, decided the way the coach decides what to point out. */
 function getStandingTone(beats: number): Tone | undefined {
   if (beats < 0.3) {
@@ -894,10 +876,13 @@ function ComparedGroup({
   title,
   findings,
   first,
+  goalNumbers,
 }: {
   title: string
   findings: ReadonlyArray<CoachFinding>
   first: boolean
+  /** Each goal's number, by the number it's about. */
+  goalNumbers: ReadonlyMap<string, number>
 }) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
@@ -918,6 +903,9 @@ function ComparedGroup({
         const tone = getStandingTone(finding.beats)
         return [
           <Cell key={`${finding.key}-label`}>
+            {goalNumbers.has(finding.key) ? (
+              <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
+            ) : null}
             <HelpLabel
               quiet={true}
               label={label}
@@ -949,11 +937,31 @@ function ComparedGroup({
   )
 }
 
-/** Both halves of a table share these widths, so their columns line up across the panel. */
-const VALUE_COLUMN = '116px'
+/**
+ * Every table shares these widths, so their columns line up across the panel and from one table
+ * to the next. The last is wider, for the standing bar beside its share.
+ */
+const VALUE_COLUMN = '120px'
+const LAST_COLUMN = '128px'
+const TABLE_COLUMNS = `minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN} ${LAST_COLUMN}`
+
+/** A goal's number in front of a table row, so the row a goal came from can be found. */
+const RowGoal = styled(GoalNumber)`
+  width: 20px;
+  height: 20px;
+  margin-right: var(--space-2);
+  display: inline-flex;
+  vertical-align: top;
+`
 
 /** Every number the coach compared, pointed out or not, grouped by what it's about. */
-function ComparedTable({ findings }: { findings: ReadonlyArray<CoachFinding> }) {
+function ComparedTable({
+  findings,
+  goalNumbers,
+}: {
+  findings: ReadonlyArray<CoachFinding>
+  goalNumbers: ReadonlyMap<string, number>
+}) {
   const { t } = useTranslation()
   const titles: Record<MetricGroup, string> = {
     economy: t('myStats.coach.groupEconomy', 'Economy'),
@@ -969,9 +977,7 @@ function ComparedTable({ findings }: { findings: ReadonlyArray<CoachFinding> }) 
   return (
     <Columns>
       {sides.map(groups => (
-        <Table
-          key={groups.join()}
-          $columns={`minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN} ${VALUE_COLUMN}`}>
+        <Table key={groups.join()} $columns={TABLE_COLUMNS}>
           {groups
             .filter(group => findings.some(f => getMetricGroup(f.key) === group))
             .map((group, i) => (
@@ -980,6 +986,7 @@ function ComparedTable({ findings }: { findings: ReadonlyArray<CoachFinding> }) 
                 title={titles[group]}
                 findings={findings.filter(f => getMetricGroup(f.key) === group)}
                 first={i === 0}
+                goalNumbers={goalNumbers}
               />
             ))}
         </Table>
@@ -991,22 +998,28 @@ function ComparedTable({ findings }: { findings: ReadonlyArray<CoachFinding> }) 
 function LossesTable({
   findings,
   minute,
+  goalNumbers,
 }: {
   findings: ReadonlyArray<CoachResultFinding>
   /** The minute the numbers compared go up to. */
   minute: number
+  goalNumbers: ReadonlyMap<string, number>
 }) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
   return (
-    <Table $columns={`minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN}`}>
+    <Table $columns={`minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN} ${LAST_COLUMN}`}>
       <HeadCell>{t('myStats.coach.upToMinute', 'Up to {{minute}} min', { minute })}</HeadCell>
       <HeadCell $end={true}>{t('myStats.coach.inWinsHead', 'In wins')}</HeadCell>
       <HeadCell $end={true}>{t('myStats.coach.inLossesHead', 'In losses')}</HeadCell>
+      <HeadCell $end={true}>{t('myStats.coach.differenceHead', 'Difference')}</HeadCell>
       {findings.map(finding => {
         const [label, help] = getMetricText(finding.key, t)
         return [
           <Cell key={`${finding.key}-label`}>
+            {goalNumbers.has(finding.key) ? (
+              <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
+            ) : null}
             <HelpLabel quiet={true} label={label} help={help} />
           </Cell>,
           <Cell key={`${finding.key}-wins`} $end={true}>
@@ -1018,16 +1031,25 @@ function LossesTable({
             $tone={finding.notable ? 'bad' : undefined}>
             {formatValue(finding.lossValue, finding.unit)}
           </Cell>,
+          <Cell key={`${finding.key}-diff`} $end={true} $tone='muted' $strong={finding.notable}>
+            {formatDifference(finding.lossValue - finding.winValue, finding.unit, formatValue)}
+          </Cell>,
         ]
       })}
     </Table>
   )
 }
 
-function TimingsTable({ timings }: { timings: ReadonlyArray<CoachTiming> }) {
+function TimingsTable({
+  timings,
+  goalNumbers,
+}: {
+  timings: ReadonlyArray<CoachTiming>
+  goalNumbers: ReadonlyMap<string, number>
+}) {
   const { t } = useTranslation()
   return (
-    <Table $columns='minmax(0, 1fr) 72px 72px 104px'>
+    <Table $columns={TABLE_COLUMNS}>
       <HeadCell>{t('myStats.coach.build', 'Build')}</HeadCell>
       <HeadCell $end={true}>{t('myStats.coach.you', 'You')}</HeadCell>
       <HeadCell $end={true}>{t('myStats.coach.them', 'Them')}</HeadCell>
@@ -1048,7 +1070,12 @@ function TimingsTable({ timings }: { timings: ReadonlyArray<CoachTiming> }) {
           }
         }
         return [
-          <Cell key={`${timing.buildKey}-name`}>{getBuildName(timing.buildKey, t)}</Cell>,
+          <Cell key={`${timing.buildKey}-name`}>
+            {goalNumbers.has(timing.buildKey) ? (
+              <RowGoal>{goalNumbers.get(timing.buildKey)}</RowGoal>
+            ) : null}
+            {getBuildName(timing.buildKey, t)}
+          </Cell>,
           <Cell key={`${timing.buildKey}-you`} $end={true}>
             {userMs !== undefined ? formatGameTime(userMs) : '-'}
           </Cell>,
@@ -1076,27 +1103,76 @@ function toFilters(scope: Omit<CoachScope, 'games'>): MyStatsFilters {
 }
 
 /** How far the user is from enough games to compare, with a way to get there. */
-function Unlock({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number }) {
+/**
+ * What the coach needs before it can compare, with these filters: how many more of the user's
+ * games, or of other players', and what would count more of them.
+ */
+function Unlock({
+  bucket,
+  eapmFloor,
+  sinceMs,
+}: {
+  bucket: CoachBucket
+  eapmFloor: number
+  sinceMs?: number
+}) {
   const { t } = useTranslation()
   const names = useStatsPlayerNames() ?? []
   const userShort = Math.max(0, COACH_MIN_USER_GAMES - bucket.userGames)
-  const poolShort = bucket.poolGames < COACH_MIN_POOL_GAMES
+  const poolShort = Math.max(0, COACH_MIN_POOL_GAMES - bucket.poolGames)
+  const race = raceCharToLabel(bucket.race, t)
   const progressText = (count: number, needed: number) =>
     count >= needed
       ? t('myStats.coach.progressEnough', '{{count}}, enough', { count })
       : t('myStats.coach.progress', '{{count}} of {{needed}}', { count, needed })
 
+  let title: React.ReactNode
+  if (userShort) {
+    title = (
+      <Trans
+        t={t}
+        i18nKey='myStats.coach.unlockUserCount'
+        defaults='Analyze <b>{{count}}</b> more of your {{race}} games of this kind'
+        count={userShort}
+        values={{ race }}
+        components={{ b: <Key /> }}
+      />
+    )
+  } else {
+    title = (
+      <Trans
+        t={t}
+        i18nKey='myStats.coach.unlockPoolCount'
+        defaults='The coach needs <b>{{count}}</b> more games of other {{race}} players'
+        count={poolShort}
+        values={{ race }}
+        components={{ b: <Key /> }}
+      />
+    )
+  }
+
   return (
     <PaddedPanel>
-      <UnlockTitle>
-        {userShort
-          ? t('myStats.coach.unlockUser', {
-              defaultValue: 'Analyze {{count}} more of your games here to unlock the coach',
-              defaultValue_one: 'Analyze {{count}} more of your games here to unlock the coach',
-              count: userShort,
-            })
-          : t('myStats.coach.unlockPool', 'The coach needs more games of other players here')}
-      </UnlockTitle>
+      <UnlockTitle>{title}</UnlockTitle>
+      <Text>
+        {sinceMs === undefined ? (
+          <Trans
+            t={t}
+            i18nKey='myStats.coach.unlockFiltersAll'
+            defaults='With these filters: all your {{race}} games here, against {{race}} players over <b>{{floor}} EAPM</b>.'
+            values={{ race, floor: eapmFloor }}
+            components={{ b: <Key /> }}
+          />
+        ) : (
+          <Trans
+            t={t}
+            i18nKey='myStats.coach.unlockFiltersSince'
+            defaults='With these filters: your games here since <b>{{date}}</b>, against {{race}} players over <b>{{floor}} EAPM</b> from the same dates.'
+            values={{ race, floor: eapmFloor, date: formatDate(sinceMs) }}
+            components={{ b: <Key /> }}
+          />
+        )}
+      </Text>
       <Progress>
         <span>{t('myStats.coach.yourGames', 'Your games')}</span>
         <Track>
@@ -1118,13 +1194,15 @@ function Unlock({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number 
         <ProgressCount>{progressText(bucket.poolGames, COACH_MIN_POOL_GAMES)}</ProgressCount>
       </Progress>
       <Text>
-        {t(
-          'myStats.coach.poolSource',
-          'Other players come from your replays: anyone of your race in these games, over the EAPM floor.',
-        )}
-        {poolShort && eapmFloor > EAPM_FLOORS[0]
-          ? ` ${t('myStats.coach.lowerFloor', 'Lowering the EAPM floor at the top counts more of them.')}`
-          : null}
+        {poolShort
+          ? t(
+              'myStats.coach.unlockPoolHow',
+              'Other players come from your own replays, from the same dates as your games. To count more of them: analyze more replays, pick more of your games under You, or lower the EAPM floor under Them.',
+            )
+          : t(
+              'myStats.coach.unlockUserHow',
+              'Analyze more of your replays of this kind, or pick more of your games under You.',
+            )}
       </Text>
       <UnlockActions>
         <AnalyzeMine names={names} filters={toFilters(bucket)} />
@@ -1133,7 +1211,67 @@ function Unlock({ bucket, eapmFloor }: { bucket: CoachBucket; eapmFloor: number 
   )
 }
 
-/** How the user's games compare with other players': gaps, strengths, every number, timings. */
+/** A difference between two numbers, with its sign: +2, -1.5, or a time like 40s later. */
+function formatDifference(
+  diff: number,
+  unit: CoachResultFinding['unit'],
+  formatValue: ReturnType<typeof useFormatValue>,
+) {
+  const amount = formatValue(Math.abs(diff), unit)
+  if (amount === formatValue(0, unit)) {
+    return '0'
+  }
+  return `${diff > 0 ? '+' : '-'}${amount}`
+}
+
+type CompareTab = 'all' | 'losses' | 'timings'
+
+const COMPARE_TAB_KEY = 'coach.compareTab'
+
+function readCompareTab(): CompareTab {
+  try {
+    const tab = localStorage.getItem(COMPARE_TAB_KEY)
+    return tab === 'losses' || tab === 'timings' ? tab : 'all'
+  } catch {
+    return 'all'
+  }
+}
+
+function writeCompareTab(tab: CompareTab) {
+  try {
+    localStorage.setItem(COMPARE_TAB_KEY, tab)
+  } catch {
+    // Without storage the comparison opens on its first tab next time, which is fine.
+  }
+}
+
+/** Each goal's number, by the metric or build it's about, for marking table rows. */
+function getGoalNumbers(bucket: CoachBucket): ReadonlyMap<string, number> {
+  return new Map(bucket.goals.map((goal, i) => [goal.buildKey ?? goal.key, i + 1]))
+}
+
+/** Where the user is ahead of most other players, one row each with every number. */
+function KeepDoing({ bucket }: { bucket: CoachBucket }) {
+  const { t } = useTranslation()
+  return (
+    <PaddedPanel>
+      <ColumnTitle $tone='good'>{t('myStats.coach.keepDoing', 'Keep doing')}</ColumnTitle>
+      <Table $columns={TABLE_COLUMNS}>
+        <ComparedGroup
+          title={t('myStats.coach.number', 'Number')}
+          findings={bucket.strengths}
+          first={true}
+          goalNumbers={new Map()}
+        />
+      </Table>
+    </PaddedPanel>
+  )
+}
+
+/**
+ * How the user's games compare: every number against other players, their wins against their
+ * losses, and when they start each build, one at a time.
+ */
 function Comparison({
   bucket,
   eapmFloor,
@@ -1144,33 +1282,10 @@ function Comparison({
   sinceMs?: number
 }) {
   const { t } = useTranslation()
-  const formatValue = useFormatValue()
   const race = raceCharToLabel(bucket.race, t)
   const lossesMinute = bucket.mapFamily === 'bgh' ? 15 : 8
-
-  let losses: React.ReactNode
-  if (bucket.inLosses.length) {
-    losses = <LossesTable findings={bucket.inLosses} minute={lossesMinute} />
-  } else if (bucket.wins < COACH_MIN_RESULT_GAMES || bucket.losses < COACH_MIN_RESULT_GAMES) {
-    losses = (
-      <Text>
-        {t(
-          'myStats.coach.lossesNeed',
-          'Comparing needs {{needed}} wins and {{needed}} losses here. So far: {{wins}} and {{losses}}.',
-          { needed: COACH_MIN_RESULT_GAMES, wins: bucket.wins, losses: bucket.losses },
-        )}
-      </Text>
-    )
-  } else {
-    losses = (
-      <Text>
-        {t(
-          'myStats.coach.lossesSame',
-          "These games don't have numbers from the start of the game to compare.",
-        )}
-      </Text>
-    )
-  }
+  const goalNumbers = getGoalNumbers(bucket)
+  const [tab, setTab] = useState(readCompareTab)
 
   const source = [
     t(
@@ -1217,142 +1332,125 @@ function Comparison({
     )
   }
 
-  const { closestGap } = bucket
-  const workOn = (
-    <Column>
-      <ColumnTitle $tone='bad'>{t('myStats.coach.workOn', 'Work on')}</ColumnTitle>
-      {bucket.gaps.length ? (
-        <CardsGrid>
-          {bucket.gaps.map(finding => (
-            <FindingCard key={finding.key} finding={finding} />
-          ))}
-        </CardsGrid>
-      ) : (
+  let content: React.ReactNode
+  if (tab === 'all') {
+    content = bucket.compared.length ? (
+      <>
+        <About>{source.join(' ')}</About>
+        <ComparedTable findings={bucket.compared} goalNumbers={goalNumbers} />
+        {bucket.compared.some(f => getMetricGroup(f.key) === 'speed') ? (
+          <Text>
+            {t(
+              'myStats.coach.speedAnyEapm',
+              'Speed is compared with every {{race}} player here, at any EAPM, since a floor would only keep the fast ones.',
+              { race },
+            )}
+          </Text>
+        ) : null}
+      </>
+    ) : (
+      <Text>
+        {t('myStats.coach.nothingCompared', 'Not enough games to compare any number yet.')}
+      </Text>
+    )
+  } else if (tab === 'losses') {
+    if (bucket.inLosses.length) {
+      content = (
+        <>
+          <About>
+            {t(
+              'myStats.coach.lossesHelpLine',
+              'Every number from the first {{minute}} minutes, in your typical win and your typical loss. Red marks the ones that differ enough to matter. They go together with losing, which does not mean they cause it.',
+              { minute: lossesMinute },
+            )}
+          </About>
+          <LossesTable findings={bucket.inLosses} minute={lossesMinute} goalNumbers={goalNumbers} />
+        </>
+      )
+    } else if (bucket.wins < COACH_MIN_RESULT_GAMES || bucket.losses < COACH_MIN_RESULT_GAMES) {
+      content = (
         <Text>
-          {closestGap
-            ? t(
-                'myStats.coach.noGapsClosest',
-                'No number is clearly behind other players in most of your games. Closest: {{metric}}, {{you}} against {{them}}, better than {{percent}}. Your goals also come from your wins, losses and timings.',
-                {
-                  metric: getMetricText(closestGap.key, t)[0],
-                  you: formatValue(closestGap.userValue, closestGap.unit),
-                  them: formatValue(closestGap.poolValue, closestGap.unit),
-                  percent: formatPercent(closestGap.beats),
-                },
-              )
-            : t(
-                'myStats.coach.noGapsClose',
-                "You're even with or ahead of most other players on everything the coach checks.",
-              )}
+          {t(
+            'myStats.coach.lossesNeed',
+            'Comparing needs {{needed}} wins and {{needed}} losses here. So far: {{wins}} and {{losses}}.',
+            { needed: COACH_MIN_RESULT_GAMES, wins: bucket.wins, losses: bucket.losses },
+          )}
         </Text>
-      )}
-    </Column>
-  )
-  const keepDoing = (
-    <Column>
-      <ColumnTitle $tone='good'>{t('myStats.coach.keepDoing', 'Keep doing')}</ColumnTitle>
-      {bucket.strengths.length ? (
-        <CardsGrid>
-          {bucket.strengths.map(finding => (
-            <FindingCard key={finding.key} finding={finding} />
-          ))}
-        </CardsGrid>
-      ) : (
-        <Text>{t('myStats.coach.noStrengths', 'Nothing clearly ahead of other players yet.')}</Text>
-      )}
-    </Column>
-  )
+      )
+    } else {
+      content = (
+        <Text>
+          {t(
+            'myStats.coach.lossesSame',
+            "These games don't have numbers from the start of the game to compare.",
+          )}
+        </Text>
+      )
+    }
+  } else {
+    content = (
+      <>
+        <About>
+          {[
+            bucket.opening.length
+              ? t('myStats.coach.opening', 'Your usual opening: {{opening}}.', {
+                  opening: bucket.opening.map(key => getBuildName(key, t)).join(', '),
+                })
+              : '',
+            t(
+              'myStats.coach.timingsHelpLine',
+              'When you and other players usually start each building, tech and upgrade in the first 15 minutes. Bold: both sides usually make it, 15 seconds or more apart. Earlier is not always better: it depends on your build.',
+            ),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        </About>
+        {bucket.timings.length ? (
+          <TimingsTable timings={bucket.timings} goalNumbers={goalNumbers} />
+        ) : (
+          <Text>
+            {t(
+              'myStats.coach.noTimings',
+              'No builds started in the first 15 minutes in enough of these games.',
+            )}
+          </Text>
+        )}
+      </>
+    )
+  }
 
   return (
     <ComparePanel>
-      <Column>
-        <TitleLine>
-          <PanelTitle>
-            <TitleRace>
-              <RaceTag race={bucket.race} />
-              {t('myStats.coach.compareWithRace', 'How you compare with other {{race}} players', {
-                race,
-              })}
-            </TitleRace>
-          </PanelTitle>
-          <TitleNote>
-            {t('myStats.coach.againstWhere', '{{where}}, over {{floor}} EAPM', {
-              where: getPoolPlace(bucket, t),
-              floor: eapmFloor,
+      <TitleLine>
+        <PanelTitle>
+          <TitleRace>
+            <RaceTag race={bucket.race} />
+            {t('myStats.coach.compareWithRace', 'How you compare with other {{race}} players', {
+              race,
             })}
-          </TitleNote>
-        </TitleLine>
-        <About>{source.join(' ')}</About>
-      </Column>
-      {bucket.gaps.length && bucket.strengths.length ? (
-        <Columns>
-          {workOn}
-          {keepDoing}
-        </Columns>
-      ) : (
-        <>
-          {bucket.gaps.length ? workOn : keepDoing}
-          {bucket.gaps.length ? keepDoing : workOn}
-        </>
-      )}
-      {bucket.compared.length ? (
-        <Column>
-          <ColumnTitle>
-            <HelpLabel
-              label={t('myStats.coach.everything', 'Everything compared')}
-              help={t(
-                'myStats.coach.everythingHelp',
-                "Every number the coach had enough games to compare, with your typical game, theirs, and the share of players you did better than. Green and red mark where you're clearly ahead or behind; the lists above only keep the ones that hold up in most of your games.",
-              )}
-            />
-          </ColumnTitle>
-          <ComparedTable findings={bucket.compared} />
-          {bucket.compared.some(f => getMetricGroup(f.key) === 'speed') ? (
-            <Text>
-              {t(
-                'myStats.coach.speedAnyEapm',
-                'Speed is compared with every {{race}} player here, at any EAPM, since a floor would only keep the fast ones.',
-                { race },
-              )}
-            </Text>
-          ) : null}
-        </Column>
-      ) : null}
-      <Columns>
-        <Column>
-          <ColumnTitle>
-            <HelpLabel
-              label={t('myStats.coach.lossesTitle', 'What changes in your losses')}
-              help={t(
-                'myStats.coach.lossesHelp',
-                "Every number from the first 8 minutes, in your typical win and your typical loss. Red marks the ones that differ enough to matter, biggest first. They go together with losing, which doesn't mean they cause it.",
-              )}
-            />
-          </ColumnTitle>
-          {losses}
-        </Column>
-        <Column>
-          <ColumnTitle>
-            <HelpLabel
-              label={t('myStats.coach.timingsTitle', 'Timings')}
-              help={t(
-                'myStats.coach.timingsHelp',
-                "When you and other players usually start each building, tech and upgrade in the first 15 minutes, in build order. A dash means that side makes it in too few games. Bold: both sides usually make it, and the times are 15 seconds or more apart. Upgrade buildings and static defense are never bold, since they follow the plan. Earlier isn't always better: it depends on your build.",
-              )}
-            />
-          </ColumnTitle>
-          {bucket.timings.length ? (
-            <TimingsTable timings={bucket.timings} />
-          ) : (
-            <Text>
-              {t(
-                'myStats.coach.noTimings',
-                'No builds started in the first 15 minutes in enough of these games.',
-              )}
-            </Text>
-          )}
-        </Column>
-      </Columns>
+          </TitleRace>
+        </PanelTitle>
+        <TitleNote>
+          {t('myStats.coach.againstWhere', '{{where}}, over {{floor}} EAPM', {
+            where: getPoolPlace(bucket, t),
+            floor: eapmFloor,
+          })}
+        </TitleNote>
+      </TitleLine>
+      <CompareTabs
+        label={t('myStats.coach.compareTabs', 'What to compare')}
+        options={[
+          { value: 'all', label: t('myStats.coach.tabAll', 'Everything compared') },
+          { value: 'losses', label: t('myStats.coach.tabLosses', 'Wins against losses') },
+          { value: 'timings', label: t('myStats.coach.tabTimings', 'Timings') },
+        ]}
+        value={tab}
+        onChange={(next: CompareTab) => {
+          writeCompareTab(next)
+          setTab(next)
+        }}
+      />
+      {content}
     </ComparePanel>
   )
 }
@@ -1362,11 +1460,16 @@ function BucketView({
   eapmFloor,
   sinceMs,
   showTitle,
+  counts,
+  others,
 }: {
   bucket: CoachBucket
   eapmFloor: number
   sinceMs?: number
   showTitle: boolean
+  counts: ReadonlyArray<ShapeCount>
+  /** The groups of games too small to show, named in the scope line. */
+  others?: string
 }) {
   const { t } = useTranslation()
   const ready = isReady(bucket)
@@ -1374,62 +1477,80 @@ function BucketView({
   // players to compare with.
   const showNextGame = ready || bucket.goals.length > 0
   const title = getBucketTitle(bucket, t)
+  const showStrengths = ready && bucket.strengths.length > 0
 
-  const where = {
-    count: bucket.userGames,
-    race: raceCharToLabel(bucket.race, t),
-    where: getPoolPlace(bucket, t),
-  }
-  const about = [
-    sinceMs === undefined
-      ? t('myStats.coach.lookingAtAll', 'All {{count}} of your {{race}} games in {{where}}.', where)
-      : t(
-          'myStats.coach.lookingAtSince',
-          'Your last {{count}} {{race}} games in {{where}}, since {{date}}.',
-          { ...where, date: formatDate(sinceMs) },
-        ),
-  ]
-  if (bucket.skippedGames) {
-    about.push(
-      t('myStats.coach.skippedQuit', {
-        defaultValue:
-          '{{count}} more of yours are left out, since someone quit in the first 5 minutes.',
-        defaultValue_one:
-          '{{count}} more of yours is left out, since someone quit in the first 5 minutes.',
-        count: bucket.skippedGames,
-      }),
-    )
-  }
-  if (bucket.opening.length) {
-    about.push(
-      t('myStats.coach.opening', 'Your usual opening: {{opening}}.', {
-        opening: bucket.opening.map(key => getBuildName(key, t)).join(', '),
-      }),
-    )
-  }
+  const raceName = raceCharToLabel(bucket.race, t)
+  const place = getPoolPlace(bucket, t)
+  const count = bucket.userGames
+  const scope = (
+    <span>
+      {sinceMs === undefined ? (
+        <Trans
+          t={t}
+          i18nKey='myStats.coach.scopeAll'
+          defaults='All <b>{{count}}</b> of your {{race}} games in {{place}}.'
+          count={count}
+          values={{ race: raceName, place }}
+          components={{ b: <Key /> }}
+        />
+      ) : (
+        <Trans
+          t={t}
+          i18nKey='myStats.coach.scopeSince'
+          defaults='Your last <b>{{count}}</b> {{race}} games in {{place}}, since <b>{{date}}</b>.'
+          count={count}
+          values={{ race: raceName, place, date: formatDate(sinceMs) }}
+          components={{ b: <Key /> }}
+        />
+      )}
+      {bucket.skippedGames ? (
+        <>
+          {' '}
+          <Trans
+            t={t}
+            i18nKey='myStats.coach.scopeSkipped'
+            defaults='<b>{{count}}</b> more left out, since someone quit in the first 5 minutes.'
+            count={bucket.skippedGames}
+            components={{ b: <Key /> }}
+          />
+        </>
+      ) : null}
+      {others ? ` ${others}` : null}
+    </span>
+  )
 
   return (
     <Bucket>
       {showTitle && title ? <BucketTitle>{title}</BucketTitle> : null}
-      <About>{about.join(' ')}</About>
-      <PlanColumns>
+      <Scope>
+        {scope}
+        <ScopeCoverage>
+          <Coverage shape={bucket.shape} counts={counts} />
+        </ScopeCoverage>
+      </Scope>
+      <SectionErrorBoundary>
+        <CoachNotes bucket={bucket} hideStrength={showStrengths} />
+      </SectionErrorBoundary>
+      <SectionErrorBoundary>
+        {showNextGame ? (
+          <NextGame bucket={bucket} allGames={sinceMs === undefined} />
+        ) : (
+          <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
+        )}
+      </SectionErrorBoundary>
+      {showStrengths ? (
         <SectionErrorBoundary>
-          {showNextGame ? (
-            <NextGame bucket={bucket} allGames={sinceMs === undefined} />
-          ) : (
-            <Unlock bucket={bucket} eapmFloor={eapmFloor} />
-          )}
+          <KeepDoing bucket={bucket} />
         </SectionErrorBoundary>
-        <SectionErrorBoundary>
-          <CoachNotes bucket={bucket} hideStrength={ready} />
-        </SectionErrorBoundary>
-      </PlanColumns>
+      ) : null}
       {ready ? (
         <SectionErrorBoundary>
           <Comparison bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
         </SectionErrorBoundary>
       ) : null}
-      {showNextGame && !ready ? <Unlock bucket={bucket} eapmFloor={eapmFloor} /> : null}
+      {showNextGame && !ready ? (
+        <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
+      ) : null}
     </Bucket>
   )
 }
@@ -1445,13 +1566,9 @@ function FloorMenu({ floor }: { floor: number }) {
   const floors: Array<SegmentOption<number>> = EAPM_FLOORS.map(value => ({
     value,
     label: t('myStats.filters.floorOption', '{{floor}}+ EAPM', { floor: value }),
-    menuLabel: t(
-      'myStats.coach.floorMenuOption',
-      'Players over {{floor}} EAPM, here and in My stats',
-      {
-        floor: value,
-      },
-    ),
+    menuLabel: t('myStats.coach.floorMenuPlayers', 'Players over {{floor}} EAPM', {
+      floor: value,
+    }),
   }))
   return (
     <SegmentMenu
@@ -1503,7 +1620,7 @@ function WindowMenu({ autoGames, autoMonths }: { autoGames: number; autoMonths: 
 }
 
 /** Every group of the coached kind of game that's ready, then the rest in a line. */
-function CoachBody({ coach }: { coach: CoachResult }) {
+function CoachBody({ coach, counts }: { coach: CoachResult; counts: ReadonlyArray<ShapeCount> }) {
   const { t } = useTranslation()
   const names = useStatsPlayerNames() ?? []
 
@@ -1541,33 +1658,33 @@ function CoachBody({ coach }: { coach: CoachResult }) {
   const ready = coach.buckets.filter(isReady)
   const shown = ready.length ? ready : coach.buckets.slice(0, 1)
   const rest = coach.buckets.filter(bucket => !shown.includes(bucket))
+  const others = rest.length
+    ? t('myStats.coach.tooFew', 'Also {{games}}, too few to compare yet.', {
+        games: rest
+          .map(bucket =>
+            t('myStats.coach.tooFewGames', {
+              defaultValue: '{{count}} games on {{maps}}',
+              defaultValue_one: '{{count}} game on {{maps}}',
+              count: bucket.userGames + bucket.skippedGames,
+              maps: getBucketPlace(bucket, t),
+            }),
+          )
+          .join(', '),
+      })
+    : undefined
   return (
     <>
-      {shown.map(bucket => (
+      {shown.map((bucket, i) => (
         <BucketView
           key={`${bucket.shape}${bucket.mapFamily ?? ''}`}
           bucket={bucket}
           eapmFloor={coach.eapmFloor}
           sinceMs={coach.sinceMs}
           showTitle={shown.length > 1 && bucket.mapFamily !== undefined}
+          counts={counts}
+          others={i === 0 ? others : undefined}
         />
       ))}
-      {rest.length ? (
-        <Text>
-          {t('myStats.coach.tooFew', 'Also {{games}}, too few to compare yet.', {
-            games: rest
-              .map(bucket =>
-                t('myStats.coach.tooFewGames', {
-                  defaultValue: '{{count}} games on {{maps}}',
-                  defaultValue_one: '{{count}} game on {{maps}}',
-                  count: bucket.userGames + bucket.skippedGames,
-                  maps: getBucketPlace(bucket, t),
-                }),
-              )
-              .join(', '),
-          })}
-        </Text>
-      ) : null}
     </>
   )
 }
@@ -1674,8 +1791,11 @@ export function CoachView({
           ) : null}
           <FloorMenu floor={coach.eapmFloor} />
         </Toolbar>
-        {picked && !pickedLocked ? <CoverageLine shape={picked.shape} counts={counts} /> : null}
-        {pickedLocked ? <LockedView locked={pickedLocked} /> : <CoachBody coach={coach} />}
+        {pickedLocked ? (
+          <LockedView locked={pickedLocked} />
+        ) : (
+          <CoachBody coach={coach} counts={counts} />
+        )}
       </>
     )
   } else {
@@ -1694,32 +1814,53 @@ export function CoachView({
         ) : null}
       </Header>
       {explainerClosed ? null : (
-        <Explainer>
-          <ExplainerTop>
-            <PanelTitle>{t('myStats.coach.howItWorks', 'How it works')}</PanelTitle>
-            <TextButton label={t('common.actions.close', 'Close')} onClick={toggleExplainer} />
-          </ExplainerTop>
-          <ExplainerList>
-            <li>
-              {t(
-                'myStats.coach.explain1',
-                'Your recent games of one kind are compared with other players of your race, from your own replays and the same dates.',
-              )}
-            </li>
-            <li>
-              {t(
-                'myStats.coach.explain2',
-                'Your goals are the few numbers most worth fixing: where you trail most players, where your losses differ from your wins, and builds you start late.',
-              )}
-            </li>
-            <li>
-              {t(
-                'myStats.coach.explain3',
-                "It's a hint, not a rule. Your build may call for something else, and the meta changes what's right.",
-              )}
-            </li>
-          </ExplainerList>
-        </Explainer>
+        <Callout>
+          <CalloutTop>
+            <CalloutIcon />
+            <CalloutTitle>{t('myStats.coach.howItWorksTitle', 'How the coach works')}</CalloutTitle>
+          </CalloutTop>
+          <CalloutSteps>
+            <CalloutStep>
+              <CalloutStepTitle>
+                {t('myStats.coach.stepCompareTitle', 'Your games against theirs')}
+              </CalloutStepTitle>
+              <CalloutStepText>
+                {t(
+                  'myStats.coach.stepCompare',
+                  'Your recent games of one kind, next to other players of your race from your own replays and the same dates.',
+                )}
+              </CalloutStepText>
+            </CalloutStep>
+            <CalloutStep>
+              <CalloutStepTitle>
+                {t('myStats.coach.stepGoalsTitle', 'A few goals')}
+              </CalloutStepTitle>
+              <CalloutStepText>
+                {t(
+                  'myStats.coach.stepGoals',
+                  'Where you trail most players, where your losses differ from your wins, and builds you start late.',
+                )}
+              </CalloutStepText>
+            </CalloutStep>
+            <CalloutStep>
+              <CalloutStepTitle>
+                {t('myStats.coach.stepHintTitle', 'A hint, not a rule')}
+              </CalloutStepTitle>
+              <CalloutStepText>
+                {t(
+                  'myStats.coach.stepHint',
+                  "Your build may call for something else, and the meta changes what's right.",
+                )}
+              </CalloutStepText>
+            </CalloutStep>
+          </CalloutSteps>
+          <CalloutClose
+            type='button'
+            aria-label={t('common.actions.close', 'Close')}
+            onClick={toggleExplainer}>
+            <MaterialIcon icon='close' size={18} />
+          </CalloutClose>
+        </Callout>
       )}
       {content}
     </Root>

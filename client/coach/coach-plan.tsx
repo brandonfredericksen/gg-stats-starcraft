@@ -1,4 +1,5 @@
 import { TFunction } from 'i18next'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import {
@@ -61,14 +62,18 @@ const Goals = styled.ol`
 `
 
 const GoalRow = styled.li`
-  padding: 16px 0;
+  padding: var(--space-4) 0;
 
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
 
   & + & {
     border-top: 1px solid var(--theme-outline-variant);
+  }
+
+  &:first-child {
+    padding-top: 0;
   }
 
   &:last-child {
@@ -77,10 +82,11 @@ const GoalRow = styled.li`
 `
 
 /** Neutral, so green only ever means a good result. Lines up with the goal's name. */
-const GoalNumber = styled.span`
+export const GoalNumber = styled.span`
   ${labelMedium};
   width: 24px;
   height: 24px;
+  flex-shrink: 0;
 
   display: flex;
   align-items: center;
@@ -96,7 +102,7 @@ const GoalBody = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const GoalTop = styled.div`
@@ -104,13 +110,13 @@ const GoalTop = styled.div`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px 10px;
+  gap: var(--space-2) var(--space-3);
 `
 
 const Tag = styled.span`
   ${labelMedium};
   height: 22px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
@@ -126,16 +132,23 @@ const Aim = styled.span<{ $small: boolean }>`
   font-variant-numeric: tabular-nums;
 `
 
-/** The one goal to play the next game around, set apart from the rest. */
+/** The one goal to play the next game around: a band across the panel, edge to edge. */
 const Focus = styled.div`
-  margin: 0 -12px;
-  padding: 4px 12px 12px;
+  margin: 0 calc(-1 * var(--space-5));
+  padding: var(--space-3) var(--space-5) var(--space-4);
 
-  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  border-block: 1px solid var(--theme-outline-variant);
   background: var(--theme-container);
 
-  & > ol > li {
-    padding-bottom: 0;
+  /* With no goals after it, it runs to the panel's bottom edge. */
+  &:last-child {
+    margin-bottom: calc(-1 * var(--space-5));
+    padding-bottom: var(--space-5);
+    border-bottom: 0;
   }
 `
 
@@ -145,16 +158,15 @@ const GoalsLabel = styled.span`
   font-weight: 600;
 `
 
-const FocusLabel = styled(GoalsLabel)`
-  display: block;
-  padding-top: 8px;
+const AfterLabel = styled(GoalsLabel)`
+  margin-top: var(--space-3);
 `
 
 const AimLine = styled.div`
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 2px 12px;
+  gap: var(--space-1) var(--space-3);
 `
 
 const AimBasis = styled.span`
@@ -162,19 +174,25 @@ const AimBasis = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
+/** The same three columns in every goal, so their numbers line up from one goal to the next. */
 const Facts = styled.div`
   ${bodyMedium};
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
+  display: grid;
+  grid-template-columns: 200px 200px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
   color: var(--theme-on-surface-variant);
   font-variant-numeric: tabular-nums;
+
+  @container coach (width < 720px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `
 
 const Fact = styled.span<{ $tone?: Tone }>`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 
   & > strong {
     color: ${props => (props.$tone ? toneColor(props.$tone) : 'var(--theme-on-surface)')};
@@ -185,7 +203,7 @@ const Fact = styled.span<{ $tone?: Tone }>`
 const CheckDots = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   cursor: help;
 `
 
@@ -197,13 +215,13 @@ const CheckDot = styled.span<{ $hit: boolean }>`
   background-color: ${props => (props.$hit ? 'var(--theme-positive)' : 'var(--theme-negative)')};
 `
 
-/** The game that missed a goal by the most, and a way to watch that moment. */
+/** The game that missed a goal by the most, and a way to watch that moment, under it. */
 const Review = styled.div`
   ${bodyMedium};
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
   color: var(--theme-on-surface-variant);
 `
 
@@ -211,11 +229,12 @@ const WatchButton = styled.button`
   ${buttonReset};
   ${labelLarge};
   height: 28px;
-  padding: 0 12px 0 8px;
+  margin-left: calc(-1 * var(--space-2));
+  padding: 0 var(--space-3) 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   border-radius: var(--radius-full);
   background-color: var(--theme-container-high);
@@ -234,31 +253,60 @@ const WatchButton = styled.button`
   }
 `
 
+/** Shows or hides a later goal's replay moment and tip. */
+const DetailsButton = styled.button`
+  ${buttonReset};
+  ${labelLarge};
+  height: 28px;
+  margin-left: auto;
+  padding: 0 var(--space-1) 0 var(--space-2);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+
+  border-radius: var(--radius-sm);
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgb(from var(--theme-on-surface) r g b / 0.08);
+    color: var(--theme-on-surface);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`
+
 const Tip = styled.p`
   ${bodyMedium};
   margin: 0;
-  padding: 10px 12px;
+  padding: var(--space-3) var(--space-4);
 
   border-left: 3px solid var(--theme-outline);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--theme-container);
+  background: var(--theme-container-high);
   color: var(--theme-on-surface);
 `
 
+/** The notes side by side, as many across as fit. */
 const Notes = styled.ul`
   margin: 0;
   padding: 0;
   list-style: none;
 
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4) var(--space-6);
 `
 
 const NoteRow = styled.li`
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const NoteIcon = styled(MaterialIcon)<{ $tone?: Tone }>`
@@ -400,14 +448,18 @@ function GoalItem({
   goal,
   index,
   bucket,
+  compact = false,
 }: {
   goal: CoachGoal
   index: number
   bucket: CoachBucket
+  /** A later goal: its replay moment and tip stay hidden until asked for. */
+  compact?: boolean
 }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const formatValue = useFormatValue()
+  const [open, setOpen] = useState(!compact)
   const [label, help] = getGoalText(goal, t)
   const { target, review } = goal
   const watchFromMs = review ? Math.max(0, review.atMs - WATCH_LEAD_MS) : 0
@@ -438,9 +490,17 @@ function GoalItem({
           {goal.inLosses && goal.basis === 'others' ? (
             <Tag>{t('myStats.coach.alsoCostsGames', 'Also costs you games')}</Tag>
           ) : null}
+          {compact ? (
+            <DetailsButton type='button' aria-expanded={open} onClick={() => setOpen(!open)}>
+              {open
+                ? t('myStats.coach.hideDetails', 'Hide details')
+                : t('myStats.coach.showDetails', 'Details')}
+              <MaterialIcon icon={open ? 'expand_less' : 'expand_more'} size={18} />
+            </DetailsButton>
+          ) : null}
         </GoalTop>
         <AimLine>
-          <Aim $small={index > 0}>{getAimText(goal, formatValue(target, goal.unit), t)}</Aim>
+          <Aim $small={compact}>{getAimText(goal, formatValue(target, goal.unit), t)}</Aim>
           <AimBasis>{getBasisText(goal, bucket, t)}</AimBasis>
         </AimLine>
         <Facts>
@@ -450,29 +510,33 @@ function GoalItem({
               : t('myStats.coach.factUsually', 'You usually')}
             <strong>{formatValue(goal.userValue, goal.unit)}</strong>
           </Fact>
-          {goal.checks.length ? (
-            <Fact>
-              {t('myStats.coach.factChecks', 'Last {{count}} games', {
-                count: goal.checks.length,
-              })}
-              <CheckDots role='img' aria-label={checksHelp} title={checksHelp}>
-                {goal.checks.map((hit, i) => (
-                  <CheckDot key={i} $hit={hit} />
-                ))}
-              </CheckDots>
-            </Fact>
-          ) : null}
-          {goal.beats !== undefined ? (
-            <Fact>
-              {t('myStats.coach.factBeats', 'Better than')}
-              <strong>{formatPercent(goal.beats)}</strong>
-              {t('myStats.coach.factBeatsOf', 'of {{race}} players', {
-                race: raceCharToLabel(bucket.race, t),
-              })}
-            </Fact>
-          ) : null}
+          <Fact>
+            {goal.checks.length ? (
+              <>
+                {t('myStats.coach.factChecks', 'Last {{count}} games', {
+                  count: goal.checks.length,
+                })}
+                <CheckDots role='img' aria-label={checksHelp} title={checksHelp}>
+                  {goal.checks.map((hit, i) => (
+                    <CheckDot key={i} $hit={hit} />
+                  ))}
+                </CheckDots>
+              </>
+            ) : null}
+          </Fact>
+          <Fact>
+            {goal.beats !== undefined ? (
+              <>
+                {t('myStats.coach.factBeats', 'Better than')}
+                <strong>{formatPercent(goal.beats)}</strong>
+                {t('myStats.coach.factBeatsOf', 'of {{race}} players', {
+                  race: raceCharToLabel(bucket.race, t),
+                })}
+              </>
+            ) : null}
+          </Fact>
         </Facts>
-        {review ? (
+        {open && review ? (
           <Review>
             <span>{getReviewText(review, goal, bucket, formatValue, t)}</span>
             <WatchButton
@@ -485,19 +549,21 @@ function GoalItem({
             </WatchButton>
           </Review>
         ) : null}
-        <Tip>
-          {goal.key === 'buildTiming'
-            ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)
-            : getTip(goal.key, getTipContext(bucket), t, goal.basis)}
-        </Tip>
+        {open ? (
+          <Tip>
+            {goal.key === 'buildTiming'
+              ? getTimingTip(getBuildName(goal.buildKey ?? '', t), formatGameTime(target), t)
+              : getTip(goal.key, getTipContext(bucket), t, goal.basis)}
+          </Tip>
+        ) : null}
       </GoalBody>
     </GoalRow>
   )
 }
 
 /**
- * A few things to aim for, from the games the coach is looking at, each with a target, a tip, and
- * how the latest games did.
+ * A few things to aim for, from the games the coach is looking at: the first one to play the next
+ * game around, then the rest, each with a target, how the latest games did, and a tip.
  */
 export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: boolean }) {
   const { t } = useTranslation()
@@ -518,16 +584,16 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
       {bucket.goals.length ? (
         <>
           <Focus>
-            <FocusLabel>
+            <GoalsLabel>
               {t('myStats.coach.focusLabel', 'Play your next game around this')}
-            </FocusLabel>
+            </GoalsLabel>
             <Goals>
               <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} />
             </Goals>
           </Focus>
           {bucket.goals.length > 1 ? (
             <>
-              <GoalsLabel>{t('myStats.coach.afterThat', 'After that')}</GoalsLabel>
+              <AfterLabel>{t('myStats.coach.afterThat', 'After that')}</AfterLabel>
               <Goals>
                 {bucket.goals.slice(1).map((goal, i) => (
                   <GoalItem
@@ -535,6 +601,7 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
                     goal={goal}
                     index={i + 1}
                     bucket={bucket}
+                    compact={true}
                   />
                 ))}
               </Goals>
@@ -747,8 +814,9 @@ function getNoteContent(
 }
 
 /**
- * What a coach would say first, in a few short notes. With the comparison on the page, its Keep
- * doing list already shows the user's strengths, so the note about one is left out.
+ * What a coach would say about how the user's games are going, in a few short notes side by side.
+ * A note about a number that's already a goal is left out, since the goal says it, and so is the
+ * note about a strength while the user's strengths are listed below.
  */
 export function CoachNotes({
   bucket,
@@ -759,10 +827,25 @@ export function CoachNotes({
 }) {
   const { t } = useTranslation()
   const formatValue = useFormatValue()
-  const notes = hideStrength ? bucket.notes.filter(n => n.kind !== 'strength') : bucket.notes
+  const goalKeys = new Set(bucket.goals.map(goal => goal.buildKey ?? goal.key))
+  const notes = bucket.notes.filter(note => {
+    switch (note.kind) {
+      case 'strength':
+        return !hideStrength
+      case 'inLosses':
+        return !goalKeys.has(note.finding.key)
+      case 'slipping':
+      case 'improving':
+        return !goalKeys.has(note.change.key)
+      case 'timing':
+        return !goalKeys.has(note.timing.buildKey)
+      default:
+        return true
+    }
+  })
   return (
     <PaddedPanel>
-      <PanelTitle>{t('myStats.coach.notesTitle', "Coach's notes")}</PanelTitle>
+      <PanelTitle>{t('myStats.coach.trendsTitle', 'Your trends')}</PanelTitle>
       {notes.length ? (
         <Notes>
           {notes.map(note => {

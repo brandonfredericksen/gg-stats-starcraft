@@ -48,7 +48,7 @@ export const Card = styled.div`
 export const Columns = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 20px;
+  gap: var(--space-4) var(--space-5);
   align-items: start;
 
   @container coach (width < ${STACK_BELOW_PX}px) {
@@ -59,7 +59,7 @@ export const Columns = styled.div`
 export const Column = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 `
 
 export const ColumnTitle = styled.h4<{ $tone?: Tone }>`
@@ -92,7 +92,7 @@ const columnSpace = css<{ $end?: boolean }>`
 /** A table's heading row, or a group's within one: the first group sits flush with the top. */
 export const GroupHead = styled.span<{ $end?: boolean; $first?: boolean }>`
   ${labelMedium};
-  padding: ${props => (props.$first ? '0 0 6px' : '16px 0 6px')};
+  padding: ${props => (props.$first ? '0 0 var(--space-2)' : 'var(--space-5) 0 var(--space-2)')};
   ${columnSpace};
   color: var(--theme-on-surface-variant);
   font-weight: 600;
@@ -108,7 +108,7 @@ export const Table = styled.div<{ $columns: string }>`
 
 export const HeadCell = styled.span<{ $end?: boolean }>`
   ${labelMedium};
-  padding-bottom: 6px;
+  padding-bottom: var(--space-2);
   ${columnSpace};
   color: var(--theme-on-surface-variant);
   font-weight: 600;
@@ -116,11 +116,13 @@ export const HeadCell = styled.span<{ $end?: boolean }>`
 `
 
 export const Cell = styled.span<{ $end?: boolean; $tone?: Tone | 'muted'; $strong?: boolean }>`
-  padding: 9px 0;
+  padding: 10px 0;
   ${columnSpace};
   border-top: 1px solid var(--theme-outline-variant);
   text-align: ${props => (props.$end ? 'right' : 'left')};
   font-variant-numeric: tabular-nums;
+  /* A number and its unit stay on one line; only a row's name wraps. */
+  ${props => (props.$end ? 'white-space: nowrap;' : '')}
   color: ${props =>
     props.$tone === 'muted' ? 'var(--theme-on-surface-variant)' : toneColor(props.$tone)};
   ${props =>
