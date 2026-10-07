@@ -189,6 +189,21 @@ describe('client/games/game-stats-model', () => {
     })
   })
 
+  test("doesn't count workers being made as army", () => {
+    const totals = getSideTotals([
+      player(0, {
+        timeline: {
+          workers: [8, 20],
+          workersStarted: [9, 23],
+          armyScore: [],
+          resourcesMined: [],
+          supplyUsed: [9, 40],
+        },
+      }),
+    ])
+    expect(totals.peakArmySupply).toBe(17)
+  })
+
   test("leaves out side totals the game didn't track", () => {
     expect(getSideTotals([player(0, { mineralsMined: 100 })])).toEqual({
       minerals: 100,

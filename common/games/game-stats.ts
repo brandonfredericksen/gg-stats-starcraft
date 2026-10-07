@@ -97,7 +97,13 @@ export interface ArmyWorth {
 }
 
 export interface TimelinePayload {
+  /** Finished workers. */
   workers: number[]
+  /**
+   * Workers finished or being made, missing in stats from before it was recorded. Each uses one
+   * supply, so supply used less these is what the rest of the player's units use.
+   */
+  workersStarted?: number[]
   /** The game's score for the player's army, see {@link ArmyWorth}. */
   armyScore: number[]
   /** Minerals and gas mined so far. */
@@ -244,11 +250,14 @@ export interface BuildStep {
 
 /** Each list has a value per recorded time, for as long as the player was playing. */
 export interface PlayerTimeline {
+  /** Finished workers. */
   workers: number[]
   armyScore: number[]
   resourcesMined: number[]
   /** Lists the game didn't report, like actions for computers, are left undefined. */
   unspent?: number[]
+  /** Workers finished or being made, see {@link TimelinePayload.workersStarted}. */
+  workersStarted?: number[]
   supplyUsed?: number[]
   supplyAvailable?: number[]
   actions?: number[]
@@ -327,6 +336,7 @@ function toTimeline(value: unknown, snapshotCount: number): PlayerTimeline | und
     armyScore: armyScore.slice(0, length),
     resourcesMined: resourcesMined.slice(0, length),
     unspent: optional(timeline?.unspent),
+    workersStarted: optional(timeline?.workersStarted),
     supplyUsed: optional(timeline?.supplyUsed),
     supplyAvailable: optional(timeline?.supplyAvailable),
     actions: optional(timeline?.actions),

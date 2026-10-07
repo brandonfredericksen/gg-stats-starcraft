@@ -38,6 +38,7 @@ function player(overrides: Partial<GamePlayerStatsPayload> = {}): GamePlayerStat
     supplyBlockedFrames: 238,
     timeline: {
       workers: [4, 9],
+      workersStarted: [5, 10],
       armyScore: [0, 300],
       resourcesMined: [0, 450],
       unspent: [50, 150],
@@ -206,6 +207,7 @@ describe('common/games/game-stats/fromGameStatsPayload', () => {
     expect(stats.snapshotTimesMs).toEqual([0, 238 * 42, 476 * 42])
     expect(stats.players[0].timeline).toMatchObject({
       workers: [4, 9],
+      workersStarted: [5, 10],
       armyScore: [0, 300],
       resourcesMined: [0, 450],
       unspent: [50, 150],
@@ -224,6 +226,8 @@ describe('common/games/game-stats/fromGameStatsPayload', () => {
       unspent: [50],
     })
     expect(stats.players[1].timeline?.bases).toBeUndefined()
+    // Stats saved before workers being made were recorded don't have them.
+    expect(stats.players[1].timeline?.workersStarted).toBeUndefined()
     expect(stats.players[2].timeline).toBeUndefined()
   })
 
