@@ -284,9 +284,6 @@ export const THEME_CSS = css`
   --theme-tab-settings-tint: rgb(148 163 184 / 0.14);
   --theme-tab-settings-ring: rgb(148 163 184 / 0.28);
 
-  /** The logo's tile, behind its bars. */
-  --theme-logo-tile: #27272b;
-
   /**
    * A panel's light source: the top edge of a panel starts this much lighter and fades to its
    * fill, with a hairline highlight along the top.
@@ -415,8 +412,6 @@ export const LIGHT_THEME_CSS = css`
   --theme-tab-settings: #475569;
   --theme-tab-settings-tint: #f1f5f9;
   --theme-tab-settings-ring: #e2e8f0;
-
-  --theme-logo-tile: #1d1d21;
 
   --theme-panel-sheen: #f8f8fa;
   --theme-panel-highlight: rgb(255 255 255 / 0.55);

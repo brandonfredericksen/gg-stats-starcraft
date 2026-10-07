@@ -10,7 +10,7 @@ import { TypedIpcRenderer } from '../../common/ipc'
 import { useFitLevel } from '../dom/use-fit-level'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
-import Logo from '../logos/logo-no-bg.svg?react'
+import logo from '../logos/logo.png'
 import { useButtonHotkey } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { MenuItem } from '../material/menu/item'
@@ -74,10 +74,9 @@ const Lockup = styled.div`
   flex-shrink: 0;
 `
 
-const LogoMark = styled(Logo)`
+const LogoMark = styled.img`
   width: 24px;
   height: 24px;
-  border-radius: var(--radius-sm);
 `
 
 const Wordmark = styled.div`
@@ -437,7 +436,7 @@ export function SystemBar() {
       <SizeLeft />
       <SizeRight />
       <Lockup>
-        <LogoMark aria-hidden={true} />
+        <LogoMark src={logo} alt='' aria-hidden={true} />
         {fitLevel < FitLevel.NoWordmark ? <Wordmark>GG Stats</Wordmark> : null}
       </Lockup>
       <HistoryButtons />
