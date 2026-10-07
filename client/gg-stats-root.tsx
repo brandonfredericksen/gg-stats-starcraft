@@ -39,6 +39,9 @@ const DemoPlayerPill = import.meta.env.PROD
       default: (await import('./my-stats/devonly/demo-player-pill')).DemoPlayerPill,
     }))
 
+const BuildsPage = React.lazy(async () => ({
+  default: (await import('./builds/builds-page')).BuildsPage,
+}))
 const CoachPage = React.lazy(async () => ({
   default: (await import('./coach/coach-page')).CoachPage,
 }))
@@ -193,6 +196,7 @@ function Layout() {
             <Route path='/last-game' component={LastGamePage} />
             <Route path='/my-stats' component={MyStatsPage} />
             <Route path='/coach' component={CoachPage} />
+            <Route path='/builds' component={BuildsPage} />
             <Route>
               <Redirect to='/replays' replace={true} />
             </Route>

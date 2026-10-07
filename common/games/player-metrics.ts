@@ -7,10 +7,13 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 7
+export const GAME_METRICS_VERSION = 8
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
+
+/** The minutes into a game a player's army is counted at, to see how it came together early. */
+export const ARMY_MIX_MINUTES: ReadonlyArray<number> = [5, 7, 10]
 
 /** Supply in use that marks how quickly a player grows, in whole units. */
 export const SUPPLY_MILESTONES: ReadonlyArray<number> = [100, 150, 200]
@@ -70,6 +73,18 @@ const WORKER_LOSS_WINDOW_MS = 30_000
 const MIN_WORKER_LOSS = 3
 /** How long before a player went out their losses are left out of the moments to watch. */
 const FINAL_MINUTE_MS = 60_000
+/** How far into a game a build order is kept: the part a build decides. */
+const BUILD_MS = 10 * 60_000
+/** The most build steps kept for a game. */
+const MAX_BUILD_STEPS = 20
+/** Workers a player starts with. */
+const STARTING_WORKERS = 4
+/** A pause in making workers this long, after the first few minutes, is when a player stopped. */
+const WORKER_STOP_GAP_MS = 60_000
+/** Before this, a pause in making workers is part of a build, like a 9 pool. */
+const WORKER_STOP_FROM_MS = 3 * 60_000
+/** A player still making workers this far in never stopped early. */
+const WORKER_STOP_UNTIL_MS = 12 * 60_000
 /** How far into a game Zerg larvae are judged: the part where every larva counts most. */
 const LARVA_MS = 10 * 60_000
 /**
@@ -197,6 +212,28 @@ export interface PlayerMetrics {
   larvaeFull10?: number | null
   /** For Terran and Protoss, when they first started something that detects. */
   detectionMs?: number | null
+  /**
+   * The buildings, tech and upgrades the player started in the first 10 minutes, in order, up to
+   * {@link MAX_BUILD_STEPS}: each one's build key, when, and the supply in use just before.
+   */
+  buildSteps?: BuildStepMetric[]
+  /**
+   * When the player first stopped making workers for a minute or more after the first few
+   * minutes, and how many they had made by then. Null if they kept going through 12 minutes.
+   */
+  workerStop?: { workers: number; atMs: number } | null
+  /**
+   * The army units the player had started by each of {@link ARMY_MIX_MINUTES}, by unit id: how
+   * their early army came together.
+   */
+  armyMix?: Record<number, number[]>
+}
+
+/** One step of a build order. */
+export interface BuildStepMetric {
+  key: string
+  timeMs: number
+  supply?: number
 }
 
 /** Moments in one player's game worth watching again. */
@@ -399,6 +436,60 @@ function getWorkerProduction(
   return capacity > 0 ? Math.min(1, (used * WORKER_BUILD_MS) / capacity) : null
 }
 
+/** A player's early build order, when they stopped making workers, and what army they made. */
+function getBuild(
+  player: GamePlayerStats,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
+): Pick<PlayerMetrics, 'buildSteps' | 'workerStop' | 'armyMix'> {
+  if (!player.buildOrder) {
+    return {}
+  }
+  const buildSteps = player.buildOrder
+    .filter(
+      step =>
+        !step.cancelled &&
+        step.timeMs <= BUILD_MS &&
+        (step.kind !== 'unit' || step.id >= FIRST_BUILDING_ID),
+    )
+    .slice(0, MAX_BUILD_STEPS)
+    .map(step => ({ key: buildKey(step), timeMs: step.timeMs, supply: step.supply }))
+
+  const workerTimes = unitSteps.filter(step => WORKER_IDS.has(step.id)).map(step => step.timeMs)
+  let workerStop: PlayerMetrics['workerStop'] = null
+  for (let i = 0; i < workerTimes.length; i++) {
+    const next = workerTimes[i + 1] ?? Infinity
+    if (workerTimes[i] >= WORKER_STOP_UNTIL_MS) {
+      break
+    }
+    if (workerTimes[i] >= WORKER_STOP_FROM_MS && next - workerTimes[i] >= WORKER_STOP_GAP_MS) {
+      workerStop = { workers: STARTING_WORKERS + i + 1, atMs: workerTimes[i] }
+      break
+    }
+  }
+
+  const armyMix: Record<number, number[]> = {}
+  for (const step of unitSteps) {
+    const isArmy =
+      step.id < FIRST_BUILDING_ID &&
+      !WORKER_IDS.has(step.id) &&
+      step.id !== OVERLORD_ID &&
+      !NOT_ARMY_IDS.has(step.id)
+    if (!isArmy) {
+      continue
+    }
+    const counts = armyMix[step.id] ?? ARMY_MIX_MINUTES.map(() => 0)
+    ARMY_MIX_MINUTES.forEach((minute, i) => {
+      if (step.timeMs <= minute * 60_000) {
+        counts[i] += step.count
+      }
+    })
+    if (counts.some(Boolean)) {
+      armyMix[step.id] = counts
+    }
+  }
+  return { buildSteps, workerStop, armyMix }
+}
+
 /** For Zerg, the share of their Hatcheries' time in the first 10 minutes spent full of larvae. */
 function getLarvaeFull(times: PlayerTimes, player: GamePlayerStats) {
   const hatchery = player.timeline?.hatcheryMs
@@ -567,6 +658,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     firstScoutMs: player.firstScoutMs,
     larvaeFull10: getLarvaeFull(times, player),
     detectionMs: getDetection(player, unitSteps),
+    ...getBuild(player, unitSteps),
   }
 }
 

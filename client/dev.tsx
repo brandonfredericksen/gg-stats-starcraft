@@ -1,5 +1,6 @@
 import styled from 'styled-components'
 import { Link } from 'wouter'
+import { BuildsTest } from './builds/devonly/builds-test'
 import { CoachTest } from './coach/devonly/coach-test'
 import { DevSection } from './debug/dev-section'
 import { GameStatsTest } from './games/devonly/game-stats-test'
@@ -39,6 +40,7 @@ export default function Dev() {
         <DevSection
           baseUrl='/dev'
           routes={[
+            ['Builds', 'builds', BuildsTest],
             ['Demo player', 'demo-player', DemoPlayerTest],
             ['Game stats', 'game-stats', GameStatsTest],
             ['Material components', 'material', DevMaterial],
