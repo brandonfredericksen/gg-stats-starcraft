@@ -15,10 +15,9 @@ const Root = styled.section`
   ${panelSurface};
   padding: 16px 20px;
 
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 `
 
 const Text = styled.div`
@@ -40,6 +39,14 @@ const Body = styled.div`
   color: var(--theme-on-surface-variant);
 `
 
+/** Wraps, since there is a chip for each name seen and any number of them can turn up. */
+const Chips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+`
+
 const Actions = styled.div`
   display: flex;
   align-items: center;
@@ -54,7 +61,9 @@ const Chip = styled.button<{ $on: boolean }>`
 
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 6px;
+  white-space: nowrap;
 
   border: 1px solid
     ${props => (props.$on ? 'var(--theme-outline)' : 'var(--theme-outline-variant)')};
@@ -72,13 +81,6 @@ const Chip = styled.button<{ $on: boolean }>`
     outline: 3px solid var(--theme-grey-blue);
     outline-offset: 2px;
   }
-`
-
-const Divider = styled.span`
-  width: 1px;
-  height: 24px;
-  margin: 0 4px;
-  background-color: var(--theme-outline-variant);
 `
 
 const TextAction = styled.button<{ $primary?: boolean; $muted?: boolean }>`
@@ -152,19 +154,22 @@ export function NamesPrompt() {
           )}
         </Body>
       </Text>
+      {suggested?.length ? (
+        <Chips>
+          {suggested.map(name => (
+            <Chip
+              key={name}
+              type='button'
+              $on={picked.has(name)}
+              aria-pressed={picked.has(name)}
+              onClick={() => toggle(name)}>
+              <MaterialIcon icon='check' size={16} />
+              {name}
+            </Chip>
+          ))}
+        </Chips>
+      ) : null}
       <Actions>
-        {suggested?.map(name => (
-          <Chip
-            key={name}
-            type='button'
-            $on={picked.has(name)}
-            aria-pressed={picked.has(name)}
-            onClick={() => toggle(name)}>
-            <MaterialIcon icon='check' size={16} />
-            {name}
-          </Chip>
-        ))}
-        {suggested?.length ? <Divider /> : null}
         {suggested?.length ? (
           <TextAction
             type='button'

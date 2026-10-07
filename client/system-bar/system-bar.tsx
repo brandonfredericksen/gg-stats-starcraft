@@ -85,8 +85,8 @@ const Wordmark = styled.div`
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1;
-  /* Bahnschrift's capitals sit high in their line box, so centering the box leaves them raised. */
-  transform: translateY(2px);
+  /* Bahnschrift's capitals sit slightly high in their line box, so centering the box leaves them raised. */
+  transform: translateY(1px);
 `
 
 const Nav = styled.nav`
@@ -103,7 +103,9 @@ const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   ${buttonReset};
   ${labelLarge};
   height: 32px;
-  padding: 0 14px 0 11px;
+  /* The bottom padding lifts the label, whose capitals sit low in its line box, 1px; the icon is
+     put back by its own offset. */
+  padding: 0 14px 2px 11px;
 
   display: flex;
   align-items: center;
@@ -119,6 +121,7 @@ const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
 
   & > :first-child {
     color: var(--theme-tab-${props => props.$tab});
+    transform: translateY(1px);
   }
   font-weight: 600;
   white-space: nowrap;

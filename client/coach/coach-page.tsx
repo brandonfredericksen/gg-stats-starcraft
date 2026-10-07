@@ -1674,7 +1674,7 @@ function BucketView({
       <PlanColumns>
         <SectionErrorBoundary>
           {showNextGame ? (
-            <NextGame bucket={bucket} allGames={sinceMs === undefined} />
+            <NextGame bucket={bucket} allGames={sinceMs === undefined} eapmFloor={eapmFloor} />
           ) : (
             <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
           )}
