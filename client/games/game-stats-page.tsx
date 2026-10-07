@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import styled, { css, keyframes } from 'styled-components'
 import { assertUnreachable } from '../../common/assert-unreachable'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
+import { withAssumedResults } from '../../common/games/assumed-results'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { GameStats, GameStatsSource, ReplayStatsSource } from '../../common/games/game-stats'
 import { GameStatusString } from '../../common/games/game-status'
@@ -32,6 +33,7 @@ import {
 } from './game-stats-atoms'
 import { getMatchup, groupSides, Side } from './game-stats-model'
 import { GameStatsView } from './game-stats-view'
+import { useMyPlayerNames } from './my-player-names'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -491,6 +493,7 @@ function StatsHeader({
   const dispatch = useAppDispatch()
   const locale = useFormatLocale()
   const nowMs = useCurrentMinuteMs()
+  const myNames = useMyPlayerNames()
   const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
   const playedReplayPath =
     source.kind === 'game' ? (source.replayPath ?? recentReplayPath) : undefined
@@ -502,7 +505,7 @@ function StatsHeader({
           path: playedReplayPath,
           linkedGameId: gameId,
         }
-  const sides = groupSides(stats.players)
+  const sides = groupSides(withAssumedResults(stats.players, stats.complete, myNames))
   const mapName =
     stats.mapName ||
     (source.kind === 'replay' ? source.name : t('gameStats.unknownMap', 'Unknown map'))

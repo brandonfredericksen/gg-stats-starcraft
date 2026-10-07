@@ -240,6 +240,8 @@ interface CoachMetric {
   unit: CoachUnit
   /** The minute the number is read at. Numbers over a whole game, or a phase of it, have none. */
   minute?: number
+  /** Over the late game, from 12 minutes to the end, which needs everyone in until near the end. */
+  lateGame?: boolean
   /**
    * Depends on how the player opened, so it's compared with players who opened the same way when
    * there are enough of them.
@@ -257,7 +259,7 @@ interface CoachMetric {
   shownIn?: (context: CoachContext) => boolean
   /** Whether it can be pointed out as a gap, strength or goal here, rather than only listed. */
   pointsOut?: (context: CoachContext) => boolean
-  /** Only ever listed: never pointed out, and never a goal, even from how it changed lately. */
+  /** Only ever listed: never pointed out as a gap, strength, note or goal. */
   listedOnly?: boolean
   /**
    * Whether the user's typical number is a problem however many other players share it, like
@@ -432,6 +434,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     relativeDiff: 0.15,
     unit: 'count',
     minute: [6, 12, undefined][i],
+    lateGame: i === 2,
     openingDependent: i === 0,
     pointsOut: i === 2 ? context => !context.moneyMap : undefined,
   })),
@@ -514,6 +517,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     // Already a rate, like plain EAPM, so it's shown as a bare number.
     unit: 'count',
     minute: [6, 12, undefined][i],
+    lateGame: i === 2,
     speed: true,
   })),
   ...(['apmEarly', 'apmMid', 'apmLate'] as const).map((key, i): CoachMetric => ({
@@ -523,6 +527,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     minDiff: 15,
     unit: 'count',
     minute: [6, 12, undefined][i],
+    lateGame: i === 2,
     speed: true,
   })),
   ...(['hotkeysEarly', 'hotkeysMid', 'hotkeysLate'] as const).map((key, i): CoachMetric => ({
@@ -533,6 +538,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     relativeDiff: 0.15,
     unit: 'perMinute',
     minute: [6, 12, undefined][i],
+    lateGame: i === 2,
     speed: true,
   })),
   // Orders for each production building, which shows how often it sits idle, whatever the count.
@@ -547,6 +553,7 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     minDiff: 0.2,
     unit: 'perMinute',
     minute: [12, undefined][i],
+    lateGame: i === 1,
   })),
 ]
 
@@ -597,6 +604,11 @@ export interface CoachTiming {
   sameOpening: boolean
   /** Both sides usually make it, and their times are far enough apart to matter. */
   notable: boolean
+  /**
+   * Why a timing both sides have isn't notable: only one side usually makes it, the times are
+   * close, or it's an upgrade or defense building, whose timing follows the plan.
+   */
+  quietBecause?: 'oneSide' | 'close' | 'followsPlan'
 }
 
 /**
@@ -745,6 +757,11 @@ export interface CoachBucket {
   /** The user's games here with a known result, which comparing wins with losses needs. */
   wins: number
   losses: number
+  /**
+   * The losses compared with wins: in team games, losses where a teammate went out first say
+   * little about how the user played, so they're left out.
+   */
+  lossesCompared: number
   poolGames: number
   /** How many different players {@link poolGames} come from. */
   poolPlayers: number
@@ -883,7 +900,9 @@ function valueOf(s: Sample, metric: CoachMetric): number | undefined {
   if (metric.minute !== undefined) {
     return metric.minute * 60_000 <= s.evenUntilMs ? value : undefined
   }
-  const evenEnoughMs = Math.min(s.game.durationMs, WHOLE_GAME_EVEN_MS) - 60_000
+  const evenEnoughMs = metric.lateGame
+    ? s.game.durationMs - 60_000
+    : Math.min(s.game.durationMs, WHOLE_GAME_EVEN_MS) - 60_000
   return s.evenUntilMs >= evenEnoughMs ? value : undefined
 }
 
@@ -1179,6 +1198,16 @@ function getTimings(
     // late one.
     const bothUsual =
       userTimes.length >= user.length / 2 && poolTimes.length >= comparePool.length / 2
+    let quietBecause: CoachTiming['quietBecause']
+    if (userMs !== undefined && poolMs !== undefined) {
+      if (!bothUsual) {
+        quietBecause = 'oneSide'
+      } else if (isPlanFollower(key)) {
+        quietBecause = 'followsPlan'
+      } else if (Math.abs(userMs - poolMs) < MIN_TIMING_DIFF_MS) {
+        quietBecause = 'close'
+      }
+    }
     timings.push({
       buildKey: key,
       userMs,
@@ -1186,12 +1215,8 @@ function getTimings(
       userGames: userTimes.length,
       poolGames: poolTimes.length,
       sameOpening,
-      notable:
-        bothUsual &&
-        !isPlanFollower(key) &&
-        userMs !== undefined &&
-        poolMs !== undefined &&
-        Math.abs(userMs - poolMs) >= MIN_TIMING_DIFF_MS,
+      notable: userMs !== undefined && poolMs !== undefined && !quietBecause,
+      quietBecause,
     })
   }
   // In build order, by when it usually starts.
@@ -1451,10 +1476,11 @@ export function getMetricFamily(key: CoachMetricKey | 'buildTiming') {
 
 /**
  * A target to reach, rounded the way that still reaches it: up for numbers where more is better,
- * down where less is. Whole numbers for counts, tenths for small rates.
+ * down where less is. Whole numbers for counts, tenths for small rates, and as precise as the page
+ * shows the rest. Never -0, which would show as "-0".
  */
 export function roundTarget(value: number, unit: CoachUnit, higherIsBetter: boolean) {
-  const round = (n: number) => (higherIsBetter ? Math.ceil(n) : Math.floor(n))
+  const round = (n: number) => (higherIsBetter ? Math.ceil(n) : Math.floor(n)) + 0
   switch (unit) {
     case 'count':
       return round(value)
@@ -1465,6 +1491,11 @@ export function roundTarget(value: number, unit: CoachUnit, higherIsBetter: bool
     case 'time':
       return round(value / 1000) * 1000
     case 'percent':
+      return round(value * 100) / 100
+    case 'share':
+      // Shown as whole seconds per 10 minutes.
+      return round(value * 600) / 600
+    case 'ratio':
       return round(value * 100) / 100
     default:
       return value
@@ -1485,6 +1516,10 @@ function roundShown(value: number, unit: CoachUnit) {
     case 'time':
       return Math.round(value / 1000) * 1000
     case 'percent':
+      return Math.round(value * 100) / 100
+    case 'share':
+      return Math.round(value * 600) / 600
+    case 'ratio':
       return Math.round(value * 100) / 100
     default:
       return value
@@ -1608,9 +1643,13 @@ function getGoals({
       .filter(f => !metricOf(f.key).speed)
       .map(f => ({ ...fromMetric(metricOf(f.key), 'wins', f.winValue), userValue: f.lossValue })),
     ...changes
-      .filter(c => c.direction === 'worse' && !metricOf(c.key).listedOnly)
+      .filter(c => c.direction === 'worse')
       .toSorted((a, b) => b.size - a.size)
-      .map(c => fromMetric(metricOf(c.key), 'earlier', c.earlierValue)),
+      // Where the user is now is their latest games, which are what slipped.
+      .map(c => ({
+        ...fromMetric(metricOf(c.key), 'earlier', c.earlierValue),
+        userValue: c.recentValue,
+      })),
   ]
 
   // Nothing the user is already good at becomes a goal, so a goal never argues with a strength.
@@ -2059,6 +2098,7 @@ export function computeCoach(
     const toBuildSample = (sample: Sample, result: GameStatsResult, withUser: boolean) => ({
       player: sample.player,
       name: nameOf(sample.player),
+      side: teamGame ? String(sample.player.team) : nameOf(sample.player),
       result,
       gameId: sample.game.gameId,
       withUser,
@@ -2079,7 +2119,8 @@ export function computeCoach(
             new Map([...user, ...pool].map(sample => [sample.game.gameId, sample.game])),
           )
         : {}
-    const recentForm = getRecentForm(userGames, shownMetrics)
+    // What changed lately is pointed out as a note or a goal, so only numbers that can be count.
+    const recentForm = getRecentForm(userGames, metrics)
     const firstOut = teamGame ? getFirstOut(userGames, pool) : undefined
     const withoutNotes = {
       shape,
@@ -2095,6 +2136,7 @@ export function computeCoach(
         .sort(([, a], [, b]) => b - a)
         .map(([name]) => name),
       ...countResults(userGames),
+      lossesCompared: lossesToCompare.length,
       poolGames: pool.length,
       poolPlayers: new Set(pool.map(sample => nameOf(sample.player))).size,
       poolFromUserGames,

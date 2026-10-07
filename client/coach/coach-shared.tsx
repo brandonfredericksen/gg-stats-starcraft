@@ -195,7 +195,7 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     t('myStats.coach.metric.unitsPerBuilding', 'Units queued per production building, {{phase}}', {
       phase: phases[phase],
     }),
-    `${t('myStats.coach.help.productionPerBuilding', 'Times a minute you ordered a unit, for each production building you had, which shows how often they sat idle.')} ${phaseHelp}`,
+    `${t('myStats.coach.help.productionPerBuilding', "Times a minute you ordered an army unit, for each production building you had, which shows how often they sat idle. Workers and Overlords don't count.")} ${phaseHelp}`,
   ]
   switch (key) {
     case 'workers4':
@@ -279,12 +279,18 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     case 'secondBase':
       return [
         t('myStats.coach.metric.secondBase', 'Second base'),
-        t('myStats.coach.help.secondBase', 'When you started your second town hall.'),
+        t(
+          'myStats.coach.help.secondBase',
+          'When you started your second town hall. For Zerg, a Hatchery built for larvae counts too.',
+        ),
       ]
     case 'thirdBase':
       return [
         t('myStats.coach.metric.thirdBase', 'Third base'),
-        t('myStats.coach.help.thirdBase', 'When you started your third town hall.'),
+        t(
+          'myStats.coach.help.thirdBase',
+          'When you started your third town hall. For Zerg, a Hatchery built for larvae counts too.',
+        ),
       ]
     case 'supply100':
       return supply(100)
@@ -321,7 +327,7 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
         t('myStats.macro.armyKilled', 'Army killed'),
         t(
           'myStats.help.armyKilled',
-          "What the enemy army units you killed were worth, in the game's score. Workers, buildings and Overlords don't count.",
+          "What the enemy army units you killed were worth, by StarCraft's score for each unit. Workers, buildings, Overlords, Interceptors, Scarabs and Spider Mines don't count.",
         ),
       ]
     case 'armyLost':
@@ -329,7 +335,7 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
         t('myStats.macro.armyLost', 'Army lost'),
         t(
           'myStats.help.armyLost',
-          "What the army units you lost were worth, in the game's score. Workers, buildings and Overlords don't count.",
+          "What the army units you lost were worth, by StarCraft's score for each unit. Workers, buildings, Overlords, Interceptors, Scarabs and Spider Mines don't count.",
         ),
       ]
     case 'armyTrade':
@@ -401,7 +407,9 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
 export function useFormatValue() {
   const { t } = useTranslation()
   const format = useStatFormat()
-  return (value: number, unit: CoachUnit) => {
+  return (shownValue: number, unit: CoachUnit) => {
+    // Never "-0".
+    const value = shownValue + 0
     const number = (n: number) =>
       Math.abs(n) < 10 && !Number.isInteger(n) ? n.toFixed(1) : format.format(n)
     switch (unit) {
@@ -503,7 +511,11 @@ export function getScopeName(scope: Omit<CoachScope, 'games'>, t: TFunction) {
 export type MetricGroup = 'economy' | 'growth' | 'spending' | 'fights' | 'speed'
 
 export function getMetricGroup(key: CoachMetricKey): MetricGroup {
-  if ((key.startsWith('workers') && key !== 'workersLost') || key === 'workerProduction8') {
+  if (
+    (key.startsWith('workers') && key !== 'workersLost') ||
+    key === 'workerProduction8' ||
+    key === 'workerLead8'
+  ) {
     return 'economy'
   }
   if (key.startsWith('income')) {
@@ -515,12 +527,18 @@ export function getMetricGroup(key: CoachMetricKey): MetricGroup {
   if (
     key === 'secondBase' ||
     key === 'thirdBase' ||
+    key === 'baseLead10' ||
     key.startsWith('supply1') ||
     key === 'supply200'
   ) {
     return 'growth'
   }
-  if (key.startsWith('bank') || key === 'supplyBlocked' || key === 'larvaeFull10') {
+  if (
+    key.startsWith('bank') ||
+    key === 'supplyBlocked' ||
+    key === 'larvaeFull10' ||
+    key.startsWith('productionCommands')
+  ) {
     return 'spending'
   }
   if (key === 'scoutTime' || key === 'detection') {
@@ -607,7 +625,7 @@ export function getTipHeadline(
   if (basis === 'earlier') {
     return t(
       'myStats.coach.headline.earlier',
-      'This has dropped in your latest games, by {{gap}}.',
+      'This got worse in your latest games, by {{gap}}.',
       words,
     )
   }

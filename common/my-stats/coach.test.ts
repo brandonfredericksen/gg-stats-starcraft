@@ -7,7 +7,7 @@ import {
   PlayerMetrics,
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { CoachQuery, computeCoach } from './coach'
+import { CoachQuery, computeCoach, roundTarget } from './coach'
 import { DatedGameMetrics } from './my-stats'
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
@@ -796,5 +796,39 @@ describe('common/my-stats/coach', () => {
     expect(auto.eapmFloor).toBe(200)
     const picked = computeCoach(fast, { ...query, eapmFloor: 100 })
     expect(picked.eapmFloor).toBe(100)
+  })
+  test('rounds targets as precisely as the page shows them, never to -0', () => {
+    // 29.6s per 10 minutes shows as 30s, so a target of 30s or less is 30/600.
+    expect(roundTarget(29.6 / 600, 'share', false)).toBe(29 / 600)
+    expect(roundTarget(1.234, 'ratio', true)).toBe(1.24)
+    expect(Object.is(roundTarget(-0.5, 'count', true), -0)).toBe(false)
+  })
+
+  test("doesn't point out a listed only number that changed lately", () => {
+    const games = Array.from({ length: 20 }, (_, i) =>
+      game('1v1', [
+        player(me, 'p', 0, i % 2 ? 'win' : 'loss', { armyLost: i < 10 ? 1000 : 5000 }),
+        player(`zerg${i}`, 'z', 0, i % 2 ? 'loss' : 'win'),
+      ]),
+    )
+    const coach = computeCoach([...games, ...poolGames(40, () => 18)], query)
+    if (coach.status !== 'ready') {
+      throw new Error('Expected a ready coach')
+    }
+    const [bucket] = coach.buckets
+    expect(bucket.recentForm.changes.map(c => c.key)).not.toContain('armyLost')
+    expect(bucket.goals.map(g => g.key)).not.toContain('armyLost')
+  })
+
+  test('counts the losses it compares with wins', () => {
+    const coach = computeCoach(
+      [...myGames(12, 14, i => (i < 7 ? 'win' : 'loss')), ...poolGames(40, () => 18)],
+      query,
+    )
+    expect(coach.status === 'ready' && coach.buckets[0]).toMatchObject({
+      wins: 7,
+      losses: 5,
+      lossesCompared: 5,
+    })
   })
 })

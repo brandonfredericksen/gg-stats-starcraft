@@ -9,7 +9,7 @@ const MIN_WINNER_GAMES = 5
 const MAX_BUILDS = 8
 /** A step most games of a build take, rather than one some players add. */
 const USUAL_STEP_SHARE = 0.5
-/** An army unit made this many times a game on average, by 10 minutes, is part of the mix. */
+/** An army unit made this many times a game on average, at some minute, is part of the mix. */
 const MIN_ARMY_AVERAGE = 0.5
 /** The minutes workers are counted at, each one of `CHECKPOINT_MINUTES`. */
 export const WORKER_MINUTES: ReadonlyArray<number> = [4, 6, 8, 10]
@@ -24,8 +24,14 @@ export interface BuildSample {
   /** Who played it, so players can be counted. */
   name: string
   result: GameStatsResult
-  /** The game and team it was played in, so teammates on one build count their result once. */
+  /** The game it was played in. */
   gameId: string
+  /**
+   * The side the player was on in the game, like their team in a team game or the player in a
+   * melee game, so teammates on one build count their result once. Without it, each player counts
+   * once, unless these samples show different teams in the same game.
+   */
+  side?: string
   /** Whether the user played in the game, with or against this player. */
   withUser: boolean
   /** Whether the player went out well before a teammate, and so didn't win or lose it alone. */
@@ -62,6 +68,14 @@ export interface ArmyMixEntry {
   counts: number[]
 }
 
+/**
+ * Whether a unit is made enough to be part of a build's army mix. A unit that is, for any side, is
+ * worth showing for every side, with whatever that side's average is.
+ */
+export function isArmyMixUnit(entry: ArmyMixEntry) {
+  return Math.max(...entry.counts) >= MIN_ARMY_AVERAGE
+}
+
 /** One side of a build, like everyone who plays it, or only the games they won. */
 export interface BuildSide {
   /** Players' games: a team with two players of a build counts two. */
@@ -75,6 +89,7 @@ export interface BuildSide {
   workerStop?: WorkerStopSummary
   /** Workers at each of {@link WORKER_MINUTES}, in a typical game still going by then. */
   workersAt: Array<number | null>
+  /** Every army unit made, see {@link isArmyMixUnit} for the ones worth showing. */
   armyMix: ArmyMixEntry[]
 }
 
@@ -93,8 +108,12 @@ export interface CoachBuild {
 
 /** Two teammates' builds, and how teams that paired them did. */
 export interface CoachTeamBuild {
-  /** The two builds, see `getBuildFamily`: the one of the race asked about first. */
+  /**
+   * The two builds, see `getBuildFamily`: the one of the race asked about first, and the user's
+   * own first when both are of that race and the user played the pair.
+   */
   families: [string, string]
+  /** Other players' teams, leaving out the user's. */
   games: number
   wins: number
   losses: number
@@ -185,7 +204,8 @@ function workersAtOf(samples: ReadonlyArray<BuildSample>): Array<number | null> 
 
 /**
  * Each army unit's average count a game, at each minute, the most made by 10 minutes first. Each
- * minute averages the games still going then, so games over early don't pull it down.
+ * minute averages the games still going then, so games over early don't pull it down. Every unit
+ * made is listed, so a side can show its real count of a unit another side makes more of.
  */
 function armyMixOf(samples: ReadonlyArray<BuildSample>): ArmyMixEntry[] {
   const games = samples.filter(s => s.player.armyMix)
@@ -210,16 +230,27 @@ function armyMixOf(samples: ReadonlyArray<BuildSample>): ArmyMixEntry[] {
   return Array.from(totals, ([unitId, total]) => ({
     unitId,
     counts: total.map((count, i) => (playing[i] ? count / playing[i] : 0)),
-  }))
-    .filter(entry => Math.max(...entry.counts) >= MIN_ARMY_AVERAGE)
-    .sort((a, b) => (b.counts.at(-1) ?? 0) - (a.counts.at(-1) ?? 0))
+  })).sort((a, b) => (b.counts.at(-1) ?? 0) - (a.counts.at(-1) ?? 0))
 }
 
-/** Wins and losses with each team's result counted once. */
+/**
+ * Wins and losses with each side's result counted once. Samples without a side count by team only
+ * when they show different teams in one game, since a melee game puts every player on one team.
+ */
 function countTeams(samples: ReadonlyArray<BuildSample>) {
+  const teamsByGame = new Map<string, Set<number>>()
+  for (const s of samples) {
+    teamsByGame.set(s.gameId, (teamsByGame.get(s.gameId) ?? new Set()).add(s.player.team))
+  }
+  const sideOf = (s: BuildSample) => {
+    if (s.side !== undefined) {
+      return `side:${s.side}`
+    }
+    return teamsByGame.get(s.gameId)!.size > 1 ? `team:${s.player.team}` : `player:${s.name}`
+  }
   const results = new Map<string, GameStatsResult>()
   for (const s of samples) {
-    results.set(`${s.gameId}:${s.player.team}`, s.result)
+    results.set(`${s.gameId}:${sideOf(s)}`, s.result)
   }
   const all = Array.from(results.values())
   return {
@@ -286,13 +317,20 @@ export function summarizeBuilds(
   })
 }
 
-/** Pairs of teammates' builds, the most played first, with how those teams did. */
+/**
+ * Pairs of teammates' builds, the most played first, with how other players' teams did and how the
+ * user's did. Two builds of one race are the same pair in either order.
+ */
 export function summarizeTeamBuilds(teams: ReadonlyArray<TeamBuildSample>): CoachTeamBuild[] {
   const byPair = new Map<string, CoachTeamBuild>()
   for (const team of teams) {
-    const id = team.families.join('+')
+    const [first, second] = team.families
+    const sameRace = first.split(' ')[0] === second.split(' ')[0]
+    const families: [string, string] =
+      sameRace && second < first ? [second, first] : [first, second]
+    const id = families.join('+')
     const pair = byPair.get(id) ?? {
-      families: team.families,
+      families,
       games: 0,
       wins: 0,
       losses: 0,
@@ -300,18 +338,22 @@ export function summarizeTeamBuilds(teams: ReadonlyArray<TeamBuildSample>): Coac
       userWins: 0,
       userLosses: 0,
     }
-    pair.games += 1
-    pair.wins += team.result === 'win' ? 1 : 0
-    pair.losses += team.result === 'loss' ? 1 : 0
     if (team.user) {
+      if (!pair.userGames) {
+        pair.families = team.families
+      }
       pair.userGames += 1
       pair.userWins += team.result === 'win' ? 1 : 0
       pair.userLosses += team.result === 'loss' ? 1 : 0
+    } else {
+      pair.games += 1
+      pair.wins += team.result === 'win' ? 1 : 0
+      pair.losses += team.result === 'loss' ? 1 : 0
     }
     byPair.set(id, pair)
   }
   return Array.from(byPair.values())
-    .filter(pair => pair.games >= MIN_TEAM_BUILD_GAMES)
-    .sort((a, b) => b.games - a.games)
+    .filter(pair => pair.games >= MIN_TEAM_BUILD_GAMES || pair.userGames >= MIN_TEAM_BUILD_GAMES)
+    .sort((a, b) => b.games - a.games || b.userGames - a.userGames)
     .slice(0, MAX_TEAM_BUILDS)
 }

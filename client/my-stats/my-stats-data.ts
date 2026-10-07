@@ -68,7 +68,12 @@ async function fetchMyStats(names: string[], filters: MyStatsFilters): Promise<M
     ipcRenderer.invoke('myStatsQuery', { names, ...filters }),
     ipcRenderer.invoke('myStatsQuery', { names, range: 'all' }),
     ipcRenderer.invoke('myStatsQuery', { names, range: filters.range, shape: filters.shape }),
-    ipcRenderer.invoke('replayLibraryQuery', { ...getLibraryFilters(names, filters), limit: 1 }),
+    // Short games count, since the analyzed count next to this one has them too.
+    ipcRenderer.invoke('replayLibraryQuery', {
+      ...getLibraryFilters(names, filters),
+      includeShort: true,
+      limit: 1,
+    }),
   ])
   if (!stats || !all || !scoped || !library) {
     throw new Error("My stats couldn't be loaded")

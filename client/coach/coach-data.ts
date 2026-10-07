@@ -119,15 +119,17 @@ export function useShapeCounts(): ShapeCount[] {
 
 /**
  * The coach's look at a kind of game, again whenever games are analyzed, or `error` when it
- * couldn't be worked out. Nothing is asked without a query. `retry` asks again.
+ * couldn't be worked out. Nothing is asked without a query. Until the answer to a changed query
+ * comes, `coach` is the last one and `current` is false. `retry` asks again.
  */
 function useCoachResult(query: Omit<CoachQuery, 'names'> | undefined, range?: MyStatsRange) {
   const names = useStatsPlayerNames()
   const demo = useDemoPlayer()
-  const [data, setData] = useState<CoachResult | 'error'>()
+  const [data, setData] = useState<{ key: string; result: CoachResult | 'error' }>()
   const [attempt, setAttempt] = useState(0)
   // By value, so a query built anew each render doesn't ask again.
   const queryKey = query ? JSON.stringify(query) : undefined
+  const dataKey = `${queryKey}|${range}`
 
   useEffect(() => {
     if (!names?.length || queryKey === undefined) {
@@ -148,13 +150,13 @@ function useCoachResult(query: Omit<CoachQuery, 'names'> | undefined, range?: My
         )
         .then(result => {
           if (current && result) {
-            setData(result)
+            setData({ key: dataKey, result })
           }
         })
         .catch(err => {
           logger.error(`Error loading the coach: ${getErrorStack(err)}`)
           if (current) {
-            setData('error')
+            setData({ key: dataKey, result: 'error' })
           }
         })
     }
@@ -169,9 +171,13 @@ function useCoachResult(query: Omit<CoachQuery, 'names'> | undefined, range?: My
       ipcRenderer.removeListener('activeGameStats', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, queryKey, range, demo, attempt])
+  }, [names, queryKey, range, dataKey, demo, attempt])
 
-  return { coach: queryKey === undefined ? undefined : data, retry: () => setAttempt(a => a + 1) }
+  return {
+    coach: queryKey === undefined ? undefined : data?.result,
+    current: data?.key === dataKey,
+    retry: () => setAttempt(a => a + 1),
+  }
 }
 
 /**
@@ -184,7 +190,8 @@ export function useCoach(): { coach: CoachResult | 'error' | undefined; retry: (
   const mapKey = useAtomValue(coachMapAtom)
   // Only a floor the user picked; otherwise the coach picks one from how fast they play.
   const eapmFloor = useAtomValue(myStatsFiltersAtom).eapmFloor
-  return useCoachResult({ ...scope, mapKey, eapmFloor, window })
+  const { coach, retry } = useCoachResult({ ...scope, mapKey, eapmFloor, window })
+  return { coach, retry }
 }
 
 /**
@@ -198,12 +205,13 @@ export function picksOneKind(filters: MyStatsFilters) {
 /**
  * The coach's numbers for the games My stats' filters pick, every one of them in the time range,
  * against other players at the floor the filters show. Undefined until the filters pick one kind
- * of game, see `picksOneKind`.
+ * of game, see `picksOneKind`, and while the numbers for the latest filters are on their way, so
+ * numbers for other filters never show under these.
  */
-export function useFilteredCoach() {
+export function useFilteredCoach(): CoachResult | 'error' | undefined {
   const filters = useAtomValue(myStatsFiltersAtom)
   const { shape, race, opponentRace, mapFamily, range } = filters
-  return useCoachResult(
+  const { coach, current } = useCoachResult(
     picksOneKind(filters)
       ? {
           shape,
@@ -216,4 +224,5 @@ export function useFilteredCoach() {
       : undefined,
     range,
   )
+  return current ? coach : undefined
 }

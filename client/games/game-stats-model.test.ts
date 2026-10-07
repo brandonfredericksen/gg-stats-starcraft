@@ -9,6 +9,7 @@ import {
   getTimelineTicks,
   groupSides,
   toBuildOrderRows,
+  toFinishingOrder,
   toTimelineRows,
   toUnitEntries,
 } from './game-stats-model'
@@ -197,5 +198,26 @@ describe('client/games/game-stats-model', () => {
       eapm: undefined,
       averageUnspent: undefined,
     })
+  })
+
+  test('ranks a free for all by who won, then who stayed in longest', () => {
+    const sides = groupSides([
+      player(0, { leftAtMs: 60_000, result: 'loss' }),
+      player(1),
+      player(2, { result: 'win' }),
+      player(3, { leftAtMs: 120_000, result: 'loss' }),
+    ])
+    expect(toFinishingOrder(sides).map(side => side.key)).toEqual([2, 1, 3, 0])
+  })
+
+  test('ranks the player whose replay stopped when they left after everyone still in', () => {
+    const sides = groupSides([
+      // The recording player left, so they lost but have no time of leaving.
+      player(0, { result: 'loss' }),
+      player(1, { leftAtMs: 60_000, result: 'loss' }),
+      player(2),
+      player(3, { result: 'win' }),
+    ])
+    expect(toFinishingOrder(sides).map(side => side.key)).toEqual([3, 2, 0, 1])
   })
 })

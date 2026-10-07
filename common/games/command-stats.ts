@@ -6,12 +6,27 @@ import { PHASE_MINUTES } from './player-metrics'
  * The version of {@link ReplayCommandStats} worked out now. Stats from an older version are worked
  * out again from the replay.
  */
-export const COMMAND_STATS_VERSION = 1
+export const COMMAND_STATS_VERSION = 2
 
 /** BW's hotkey commands: assigning a group, selecting it, and adding to it. */
 const HOTKEY_ASSIGN = 0
 const HOTKEY_RECALL = 1
 const HOTKEY_ADD = 2
+
+/**
+ * Units that aren't made by production buildings, or that are made but don't fight: workers,
+ * Overlords, Nukes, and the Zerg units morphed from other units rather than from larvae.
+ */
+const NOT_PRODUCED_UNIT_IDS: ReadonlySet<number> = new Set([
+  7, // SCV
+  41, // Drone
+  64, // Probe
+  42, // Overlord
+  14, // Nuclear Missile
+  103, // Lurker
+  44, // Guardian
+  62, // Devourer
+])
 
 /** Commands that start making something. */
 const PRODUCTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
@@ -68,6 +83,7 @@ export interface PhaseCommands {
   hotkeyRecalls: number
   hotkeyAdds: number
   selections: number
+  /** Orders for army units from production buildings and larvae. */
   production: number
 }
 
@@ -155,7 +171,12 @@ export function summarizeCommands(
       phase.selections += 1
     } else if (PRODUCTION_KINDS.has(kind)) {
       phase.actions += 1
-      phase.production += 1
+      if (
+        (command.type === 'train' || command.type === 'unitMorph') &&
+        !NOT_PRODUCED_UNIT_IDS.has(command.unitType)
+      ) {
+        phase.production += 1
+      }
     } else if (command.type === 'targetedOrder') {
       phase.actions += 1
       const spell = SPELL_ORDERS.get(command.order)

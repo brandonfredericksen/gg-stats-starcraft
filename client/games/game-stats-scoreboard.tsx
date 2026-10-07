@@ -218,10 +218,14 @@ export function Scoreboard({
     },
     {
       id: 'armyProduced',
-      label: t('gameStats.armyScore', 'Army score'),
+      label: t('gameStats.armyProduced', 'Army produced'),
       get: p => p.armyProduced?.score,
       split: p => p.armyProduced,
-      description: armyDescription,
+      description: t(
+        'gameStats.armyProducedDescription',
+        "StarCraft's score for every army unit made over the whole game. It weighs gas and tech " +
+          'more than minerals. The minerals and gas it took are below.',
+      ),
       startsGroup: true,
     },
     {
@@ -266,13 +270,20 @@ export function Scoreboard({
     { id: 'eapm', label: t('gameStats.eapm', 'EAPM'), get: p => p.eapm },
   ]
   const maxes = columns.map(column => Math.max(0, ...players.map(p => column.get(p) ?? 0)))
+  // A player who left early had less time to lose units or get supply blocked, so for the numbers
+  // where less is better only the players who stayed until the end can be the best, unless nobody
+  // did.
+  const stayed = players.filter(p => p.leftAtMs === undefined)
+  const lowestFrom = stayed.length ? stayed : players
+  const canBeBest = (column: ScoreColumn, player: GamePlayerStats) =>
+    !column.lowerIsBetter || lowestFrom.includes(player)
   // The best value in each column, if anyone stands out. A column where everyone is the same, like
   // nobody being supply blocked, has nobody to pick out.
   const bests = columns.map((column, i) => {
-    const values = players.map(p => column.get(p)).filter(value => value !== undefined)
     if (!column.lowerIsBetter) {
       return maxes[i] > 0 ? maxes[i] : undefined
     }
+    const values = lowestFrom.map(p => column.get(p)).filter(value => value !== undefined)
     const lowest = Math.min(...values)
     return values.some(value => value !== lowest) ? lowest : undefined
   })
@@ -331,7 +342,9 @@ export function Scoreboard({
                     $first={first}
                     $startsGroup={column.startsGroup}>
                     <ScoreValue
-                      $leader={value !== undefined && value === bests[j]}
+                      $leader={
+                        value !== undefined && value === bests[j] && canBeBest(column, player)
+                      }
                       $primary={j === 0}>
                       {shown}
                     </ScoreValue>

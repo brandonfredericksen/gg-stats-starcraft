@@ -193,6 +193,20 @@ describe('client/games/game-stats-atoms', () => {
     expect(playedAtOf('saved')).toBe(2)
   })
 
+  test("dates shown saved stats by the replay file when the replay doesn't say", async () => {
+    invoke.mockResolvedValue({ headerData: {} })
+
+    jotaiStore.set(showGameStatsAtom, {
+      gameId: 'saved',
+      source: replay(),
+      stats: STATS,
+      replayFile: { size: 1, modifiedMs: 2 },
+      savedAt: 3,
+    })
+
+    await vi.waitFor(() => expect(playedAtOf('saved')).toBe(2))
+  })
+
   test('fails an analysis that stopped before its replay loaded as not loading', () => {
     jotaiStore.set(startReplayAnalysisAtom, { gameId: 'a', replay: replay() })
     jotaiStore.set(updateRunningAnalysesAtom, { gameId: 'a', state: 'launching' })
