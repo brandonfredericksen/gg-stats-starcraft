@@ -37,6 +37,7 @@ import {
 import { SectionErrorBoundary } from '../games/game-stats-shared'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
+import { useDemoPlayer } from '../my-stats/demo-player'
 import {
   formatPercent,
   HelpLabel,
@@ -892,10 +893,11 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
 export function BuildsPage() {
   const state = useOwnGamesState()
   const { coach } = useCoach()
-  if (!state) {
+  const demo = useDemoPlayer()
+  if (!demo && !state) {
     return <LoadingDotsArea />
   }
-  if (state !== 'found') {
+  if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />
   }
   return <BuildsView coach={coach} />
