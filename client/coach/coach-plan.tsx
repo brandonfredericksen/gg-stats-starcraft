@@ -34,23 +34,13 @@ import {
   getRaceWords,
   getTimingTip,
   getTip,
+  PanelHead,
+  PanelHeadNote,
   Text,
   Tone,
   toneColor,
   useFormatValue,
 } from './coach-shared'
-
-const PanelHeader = styled.div`
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-`
-
-const CheckSummary = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-`
 
 const Goals = styled.ol`
   margin: 0;
@@ -134,14 +124,14 @@ const Aim = styled.span<{ $small: boolean }>`
 
 /** The one goal to play the next game around: a band across the panel, edge to edge. */
 const Focus = styled.div`
-  margin: 0 calc(-1 * var(--space-5));
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-5)) 0;
   padding: var(--space-3) var(--space-5) var(--space-4);
 
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 
-  border-block: 1px solid var(--theme-outline-variant);
+  border-bottom: 1px solid var(--theme-outline-variant);
   background: var(--theme-container);
 
   /* With no goals after it, it runs to the panel's bottom edge. */
@@ -178,7 +168,7 @@ const AimBasis = styled.span`
 const Facts = styled.div`
   ${bodyMedium};
   display: grid;
-  grid-template-columns: 200px 200px minmax(0, 1fr);
+  grid-template-columns: 170px 180px minmax(0, 1fr);
   gap: var(--space-1) var(--space-4);
   color: var(--theme-on-surface-variant);
   font-variant-numeric: tabular-nums;
@@ -191,8 +181,8 @@ const Facts = styled.div`
 const Fact = styled.span<{ $tone?: Tone }>`
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-1);
+  white-space: nowrap;
 
   & > strong {
     color: ${props => (props.$tone ? toneColor(props.$tone) : 'var(--theme-on-surface)')};
@@ -258,7 +248,6 @@ const DetailsButton = styled.button`
   ${buttonReset};
   ${labelLarge};
   height: 28px;
-  margin-left: auto;
   padding: 0 var(--space-1) 0 var(--space-2);
 
   display: inline-flex;
@@ -527,8 +516,11 @@ function GoalItem({
           <Fact>
             {goal.beats !== undefined ? (
               <>
-                {t('myStats.coach.factBeats', 'Better than')}
-                <strong>{formatPercent(goal.beats)}</strong>
+                {/* A goal is where the user trails, so it reads as how many are ahead of them. */}
+                {goal.beats < 0.5
+                  ? t('myStats.coach.factBehind', 'Behind')
+                  : t('myStats.coach.factBeats', 'Better than')}
+                <strong>{formatPercent(goal.beats < 0.5 ? 1 - goal.beats : goal.beats)}</strong>
                 {t('myStats.coach.factBeatsOf', 'of {{race}} players', {
                   race: raceCharToLabel(bucket.race, t),
                 })}
@@ -569,9 +561,9 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
   const { t } = useTranslation()
   return (
     <PaddedPanel>
-      <PanelHeader>
+      <PanelHead>
         <PanelTitle>{t('myStats.coach.goals', 'Your goals')}</PanelTitle>
-        <CheckSummary>
+        <PanelHeadNote>
           {allGames
             ? t('myStats.coach.goalsFromAll', 'From all {{count}} of your games.', {
                 count: bucket.userGames,
@@ -579,8 +571,8 @@ export function NextGame({ bucket, allGames }: { bucket: CoachBucket; allGames: 
             : t('myStats.coach.goalsFrom', 'From your last {{count}} games.', {
                 count: bucket.userGames,
               })}
-        </CheckSummary>
-      </PanelHeader>
+        </PanelHeadNote>
+      </PanelHead>
       {bucket.goals.length ? (
         <>
           <Focus>
@@ -845,7 +837,12 @@ export function CoachNotes({
   })
   return (
     <PaddedPanel>
-      <PanelTitle>{t('myStats.coach.trendsTitle', 'Your trends')}</PanelTitle>
+      <PanelHead>
+        <PanelTitle>{t('myStats.coach.trendsTitle', 'Your trends')}</PanelTitle>
+        <PanelHeadNote>
+          {t('myStats.coach.trendsNote', 'How your latest games are going.')}
+        </PanelHeadNote>
+      </PanelHead>
       {notes.length ? (
         <Notes>
           {notes.map(note => {
