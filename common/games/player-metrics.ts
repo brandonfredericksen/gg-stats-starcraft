@@ -7,13 +7,13 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 8
+export const GAME_METRICS_VERSION = 10
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
 
 /** The minutes into a game a player's army is counted at, to see how it came together early. */
-export const ARMY_MIX_MINUTES: ReadonlyArray<number> = [5, 7, 10]
+export const ARMY_MIX_MINUTES: ReadonlyArray<number> = [4, 6, 8, 10]
 
 /** Supply in use that marks how quickly a player grows, in whole units. */
 export const SUPPLY_MILESTONES: ReadonlyArray<number> = [100, 150, 200]
@@ -76,15 +76,45 @@ const FINAL_MINUTE_MS = 60_000
 /** How far into a game a build order is kept: the part a build decides. */
 const BUILD_MS = 10 * 60_000
 /** The most build steps kept for a game. */
-const MAX_BUILD_STEPS = 20
+const MAX_BUILD_STEPS = 32
+/**
+ * Supply buildings, Overlords and static defense of one kind past this many follow the supply or
+ * the threat, not the build, so they're left out of the steps rather than filling them.
+ */
+const MAX_REPEATED_STEPS = 2
+/**
+ * Supply Depots, Pylons, Overlords, Photon Cannons, Bunkers, Missile Turrets, and Sunken and Spore
+ * Colonies.
+ */
+const REPEATED_STEP_IDS: ReadonlySet<number> = new Set([109, 156, 42, 162, 125, 124, 146, 144])
+const CREEP_COLONY_ID = 143
+/** Sunken and Spore Colonies, which start as a Creep Colony. */
+const FROM_CREEP_IDS: ReadonlySet<number> = new Set([146, 144])
+/**
+ * Units made by morphing others, and how many of which unit each one used: Lurkers from
+ * Hydralisks, Guardians and Devourers from Mutalisks, Archons from High Templar and Dark Archons
+ * from Dark Templar.
+ */
+const MORPHED_FROM: Partial<Record<number, readonly [id: number, count: number]>> = {
+  103: [38, 1],
+  44: [43, 1],
+  62: [43, 1],
+  68: [67, 2],
+  63: [61, 2],
+}
 /** Workers a player starts with. */
 const STARTING_WORKERS = 4
-/** A pause in making workers this long, after the first few minutes, is when a player stopped. */
-const WORKER_STOP_GAP_MS = 60_000
+/**
+ * A pause in making workers this long, after the first few minutes, is when a player stopped.
+ * Shorter ones are mostly a production cycle spent on something else.
+ */
+const WORKER_STOP_GAP_MS = 90_000
+/** A pause spent mostly out of supply is a supply block, not a stop. */
+const WORKER_STOP_BLOCKED_SHARE = 0.5
 /** Before this, a pause in making workers is part of a build, like a 9 pool. */
 const WORKER_STOP_FROM_MS = 3 * 60_000
 /** A player still making workers this far in never stopped early. */
-const WORKER_STOP_UNTIL_MS = 12 * 60_000
+const WORKER_STOP_UNTIL_MS = 10 * 60_000
 /** How far into a game Zerg larvae are judged: the part where every larva counts most. */
 const LARVA_MS = 10 * 60_000
 /**
@@ -213,18 +243,23 @@ export interface PlayerMetrics {
   /** For Terran and Protoss, when they first started something that detects. */
   detectionMs?: number | null
   /**
-   * The buildings, tech and upgrades the player started in the first 10 minutes, in order, up to
-   * {@link MAX_BUILD_STEPS}: each one's build key, when, and the supply in use just before.
+   * The buildings, tech and upgrades the player started in the first 10 minutes, and the first of
+   * each army unit, in order, up to {@link MAX_BUILD_STEPS}: each one's build key, when, and the
+   * supply in use just before. Supply, and static defense of each kind, only count their first
+   * {@link MAX_REPEATED_STEPS}, and a Sunken or Spore Colony starts when its Creep Colony did.
    */
   buildSteps?: BuildStepMetric[]
   /**
-   * When the player first stopped making workers for a minute or more after the first few
-   * minutes, and how many they had made by then. Null if they kept going through 12 minutes.
+   * When the player first stopped making workers for {@link WORKER_STOP_GAP_MS} or more after the
+   * first few minutes, other than while out of supply, and how many they had then. A stop already
+   * going by then, like after a rush, starts at their last worker. Null if they kept going through
+   * 10 minutes, and missing if they went out before either could be told.
    */
   workerStop?: { workers: number; atMs: number } | null
   /**
    * The army units the player had started by each of {@link ARMY_MIX_MINUTES}, by unit id: how
-   * their early army came together.
+   * their early army came together. A unit morphed into another, like a Hydralisk into a Lurker,
+   * only counts as what it became.
    */
   armyMix?: Record<number, number[]>
 }
@@ -436,58 +471,119 @@ function getWorkerProduction(
   return capacity > 0 ? Math.min(1, (used * WORKER_BUILD_MS) / capacity) : null
 }
 
+function isArmyUnit(id: number) {
+  return (
+    id < FIRST_BUILDING_ID && !WORKER_IDS.has(id) && id !== OVERLORD_ID && !NOT_ARMY_IDS.has(id)
+  )
+}
+
+/** A player's build order, as {@link PlayerMetrics.buildSteps} describes it. */
+function getBuildSteps(player: GamePlayerStats): BuildStepMetric[] {
+  const steps = (player.buildOrder ?? [])
+    .filter(step => !step.cancelled && step.timeMs <= BUILD_MS)
+    .toSorted((a, b) => a.timeMs - b.timeMs)
+  const counts = new Map<string, number>()
+  const creepColonies: number[] = []
+  const buildSteps: BuildStepMetric[] = []
+  for (const step of steps) {
+    const isUnit = step.kind === 'unit'
+    if (isUnit && step.id === CREEP_COLONY_ID) {
+      creepColonies.push(step.timeMs)
+      continue
+    }
+    const key = buildKey(step)
+    const count = (counts.get(key) ?? 0) + 1
+    counts.set(key, count)
+    let keep = true
+    if (isUnit && REPEATED_STEP_IDS.has(step.id)) {
+      keep = count <= MAX_REPEATED_STEPS && (step.id !== OVERLORD_ID || player.race === 'z')
+    } else if (isUnit && step.id < FIRST_BUILDING_ID) {
+      keep = isArmyUnit(step.id) && count === 1
+    }
+    if (!keep) {
+      continue
+    }
+    const fromCreep = isUnit && FROM_CREEP_IDS.has(step.id) ? creepColonies.shift() : undefined
+    buildSteps.push({ key, timeMs: fromCreep ?? step.timeMs, supply: step.supply })
+  }
+  return buildSteps.toSorted((a, b) => a.timeMs - b.timeMs).slice(0, MAX_BUILD_STEPS)
+}
+
+/** When the player stopped making workers, as {@link PlayerMetrics.workerStop} describes it. */
+function getWorkerStop(
+  times: PlayerTimes,
+  player: GamePlayerStats,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number }>,
+): PlayerMetrics['workerStop'] {
+  const workerTimes = unitSteps.filter(step => WORKER_IDS.has(step.id)).map(step => step.timeMs)
+  const blockedMs = (fromMs: number, toMs: number) =>
+    (times.valueAt(player.timeline?.supplyBlockedMs, toMs) ?? 0) -
+    (times.valueAt(player.timeline?.supplyBlockedMs, fromMs) ?? 0)
+  // Each pause between one worker and the next, from the last one before the first few minutes.
+  for (let i = -1; i < workerTimes.length; i++) {
+    const next = workerTimes[i + 1]
+    if (next !== undefined && next < WORKER_STOP_FROM_MS) {
+      continue
+    }
+    const lastMs = workerTimes[i] ?? 0
+    const startMs = Math.max(lastMs, WORKER_STOP_FROM_MS)
+    if (startMs >= WORKER_STOP_UNTIL_MS || startMs >= times.playedMs) {
+      break
+    }
+    const endMs = Math.min(next ?? Infinity, times.playedMs)
+    if (
+      endMs - startMs >= WORKER_STOP_GAP_MS &&
+      blockedMs(startMs, endMs) < (endMs - startMs) * WORKER_STOP_BLOCKED_SHARE
+    ) {
+      return {
+        workers: times.valueAt(player.timeline?.workers, lastMs) ?? STARTING_WORKERS + i + 1,
+        atMs: lastMs,
+      }
+    }
+  }
+  return times.playedMs >= WORKER_STOP_UNTIL_MS ? null : undefined
+}
+
 /** A player's early build order, when they stopped making workers, and what army they made. */
 function getBuild(
+  times: PlayerTimes,
   player: GamePlayerStats,
   unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
 ): Pick<PlayerMetrics, 'buildSteps' | 'workerStop' | 'armyMix'> {
   if (!player.buildOrder) {
     return {}
   }
-  const buildSteps = player.buildOrder
-    .filter(
-      step =>
-        !step.cancelled &&
-        step.timeMs <= BUILD_MS &&
-        (step.kind !== 'unit' || step.id >= FIRST_BUILDING_ID),
-    )
-    .slice(0, MAX_BUILD_STEPS)
-    .map(step => ({ key: buildKey(step), timeMs: step.timeMs, supply: step.supply }))
-
-  const workerTimes = unitSteps.filter(step => WORKER_IDS.has(step.id)).map(step => step.timeMs)
-  let workerStop: PlayerMetrics['workerStop'] = null
-  for (let i = 0; i < workerTimes.length; i++) {
-    const next = workerTimes[i + 1] ?? Infinity
-    if (workerTimes[i] >= WORKER_STOP_UNTIL_MS) {
-      break
-    }
-    if (workerTimes[i] >= WORKER_STOP_FROM_MS && next - workerTimes[i] >= WORKER_STOP_GAP_MS) {
-      workerStop = { workers: STARTING_WORKERS + i + 1, atMs: workerTimes[i] }
-      break
-    }
-  }
-
   const armyMix: Record<number, number[]> = {}
-  for (const step of unitSteps) {
-    const isArmy =
-      step.id < FIRST_BUILDING_ID &&
-      !WORKER_IDS.has(step.id) &&
-      step.id !== OVERLORD_ID &&
-      !NOT_ARMY_IDS.has(step.id)
-    if (!isArmy) {
+  const countsOf = (id: number) => armyMix[id] ?? ARMY_MIX_MINUTES.map(() => 0)
+  for (const step of unitSteps.toSorted((a, b) => a.timeMs - b.timeMs)) {
+    if (!isArmyUnit(step.id)) {
       continue
     }
-    const counts = armyMix[step.id] ?? ARMY_MIX_MINUTES.map(() => 0)
+    const counts = countsOf(step.id)
+    const morphed = MORPHED_FROM[step.id]
+    const source = morphed ? countsOf(morphed[0]) : undefined
     ARMY_MIX_MINUTES.forEach((minute, i) => {
       if (step.timeMs <= minute * 60_000) {
         counts[i] += step.count
+        if (source && morphed) {
+          source[i] = Math.max(0, source[i] - step.count * morphed[1])
+        }
       }
     })
     if (counts.some(Boolean)) {
       armyMix[step.id] = counts
     }
+    if (morphed && source?.some(Boolean)) {
+      armyMix[morphed[0]] = source
+    } else if (morphed) {
+      delete armyMix[morphed[0]]
+    }
   }
-  return { buildSteps, workerStop, armyMix }
+  return {
+    buildSteps: getBuildSteps(player),
+    workerStop: getWorkerStop(times, player, unitSteps),
+    armyMix,
+  }
 }
 
 /** For Zerg, the share of their Hatcheries' time in the first 10 minutes spent full of larvae. */
@@ -599,13 +695,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
   }
 
   const townHalls = buildings.filter(step => TOWN_HALL_IDS.has(step.id))
-  const firstArmy = unitSteps.find(
-    step =>
-      step.id < FIRST_BUILDING_ID &&
-      !WORKER_IDS.has(step.id) &&
-      step.id !== OVERLORD_ID &&
-      !NOT_ARMY_IDS.has(step.id),
-  )
+  const firstArmy = unitSteps.find(step => isArmyUnit(step.id))
 
   return {
     names: player.names,
@@ -658,7 +748,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     firstScoutMs: player.firstScoutMs,
     larvaeFull10: getLarvaeFull(times, player),
     detectionMs: getDetection(player, unitSteps),
-    ...getBuild(player, unitSteps),
+    ...getBuild(times, player, unitSteps),
   }
 }
 

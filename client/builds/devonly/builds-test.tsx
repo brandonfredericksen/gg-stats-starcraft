@@ -1,6 +1,11 @@
 import styled from 'styled-components'
-import { BuildSide, BuildStepSummary, CoachBuild } from '../../../common/my-stats/builds'
-import { CoachResult } from '../../../common/my-stats/coach'
+import {
+  BuildSide,
+  BuildStepSummary,
+  CoachBuild,
+  CoachTeamBuild,
+} from '../../../common/my-stats/builds'
+import { CoachBucket, CoachResult } from '../../../common/my-stats/coach'
 import { pvz, pvzScope, recentWindow, scopes } from '../../coach/devonly/coach-test'
 import { BuildsView } from '../builds-page'
 
@@ -9,45 +14,60 @@ const CaseLabel = styled.h2`
   color: var(--theme-on-surface-variant);
 `
 
+function time(text: string) {
+  const [minutes, seconds] = text.split(':').map(Number)
+  return (minutes * 60 + seconds) * 1000
+}
+
 function steps(list: Array<[key: string, supply: number, time: string, share?: number]>) {
   const seen = new Map<string, number>()
-  return list.map(([key, supply, time, share = 0.9]): BuildStepSummary => {
+  return list.map(([key, supply, at, share = 0.9]): BuildStepSummary => {
     const nth = (seen.get(key) ?? 0) + 1
     seen.set(key, nth)
-    const [minutes, seconds] = time.split(':').map(Number)
-    return { key, nth, supply, timeMs: (minutes * 60 + seconds) * 1000, share }
+    return { key, nth, supply, timeMs: time(at), share }
   })
 }
 
-function side(
-  games: number,
-  wins: number,
-  stepList: BuildStepSummary[],
-  workers: [number, string, number] | undefined,
-  army: Array<[number, number, number, number]>,
-): BuildSide {
-  const [count, time, stopped] = workers ?? [0, '0:00', 0]
-  const [minutes, seconds] = time.split(':').map(Number)
+function side({
+  games,
+  wins,
+  withUser = 0,
+  stepList,
+  stop,
+  workersAt,
+  army,
+}: {
+  games: number
+  wins: number
+  withUser?: number
+  stepList: BuildStepSummary[]
+  stop?: [workers: number, at: string, stopped: number]
+  workersAt: number[]
+  army: Array<[number, number, number, number, number]>
+}): BuildSide {
   return {
     games,
     wins,
     losses: games - wins,
+    withUser,
     steps: stepList,
-    workerStop: workers
-      ? { workers: count, atMs: (minutes * 60 + seconds) * 1000, stopped, games }
+    workerStop: stop
+      ? { workers: stop[0], atMs: time(stop[1]), stopped: stop[2], games }
       : undefined,
+    workersAt,
     armyMix: army.map(([unitId, ...counts]) => ({ unitId, counts })),
   }
 }
 
 /** Forge, Nexus, Gateway against Zerg, the usual way to open, and the user's. */
 const forgeExpand: CoachBuild = {
-  family: 'expand:forge',
+  family: 'p forgeExpand u167',
   players: 38,
-  others: side(
-    61,
-    33,
-    steps([
+  others: side({
+    games: 61,
+    wins: 33,
+    withUser: 61,
+    stepList: steps([
       ['u156', 8, '0:45'],
       ['u166', 10, '1:12'],
       ['u154', 14, '1:58'],
@@ -55,20 +75,24 @@ const forgeExpand: CoachBuild = {
       ['u160', 16, '2:41'],
       ['u156', 18, '3:05'],
       ['u157', 20, '3:30'],
+      ['u65', 21, '3:40', 0.7],
       ['u164', 22, '3:58'],
-      ['u157', 28, '4:50', 0.6],
+      ['u167', 30, '5:10', 0.6],
+      ['u60', 36, '6:20', 0.6],
     ]),
-    [42, '9:40', 19],
-    [
-      [65, 1, 2.2, 4.1],
-      [66, 0, 1.4, 3.5],
-      [60, 0, 0, 1.2],
+    stop: [44, '10:05', 19],
+    workersAt: [17, 26, 34, 42],
+    army: [
+      [65, 1, 2.2, 3.4, 4.1],
+      [60, 0, 0.2, 2.6, 4.5],
+      [66, 0, 0, 1.4, 3.5],
     ],
-  ),
-  winners: side(
-    33,
-    33,
-    steps([
+  }),
+  winners: side({
+    games: 33,
+    wins: 33,
+    withUser: 33,
+    stepList: steps([
       ['u156', 8, '0:44'],
       ['u166', 10, '1:10'],
       ['u154', 14, '1:55'],
@@ -76,20 +100,24 @@ const forgeExpand: CoachBuild = {
       ['u160', 16, '2:38'],
       ['u156', 18, '3:01'],
       ['u157', 20, '3:22'],
+      ['u65', 21, '3:35'],
       ['u164', 22, '3:49'],
-      ['u157', 27, '4:35', 0.7],
+      ['u167', 29, '4:58'],
+      ['u60', 35, '6:05'],
     ]),
-    [44, '10:05', 9],
-    [
-      [65, 1, 2, 3.8],
-      [66, 0, 1.8, 4.2],
-      [60, 0, 0, 1.5],
+    stop: [46, '10:20', 9],
+    workersAt: [18, 27, 36, 44],
+    army: [
+      [65, 1, 2, 3, 3.8],
+      [60, 0, 0.5, 3.1, 5.2],
+      [66, 0, 0, 1.8, 4.2],
     ],
-  ),
-  user: side(
-    18,
-    8,
-    steps([
+  }),
+  user: side({
+    games: 18,
+    wins: 8,
+    withUser: 18,
+    stepList: steps([
       ['u156', 8, '0:46'],
       ['u166', 10, '1:15'],
       ['u154', 14, '2:06'],
@@ -97,57 +125,101 @@ const forgeExpand: CoachBuild = {
       ['u160', 17, '3:02'],
       ['u156', 19, '3:20'],
       ['u157', 21, '3:58'],
+      ['u65', 21, '3:40'],
       ['u164', 23, '4:31'],
+      ['u60', 34, '6:40'],
     ]),
-    [36, '8:10', 14],
-    [
-      [65, 2, 3.1, 5],
-      [66, 0, 0.8, 2.4],
+    stop: [36, '8:10', 14],
+    workersAt: [16, 24, 31, 36],
+    army: [
+      [65, 2, 3.1, 4.2, 5],
+      [66, 0, 0, 0.8, 2.4],
     ],
-  ),
+  }),
 }
 
 const oneGateCore: CoachBuild = {
-  family: 'oneBase:gates1',
+  family: 'p gates1 expand u163',
   players: 14,
-  others: side(
-    19,
-    9,
-    steps([
+  others: side({
+    games: 19,
+    wins: 9,
+    withUser: 19,
+    stepList: steps([
       ['u156', 8, '0:45'],
       ['u160', 10, '1:15'],
       ['u157', 11, '1:30'],
       ['u164', 13, '2:20'],
       ['u154', 20, '3:45'],
+      ['u163', 26, '4:40', 0.7],
     ]),
-    [30, '7:10', 12],
-    [
-      [65, 1, 1.5, 2],
-      [66, 0.6, 3.1, 6.2],
+    stop: [30, '7:10', 12],
+    workersAt: [15, 22, 28, 30],
+    army: [
+      [65, 1, 1.5, 1.8, 2],
+      [66, 0.6, 3.1, 5, 6.2],
+      [61, 0, 0, 1.6, 2.1],
     ],
-  ),
+  }),
 }
 
 const twoGate: CoachBuild = {
-  family: 'oneBase:gates2',
+  family: 'p gates2',
   players: 6,
-  others: side(
-    7,
-    4,
-    steps([
+  others: side({
+    games: 7,
+    wins: 4,
+    withUser: 7,
+    stepList: steps([
       ['u156', 8, '0:45'],
       ['u160', 9, '1:05'],
       ['u160', 10, '1:22'],
+      ['u65', 12, '1:58'],
     ]),
-    [18, '4:30', 6],
-    [[65, 5.4, 8.1, 9]],
-  ),
+    stop: [18, '4:30', 6],
+    workersAt: [13, 18, 18, 19],
+    army: [[65, 5.4, 8.1, 8.8, 9]],
+  }),
 }
 
-const bucket = {
+const bucket: CoachBucket = {
   ...pvz,
   builds: [forgeExpand, oneGateCore, twoGate],
-  userBuild: 'expand:forge',
+  userBuild: forgeExpand.family,
+}
+
+const teamBuilds: CoachTeamBuild[] = [
+  {
+    families: ['p forgeExpand u167', 'z overpool muta2'],
+    games: 14,
+    wins: 9,
+    losses: 5,
+    userGames: 6,
+    userWins: 4,
+    userLosses: 2,
+  },
+  {
+    families: ['p gates2', 'z pool9 speed'],
+    games: 8,
+    wins: 3,
+    losses: 5,
+    userGames: 0,
+    userWins: 0,
+    userLosses: 0,
+  },
+]
+
+const teamBucket: CoachBucket = {
+  ...bucket,
+  shape: '2v2',
+  opponentRace: undefined,
+  allyRace: 'z',
+  anyAlly: false,
+  buildsAgainst: [
+    { opponents: 'tz', games: 24, builds: [forgeExpand, twoGate], userBuild: forgeExpand.family },
+    { opponents: 'pp', games: 12, builds: [twoGate] },
+  ],
+  teamBuilds,
 }
 
 const cases: Array<[string, CoachResult]> = [
@@ -160,6 +232,17 @@ const cases: Array<[string, CoachResult]> = [
       scope: pvzScope,
       ...recentWindow,
       buckets: [bucket],
+    },
+  ],
+  [
+    '2v2 with a Zerg teammate, picking who the builds were against',
+    {
+      status: 'ready',
+      scopes: [{ shape: '2v2', race: 'p', allyRace: 'z', games: 40 }, ...scopes],
+      eapmFloor: 120,
+      scope: { shape: '2v2', race: 'p', allyRace: 'z' },
+      ...recentWindow,
+      buckets: [teamBucket],
     },
   ],
   [
@@ -176,7 +259,7 @@ const cases: Array<[string, CoachResult]> = [
   ],
 ]
 
-/** The Builds page with made up numbers, for a 1v1 with a map menu, which real data may not have. */
+/** The Builds page with made up numbers, for game types real data may not have. */
 export function BuildsTest() {
   return (
     <>

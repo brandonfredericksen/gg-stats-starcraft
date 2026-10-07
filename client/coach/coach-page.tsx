@@ -152,7 +152,7 @@ const StuckSentinel = styled.div`
 `
 
 /** The race the user played, among the kinds of game of the picked game type. */
-const Races = styled.div`
+export const Races = styled.div`
   flex-shrink: 0;
   padding: 4px;
 
@@ -164,7 +164,7 @@ const Races = styled.div`
   background-color: var(--theme-container-low);
 `
 
-const RaceButton = styled.button<{ $on: boolean }>`
+export const RaceButton = styled.button<{ $on: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 30px;

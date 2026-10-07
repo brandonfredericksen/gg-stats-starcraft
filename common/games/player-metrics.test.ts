@@ -258,6 +258,58 @@ describe('common/games/player-metrics/getGameShape', () => {
     expect(z.workerProduction8).toBeUndefined()
   })
 
+  test('tells when a player stopped making workers, apart from supply blocks and the game ending', () => {
+    const durationMs = 20 * 60_000
+    // A Probe every 20 seconds until 4:40.
+    const probes = Array.from({ length: 15 }, (_, i) => step(i / 3, 64))
+    const stopOf = (overrides: Partial<GamePlayerStats>) =>
+      computeGameMetrics('g', game([player('Bisu', durationMs, overrides)])).players[0].workerStop
+
+    // The timeline has 8 workers at 4:40.
+    expect(stopOf({ buildOrder: probes })).toEqual({ workers: 8, atMs: 280_000 })
+    expect(stopOf({ buildOrder: probes, leftAtMs: 330_000 })).toBeUndefined()
+
+    // Out of supply for most of a pause from 3:00 to 4:30, then a Probe every 20 seconds.
+    const blocked = [
+      ...Array.from({ length: 10 }, (_, i) => step(i / 3, 64)),
+      ...Array.from({ length: 30 }, (_, i) => step(4.5 + i / 3, 64)),
+    ]
+    expect(stopOf({ buildOrder: blocked })).toBeNull()
+  })
+
+  test('keeps the steps of a build and the army it made', () => {
+    const [z] = computeGameMetrics(
+      'g',
+      game([
+        player('Jaedong', 20 * 60_000, {
+          race: 'z',
+          buildOrder: [
+            step(0.5, 42),
+            step(1, 142),
+            step(2, 42),
+            step(2.5, 42),
+            step(3, 143),
+            step(3.5, 146),
+            step(4, 37, { count: 2 }),
+            step(4.5, 37, { count: 2 }),
+            step(5, 38, { count: 4 }),
+            step(5.5, 103, { count: 2 }),
+          ],
+        }),
+      ]),
+    ).players
+    expect(z.buildSteps?.map(s => [s.key, s.timeMs / 60_000])).toEqual([
+      ['u42', 0.5],
+      ['u142', 1],
+      ['u42', 2],
+      ['u146', 3],
+      ['u37', 4],
+      ['u38', 5],
+      ['u103', 5.5],
+    ])
+    expect(z.armyMix).toEqual({ 37: [2, 4, 4, 4], 38: [0, 2, 2, 2], 103: [0, 2, 2, 2] })
+  })
+
   test('reads scouting, detection and full Hatcheries', () => {
     const durationMs = 20 * 60_000
     const minutes = samples(durationMs).map(ms => ms / 60_000)
