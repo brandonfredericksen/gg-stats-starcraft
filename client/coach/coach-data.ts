@@ -7,13 +7,14 @@ import {
   CoachResult,
   CoachScope,
   CoachWindow,
+  computeCoach,
   DEFAULT_EAPM_FLOOR,
 } from '../../common/my-stats/coach'
 import { MyStatsShape } from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
-import { useMyPlayerNames } from '../games/my-player-names'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import logger from '../logging/logger'
+import { getDemoGames, useDemoPlayer, useStatsPlayerNames } from '../my-stats/demo-player'
 import { getLibraryFilters, myStatsFiltersAtom } from '../my-stats/my-stats-data'
 import { countNotAnalyzed } from '../replays/analyze-latest'
 
@@ -59,12 +60,22 @@ async function countReplays(filters: ReplayLibraryFilters) {
   return result?.total ?? 0
 }
 
+/** The made up player's games of each type, every one of them analyzed. */
+function countDemoShapes(): ShapeCount[] {
+  const games = getDemoGames()
+  return ALL_SHAPES.flatMap(shape => {
+    const total = games.filter(game => game.shape === shape).length
+    return total ? [{ shape, analyzed: total, total }] : []
+  })
+}
+
 /**
  * Every game type in the user's replays, with how many of each are analyzed. The library can't
  * tell the user's race, so these are only split by game type.
  */
 export function useShapeCounts(): ShapeCount[] {
-  const names = useMyPlayerNames()
+  const names = useStatsPlayerNames()
+  const demo = useDemoPlayer()
   const status = useAtomValue(autoCaptureStatusAtom)
   const [data, setData] = useState<ShapeCount[]>([])
 
@@ -76,16 +87,19 @@ export function useShapeCounts(): ShapeCount[] {
       return undefined
     }
     let current = true
-    Promise.all(
-      ALL_SHAPES.map(async shape => {
-        const filters = getLibraryFilters(names, { range: 'all', shape })
-        const [total, notAnalyzed] = await Promise.all([
-          countReplays(filters),
-          countNotAnalyzed(filters),
-        ])
-        return { shape, analyzed: total - notAnalyzed, total }
-      }),
-    )
+    const counting = demo
+      ? Promise.resolve(countDemoShapes())
+      : Promise.all(
+          ALL_SHAPES.map(async shape => {
+            const filters = getLibraryFilters(names, { range: 'all', shape })
+            const [total, notAnalyzed] = await Promise.all([
+              countReplays(filters),
+              countNotAnalyzed(filters),
+            ])
+            return { shape, analyzed: total - notAnalyzed, total }
+          }),
+        )
+    counting
       .then(result => {
         if (current) {
           setData(result.filter(count => count.total > 0))
@@ -97,7 +111,7 @@ export function useShapeCounts(): ShapeCount[] {
     return () => {
       current = false
     }
-  }, [names, pendingKey])
+  }, [names, pendingKey, demo])
 
   return data
 }
@@ -112,11 +126,12 @@ export function useEapmFloor() {
 
 /** The coach's look at the picked kind of game, again whenever games are analyzed. */
 export function useCoach(): CoachResult | undefined {
-  const names = useMyPlayerNames()
+  const names = useStatsPlayerNames()
   const scope = useAtomValue(coachScopeAtom)
   const window = useAtomValue(coachWindowAtom)
   const mapKey = useAtomValue(coachMapAtom)
   const eapmFloor = useEapmFloor()
+  const demo = useDemoPlayer()
   const [data, setData] = useState<CoachResult>()
 
   useEffect(() => {
@@ -125,15 +140,11 @@ export function useCoach(): CoachResult | undefined {
     }
     let current = true
     const load = () => {
-      Promise.resolve(
-        ipcRenderer.invoke('coachQuery', {
-          names: [...names],
-          ...scope,
-          mapKey,
-          eapmFloor,
-          window,
-        }),
-      )
+      const query = { names: [...names], ...scope, mapKey, eapmFloor, window }
+      Promise.resolve()
+        .then(() =>
+          demo ? computeCoach(getDemoGames(), query) : ipcRenderer.invoke('coachQuery', query),
+        )
         .then(result => {
           if (current && result) {
             setData(result)
@@ -154,7 +165,7 @@ export function useCoach(): CoachResult | undefined {
       ipcRenderer.removeListener('activeGameStats', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, scope, mapKey, eapmFloor, window])
+  }, [names, scope, mapKey, eapmFloor, window, demo])
 
   return data
 }

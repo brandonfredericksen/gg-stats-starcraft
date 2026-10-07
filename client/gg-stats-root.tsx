@@ -33,6 +33,11 @@ const ReduxDevToolsContainer = import.meta.env.DEV
   : undefined
 
 const DevComponent = import.meta.env.PROD ? () => null : React.lazy(() => import('./dev'))
+const DemoPlayerPill = import.meta.env.PROD
+  ? () => null
+  : React.lazy(async () => ({
+      default: (await import('./my-stats/devonly/demo-player-pill')).DemoPlayerPill,
+    }))
 
 const CoachPage = React.lazy(async () => ({
   default: (await import('./coach/coach-page')).CoachPage,
@@ -144,6 +149,11 @@ function AppContent() {
         </Switch>
       </React.Suspense>
       <ConnectedDialogOverlay />
+      {import.meta.env.DEV ? (
+        <React.Suspense fallback={null}>
+          <DemoPlayerPill />
+        </React.Suspense>
+      ) : null}
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { GameStatsResult } from '../games/game-stats'
-import { MapFamily } from '../games/map-family'
+import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
@@ -91,7 +91,10 @@ export interface PersonRow extends WinLoss {
 }
 
 export interface MapRow extends WinLoss {
-  /** The map's name, or for money maps, the first name it was seen under. */
+  /**
+   * The map's name without its version, as played most, or for money maps, the first name it was
+   * seen under.
+   */
   mapName: string
   family: MapFamily
 }
@@ -365,21 +368,30 @@ function getPeople(games: ReadonlyArray<MyGame>, names: ReadonlyArray<string>): 
   })).sort((a, b) => b.games - a.games || a.name.localeCompare(b.name))
 }
 
+/**
+ * The user's record on each map. Every version of a standard map counts toward it, named by the one
+ * played most, see `getMapKey`. Money maps are grouped by kind.
+ */
 function getMaps(games: ReadonlyArray<MyGame>): MapRow[] {
-  const maps = new Map<string, MapRow>()
+  const maps = new Map<string, MapRow & { names: Map<string, number> }>()
   for (const g of games) {
     const family = g.game.mapFamily
-    const key = family === 'standard' ? `standard:${g.game.mapName.toLowerCase()}` : family
+    const key = family === 'standard' ? `standard:${getMapKey(g.game.mapName)}` : family
     let row = maps.get(key)
     if (!row) {
-      row = { ...emptyRecord(), mapName: g.game.mapName, family }
+      row = { ...emptyRecord(), mapName: g.game.mapName, family, names: new Map() }
       maps.set(key, row)
     }
+    row.names.set(g.game.mapName, (row.names.get(g.game.mapName) ?? 0) + 1)
     tally(row, g.result)
   }
-  return Array.from(maps.values()).sort(
-    (a, b) => b.games - a.games || a.mapName.localeCompare(b.mapName),
-  )
+  return Array.from(maps.values(), ({ names, ...row }) => {
+    if (row.family !== 'standard') {
+      return row
+    }
+    const [mostPlayed] = Array.from(names).sort(([, a], [, b]) => b - a)[0]
+    return { ...row, mapName: getMapDisplayName(mostPlayed) }
+  }).sort((a, b) => b.games - a.games || a.mapName.localeCompare(b.mapName))
 }
 
 function getTeamStats(games: ReadonlyArray<MyGame>): TeamStats | undefined {

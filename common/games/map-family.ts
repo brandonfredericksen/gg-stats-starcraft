@@ -1,3 +1,5 @@
+import { getKnownMapName } from './map-names'
+
 /**
  * Maps that are played so differently they need their own benchmarks: money maps, where income is
  * so high that spending decides games, rather than worker counts.
@@ -8,14 +10,15 @@ export type MapFamily = 'fastest' | 'bgh' | 'standard'
  * Groups a map by its name. Money maps are uploaded under many names and versions ("Fastest
  * Possible Map ver 1.4", "Fastest 2v2", "Fastest3v3", "Big Game Hunters", "BGH3v3", "Big Hunters"
  * with Korean notes after it), so the name is matched loosely, even inside a longer word. Big
- * Hunters is played as Big Game Hunters, so it's grouped with it.
+ * Hunters is played as Big Game Hunters, so it's grouped with it. Korean uploads go by 빠른무한
+ * (Fastest) and 빅헌터 (Big Hunters), and Fastest is often spelled with a section sign for each S.
  */
 export function getMapFamily(mapName: string): MapFamily {
-  const name = mapName.toLowerCase()
-  if (name.includes('fastest')) {
+  const name = mapName.toLowerCase().replaceAll('§', 's')
+  if (name.includes('fastest') || /빠른\s*무한|빠무|빨무/.test(name)) {
     return 'fastest'
   }
-  if (name.includes('bgh') || /big\s*(game\s*)?hunters?/.test(name)) {
+  if (name.includes('bgh') || /big\s*(game\s*)?hunters?|빅\s*(게임\s*)?헌터/.test(name)) {
     return 'bgh'
   }
   return 'standard'
@@ -34,6 +37,7 @@ export function getMapBaseName(mapName: string): string {
     })
     .join('')
   const base = visible
+    .replace(/_/g, ' ')
     .replace(/\[[^\]]*\]|\([^)]*\)|\|[^|]*\|/g, ' ')
     .replace(/\biccup\b/gi, ' ')
     .replace(/\bremaster\w*/gi, ' ')
@@ -45,7 +49,16 @@ export function getMapBaseName(mapName: string): string {
   return base || visible.trim()
 }
 
-/** The map a name is a version of, to group by. See `getMapBaseName`. */
+/**
+ * The name to show for a map: the one it goes by in English when it's a known map, uploaded in
+ * Korean or tagged by a league, and otherwise its own name without what one upload adds.
+ */
+export function getMapDisplayName(mapName: string): string {
+  const baseName = getMapBaseName(mapName)
+  return getKnownMapName(baseName) ?? baseName
+}
+
+/** The map a name is a version of, to group by. See `getMapDisplayName`. */
 export function getMapKey(mapName: string): string {
-  return getMapBaseName(mapName).toLowerCase()
+  return getMapDisplayName(mapName).toLowerCase()
 }

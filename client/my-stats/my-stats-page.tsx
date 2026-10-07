@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { DEFAULT_EAPM_FLOOR } from '../../common/my-stats/coach'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
-import { useMyPlayerNames } from '../games/my-player-names'
 import { TextButton } from '../material/button'
 import { LoadingDotsArea } from '../progress/dots'
 import { useAppDispatch } from '../redux-hooks'
@@ -12,6 +11,7 @@ import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
 import { bodyMedium, headlineMedium, labelLarge } from '../styles/typography'
 import { AnalyzeMine } from './analyze-mine'
+import { useStatsPlayerNames } from './demo-player'
 import { MyStatsData, MyStatsFilters, myStatsFiltersAtom, useMyStats } from './my-stats-data'
 import { FilterBar } from './my-stats-filters'
 import {
@@ -147,7 +147,7 @@ function getCoverageText(data: MyStatsData, filters: MyStatsFilters, t: TFunctio
 export function MyStatsView() {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const names = useMyPlayerNames() ?? []
+  const names = useStatsPlayerNames() ?? []
   const filters = useAtomValue(myStatsFiltersAtom)
   const data = useMyStats()
 

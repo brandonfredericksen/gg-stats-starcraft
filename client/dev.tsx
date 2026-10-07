@@ -4,6 +4,7 @@ import { CoachTest } from './coach/devonly/coach-test'
 import { DevSection } from './debug/dev-section'
 import { GameStatsTest } from './games/devonly/game-stats-test'
 import DevMaterial from './material/devonly/routes'
+import { DemoPlayerTest } from './my-stats/devonly/demo-player-test'
 import { DotsTest } from './progress/devonly/dots-test'
 import { DevReplays } from './replays/devonly/routes'
 import { DevSettings } from './settings/devonly/routes'
@@ -38,6 +39,7 @@ export default function Dev() {
         <DevSection
           baseUrl='/dev'
           routes={[
+            ['Demo player', 'demo-player', DemoPlayerTest],
             ['Game stats', 'game-stats', GameStatsTest],
             ['Material components', 'material', DevMaterial],
             ['My stats coach', 'coach', CoachTest],

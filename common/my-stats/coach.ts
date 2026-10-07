@@ -1,5 +1,5 @@
 import { GameStatsResult } from '../games/game-stats'
-import { getMapBaseName, getMapKey, MapFamily } from '../games/map-family'
+import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
@@ -1434,7 +1434,7 @@ export function computeCoach(
     const versions = Array.from(names).sort(([, a], [, b]) => b - a)
     return {
       key,
-      name: getMapBaseName(versions[0][0]),
+      name: getMapDisplayName(versions[0][0]),
       games: versions.reduce((sum, [, n]) => sum + n, 0),
     }
   }).sort((a, b) => b.games - a.games)
