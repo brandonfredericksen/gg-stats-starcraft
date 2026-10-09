@@ -7,6 +7,7 @@ import type {
   WebContents,
 } from 'electron'
 import { Promisable } from 'type-fest'
+import { GameIconsManifest } from './game-icons'
 import { GameDebugScreenshot } from './games/game-debug'
 import { GameLaunchConfig } from './games/game-launch-config'
 import {
@@ -97,6 +98,12 @@ interface IpcInvokeables {
    */
   activeGameForceQuit: (gameId: string) => void
   activeGameSetConfig: (config: GameLaunchConfig | Record<string, never>) => string | null
+
+  /**
+   * The list of StarCraft's command card icons the game DLL saved from the player's install, or
+   * undefined until a game has run to save them.
+   */
+  gameIconsGet: () => GameIconsManifest | undefined
 
   logMessage: (level: string, message: string) => void
 

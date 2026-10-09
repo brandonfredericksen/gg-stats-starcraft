@@ -211,6 +211,7 @@ unsafe fn handle_game_request(request: GameThreadRequestType) {
                 debug!("LobbyInitCompleter finished, proceeding to game loop");
 
                 send_game_msg_to_async(GameThreadMessage::GameStarting);
+                crate::game_icons::save_captured();
 
                 debug!("Game seed: {:#x}", bw.rng_seed());
 

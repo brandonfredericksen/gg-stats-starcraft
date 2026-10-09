@@ -367,6 +367,11 @@ describe('common/games/player-metrics/getGameShape', () => {
       ['u103', 5.5],
     ])
     expect(z.armyMix).toEqual({ 37: [2, 4, 4, 4], 38: [0, 2, 2, 2], 103: [0, 2, 2, 2] })
+    expect(z.unitTimes).toEqual({
+      37: [4, 4, 4.5, 4.5].map(minute => minute * 60_000),
+      38: [5, 5, 5, 5].map(minute => minute * 60_000),
+      103: [5.5, 5.5].map(minute => minute * 60_000),
+    })
   })
 
   test('reads scouting, detection and full Hatcheries', () => {

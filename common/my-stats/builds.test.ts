@@ -49,6 +49,7 @@ function threeGate(name: string, result: 'win' | 'loss', gasMs = 250_000): Build
       ],
       workerStop: { workers: 22, atMs: 420_000 },
       armyMix: { 65: [4, 8, 10, 12] },
+      unitTimes: { 64: [0, 13_000], 65: [200_000, 230_000] },
     }),
   }
 }
@@ -100,7 +101,23 @@ describe('common/my-stats/builds', () => {
       games: 4,
     })
     expect(builds[0].others.armyMix).toEqual([{ unitId: 65, counts: [4, 8, 10, 12] }])
+    expect(builds[0].others.unitSteps.map(s => [s.key, s.nth, s.timeMs])).toEqual([
+      ['u64', 5, 0],
+      ['u64', 6, 13_000],
+      ['u65', 1, 200_000],
+      ['u65', 2, 230_000],
+    ])
     expect(builds[1].others.workerStop).toMatchObject({ stopped: 0, games: 3 })
+  })
+
+  test('gives each step the times the middle half of games take it between', () => {
+    const pool = [200_000, 250_000, 300_000, 350_000].map(gasMs => threeGate('a', 'win', gasMs))
+    const [build] = summarizeBuilds([], pool, familyOf)
+    expect(build.others.steps.find(s => s.key === 'u157')).toMatchObject({
+      timeMs: 275_000,
+      earlyMs: 237_500,
+      lateMs: 312_500,
+    })
   })
 
   test('counts a team once, leaves carried players out of the winners and keeps the user build', () => {

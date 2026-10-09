@@ -2,7 +2,9 @@ import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { GamePlayerStats } from '../../common/games/game-stats'
+import { buildKey } from '../../common/games/player-metrics'
 import { bodyMedium, labelMedium, singleLine } from '../styles/typography'
+import { GameIcon } from './game-icon'
 import { BuildOrderRow, toBuildOrderRows } from './game-stats-model'
 import { raceColor, StatsPanel, VisuallyHidden } from './game-stats-shared'
 
@@ -44,6 +46,14 @@ const StepNumber = styled.span`
   font-variant-numeric: tabular-nums;
 `
 
+/** A step's icon and name. */
+const StepNameCell = styled.span`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
 /** Names stay on one line, so every step is the same height and lines up across players. */
 const StepName = styled.span<{ $cancelled: boolean; $buildingColor?: string }>`
   ${singleLine};
@@ -75,13 +85,20 @@ function BuildStepRow({ row, buildingColor }: { row: BuildOrderRow; buildingColo
     <StepRow>
       <StepNumber>{getGameDurationString(row.timeMs)}</StepNumber>
       <StepNumber>{row.supply ?? '-'}</StepNumber>
-      <StepName
-        $cancelled={row.cancelled}
-        $buildingColor={row.isBuilding ? buildingColor : undefined}>
-        {row.cancelled
-          ? t('gameStats.buildStepCanceledName', '{{name}} (canceled)', { name })
-          : name}
-      </StepName>
+      <StepNameCell>
+        <GameIcon
+          buildKey={buildKey({ kind: row.kind, id: row.id })}
+          size={26}
+          color={row.cancelled ? 'var(--theme-on-surface-variant)' : undefined}
+        />
+        <StepName
+          $cancelled={row.cancelled}
+          $buildingColor={row.isBuilding ? buildingColor : undefined}>
+          {row.cancelled
+            ? t('gameStats.buildStepCanceledName', '{{name}} (canceled)', { name })
+            : name}
+        </StepName>
+      </StepNameCell>
     </StepRow>
   )
 }
