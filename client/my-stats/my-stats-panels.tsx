@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import styled from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
+import { LadderRank } from '../../common/games/ladder'
 import { GameShape } from '../../common/games/player-metrics'
 import {
   Average,
@@ -45,6 +46,7 @@ import {
   singleLine,
   titleSmall,
 } from '../styles/typography'
+import { getPoolSource } from './pool-source'
 
 export const PanelTitle = styled.h2`
   ${titleSmall};
@@ -1149,13 +1151,17 @@ export function MacroAveragesPanel({
   macro,
   others,
   othersGames,
+  othersFromBaseline,
   eapmFloor,
+  rank,
   extraNote,
 }: {
   macro: MyStatsResult['macro']
   others: MyStatsResult['macroOthers']
   othersGames: number
+  othersFromBaseline: number
   eapmFloor: number
+  rank?: LadderRank
   /** A last sentence for the note under the numbers. */
   extraNote?: string
 }) {
@@ -1338,13 +1344,17 @@ export function MacroAveragesPanel({
           ? null
           : t('myStats.macro.othersNote', {
               defaultValue:
-                "Others come from {{count}} games of other players in your replays, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
+                "Others come from {{count}} games of other players {{source}}, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
               defaultValue_one:
-                "Others come from {{count}} game of another player in your replays, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
+                "Others come from {{count}} game of another player {{source}}, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
               count: othersGames,
               floor: eapmFloor,
+              source: getPoolSource(othersFromBaseline, othersGames, t),
             })}
         {hasOthers ? ' ' : null}
+        {rank
+          ? `${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: rank.toUpperCase() })} `
+          : null}
         {t(
           'myStats.macro.note',
           'Each number only counts games that lasted that long. Supply blocks in the first 3 minutes, often part of a build, are left out.',

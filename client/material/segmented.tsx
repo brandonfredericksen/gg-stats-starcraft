@@ -1,3 +1,4 @@
+import type * as React from 'react'
 import styled from 'styled-components'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { labelLarge } from '../styles/typography'
@@ -24,6 +25,10 @@ const Segment = styled.button<{ $on: boolean }>`
   height: 30px;
   padding: 0 12px;
 
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
   border-radius: var(--radius-sm);
   background-color: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
   color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
@@ -48,6 +53,8 @@ export interface SegmentOption<T> {
   title?: string
   /** What a `SegmentMenu` lists it as, when the list has room to say more than its button. */
   menuLabel?: string
+  /** Shown before the label, like a rank's badge. */
+  icon?: React.ReactNode
 }
 
 /** A row of buttons picking one of a few options, like a game type to filter by. */
@@ -76,6 +83,7 @@ export function Segmented<T>({
           $on={option.value === value}
           aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}>
+          {option.icon}
           {option.label}
         </Segment>
       ))}
@@ -153,6 +161,7 @@ export function SegmentMenu<T>({
         aria-label={showLabel ? undefined : `${label}: ${current.title ?? current.label}`}
         onClick={openMenu}>
         {showLabel ? <MenuButtonLabel>{label}</MenuButtonLabel> : null}
+        {current.icon}
         {current.title ?? current.label}
         <Chevron />
       </MenuButton>
@@ -168,6 +177,7 @@ export function SegmentMenu<T>({
             <SelectableMenuItem
               key={option.label}
               text={option.menuLabel ?? option.title ?? option.label}
+              trailingContent={option.icon}
               selected={option.value === value}
               onClick={() => {
                 closeMenu()

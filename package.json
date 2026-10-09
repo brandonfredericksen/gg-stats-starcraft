@@ -26,6 +26,8 @@
     "dev": "vite -c vite.electron.config.ts",
     "dist": "pnpm run clean && pnpm run build-app-client && pnpm run build-game && pnpm run gen-notices && electron-builder build --win --x64 -p never -c gg-stats.yml",
     "download-fonts": "node -r @swc-node/register download-fonts.ts",
+    "fetch-ladder-replays": "node -r @swc-node/register tools/ladder-replays/fetch-ladder-replays.ts",
+    "ladder-baseline": "node -r @swc-node/register tools/ladder-replays/ladder-baseline.ts",
     "format": "oxfmt \"**/*.{js,jsx,mjs,cjs,ts,tsx}\"",
     "format:check": "oxfmt --check \"**/*.{js,jsx,mjs,cjs,ts,tsx}\"",
     "gen-notices": "node -r @swc-node/register tools/notices/gen-notices.ts",

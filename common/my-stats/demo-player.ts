@@ -1,3 +1,4 @@
+import { LADDER_RANKS, LadderRank } from '../games/ladder'
 import { getMapFamily, MapFamily } from '../games/map-family'
 import {
   CHECKPOINT_MINUTES,
@@ -207,6 +208,12 @@ interface Played {
   /** When they went out, before the game ended. */
   leftAtMs?: number
   quit?: boolean
+}
+
+/** A 1v1 ladder rank from how well a player plays: C for the typical player, S for the best. */
+function demoRank(skill: number): LadderRank {
+  const index = Math.round(skill * 1.5) + LADDER_RANKS.indexOf('c')
+  return LADDER_RANKS[Math.min(LADDER_RANKS.length - 1, Math.max(0, index))]
 }
 
 /** One player's numbers, from the typical player of their race and how well this one plays. */
@@ -475,7 +482,18 @@ export function generateDemoGames(nowMs: number): DatedGameMetrics[] {
           result = 'unknown'
         }
         const played: Played = { person, team: teamGame ? s + 1 : 0, result, leftAtMs, quit }
-        return makeMetrics(random, played, profiles[person.race], durationMs, form.get(person)!)
+        const metrics = makeMetrics(
+          random,
+          played,
+          profiles[person.race],
+          durationMs,
+          form.get(person)!,
+        )
+        // Only the others have ranks, so the coach compares the demo player with every rank
+        // until one is picked, the same as for someone whose own games have no ladder manifest.
+        return shape === '1v1' && person !== me
+          ? { ...metrics, rank: demoRank(person.skill) }
+          : metrics
       })
     })
     if (teamGame) {

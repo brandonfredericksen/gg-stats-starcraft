@@ -1,9 +1,10 @@
 import { GameStatsResult } from '../games/game-stats'
+import { LadderRank } from '../games/ladder'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
-import { DEFAULT_EAPM_FLOOR } from './coach'
+import { DEFAULT_EAPM_FLOOR, pickRank } from './coach'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
 /** How many of the latest games the recent results show. */
@@ -25,11 +26,15 @@ export interface MyStatsQuery {
   mapFamily?: MapFamily
   /** The EAPM other players need for the comparisons to count them. */
   eapmFloor?: number
+  /** Only used in 1v1: the ladder rank other players need, see `CoachQuery`. */
+  rank?: LadderRank | 'any'
 }
 
 /** A game's metrics along with when it was played. */
 export interface DatedGameMetrics extends GameMetrics {
   gameTimeMs: number
+  /** Whether it's from the ladder baseline the app ships, rather than the user's replays. */
+  ladderBaseline?: boolean
 }
 
 /** Games, and how many of them were won and lost. Games without a result count in neither. */
@@ -140,6 +145,10 @@ export interface MyStatsResult {
   macroOthers: MacroAverages
   /** How many other players' games {@link macroOthers} comes from. */
   othersGames: number
+  /** Of {@link othersGames}, how many are from the ladder baseline the app ships. */
+  othersFromBaseline: number
+  /** The ladder rank other players were picked by, in 1v1. */
+  rank?: LadderRank
   /** The people the user played with most, then against most. */
   teammates: PersonRow[]
   opponents: PersonRow[]
@@ -452,13 +461,14 @@ function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
 /**
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
  * filters pick, playing the race they pick against the opponent race they pick, at or above the
- * EAPM floor, who played at least 5 minutes. Games from any time count, since how others play
- * doesn't depend on when the user did.
+ * EAPM floor and, in 1v1, at `rank`, who played at least 5 minutes. Games from any time count,
+ * since how others play doesn't depend on when the user did.
  */
 function getOthers(
   allGames: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
-): PlayerMetrics[] {
+  rank: LadderRank | undefined,
+): Array<{ player: PlayerMetrics; baseline: boolean }> {
   const floor = query.eapmFloor ?? DEFAULT_EAPM_FLOOR
   return allGames.flatMap(game => {
     if (query.shape && game.shape !== query.shape) {
@@ -468,16 +478,18 @@ function getOthers(
       return []
     }
     const me = findMe(game, query.names)
-    return game.players.filter(
+    const players = game.players.filter(
       p =>
         p !== me &&
         p.human &&
         (p.eapm ?? 0) >= floor &&
+        (!rank || p.rank === rank) &&
         playedEnough(game, p) &&
         (!query.race || p.race === query.race) &&
         (!query.opponentRace ||
           (game.shape === '1v1' && getSidesOf(game, p).opponents[0]?.race === query.opponentRace)),
     )
+    return players.map(player => ({ player, baseline: game.ladderBaseline === true }))
   })
 }
 
@@ -505,7 +517,14 @@ export function computeMyStats(
   }
 
   const people = getPeople(games, query.names)
-  const others = getOthers(allGames, query)
+  const rank =
+    query.shape === '1v1'
+      ? pickRank(allGames, query.names, query.rank, game => {
+          const g = toMyGame(game, query.names)
+          return !!g && matchesQuery(g, query, nowMs)
+        })
+      : undefined
+  const others = getOthers(allGames, query, rank)
   return {
     games: games.length,
     record,
@@ -518,8 +537,10 @@ export function computeMyStats(
     byLength: getLengthRows(games),
     // Held to the same rule as the others they're compared with.
     macro: getMacroAverages(games.filter(g => playedEnough(g.game, g.me)).map(g => g.me)),
-    macroOthers: getMacroAverages(others),
+    macroOthers: getMacroAverages(others.map(o => o.player)),
     othersGames: others.length,
+    othersFromBaseline: others.filter(o => o.baseline).length,
+    rank,
     teammates: people.filter(p => p.relation === 'teammate'),
     opponents: people.filter(p => p.relation === 'opponent'),
     maps: getMaps(games),

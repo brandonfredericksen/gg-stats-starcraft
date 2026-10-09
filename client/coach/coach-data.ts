@@ -189,8 +189,8 @@ export function useCoach(): { coach: CoachResult | 'error' | undefined; retry: (
   const window = useAtomValue(coachWindowAtom)
   const mapKey = useAtomValue(coachMapAtom)
   // Only a floor the user picked; otherwise the coach picks one from how fast they play.
-  const eapmFloor = useAtomValue(myStatsFiltersAtom).eapmFloor
-  const { coach, retry } = useCoachResult({ ...scope, mapKey, eapmFloor, window })
+  const { eapmFloor, rank } = useAtomValue(myStatsFiltersAtom)
+  const { coach, retry } = useCoachResult({ ...scope, mapKey, eapmFloor, rank, window })
   return { coach, retry }
 }
 
@@ -219,6 +219,7 @@ export function useFilteredCoach(): CoachResult | 'error' | undefined {
           opponentRace,
           mapFamily,
           eapmFloor: filters.eapmFloor ?? DEFAULT_EAPM_FLOOR,
+          rank: filters.rank,
           window: 'all',
         }
       : undefined,

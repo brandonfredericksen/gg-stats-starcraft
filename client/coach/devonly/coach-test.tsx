@@ -130,6 +130,7 @@ export const pvz: CoachBucket = {
   poolPlayers: 74,
   builds: [],
   poolFromUserGames: 64,
+  poolFromBaseline: 0,
   goals: [
     {
       key: 'workers8',
@@ -568,6 +569,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
           anyAlly: true,
           poolPlayers: 0,
           poolFromUserGames: 0,
+          poolFromBaseline: 0,
           userGames: 24,
           goals: ownGoals,
           recentForm: { ...recentForm, newPartnerGames: 6 },

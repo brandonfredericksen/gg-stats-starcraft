@@ -1,6 +1,7 @@
 import { meetsContrastGuidelines } from 'polished'
 import { css } from 'styled-components'
 import { assertUnreachable } from '../../common/assert-unreachable'
+import { LadderRank } from '../../common/games/ladder'
 import { RaceChar } from '../../common/races'
 
 export const blue10 = '#071a22'
@@ -230,6 +231,15 @@ export const THEME_CSS = css`
   --theme-color-terran: ${colorTerran};
   --theme-color-random: ${colorRandom};
 
+  /** The 1v1 ladder ranks, F up to S, from dull to bright, ending in gold. */
+  --theme-rank-f: #9ca3af;
+  --theme-rank-e: #c9935f;
+  --theme-rank-d: #b8c4d6;
+  --theme-rank-c: #4ade80;
+  --theme-rank-b: #60a5fa;
+  --theme-rank-a: #c084fc;
+  --theme-rank-s: #fbbf24;
+
   --theme-dialog-scrim: var(--color-grey-blue10);
   --theme-dialog-scrim-opacity: ${dialogScrimOpacity};
 
@@ -366,6 +376,14 @@ export const LIGHT_THEME_CSS = css`
   --theme-color-terran: #1d4ed8;
   --theme-color-random: #b85c12;
 
+  --theme-rank-f: #6b7280;
+  --theme-rank-e: #9a5b2a;
+  --theme-rank-d: #5b6b82;
+  --theme-rank-c: #15803d;
+  --theme-rank-b: #1d4ed8;
+  --theme-rank-a: #7e22ce;
+  --theme-rank-s: #a16207;
+
   --theme-dialog-scrim: #111113;
   --theme-dialog-scrim-opacity: 0.4;
 
@@ -436,6 +454,10 @@ export function getRaceColor(race: RaceChar) {
     default:
       return assertUnreachable(race)
   }
+}
+
+export function getRankColor(rank: LadderRank) {
+  return `var(--theme-rank-${rank})`
 }
 
 // TODO(tec27): Use APCA instead of WCAG contrast stuff

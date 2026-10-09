@@ -1,6 +1,7 @@
 import { AssignedRaceChar } from '../races'
 import type { PlayerCommandStats, ReplayCommandStats } from './command-stats'
 import { BuildStep, GamePlayerStats, GameStats, GameStatsResult } from './game-stats'
+import type { LadderRank } from './ladder'
 import { getMapFamily, MapFamily } from './map-family'
 
 /**
@@ -173,6 +174,12 @@ export interface PlayerMetrics {
   human: boolean
   apm?: number
   eapm?: number
+  /**
+   * The player's 1v1 ladder MMR and rank going into the game, when a ladder manifest next to the
+   * replay says. Never saved with the metrics: added each time they're read, see `ladder.ts`.
+   */
+  mmr?: number
+  rank?: LadderRank
   /** Finished workers at each of {@link CHECKPOINT_MINUTES}. */
   workers: Array<number | null>
   /** Minerals and gas mined so far, at each checkpoint. */

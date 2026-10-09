@@ -39,6 +39,8 @@ import {
   PanelHeadNote,
   PanelTitle,
 } from '../my-stats/my-stats-panels'
+import { getPoolSource } from '../my-stats/pool-source'
+import { RankMenu } from '../my-stats/rank-menu'
 import { LoadingDotsArea } from '../progress/dots'
 import {
   bodyMedium,
@@ -933,6 +935,7 @@ function ScopeTiles({
       },
     )
   }
+  const poolSource = getPoolSource(bucket.poolFromBaseline, bucket.poolGames, t)
 
   return (
     <Tiles>
@@ -968,14 +971,17 @@ function ScopeTiles({
           {sinceMs === undefined
             ? t(
                 'myStats.coach.tileTheirsDetailAll',
-                '{{players}} players over {{floor}} EAPM in your replays, up to 5 games each.',
-                { players: bucket.poolPlayers, floor: eapmFloor },
+                '{{players}} players over {{floor}} EAPM {{source}}, up to 5 games each.',
+                { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
               )
             : t(
                 'myStats.coach.tileTheirsDetail',
-                '{{players}} players over {{floor}} EAPM in your replays, from the same dates, up to 5 games each.',
-                { players: bucket.poolPlayers, floor: eapmFloor },
+                '{{players}} players over {{floor}} EAPM {{source}}, from the same dates, up to 5 games each.',
+                { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
               )}
+          {bucket.rank
+            ? ` ${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: bucket.rank.toUpperCase() })}`
+            : null}
         </TileDetail>
       </Tile>
       <CoverageTile shape={bucket.shape} counts={counts} />
@@ -1367,6 +1373,9 @@ function Unlock({
             components={{ b: <Key /> }}
           />
         )}
+        {bucket.rank
+          ? ` ${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: bucket.rank.toUpperCase() })}`
+          : null}
       </Text>
       <Progress>
         <span>{t('myStats.coach.yourGames', 'Your games')}</span>
@@ -1501,18 +1510,19 @@ export function Comparison({
   const race = raceCharToLabel(bucket.race, t)
   const lossesMinute = bucket.mapFamily === 'bgh' ? 15 : 8
   const [tab, setTab] = useState(readCompareTab)
+  const poolSource = getPoolSource(bucket.poolFromBaseline, bucket.poolGames, t)
 
   const source: string[] = [
     sameDates
       ? t(
           'myStats.coach.othersFloor',
-          'Against {{race}} players over {{floor}} EAPM from your replays, from the same dates. Speed rows count every EAPM.',
-          { race, floor: eapmFloor },
+          'Against {{race}} players over {{floor}} EAPM {{source}}, from the same dates. Speed rows count every EAPM.',
+          { race, floor: eapmFloor, source: poolSource },
         )
       : t(
           'myStats.coach.othersFloorAll',
-          'Against {{race}} players over {{floor}} EAPM from your replays. Speed rows count every EAPM.',
-          { race, floor: eapmFloor },
+          'Against {{race}} players over {{floor}} EAPM {{source}}. Speed rows count every EAPM.',
+          { race, floor: eapmFloor, source: poolSource },
         ),
   ]
   if (isTeamGame(bucket.shape)) {
@@ -1521,15 +1531,23 @@ export function Comparison({
   if (bucket.shape === '1v1') {
     // In a mirror, other players are mostly the user's own opponents; otherwise they can only come
     // from other people's games, so the benchmark means something different.
+    const fromOthers = bucket.poolGames - bucket.poolFromUserGames - bucket.poolFromBaseline
     source.push(
-      t(
-        'myStats.coach.poolSourceSplit',
-        '{{fromYours}} of theirs are from your own games, {{fromOthers}} from other replays.',
-        {
-          fromYours: bucket.poolFromUserGames,
-          fromOthers: bucket.poolGames - bucket.poolFromUserGames,
-        },
-      ),
+      bucket.poolFromBaseline
+        ? t(
+            'myStats.coach.poolSourceSplitLadder',
+            '{{fromYours}} of theirs are from your own games, {{fromOthers}} from your other replays and {{fromLadder}} from recent ladder games.',
+            {
+              fromYours: bucket.poolFromUserGames,
+              fromOthers,
+              fromLadder: bucket.poolFromBaseline,
+            },
+          )
+        : t(
+            'myStats.coach.poolSourceSplit',
+            '{{fromYours}} of theirs are from your own games, {{fromOthers}} from other replays.',
+            { fromYours: bucket.poolFromUserGames, fromOthers },
+          ),
     )
   }
   if (bucket.allyRace) {
@@ -1935,6 +1953,7 @@ export function CoachToolbar({
   coach: CoachResult
   counts: ReadonlyArray<ShapeCount>
 }) {
+  const { t } = useTranslation()
   const [sentinelRef, stuck] = useStuck()
   const pickedShape = useAtomValue(coachLockedShapeAtom)
   const pickedLocked = coach.scopes.some(s => s.shape === pickedShape)
@@ -1960,6 +1979,9 @@ export function CoachToolbar({
           <WindowMenu autoGames={coach.autoGames} autoMonths={coach.autoMonths} />
         ) : null}
         <FloorMenu floor={coach.eapmFloor} />
+        {picked?.shape === '1v1' ? (
+          <RankMenu autoRank={coach.rank} label={t('myStats.filters.rank', 'Their rank')} />
+        ) : null}
       </Toolbar>
     </>
   )

@@ -35,6 +35,7 @@ import { checkStarcraftPath } from './game/check-starcraft-path'
 import { CommandStatsBackfill } from './game/command-stats-backfill'
 import createGameServer, { GameServer } from './game/game-server'
 import { GameStatsStore } from './game/game-stats-store'
+import { analyzeFolder, exportLadderBaseline, getLadderRunArgs } from './ladder-baseline/ladder-run'
 import { getLaunchReplayPaths } from './launch-args'
 import logger from './logger'
 import { setupMyStats } from './my-stats'
@@ -796,6 +797,8 @@ async function createWindow() {
 }
 
 app.on('ready', () => {
+  // Analyzing a folder of ladder replays for the baseline, with no window, instead of opening.
+  const ladderRun = getLadderRunArgs(process.argv)
   const localSettingsPromise = createLocalSettings()
   const scrSettingsPromise = createScrSettings()
   const programRegistrationPromise = registerCurrentProgram()
@@ -814,6 +817,13 @@ app.on('ready', () => {
 
       container.register(LocalSettingsManager, { useValue: localSettings })
       container.register(ScrSettingsManager, { useValue: scrSettings })
+      if (ladderRun) {
+        if (!process.env.GGSTATS_SESSION) {
+          throw new Error('Analyzing a folder needs its own GGSTATS_SESSION, apart from your stats')
+        }
+        // Only the folder's replays, and none of the user's own games captured along the way.
+        await localSettings.merge({ autoCapture: false, replayLibraryFolders: [ladderRun.folder] })
+      }
 
       // Namespaced by GGSTATS_SESSION (like the settings/log files) so concurrent dev instances in the
       // same game don't write over each other's stats; without it (i.e. production) the bare name
@@ -827,7 +837,9 @@ app.on('ready', () => {
       setupIpc(localSettings, scrSettings)
       setupCspProtocol(currentSession())
       gameServer = createGameServer(localSettings)
-      await createWindow()
+      if (!ladderRun) {
+        await createWindow()
+      }
 
       try {
         const watchedFolders = resolveReplayFolders(await localSettings.get())
@@ -882,7 +894,7 @@ app.on('ready', () => {
           await replayLibrary?.indexFile(replayPath)
         },
       })
-      autoCapture.start().catch(err => {
+      const autoCaptureStarted = autoCapture.start().catch(err => {
         // Analyzing replays by hand still works without it.
         logger.error(`Error starting auto capture: ${getErrorStack(err)}`)
       })
@@ -896,6 +908,28 @@ app.on('ready', () => {
       ipcMain.handle('autoCaptureSetPaused', async (_event, paused) =>
         autoCapture.setPaused(paused),
       )
+
+      if (ladderRun) {
+        await autoCaptureStarted
+        const result = await analyzeFolder({
+          folder: ladderRun.folder,
+          autoCapture,
+          backfill: commandStatsBackfill,
+        })
+        if (result.stopped) {
+          console.error('Stopped analyzing after too many failures in a row. See the app log.')
+        }
+        if (ladderRun.exportPath && !result.quit) {
+          await exportLadderBaseline({
+            folder: ladderRun.folder,
+            exportPath: ladderRun.exportPath,
+            gameStatsStore,
+          })
+        }
+        autoCapture.stop()
+        app.exit(result.stopped ? 1 : 0)
+        return
+      }
 
       const updater = new Updater(localSettings, container.resolve(ActiveGameManager), status =>
         TypedIpcSender.from(mainWindow?.webContents).send('updaterStatusChanged', status),
@@ -928,6 +962,10 @@ app.on('ready', () => {
     .catch(err => {
       logger.error(`Error initializing: ${err.stack ?? err}`)
       console.error(err)
+      if (ladderRun) {
+        app.exit(1)
+        return
+      }
       dialog.showErrorBox(
         'GG Stats Error',
         `There was an error starting GG Stats: ${err.message}\n${err.stack}`,
