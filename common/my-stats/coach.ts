@@ -1,4 +1,5 @@
 import { GameStatsResult } from '../games/game-stats'
+import { LadderRank } from '../games/ladder'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
@@ -746,6 +747,8 @@ export interface CoachBucket {
    * one of the same race as the user's.
    */
   anyAlly: boolean
+  /** In 1v1, the ladder rank other players needed to count. */
+  rank?: LadderRank
   mapFamily?: MapFamily
   /** The one map these games are on, when one was picked, named without versions or tags. */
   onMap?: string
@@ -767,6 +770,8 @@ export interface CoachBucket {
   poolPlayers: number
   /** Of {@link poolGames}, how many are from games the user played in, like their opponents'. */
   poolFromUserGames: number
+  /** Of {@link poolGames}, how many are from the ladder baseline the app ships. */
+  poolFromBaseline: number
   /** The opening the user plays most here, as build keys. */
   opening: string[]
   gaps: CoachFinding[]
@@ -825,6 +830,11 @@ export interface CoachQuery {
   mapKey?: string
   /** The EAPM other players need to count. */
   eapmFloor?: number
+  /**
+   * Only used in 1v1: the ladder rank other players need to have had going into a game for it to
+   * count, or `any`. Unless picked, the rank of the user's latest ranked game, if they have one.
+   */
+  rank?: LadderRank | 'any'
   /** Which of the user's games to look at. `auto` unless picked. */
   window?: CoachWindow
   /** Leaves out every game played before this time, the user's and other players' alike. */
@@ -835,6 +845,8 @@ export type CoachResult = {
   /** Every kind of game the user has played enough of, most played first. */
   scopes: CoachScope[]
   eapmFloor: number
+  /** The ladder rank other players were picked by, in 1v1. */
+  rank?: LadderRank
 } & (
   | { status: 'noGames' }
   | {
@@ -1264,6 +1276,8 @@ interface PoolEntry {
   sameAlly: boolean
   /** Whether it's from a game the user played in. */
   withUser: boolean
+  /** Whether it's from the ladder baseline the app ships, rather than the user's replays. */
+  baseline: boolean
 }
 
 interface BucketGames {
@@ -1828,6 +1842,29 @@ function getNotes(
 }
 
 /**
+ * The ladder rank other 1v1 players are compared at: the one picked, or, unless `any` was, the
+ * rank of the user's latest ranked game of the kind looked at.
+ */
+export function pickRank(
+  games: ReadonlyArray<DatedGameMetrics>,
+  names: ReadonlyArray<string>,
+  picked: LadderRank | 'any' | undefined,
+  isOfKind: (game: DatedGameMetrics, me: PlayerMetrics) => boolean,
+): LadderRank | undefined {
+  if (picked) {
+    return picked === 'any' ? undefined : picked
+  }
+  let latest: { rank: LadderRank; timeMs: number } | undefined
+  for (const game of games) {
+    const me = findMe(game, names)
+    if (me?.rank && isOfKind(game, me) && (!latest || game.gameTimeMs > latest.timeMs)) {
+      latest = { rank: me.rank, timeMs: game.gameTimeMs }
+    }
+  }
+  return latest?.rank
+}
+
+/**
  * Compares the user's games of one kind with other players of the same race in the same kind of
  * game, from every analyzed replay, to find what they do worse and better than most, how they've
  * played lately, and what to work on next. Other players need at least `eapmFloor` EAPM. Without a
@@ -1922,6 +1959,7 @@ export function computeCoach(
     ? EAPM_FLOORS.filter(floor => floor <= median(myEapms) * AUTO_FLOOR_SHARE).at(-1)
     : undefined
   const eapmFloor = query.eapmFloor ?? autoFloor ?? DEFAULT_EAPM_FLOOR
+  const rank = shape === '1v1' ? pickRank(games, query.names, query.rank, isOfKind) : undefined
 
   // The user's regular partners make poor benchmarks: their games go with the user's, win or
   // lose. Someone a lobby put them with once is as good a benchmark as anyone.
@@ -1977,6 +2015,7 @@ export function computeCoach(
         sample: toSample(game, p),
         sameAlly: hasAlly(game, p),
         withUser: !!me,
+        baseline: game.ladderBaseline === true,
       })
     }
   }
@@ -2012,12 +2051,15 @@ export function computeCoach(
     const user = userGames.map(g => g.sample)
     const sameAlly = bucket.pool.filter(e => e.sameAlly)
     const anyAlly = !!allyRace && sameAlly.length < COACH_MIN_POOL_GAMES
-    const entries = allyRace && !anyAlly ? sameAlly : bucket.pool
+    const entries = (allyRace && !anyAlly ? sameAlly : bucket.pool).filter(
+      e => !rank || e.sample.player.rank === rank,
+    )
     const allPool = capPerPlayer(entries.map(e => e.sample))
     const floored = entries.filter(e => (e.sample.player.eapm ?? 0) >= eapmFloor)
     const pool = capPerPlayer(floored.map(e => e.sample))
     const poolFromUser = new Set(pool)
     const poolFromUserGames = floored.filter(e => e.withUser && poolFromUser.has(e.sample)).length
+    const poolFromBaseline = floored.filter(e => e.baseline && poolFromUser.has(e.sample)).length
 
     const opening = mostCommon(user.map(s => s.player.opening.join(',')).filter(Boolean))
     const family = mostCommon(user.flatMap(s => openingFamily(s.player) ?? []))
@@ -2128,6 +2170,7 @@ export function computeCoach(
       opponentRace,
       allyRace,
       anyAlly,
+      rank,
       mapFamily: bucket.mapFamily,
       onMap: mapKey ? maps.find(m => m.key === mapKey)?.name : undefined,
       userGames: user.length,
@@ -2140,6 +2183,7 @@ export function computeCoach(
       poolGames: pool.length,
       poolPlayers: new Set(pool.map(sample => nameOf(sample.player))).size,
       poolFromUserGames,
+      poolFromBaseline,
       opening: openingKeys,
       gaps: topGaps.map(strip),
       closestGap,
@@ -2173,6 +2217,7 @@ export function computeCoach(
     status: 'ready',
     scopes,
     eapmFloor,
+    rank,
     scope: { shape, race, opponentRace, allyRace, mapFamily },
     window,
     autoGames,

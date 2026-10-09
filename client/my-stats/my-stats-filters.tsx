@@ -2,6 +2,7 @@ import { useAtom } from 'jotai'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { DEFAULT_EAPM_FLOOR, EAPM_FLOORS } from '../../common/my-stats/coach'
 import { MyStatsRange, MyStatsShape } from '../../common/my-stats/my-stats'
@@ -11,6 +12,7 @@ import { useFitLevel } from '../dom/use-fit-level'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { labelMedium } from '../styles/typography'
 import { myStatsFiltersAtom } from './my-stats-data'
+import { RankMenu } from './rank-menu'
 
 /**
  * How the filter bar gives up room in a narrow window, so it always stays one row. Each level
@@ -97,9 +99,10 @@ function Choice<T>({
 /**
  * Every My stats filter, in one row: the kind of game first, then what that kind of game divides
  * by (the map in 3v3 and 4v4, the opponent's race in 1v1), the user's race, when, and the EAPM
- * other players need to be compared with. The last two rarely change, so they're menus.
+ * (and in 1v1, the ladder rank) other players need to be compared with. The last ones rarely
+ * change, so they're menus. `autoRank` is the rank picked until the user picks one.
  */
-export function FilterBar() {
+export function FilterBar({ autoRank }: { autoRank?: LadderRank }) {
   const { t } = useTranslation()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
   const floor = filters.eapmFloor ?? DEFAULT_EAPM_FLOOR
@@ -112,6 +115,8 @@ export function FilterBar() {
       filters.mapFamily,
       filters.range,
       floor,
+      filters.rank,
+      autoRank,
     ].join('|'),
   )
 
@@ -155,6 +160,7 @@ export function FilterBar() {
   const opponentLabel = t('myStats.filters.vs', 'Against')
   const rangeLabel = t('myStats.filters.range', 'Time')
   const floorLabel = t('myStats.filters.floor', 'Compared with')
+  const rankLabel = t('myStats.filters.rank', 'Their rank')
 
   return (
     <Root ref={rootRef}>
@@ -223,6 +229,11 @@ export function FilterBar() {
           onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
         />
       </Field>
+      {filters.shape === '1v1' ? (
+        <Field caption={rankLabel}>
+          <RankMenu autoRank={autoRank} label={rankLabel} showLabel={false} />
+        </Field>
+      ) : null}
     </Root>
   )
 }

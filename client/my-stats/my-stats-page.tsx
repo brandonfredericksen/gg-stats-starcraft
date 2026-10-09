@@ -187,7 +187,9 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
       macro={stats.macro}
       others={stats.macroOthers}
       othersGames={stats.othersGames}
+      othersFromBaseline={stats.othersFromBaseline}
       eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
+      rank={stats.rank}
       extraNote={
         oneKind
           ? undefined
@@ -295,7 +297,7 @@ export function MyStatsView() {
           />
         </PlayingAs>
       </Header>
-      <FilterBar />
+      <FilterBar autoRank={data?.stats.rank} />
       {data ? (
         <Coverage>
           {data.analyzedGames ? <span>{getCoverageText(data, filters, t)}</span> : null}

@@ -272,6 +272,27 @@ describe('common/my-stats', () => {
     expect(stats.games).toBe(2)
     expect(stats.macro.armyKilled).toEqual({ value: 2000, games: 1 })
   })
+
+  test("counts other players' games from the ladder baseline apart from the user's replays", () => {
+    const games = [
+      game('1v1', [player(me, 'p', 0, 'win'), player('Mordant', 'z', 0, 'loss')]),
+      game('1v1', [player('#a1', 'p', 0, 'win'), player('#b2', 'z', 0, 'loss')], {
+        ladderBaseline: true,
+      }),
+      game('1v1', [player('#c3', 'p', 0, 'loss'), player('#d4', 'z', 0, 'win')], {
+        ladderBaseline: true,
+      }),
+    ]
+    const stats = computeMyStats(
+      games,
+      { names: [me], range: 'all', shape: '1v1', race: 'p', opponentRace: 'z' },
+      NOW,
+    )
+    // Only the user's own game counts as theirs.
+    expect(stats.games).toBe(1)
+    expect(stats.othersGames).toBe(2)
+    expect(stats.othersFromBaseline).toBe(2)
+  })
 })
 
 function share(income: number) {

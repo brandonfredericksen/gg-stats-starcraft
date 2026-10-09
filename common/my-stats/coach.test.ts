@@ -831,4 +831,72 @@ describe('common/my-stats/coach', () => {
       lossesCompared: 5,
     })
   })
+
+  test("counts other players' games from the ladder baseline", () => {
+    const baseline = poolGames(20, () => 18).map(g => ({ ...g, ladderBaseline: true }))
+    const coach = computeCoach([...myGames(12, 18), ...poolGames(15, () => 18), ...baseline], query)
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket).toMatchObject({ poolGames: 35, poolFromBaseline: 20 })
+  })
+
+  describe('ladder rank', () => {
+    /** Other Protoss players at C, and as many at A, who make more workers. */
+    const ranked = () => [
+      ...poolGames(30, () => 16).map(g => {
+        g.players[0].rank = 'c'
+        return g
+      }),
+      ...poolGames(30, () => 22).map(g => {
+        g.players[0].rank = 'a'
+        return g
+      }),
+    ]
+    const bucketOf = (coach: ReturnType<typeof computeCoach>) =>
+      coach.status === 'ready' ? coach.buckets[0] : undefined
+
+    test('compares with everyone until the user has a ranked game or picks a rank', () => {
+      const coach = computeCoach([...myGames(12, 18), ...ranked()], query)
+      expect(coach.rank).toBeUndefined()
+      expect(bucketOf(coach)).toMatchObject({ poolGames: 60, rank: undefined })
+    })
+
+    test('compares with players of the rank picked', () => {
+      const coach = computeCoach([...myGames(12, 18), ...ranked()], { ...query, rank: 'a' })
+      expect(coach.rank).toBe('a')
+      expect(bucketOf(coach)).toMatchObject({ poolGames: 30, rank: 'a' })
+      expect(bucketOf(coach)?.compared.find(f => f.key === 'workers6')?.poolValue).toBe(22)
+    })
+
+    test("picks the rank of the user's latest ranked game", () => {
+      const mine = myGames(12, 18)
+      mine[3].players[0].rank = 'a'
+      mine[9].players[0].rank = 'c'
+      const coach = computeCoach([...mine, ...ranked()], query)
+      expect(coach.rank).toBe('c')
+      expect(bucketOf(coach)?.compared.find(f => f.key === 'workers6')?.poolValue).toBe(16)
+    })
+
+    test('compares with every rank when any is picked', () => {
+      const mine = myGames(12, 18)
+      mine[9].players[0].rank = 'c'
+      const coach = computeCoach([...mine, ...ranked()], { ...query, rank: 'any' })
+      expect(coach.rank).toBeUndefined()
+      expect(bucketOf(coach)?.poolGames).toBe(60)
+    })
+
+    test('only applies to 1v1', () => {
+      const coach = computeCoach(
+        [
+          game('2v2', [
+            player(me, 'p', 1, 'win', { rank: 'a' }),
+            player('ally', 'z', 1, 'win'),
+            player('foe1', 't', 2, 'loss'),
+            player('foe2', 't', 2, 'loss'),
+          ]),
+        ],
+        { names: [me], shape: '2v2', race: 'p', rank: 'a' },
+      )
+      expect(coach.rank).toBeUndefined()
+    })
+  })
 })

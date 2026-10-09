@@ -46,6 +46,16 @@ export class CommandStatsBackfill {
     this.timer.unref?.()
   }
 
+  /** Reads every replay still missing its commands, now, for a caller that waits on all of them. */
+  async readAll() {
+    clearTimeout(this.timer)
+    this.timer = undefined
+    while (this.running) {
+      await new Promise(resolve => setTimeout(resolve, PAUSE_MS))
+    }
+    await this.run()
+  }
+
   private async run() {
     this.running = true
     let saved = 0

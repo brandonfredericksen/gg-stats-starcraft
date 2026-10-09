@@ -330,6 +330,13 @@ function getPoolNote(bucket: CoachBucket, eapmFloor: number, t: TFunction) {
       floor: eapmFloor,
     }),
   ]
+  if (bucket.rank) {
+    notes.push(
+      t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', {
+        rank: bucket.rank.toUpperCase(),
+      }),
+    )
+  }
   if (bucket.allyRace && bucket.anyAlly) {
     notes.push(
       t(
