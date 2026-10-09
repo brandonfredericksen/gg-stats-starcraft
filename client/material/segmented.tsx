@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { labelLarge } from '../styles/typography'
 import { buttonReset } from './button-reset'
+import { MenuItem } from './menu/item'
 import { MenuList } from './menu/menu'
 import { SelectableMenuItem } from './menu/selectable-item'
 import { Popover, usePopoverController, useRefAnchorPosition } from './popover'
@@ -53,9 +54,34 @@ export interface SegmentOption<T> {
   title?: string
   /** What a `SegmentMenu` lists it as, when the list has room to say more than its button. */
   menuLabel?: string
+  /** A second, quieter line under it in a `SegmentMenu`, like how many games it has. */
+  menuDetail?: string
   /** Shown before the label, like a rank's badge. */
   icon?: React.ReactNode
+  /**
+   * What a `SegmentMenu`'s button shows for it instead of its icon and label, like a matchup's race
+   * tags. The label still names it for screen readers.
+   */
+  buttonContent?: React.ReactNode
 }
+
+const MenuCheck = styled(MaterialIcon).attrs({ icon: 'check', size: 20 })`
+  margin-left: 12px;
+  color: var(--theme-on-surface-variant);
+`
+
+/**
+ * A menu of options with details on a second line, every one shown: these are a few fixed options,
+ * like ranks, that read better all at once than as a list to scroll.
+ */
+const DetailedMenuList = styled(MenuList)`
+  max-height: none;
+`
+
+/** Holds an option's place in a menu whose other options have icons, so their text lines up. */
+const NoIcon = styled.span`
+  width: 24px;
+`
 
 /** A row of buttons picking one of a few options, like a game type to filter by. */
 export function Segmented<T>({
@@ -151,6 +177,9 @@ export function SegmentMenu<T>({
   const [anchor, anchorX, anchorY, refreshAnchorPos] = useRefAnchorPosition('left', 'bottom')
   const [open, openMenu, closeMenu] = usePopoverController({ refreshAnchorPos })
   const current = options.find(o => o.value === value) ?? options[0]
+  const withIcons = options.some(o => o.icon !== undefined)
+  const detailed = options.some(o => o.menuDetail)
+  const List = detailed ? DetailedMenuList : MenuList
 
   return (
     <>
@@ -158,11 +187,19 @@ export function SegmentMenu<T>({
         ref={anchor}
         type='button'
         aria-haspopup='menu'
-        aria-label={showLabel ? undefined : `${label}: ${current.title ?? current.label}`}
+        aria-label={
+          showLabel && !current.buttonContent
+            ? undefined
+            : `${label}: ${current.title ?? current.label}`
+        }
         onClick={openMenu}>
         {showLabel ? <MenuButtonLabel>{label}</MenuButtonLabel> : null}
-        {current.icon}
-        {current.title ?? current.label}
+        {current.buttonContent ?? (
+          <>
+            {current.icon}
+            {current.title ?? current.label}
+          </>
+        )}
         <Chevron />
       </MenuButton>
       <Popover
@@ -172,20 +209,36 @@ export function SegmentMenu<T>({
         anchorY={anchorY ?? 0}
         originX='left'
         originY='top'>
-        <MenuList dense={true}>
-          {options.map(option => (
-            <SelectableMenuItem
-              key={option.label}
-              text={option.menuLabel ?? option.title ?? option.label}
-              trailingContent={option.icon}
-              selected={option.value === value}
-              onClick={() => {
-                closeMenu()
-                onChange(option.value)
-              }}
-            />
-          ))}
-        </MenuList>
+        <List dense={!detailed}>
+          {options.map(option => {
+            const text = option.menuLabel ?? option.title ?? option.label
+            const pick = () => {
+              closeMenu()
+              onChange(option.value)
+            }
+            // With icons, each leads its row and the check moves to the end, so it doesn't push
+            // them out of line.
+            return withIcons ? (
+              <MenuItem
+                key={option.label}
+                text={text}
+                secondaryText={option.menuDetail}
+                icon={option.icon ?? <NoIcon />}
+                trailingContent={option.value === value ? <MenuCheck /> : undefined}
+                aria-selected={option.value === value}
+                onClick={pick}
+              />
+            ) : (
+              <SelectableMenuItem
+                key={option.label}
+                text={text}
+                secondaryText={option.menuDetail}
+                selected={option.value === value}
+                onClick={pick}
+              />
+            )
+          })}
+        </List>
       </Popover>
     </>
   )

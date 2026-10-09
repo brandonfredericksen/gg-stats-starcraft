@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
+import { RankMmr } from '../../common/my-stats/coach'
 import { DEFAULT_EAPM_FLOOR, EAPM_FLOORS } from '../../common/my-stats/coach'
 import { MyStatsRange, MyStatsShape } from '../../common/my-stats/my-stats'
 import { splitsByMap } from '../../common/my-stats/player-games'
@@ -100,9 +101,10 @@ function Choice<T>({
  * Every My stats filter, in one row: the kind of game first, then what that kind of game divides
  * by (the map in 3v3 and 4v4, the opponent's race in 1v1), the user's race, when, and the EAPM
  * (and in 1v1, the ladder rank) other players need to be compared with. The last ones rarely
- * change, so they're menus. `autoRank` is the rank picked until the user picks one.
+ * change, so they're menus. `autoRank` is the rank picked until the user picks one, and `rankMmr`
+ * the MMRs each covers.
  */
-export function FilterBar({ autoRank }: { autoRank?: LadderRank }) {
+export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMmr?: RankMmr }) {
   const { t } = useTranslation()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
   const floor = filters.eapmFloor ?? DEFAULT_EAPM_FLOOR
@@ -231,7 +233,7 @@ export function FilterBar({ autoRank }: { autoRank?: LadderRank }) {
       </Field>
       {filters.shape === '1v1' ? (
         <Field caption={rankLabel}>
-          <RankMenu autoRank={autoRank} label={rankLabel} showLabel={false} />
+          <RankMenu autoRank={autoRank} rankMmr={rankMmr} label={rankLabel} showLabel={false} />
         </Field>
       ) : null}
     </Root>

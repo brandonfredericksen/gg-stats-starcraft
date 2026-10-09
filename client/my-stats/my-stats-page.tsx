@@ -297,7 +297,7 @@ export function MyStatsView() {
           />
         </PlayingAs>
       </Header>
-      <FilterBar autoRank={data?.stats.rank} />
+      <FilterBar autoRank={data?.stats.autoRank} rankMmr={data?.stats.rankMmr} />
       {data ? (
         <Coverage>
           {data.analyzedGames ? <span>{getCoverageText(data, filters, t)}</span> : null}

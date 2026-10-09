@@ -4,7 +4,7 @@ import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
-import { DEFAULT_EAPM_FLOOR, pickRank } from './coach'
+import { DEFAULT_EAPM_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
 import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
 
 /** How many of the latest games the recent results show. */
@@ -149,6 +149,10 @@ export interface MyStatsResult {
   othersFromBaseline: number
   /** The ladder rank other players were picked by, in 1v1. */
   rank?: LadderRank
+  /** In 1v1, the rank of the user's latest ranked game here, which `auto` picks. */
+  autoRank?: LadderRank
+  /** In 1v1, the MMRs each rank covers. */
+  rankMmr?: RankMmr
   /** The people the user played with most, then against most. */
   teammates: PersonRow[]
   opponents: PersonRow[]
@@ -517,13 +521,13 @@ export function computeMyStats(
   }
 
   const people = getPeople(games, query.names)
-  const rank =
+  const { auto: autoRank, rank } =
     query.shape === '1v1'
       ? pickRank(allGames, query.names, query.rank, game => {
           const g = toMyGame(game, query.names)
           return !!g && matchesQuery(g, query, nowMs)
         })
-      : undefined
+      : { auto: undefined, rank: undefined }
   const others = getOthers(allGames, query, rank)
   return {
     games: games.length,
@@ -541,6 +545,8 @@ export function computeMyStats(
     othersGames: others.length,
     othersFromBaseline: others.filter(o => o.baseline).length,
     rank,
+    autoRank,
+    rankMmr: query.shape === '1v1' ? getRankMmr(allGames) : undefined,
     teammates: people.filter(p => p.relation === 'teammate'),
     opponents: people.filter(p => p.relation === 'opponent'),
     maps: getMaps(games),

@@ -1,5 +1,5 @@
 import { GameStatsResult } from '../games/game-stats'
-import { LadderRank } from '../games/ladder'
+import { LADDER_RANKS, LadderRank } from '../games/ladder'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
@@ -847,6 +847,10 @@ export type CoachResult = {
   eapmFloor: number
   /** The ladder rank other players were picked by, in 1v1. */
   rank?: LadderRank
+  /** In 1v1, the rank of the user's latest ranked game here, which `auto` picks. */
+  autoRank?: LadderRank
+  /** In 1v1, the MMRs each rank covers. */
+  rankMmr?: RankMmr
 } & (
   | { status: 'noGames' }
   | {
@@ -1841,19 +1845,53 @@ function getNotes(
   return notes
 }
 
+/** The MMRs most players of each 1v1 ladder rank had, see {@link getRankMmr}. */
+export type RankMmr = Partial<Record<LadderRank, { low: number; high: number }>>
+
+/** How many players of a rank it takes to say what MMRs it covers. */
+const MIN_RANK_MMR_PLAYERS = 10
+/** The share of a rank's players left out at each end, so a few outliers don't stretch it. */
+const RANK_MMR_TAIL = 0.1
+
 /**
- * The ladder rank other 1v1 players are compared at: the one picked, or, unless `any` was, the
- * rank of the user's latest ranked game of the kind looked at.
+ * The MMRs each 1v1 ladder rank covers, from the players who had it going into a game: the middle
+ * of them, rounded to tens, since where ranks start moves with each season.
+ */
+export function getRankMmr(games: ReadonlyArray<DatedGameMetrics>): RankMmr {
+  const byRank = new Map<LadderRank, number[]>()
+  for (const game of games) {
+    if (game.shape !== '1v1') {
+      continue
+    }
+    for (const p of game.players) {
+      if (p.rank && p.mmr !== undefined) {
+        byRank.set(p.rank, [...(byRank.get(p.rank) ?? []), p.mmr])
+      }
+    }
+  }
+  const result: RankMmr = {}
+  for (const rank of LADDER_RANKS) {
+    const mmrs = byRank.get(rank)?.sort((a, b) => a - b)
+    if (!mmrs || mmrs.length < MIN_RANK_MMR_PLAYERS) {
+      continue
+    }
+    const at = (share: number) => Math.round(mmrs[Math.floor(share * (mmrs.length - 1))] / 10) * 10
+    result[rank] = { low: at(RANK_MMR_TAIL), high: at(1 - RANK_MMR_TAIL) }
+  }
+  return result
+}
+
+/**
+ * The ladder ranks of a 1v1 comparison: `auto`, the rank of the user's latest ranked game of the
+ * kind looked at, and `rank`, the one other players are compared at. That's the one picked, or
+ * `auto` unless `any` was.
  */
 export function pickRank(
   games: ReadonlyArray<DatedGameMetrics>,
   names: ReadonlyArray<string>,
   picked: LadderRank | 'any' | undefined,
   isOfKind: (game: DatedGameMetrics, me: PlayerMetrics) => boolean,
-): LadderRank | undefined {
-  if (picked) {
-    return picked === 'any' ? undefined : picked
-  }
+): { auto: LadderRank | undefined; rank: LadderRank | undefined } {
   let latest: { rank: LadderRank; timeMs: number } | undefined
   for (const game of games) {
     const me = findMe(game, names)
@@ -1861,7 +1899,8 @@ export function pickRank(
       latest = { rank: me.rank, timeMs: game.gameTimeMs }
     }
   }
-  return latest?.rank
+  const auto = latest?.rank
+  return { auto, rank: picked === 'any' ? undefined : (picked ?? auto) }
 }
 
 /**
@@ -1959,7 +1998,10 @@ export function computeCoach(
     ? EAPM_FLOORS.filter(floor => floor <= median(myEapms) * AUTO_FLOOR_SHARE).at(-1)
     : undefined
   const eapmFloor = query.eapmFloor ?? autoFloor ?? DEFAULT_EAPM_FLOOR
-  const rank = shape === '1v1' ? pickRank(games, query.names, query.rank, isOfKind) : undefined
+  const { auto: autoRank, rank } =
+    shape === '1v1'
+      ? pickRank(games, query.names, query.rank, isOfKind)
+      : { auto: undefined, rank: undefined }
 
   // The user's regular partners make poor benchmarks: their games go with the user's, win or
   // lose. Someone a lobby put them with once is as good a benchmark as anyone.
@@ -2218,6 +2260,8 @@ export function computeCoach(
     scopes,
     eapmFloor,
     rank,
+    autoRank,
+    rankMmr: shape === '1v1' ? getRankMmr(allGames) : undefined,
     scope: { shape, race, opponentRace, allyRace, mapFamily },
     window,
     autoGames,
