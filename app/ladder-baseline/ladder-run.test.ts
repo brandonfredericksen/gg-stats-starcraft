@@ -83,7 +83,14 @@ describe('app/ladder-baseline/ladder-run', () => {
       await mkdir(replays, { recursive: true })
       await writeFile(
         path.join(replays, LADDER_MANIFEST_FILE),
-        JSON.stringify({ version: 1, games: { 'abc.rep': LADDER_GAME, 'def.rep': LADDER_GAME } }),
+        JSON.stringify({
+          version: 1,
+          games: {
+            'abc.rep': LADDER_GAME,
+            'def.rep': LADDER_GAME,
+            'notime.rep': { ...LADDER_GAME, createdMs: 0 },
+          },
+        }),
       )
     })
 
@@ -109,6 +116,12 @@ describe('app/ladder-baseline/ladder-run', () => {
           replayPathKey: keyOf('def.rep'),
           savedAt: 0,
           metrics: metrics('g3', '2v2', [player('Kestrel', 'p'), player('Wren', 'z')]),
+        },
+        // No time to date it by: neither the replay, which can't be read, nor the ladder has one.
+        {
+          replayPathKey: keyOf('notime.rep'),
+          savedAt: 0,
+          metrics: metrics('g5', '1v1', [player('Kestrel', 'p'), player('Wren', 'z')]),
         },
         // Not in the folder.
         {

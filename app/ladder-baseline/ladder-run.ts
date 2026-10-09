@@ -15,6 +15,7 @@ import { GAME_METRICS_VERSION, PlayerMetrics } from '../../common/games/player-m
 import { ReplayToAnalyze } from '../../common/ipc'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { AutoCaptureService } from '../auto-capture'
+import { MAX_ATTEMPTS } from '../auto-capture/analysis-queue'
 import { displayMatchup } from '../auto-capture/archive-naming'
 import { CommandStatsBackfill } from '../game/command-stats-backfill'
 import { GameStatsStore } from '../game/game-stats-store'
@@ -23,6 +24,12 @@ import { LadderManifests, withLadder } from '../replay-library/ladder-manifests'
 import { mapReplayHeaderToRecord, parseReplayMetadata } from '../replay-library/replay-parser'
 
 const POLL_MS = 5000
+/**
+ * How many times analyzing goes on after failures in a row with nothing analyzed or given up on in
+ * between. A replay is given up on after its last try, so going on this many times gets every
+ * replay that can't be analyzed to that point.
+ */
+const MAX_RESUMES_WITHOUT_PROGRESS = MAX_ATTEMPTS
 
 /** What `--analyze-folder` and `--export-baseline` ask the app to do instead of opening. */
 export interface LadderRunArgs {
@@ -69,9 +76,9 @@ async function toReplayToAnalyze(replayPath: string): Promise<ReplayToAnalyze | 
 
 /**
  * Analyzes every replay in a folder, one after another the same way the app analyzes replays in
- * the background, reads their commands, and returns once all of them are done or analyzing stopped
- * after too many failures in a row. Replays analyzed before are skipped, so a run that was stopped
- * picks up where it left off.
+ * the background, reads their commands, and returns once all of them are done or given up on. It
+ * only stops early when analyzing keeps failing with nothing done in between. Replays analyzed
+ * before are skipped, so a run that was stopped picks up where it left off.
  *
  * A pause file in the folder holds off starting another replay until it's gone, and a stop file
  * returns once the replay being analyzed is done, with `quit` set.
@@ -94,6 +101,10 @@ export async function analyzeFolder({
 
   let lastLeft = -1
   let held = false
+  // How many were left the last time analyzing stopped after failures in a row, and how many times
+  // in a row it went on since with that many still left.
+  let leftAtLastStop: number | undefined
+  let resumesWithoutProgress = 0
   for (;;) {
     const stop = existsSync(path.join(folder, LADDER_STOP_FILE))
     const hold = stop || existsSync(path.join(folder, LADDER_PAUSE_FILE))
@@ -114,13 +125,27 @@ export async function analyzeFolder({
       report(`${replays.length - left} of ${replays.length} done, ${status.failed.length} failed.`)
       lastLeft = left
     }
+    if (left && status.paused) {
+      resumesWithoutProgress = left === leftAtLastStop ? resumesWithoutProgress + 1 : 0
+      leftAtLastStop = left
+    }
+    if (left && status.paused && resumesWithoutProgress < MAX_RESUMES_WITHOUT_PROGRESS) {
+      // Replays that can't be analyzed, like ones without a known end, fail in a row too. Each is
+      // given up on after a few tries, so going on gets past them, and only failing with nothing
+      // given up on or analyzed in between means something is wrong.
+      report('Going on after failures in a row.')
+      autoCapture.resume()
+      await sleep(POLL_MS)
+      continue
+    }
     if (!left || status.paused) {
       report('Reading the replays’ commands.')
       await backfill.readAll()
       return {
         total: replays.length,
         failed: status.failed.length,
-        stopped: status.paused,
+        // Failures in a row with nothing left only gave up on the last replays.
+        stopped: status.paused && left > 0,
         quit: false,
       }
     }
@@ -171,10 +196,16 @@ export async function exportLadderBaseline({
       continue
     }
     const withRanks = withLadder(metrics, ladder)
+    // The replay knows when the game started. The ladder's time is often missing.
+    const replayTime = (await toReplayToAnalyze(replayPathKey!))?.gameTime
+    const gameTimeMs = replayTime || ladder.createdMs
+    if (!gameTimeMs) {
+      continue
+    }
     games.push({
       ...withRanks,
       gameId: `ladder-${path.basename(replayPathKey!, '.rep')}`,
-      gameTimeMs: ladder.createdMs,
+      gameTimeMs,
       players: withRanks.players.map(p => anonymize(p, idOf)),
     })
   }

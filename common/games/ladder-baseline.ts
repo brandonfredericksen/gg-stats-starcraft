@@ -30,8 +30,8 @@ export interface LadderBaseline {
   metricsVersion: number
   createdMs: number
   /**
-   * Each game dated by when the ladder matched its players. Every player is named by an id made up
-   * for this baseline, so no name in it matches anyone's.
+   * Each game dated by when it started, from its replay. Every player is named by an id made up for
+   * this baseline, so no name in it matches anyone's.
    */
   games: DatedGameMetrics[]
 }

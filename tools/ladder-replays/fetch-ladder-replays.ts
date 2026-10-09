@@ -78,7 +78,18 @@ interface BridgeMatch {
 interface BridgeReplay {
   url?: string
   md5?: string
+  /** When the replay was uploaded, in seconds since the epoch. */
+  create_time?: number
   attributes?: { replay_humans?: string }
+}
+
+/**
+ * A time from the ladder in seconds, in milliseconds, if it's a real one. The ladder sends the
+ * largest 64 bit number for a time it doesn't have, like many matches' `match_created`.
+ */
+function toTimeMs(seconds: string | number | undefined): number | undefined {
+  const ms = Number(seconds) * 1000
+  return ms > 0 && ms <= Date.now() + 24 * 60 * 60_000 ? ms : undefined
 }
 
 const { values: args } = parseArgs({
@@ -266,7 +277,7 @@ function toLadderGame(matchId: string, match: BridgeMatch, season: number): Ladd
     ?.map_name
   return {
     matchId,
-    createdMs: Number(match.match_created) * 1000,
+    createdMs: toTimeMs(match.match_created) ?? 0,
     season,
     mapName: cleanMapName(mapName),
     players: ladderPlayers as LadderPlayer[],
@@ -489,6 +500,7 @@ async function main() {
         if (!bytes) {
           continue
         }
+        game.createdMs ||= toTimeMs(replay!.create_time) ?? 0
         const fileName = `${replay!.md5!.toLowerCase()}.rep`
         await writeFile(path.join(outDir, fileName), bytes)
         manifest.games[fileName] = game
