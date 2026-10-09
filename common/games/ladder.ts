@@ -30,7 +30,10 @@ export interface LadderPlayer {
 
 export interface LadderGame {
   matchId: string
-  /** When the ladder matched the players, in milliseconds since the epoch. */
+  /**
+   * When the ladder matched the players, in milliseconds since the epoch, or when the replay was
+   * uploaded if it didn't say. 0 if neither is known.
+   */
   createdMs: number
   season: number
   /** The map's name as the ladder gives it, without the color codes in its title. */
