@@ -21,6 +21,7 @@ import {
 } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
+import { GameIcon } from '../games/game-icon'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { OutlinedButton } from '../material/button'
@@ -1246,6 +1247,7 @@ function TimingsTable({
               {goalNumbers.has(timing.buildKey) ? (
                 <RowGoal>{goalNumbers.get(timing.buildKey)}</RowGoal>
               ) : null}
+              <GameIcon buildKey={timing.buildKey} size={26} />
               {getBuildName(timing.buildKey, t)}
             </RowName>
           </Cell>,

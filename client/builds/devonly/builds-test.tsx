@@ -24,8 +24,36 @@ function steps(list: Array<[key: string, supply: number, time: string, share?: n
   return list.map(([key, supply, at, share = 0.9]): BuildStepSummary => {
     const nth = (seen.get(key) ?? 0) + 1
     seen.set(key, nth)
-    return { key, nth, supply, timeMs: time(at), share }
+    return { key, nth, supply, ...spread(time(at)), share }
   })
+}
+
+/** A typical time, with the middle half of games a little either side of it. */
+function spread(timeMs: number) {
+  const width = 6000 + timeMs * 0.04
+  return { timeMs, earlyMs: timeMs - width, lateMs: timeMs + width }
+}
+
+/**
+ * Probes made one every 13 seconds, from the 5th, with a pause of some seconds after one of them,
+ * then each army unit at the times given.
+ */
+function units(
+  probes: number,
+  pause: [afterNth: number, seconds: number],
+  army: Array<[unitId: number, ...times: string[]]>,
+): BuildStepSummary[] {
+  const list: BuildStepSummary[] = []
+  for (let nth = 5; nth < 5 + probes; nth++) {
+    const timeMs = (nth - 5) * 13_000 + (nth > pause[0] ? pause[1] * 1000 : 0)
+    list.push({ key: 'u64', nth, ...spread(timeMs), share: 0.95 })
+  }
+  for (const [unitId, ...times] of army) {
+    times.forEach((at, i) =>
+      list.push({ key: `u${unitId}`, nth: i + 1, ...spread(time(at)), share: 0.8 }),
+    )
+  }
+  return list.sort((a, b) => a.timeMs - b.timeMs)
 }
 
 function side({
@@ -33,6 +61,7 @@ function side({
   wins,
   withUser = 0,
   stepList,
+  unitList = [],
   stop,
   workersAt,
   army,
@@ -41,6 +70,7 @@ function side({
   wins: number
   withUser?: number
   stepList: BuildStepSummary[]
+  unitList?: BuildStepSummary[]
   stop?: [workers: number, at: string, stopped: number]
   workersAt: number[]
   army: Array<[number, number, number, number, number]>
@@ -51,6 +81,7 @@ function side({
     losses: games - wins,
     withUser,
     steps: stepList,
+    unitSteps: unitList,
     workerStop: stop
       ? { workers: stop[0], atMs: time(stop[1]), stopped: stop[2], games }
       : undefined,
@@ -80,6 +111,15 @@ const forgeExpand: CoachBuild = {
       ['u167', 30, '5:10', 0.6],
       ['u60', 36, '6:20', 0.6],
     ]),
+    unitList: units(
+      40,
+      [12, 20],
+      [
+        [65, '3:40', '4:20', '5:30', '6:40'],
+        [60, '6:20', '7:10', '7:40', '8:20', '9:30', '10:40', '11:50'],
+        [66, '7:30', '8:15', '8:50'],
+      ],
+    ),
     stop: [44, '10:05', 19],
     workersAt: [17, 26, 34, 42],
     army: [
@@ -105,6 +145,15 @@ const forgeExpand: CoachBuild = {
       ['u167', 29, '4:58'],
       ['u60', 35, '6:05'],
     ]),
+    unitList: units(
+      42,
+      [12, 14],
+      [
+        [65, '3:35', '4:15', '5:40'],
+        [60, '6:05', '6:50', '7:20', '7:50', '8:30'],
+        [66, '7:10', '8:00', '8:35', '9:10'],
+      ],
+    ),
     stop: [46, '10:20', 9],
     workersAt: [18, 27, 36, 44],
     army: [
@@ -129,6 +178,14 @@ const forgeExpand: CoachBuild = {
       ['u164', 23, '4:31'],
       ['u60', 34, '6:40'],
     ]),
+    unitList: units(
+      36,
+      [10, 35],
+      [
+        [65, '3:40', '4:05', '4:50', '5:30', '6:20'],
+        [66, '8:10', '9:05'],
+      ],
+    ),
     stop: [36, '8:10', 14],
     workersAt: [16, 24, 31, 36],
     army: [
@@ -153,6 +210,15 @@ const oneGateCore: CoachBuild = {
       ['u154', 20, '3:45'],
       ['u163', 26, '4:40', 0.7],
     ]),
+    unitList: units(
+      20,
+      [11, 25],
+      [
+        [65, '2:10'],
+        [66, '3:30', '4:10', '4:45', '5:30', '6:40'],
+        [61, '7:20', '8:30'],
+      ],
+    ),
     stop: [30, '7:10', 12],
     workersAt: [15, 22, 28, 30],
     army: [

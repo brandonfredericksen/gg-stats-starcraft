@@ -18,6 +18,7 @@ import { container } from 'tsyringe'
 import { URL } from 'url'
 import swallowNonBuiltins from '../common/async/swallow-non-builtins'
 import { getErrorStack } from '../common/errors'
+import { GameIconsManifest } from '../common/game-icons'
 import { TypedIpcMain, TypedIpcSender } from '../common/ipc'
 import { DEFAULT_LOCAL_SETTINGS } from '../common/settings/default-settings'
 import { LocalSettings } from '../common/settings/local-settings'
@@ -321,6 +322,15 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
       mainWindow.minimize()
     })
 
+  ipcMain.handle('gameIconsGet', async () => {
+    try {
+      const text = await readFile(path.join(GAME_ICONS_DIR, 'cmdicons.json'), 'utf8')
+      return JSON.parse(text) as GameIconsManifest
+    } catch {
+      return undefined
+    }
+  })
+
   ipcMain.handle('pathsShowItemInFolder', async (event, path) => {
     shell.showItemInFolder(path)
   })
@@ -460,6 +470,12 @@ const CONTENT_TYPES = new Map([
   ['.woff2', 'font/woff2'],
 ])
 
+/**
+ * Where the game DLL saves StarCraft's command card icons from the player's install, see
+ * `game/src/game_icons.rs`.
+ */
+const GAME_ICONS_DIR = path.join(getUserDataPath(), 'game-icons')
+
 function contentTypeFor(pathname: string): string {
   return CONTENT_TYPES.get(path.posix.extname(pathname).toLowerCase()) ?? 'application/octet-stream'
 }
@@ -476,7 +492,12 @@ function setupCspProtocol(curSession: Session) {
     const pathname = path.posix.normalize(url.pathname)
 
     try {
-      if (pathname.match(/^\/(assets|dist)\/.+$/)) {
+      if (pathname === '/game-icons/cmdicons.png') {
+        const contents = await readFile(path.join(GAME_ICONS_DIR, 'cmdicons.png'))
+        return new Response(new Uint8Array(contents), {
+          headers: { 'content-type': 'image/png' },
+        })
+      } else if (pathname.match(/^\/(assets|dist)\/.+$/)) {
         const contents = await readFile(path.join(APP_ROOT, pathname))
         // TODO(tec27): Unsure if this is the best way to convert this to something that TS 5.9 is
         // happy with to pass to Response?

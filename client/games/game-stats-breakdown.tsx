@@ -6,6 +6,7 @@ import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { PlayerNameButton } from '../players/player-card'
 import { bodyMedium, labelLarge, labelMedium, singleLine } from '../styles/typography'
+import { GameIcon } from './game-icon'
 import { PlayerBuildOrder } from './game-stats-build-orders'
 import { Side, toUnitEntries, UnitEntry } from './game-stats-model'
 import {
@@ -179,6 +180,13 @@ const UnitBar = styled.span<{ $fraction: number; $color: string }>`
 `
 
 const UnitName = styled.span`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const UnitNameText = styled.span`
   ${singleLine};
 `
 
@@ -254,7 +262,10 @@ function PlayerUnits({ player, color }: { player: GamePlayerStats; color: string
             <UnitBarTrack aria-hidden={true}>
               <UnitBar $fraction={row.count / max} $color={raceColor(row.race)} />
             </UnitBarTrack>
-            <UnitName>{row.name}</UnitName>
+            <UnitName>
+              <GameIcon buildKey={`u${row.unitId}`} size={28} />
+              <UnitNameText>{row.name}</UnitNameText>
+            </UnitName>
             <UnitCount>{format.format(row.count)}</UnitCount>
           </UnitRow>
         ))}

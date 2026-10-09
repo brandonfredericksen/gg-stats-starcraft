@@ -7,7 +7,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 11
+export const GAME_METRICS_VERSION = 12
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -58,7 +58,8 @@ const STANDING_WORKER_SHARE = 0.3
 /** Fewer workers than this is nothing to keep playing on, whatever the share. */
 const MIN_STANDING_WORKERS = 4
 
-const WORKER_IDS: ReadonlySet<number> = new Set([7, 41, 64])
+/** SCVs, Drones and Probes. */
+export const WORKER_IDS: ReadonlySet<number> = new Set([7, 41, 64])
 /** How long an SCV or a Probe takes to make, at the speed games are timed at. */
 const WORKER_BUILD_MS = 300 * 42
 /** How long a Command Center or Nexus takes to build before it can make workers. */
@@ -82,6 +83,12 @@ const MAX_BUILD_STEPS = 32
  * the threat, not the build, so they're left out of the steps rather than filling them.
  */
 const MAX_REPEATED_STEPS = 2
+/** The most workers made that {@link PlayerMetrics.unitTimes} times, past the starting ones. */
+const MAX_TIMED_WORKERS = 46
+/** The most of each army unit that {@link PlayerMetrics.unitTimes} times. */
+const MAX_TIMED_ARMY = 20
+/** How far into a game {@link PlayerMetrics.unitTimes} goes, past the build order's 10 minutes. */
+const UNIT_TIMES_MS = 15 * 60_000
 /**
  * Supply Depots, Pylons, Overlords, Photon Cannons, Bunkers, Missile Turrets, and Sunken and Spore
  * Colonies.
@@ -103,7 +110,7 @@ const MORPHED_FROM: Partial<Record<number, readonly [id: number, count: number]>
   63: [61, 2],
 }
 /** Workers a player starts with. */
-const STARTING_WORKERS = 4
+export const STARTING_WORKERS = 4
 /**
  * A pause in making workers this long, after the first few minutes, is when a player stopped.
  * Shorter ones are mostly a production cycle spent on something else.
@@ -265,6 +272,12 @@ export interface PlayerMetrics {
    * only counts as what it became.
    */
   armyMix?: Record<number, number[]>
+  /**
+   * When each worker and army unit the player made in the first {@link UNIT_TIMES_MS} was started,
+   * by unit id, up to {@link MAX_TIMED_WORKERS} workers and {@link MAX_TIMED_ARMY} of each army unit. Two
+   * Zerglings from one egg are two of the same time.
+   */
+  unitTimes?: Record<number, number[]>
 }
 
 /** One step of a build order. */
@@ -588,12 +601,31 @@ function getWorkerStop(
   return times.playedMs >= WORKER_STOP_UNTIL_MS ? null : undefined
 }
 
+/** When each early worker and army unit was started, as {@link PlayerMetrics.unitTimes} says. */
+function getUnitTimes(
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
+): Record<number, number[]> {
+  const unitTimes: Record<number, number[]> = {}
+  for (const step of unitSteps.toSorted((a, b) => a.timeMs - b.timeMs)) {
+    const isWorker = WORKER_IDS.has(step.id)
+    if (step.timeMs > UNIT_TIMES_MS || (!isWorker && !isArmyUnit(step.id))) {
+      continue
+    }
+    const max = isWorker ? MAX_TIMED_WORKERS : MAX_TIMED_ARMY
+    const times = (unitTimes[step.id] ??= [])
+    for (let i = 0; i < step.count && times.length < max; i++) {
+      times.push(step.timeMs)
+    }
+  }
+  return unitTimes
+}
+
 /** A player's early build order, when they stopped making workers, and what army they made. */
 function getBuild(
   times: PlayerTimes,
   player: GamePlayerStats,
   unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
-): Pick<PlayerMetrics, 'buildSteps' | 'workerStop' | 'armyMix'> {
+): Pick<PlayerMetrics, 'buildSteps' | 'workerStop' | 'armyMix' | 'unitTimes'> {
   if (!player.buildOrder) {
     return {}
   }
@@ -627,6 +659,7 @@ function getBuild(
     buildSteps: getBuildSteps(player),
     workerStop: getWorkerStop(times, player, unitSteps),
     armyMix,
+    unitTimes: getUnitTimes(unitSteps),
   }
 }
 

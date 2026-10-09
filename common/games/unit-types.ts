@@ -260,3 +260,42 @@ export function getUnitTypeInfo(unitId: number, t: TFunction): UnitTypeInfo {
     isWorker: WORKER_UNIT_IDS.has(unitId),
   }
 }
+
+/** The supply each army unit takes, by unit id, where it isn't 1. */
+const ARMY_UNIT_SUPPLY: Partial<Record<number, number>> = {
+  2: 2, // Vulture
+  3: 2, // Goliath
+  5: 2, // Siege Tank
+  8: 2, // Wraith
+  9: 2, // Science Vessel
+  11: 2, // Dropship
+  12: 6, // Battlecruiser
+  30: 2, // Siege Tank, sieged
+  37: 0.5, // Zergling
+  39: 4, // Ultralisk
+  43: 2, // Mutalisk
+  44: 2, // Guardian
+  45: 2, // Queen
+  46: 2, // Defiler
+  47: 0.5, // Scourge
+  58: 3, // Valkyrie
+  60: 2, // Corsair
+  61: 2, // Dark Templar
+  62: 2, // Devourer
+  63: 4, // Dark Archon
+  65: 2, // Zealot
+  66: 2, // Dragoon
+  67: 2, // High Templar
+  68: 4, // Archon
+  69: 2, // Shuttle
+  70: 3, // Scout
+  71: 4, // Arbiter
+  72: 6, // Carrier
+  83: 4, // Reaver
+  103: 2, // Lurker
+}
+
+/** The supply a unit takes, so units of different sizes can be weighed against each other. */
+export function getUnitSupply(unitId: number): number {
+  return ARMY_UNIT_SUPPLY[unitId] ?? 1
+}

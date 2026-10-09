@@ -88,6 +88,8 @@ export function getMatchup(sides: ReadonlyArray<Side>, t: TFunction) {
 }
 
 export interface UnitEntry {
+  /** The first of the unit ids combined under this name, for its icon. */
+  unitId: number
   name: string
   count: number
   race?: RaceChar
@@ -109,7 +111,7 @@ export function toUnitEntries(
     if (existing) {
       existing.count += count
     } else {
-      byName.set(info.name, { ...info, count })
+      byName.set(info.name, { ...info, unitId, count })
     }
   }
   return Array.from(byName.values()).sort(

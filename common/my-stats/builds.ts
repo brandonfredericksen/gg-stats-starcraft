@@ -1,5 +1,11 @@
 import { GameStatsResult } from '../games/game-stats'
-import { ARMY_MIX_MINUTES, CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
+import {
+  ARMY_MIX_MINUTES,
+  CHECKPOINT_MINUTES,
+  PlayerMetrics,
+  STARTING_WORKERS,
+  WORKER_IDS,
+} from '../games/player-metrics'
 
 /** The fewest games a build needs to be listed, so one odd game doesn't make a build of its own. */
 const MIN_BUILD_GAMES = 3
@@ -47,6 +53,9 @@ export interface BuildStepSummary {
   /** Which of these it is, like the second Gateway. */
   nth: number
   timeMs: number
+  /** The middle half of the games take it between these times. */
+  earlyMs: number
+  lateMs: number
   /** Supply in use just before it, in whole units. */
   supply?: number
   /** The share of the games that take this step. */
@@ -86,6 +95,8 @@ export interface BuildSide {
   /** Games the user played in, with or against these players. */
   withUser: number
   steps: BuildStepSummary[]
+  /** Every worker and army unit most games make, see `usualUnitSteps`. */
+  unitSteps: BuildStepSummary[]
   workerStop?: WorkerStopSummary
   /** Workers at each of {@link WORKER_MINUTES}, in a typical game still going by then. */
   workersAt: Array<number | null>
@@ -129,10 +140,22 @@ export interface TeamBuildSample {
   user: boolean
 }
 
-function median(values: ReadonlyArray<number>): number {
+/** The value a share of these are at or under, between the two nearest when none is exactly. */
+function quantile(values: ReadonlyArray<number>, share: number): number {
   const sorted = values.toSorted((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+  const at = (sorted.length - 1) * share
+  const below = Math.floor(at)
+  const above = Math.min(below + 1, sorted.length - 1)
+  return sorted[below] + (sorted[above] - sorted[below]) * (at - below)
+}
+
+function median(values: ReadonlyArray<number>): number {
+  return quantile(values, 0.5)
+}
+
+/** A step's typical time, and the times the middle half of the games take it between. */
+function timingOf(times: ReadonlyArray<number>) {
+  return { timeMs: median(times), earlyMs: quantile(times, 0.25), lateMs: quantile(times, 0.75) }
 }
 
 /**
@@ -164,7 +187,7 @@ function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
     .map(entry => ({
       key: entry.key,
       nth: entry.nth,
-      timeMs: median(entry.times),
+      ...timingOf(entry.times),
       supply: entry.supplies.length ? Math.round(median(entry.supplies)) : undefined,
       share: entry.times.length / games.length,
     }))
@@ -174,6 +197,36 @@ function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
     byKey.set(step.key, [...(byKey.get(step.key) ?? []), step])
   }
   return steps.map(step => byKey.get(step.key)!.shift()!)
+}
+
+/**
+ * Each worker and army unit most of these games make, numbered like the 9th Probe or the 2nd
+ * Zealot, at its typical time, in order of those times.
+ */
+function usualUnitSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
+  const games = samples.filter(s => s.player.unitTimes)
+  const byStep = new Map<string, { key: string; nth: number; times: number[] }>()
+  for (const { player } of games) {
+    for (const [unitId, times] of Object.entries(player.unitTimes ?? {})) {
+      const first = WORKER_IDS.has(Number(unitId)) ? STARTING_WORKERS + 1 : 1
+      times.forEach((timeMs, i) => {
+        const nth = first + i
+        const id = `u${unitId}#${nth}`
+        const entry = byStep.get(id) ?? { key: `u${unitId}`, nth, times: [] }
+        entry.times.push(timeMs)
+        byStep.set(id, entry)
+      })
+    }
+  }
+  return Array.from(byStep.values())
+    .filter(entry => entry.times.length >= games.length * USUAL_STEP_SHARE)
+    .map(entry => ({
+      key: entry.key,
+      nth: entry.nth,
+      ...timingOf(entry.times),
+      share: entry.times.length / games.length,
+    }))
+    .sort((a, b) => a.timeMs - b.timeMs || a.nth - b.nth)
 }
 
 function workerStopOf(samples: ReadonlyArray<BuildSample>): WorkerStopSummary | undefined {
@@ -265,6 +318,7 @@ function sideOf(samples: ReadonlyArray<BuildSample>): BuildSide {
     ...countTeams(samples),
     withUser: samples.filter(s => s.withUser).length,
     steps: usualSteps(samples),
+    unitSteps: usualUnitSteps(samples),
     workerStop: workerStopOf(samples),
     workersAt: workersAtOf(samples),
     armyMix: armyMixOf(samples),

@@ -43,8 +43,10 @@ pub fn open_file_hook(
     unsafe {
         let mut buffer = PathBuffer::new();
         let real = real_path(path, params, &mut buffer);
+        let mut is_dds_grp = false;
         if let Some(path) = real {
             let is_sd = (*params).file_type == 1;
+            is_dds_grp = path.ends_with(b".dds.grp");
             if bw.disable_hd.load(Ordering::Relaxed)
                 && !is_sd
                 && let Some(patched) = check_dummied_out_hd(path)
@@ -95,7 +97,11 @@ pub fn open_file_hook(
                 }
             }
         }
-        orig(out, path, params)
+        let result = orig(out, path, params);
+        if is_dds_grp {
+            crate::game_icons::on_dds_grp_opened(params, orig);
+        }
+        result
     }
 }
 
