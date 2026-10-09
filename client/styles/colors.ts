@@ -231,14 +231,18 @@ export const THEME_CSS = css`
   --theme-color-terran: ${colorTerran};
   --theme-color-random: ${colorRandom};
 
-  /** The 1v1 ladder ranks, F up to S, from dull to bright, ending in gold. */
-  --theme-rank-f: #9ca3af;
-  --theme-rank-e: #c9935f;
-  --theme-rank-d: #b8c4d6;
-  --theme-rank-c: #4ade80;
+  /**
+   * The 1v1 ladder ranks, F up to S: iron, bronze and silver, then green, blue, purple and gold.
+   * Each is a badge's fill, with its letter in the rank letter color.
+   */
+  --theme-rank-f: #7c8594;
+  --theme-rank-e: #c98a52;
+  --theme-rank-d: #d5dde8;
+  --theme-rank-c: #34d399;
   --theme-rank-b: #60a5fa;
   --theme-rank-a: #c084fc;
   --theme-rank-s: #fbbf24;
+  --theme-rank-letter: #111113;
 
   --theme-dialog-scrim: var(--color-grey-blue10);
   --theme-dialog-scrim-opacity: ${dialogScrimOpacity};
@@ -376,13 +380,14 @@ export const LIGHT_THEME_CSS = css`
   --theme-color-terran: #1d4ed8;
   --theme-color-random: #b85c12;
 
-  --theme-rank-f: #6b7280;
-  --theme-rank-e: #9a5b2a;
-  --theme-rank-d: #5b6b82;
-  --theme-rank-c: #15803d;
-  --theme-rank-b: #1d4ed8;
-  --theme-rank-a: #7e22ce;
-  --theme-rank-s: #a16207;
+  --theme-rank-f: #5f6672;
+  --theme-rank-e: #a8682f;
+  --theme-rank-d: #9aa8bb;
+  --theme-rank-c: #16a34a;
+  --theme-rank-b: #2563eb;
+  --theme-rank-a: #9333ea;
+  --theme-rank-s: #d99a06;
+  --theme-rank-letter: #ffffff;
 
   --theme-dialog-scrim: #111113;
   --theme-dialog-scrim-opacity: 0.4;

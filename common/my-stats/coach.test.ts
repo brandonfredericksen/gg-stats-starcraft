@@ -876,6 +876,33 @@ describe('common/my-stats/coach', () => {
       expect(bucketOf(coach)?.compared.find(f => f.key === 'workers6')?.poolValue).toBe(16)
     })
 
+    test("keeps the user's latest rank apart from the one picked", () => {
+      const mine = myGames(12, 18)
+      mine[9].players[0].rank = 'c'
+      const coach = computeCoach([...mine, ...ranked()], { ...query, rank: 'a' })
+      expect(coach).toMatchObject({ rank: 'a', autoRank: 'c' })
+    })
+
+    test('says what MMRs each rank covers, once it has enough of its players', () => {
+      const withMmr = (rank: 'c' | 'a', mmrs: number[]) =>
+        mmrs.map(mmr => {
+          const [g] = poolGames(1, () => 18)
+          g.players[0].rank = rank
+          g.players[0].mmr = mmr
+          return g
+        })
+      const coach = computeCoach(
+        [
+          ...myGames(12, 18),
+          // The lowest and highest of the C players are left out, and the rest rounded to tens.
+          ...withMmr('c', [1400, 1571, 1580, 1600, 1620, 1640, 1660, 1680, 1690, 1704, 1900]),
+          ...withMmr('a', [2100, 2200]),
+        ],
+        query,
+      )
+      expect(coach.rankMmr).toEqual({ c: { low: 1570, high: 1700 } })
+    })
+
     test('compares with every rank when any is picked', () => {
       const mine = myGames(12, 18)
       mine[9].players[0].rank = 'c'

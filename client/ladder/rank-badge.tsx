@@ -13,18 +13,23 @@ const Badge = styled.span<{ $rank: LadderRank }>`
   align-items: center;
   justify-content: center;
 
-  /* A shield: square shoulders, a pointed foot. */
-  clip-path: polygon(0 0, 100% 0, 100% 68%, 50% 100%, 0 68%);
-  padding-bottom: 3px;
-
-  background-color: color-mix(in srgb, ${props => getRankColor(props.$rank)} 22%, transparent);
-  box-shadow: inset 0 2px 0 ${props => getRankColor(props.$rank)};
-  color: ${props => getRankColor(props.$rank)};
+  /* A hexagon standing on a point, the same on every side, so the letter sits in its middle. */
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, ${props => getRankColor(props.$rank)}, white 30%) 0%,
+    ${props => getRankColor(props.$rank)} 55%
+  );
+  color: var(--theme-rank-letter);
   font-weight: 800;
   line-height: 1;
+  /* Down to the capital itself, so it's centered by its own height rather than the font's. */
+  text-box: trim-both cap alphabetic;
+  /* The capital lands a pixel low in the badge's even height, which this lifts it by. */
+  padding-bottom: 2px;
 `
 
-/** A 1v1 ladder rank's letter on a shield in the rank's color. */
+/** A 1v1 ladder rank's letter on a hexagon in the rank's color. */
 export function RankBadge({ rank, className }: { rank: LadderRank; className?: string }) {
   return (
     <Badge $rank={rank} className={className} aria-hidden={true}>

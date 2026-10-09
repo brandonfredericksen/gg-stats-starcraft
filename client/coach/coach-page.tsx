@@ -802,50 +802,65 @@ function RacePicker({
     return null
   }
 
+  const keyOf = (scope: Omit<CoachScope, 'games'>) =>
+    `${scope.race}${scope.opponentRace ?? ''}${scope.allyRace ?? ''}`
+  const options: Array<SegmentOption<string>> = inMode.map(scope => ({
+    value: keyOf(scope),
+    label: getScopeName(scope, t),
+    menuDetail: t('myStats.coach.scopeGames', {
+      defaultValue: '{{count}} games',
+      defaultValue_one: '{{count}} game',
+      count: scope.games,
+    }),
+    buttonContent: <ScopeTags scope={scope} />,
+  }))
   return (
-    <Races role='group' aria-label={t('myStats.coach.races', 'Your race')}>
-      {inMode.map(scope => {
-        const selected =
-          picked.race === scope.race &&
-          picked.opponentRace === scope.opponentRace &&
-          picked.allyRace === scope.allyRace
-        const description = t('myStats.coach.scopeLabel', {
-          defaultValue: '{{name}}, {{count}} games',
-          defaultValue_one: '{{name}}, {{count}} game',
-          name: getScopeName(scope, t),
-          count: scope.games,
-        })
-        return (
-          <RaceButton
-            key={`${scope.race}${scope.opponentRace ?? ''}${scope.allyRace ?? ''}`}
-            type='button'
-            $on={selected}
-            aria-pressed={selected}
-            aria-label={description}
-            title={description}
-            onClick={() => setScope(toQueryScope(scope))}>
-            <RaceTag race={scope.race} />
-            {scope.allyRace ? (
-              <>
-                +
-                <RaceTag race={scope.allyRace} />
-              </>
-            ) : null}
-            {scope.opponentRace ? (
-              <>
-                {t('myStats.vs', 'vs')}
-                <RaceTag race={scope.opponentRace} />
-              </>
-            ) : null}
-            {!scope.allyRace && !scope.opponentRace ? (
-              <span>{raceCharToLabel(scope.race, t)}</span>
-            ) : null}
-          </RaceButton>
-        )
-      })}
-    </Races>
+    <SegmentMenu
+      label={t('myStats.coach.races', 'Your race')}
+      showLabel={false}
+      options={options}
+      value={keyOf(picked)}
+      onChange={key => {
+        const scope = inMode.find(s => keyOf(s) === key)
+        if (scope) {
+          setScope(toQueryScope(scope))
+        }
+      }}
+    />
   )
 }
+
+/** A kind of game's races as tags, like Z vs P, or P + T in 2v2. */
+function ScopeTags({ scope }: { scope: Omit<CoachScope, 'games'> }) {
+  const { t } = useTranslation()
+  return (
+    <ScopeTagsRoot>
+      <RaceTag race={scope.race} />
+      {scope.allyRace ? (
+        <>
+          +
+          <RaceTag race={scope.allyRace} />
+        </>
+      ) : null}
+      {scope.opponentRace ? (
+        <>
+          {t('myStats.vs', 'vs')}
+          <RaceTag race={scope.opponentRace} />
+        </>
+      ) : null}
+      {!scope.allyRace && !scope.opponentRace ? (
+        <span>{raceCharToLabel(scope.race, t)}</span>
+      ) : null}
+    </ScopeTagsRoot>
+  )
+}
+
+const ScopeTagsRoot = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--theme-on-surface-variant);
+`
 
 /** How many of the user's replays of a game type are analyzed, with a way to analyze more. */
 function CoverageTile({
@@ -1980,7 +1995,11 @@ export function CoachToolbar({
         ) : null}
         <FloorMenu floor={coach.eapmFloor} />
         {picked?.shape === '1v1' ? (
-          <RankMenu autoRank={coach.rank} label={t('myStats.filters.rank', 'Their rank')} />
+          <RankMenu
+            autoRank={coach.autoRank}
+            rankMmr={coach.rankMmr}
+            label={t('myStats.filters.rank', 'Their rank')}
+          />
         ) : null}
       </Toolbar>
     </>
