@@ -1,6 +1,7 @@
 /**
  * Builds the 1v1 ladder baseline the app ships, from start to end: `pnpm run ladder-baseline --dir
- * <folder> [--skip-fetch] [--per-cell 40] [--per-map 25] [--pages 40]`.
+ * <folder> [--skip-fetch] [--retry-failed]`, with the fetch options of `fetch-ladder-replays.ts`
+ * passed on.
  *
  * 1. Downloads ladder replays into the folder with `fetch-ladder-replays.ts`, which asks a logged
  *    in StarCraft: Remastered, starting it through Battle.net when it isn't running or crashes.
@@ -8,15 +9,16 @@
  * 2. Starts the app with no window and its own data files (the `ladder` session) to analyze every
  *    replay in the folder, one at a time in a hidden StarCraft, the way it analyzes replays in the
  *    background. This is the slow part. Replays analyzed before are skipped, so it can be stopped
- *    and run again.
+ *    and run again, and so are replays it gave up on before, like broken ones, unless
+ *    `--retry-failed` asks for them again.
  * 3. Has the app write the analyzed games, with each player's MMR and rank and every name replaced
  *    by a made up id, to `app/assets/ladder-baseline.json.gz`.
  *
  * While it runs, P pauses it and goes on again, and Q (or Ctrl+C) stops it once what it's in the
  * middle of is done, like the replay being analyzed. Q again stops it right away.
  *
- * Each step picks up where it left off, so after a new season starts, running this again with the
- * same folder adds that season's games.
+ * Each step picks up where it left off, and each fetch adds more games than the folder had, so
+ * running this again with the same folder keeps growing the baseline.
  */
 import { ChildProcess, spawn } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
@@ -38,8 +40,11 @@ const { values: args } = parseArgs({
   options: {
     dir: { type: 'string' },
     'skip-fetch': { type: 'boolean', default: false },
+    'retry-failed': { type: 'boolean', default: false },
     'per-cell': { type: 'string' },
     'per-map': { type: 'string' },
+    'add-per-cell': { type: 'string' },
+    'add-per-map': { type: 'string' },
     pages: { type: 'string' },
     port: { type: 'string' },
   },
@@ -149,9 +154,9 @@ async function main() {
   }
 
   if (!args['skip-fetch']) {
-    const passed = (['per-cell', 'per-map', 'pages', 'port'] as const).flatMap(name =>
-      args[name] !== undefined ? [`--${name}`, args[name]!] : [],
-    )
+    const passed = (
+      ['per-cell', 'per-map', 'add-per-cell', 'add-per-map', 'pages', 'port'] as const
+    ).flatMap(name => (args[name] !== undefined ? [`--${name}`, args[name]!] : []))
     await run(process.execPath, [
       '-r',
       '@swc-node/register',
@@ -171,7 +176,13 @@ async function main() {
   const electronPath = createRequire(import.meta.url)('electron') as string
   await run(
     electronPath,
-    ['app', '--hidden', `--analyze-folder=${dir}`, `--export-baseline=${EXPORT_PATH}`],
+    [
+      'app',
+      '--hidden',
+      `--analyze-folder=${dir}`,
+      `--export-baseline=${EXPORT_PATH}`,
+      ...(args['retry-failed'] ? ['--retry-failed'] : []),
+    ],
     { GGSTATS_SESSION: SESSION },
   )
   if (stopped()) {
