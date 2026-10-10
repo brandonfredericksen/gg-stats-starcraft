@@ -27,6 +27,7 @@ import log from '../logger'
 import { LocalSettingsManager, ScrSettingsManager } from '../settings'
 import { checkStarcraftPath } from './check-starcraft-path'
 import { isCrashExitCode } from './crash-exit-code'
+import { stopLaunchedGame } from './stop-launched-game'
 
 // How long to wait for a `/game/debug/screenshot` reply before giving up. A release DLL doesn't
 // recognize `debugControl` at all, so a request to one never gets a reply and always times out.
@@ -80,6 +81,11 @@ const REPLAY_ANALYSIS_START_TIMEOUT_MS = 90 * 1000
  * takes seconds, but a long replay on a slow computer can take a lot longer.
  */
 const REPLAY_ANALYSIS_PLAY_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * How long a replay analysis that was told to quit gets to exit before its process is ended. Quitting
+ * needs the game to be connected, which one stuck while starting may never be.
+ */
+const REPLAY_ANALYSIS_QUIT_GRACE_MS = 15 * 1000
 
 export type ActiveGameManagerEvents = {
   gameCommand: [gameId: string, command: string, ...args: any[]]
@@ -222,11 +228,37 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
   private watchReplayAnalysis(gameId: string, timeoutMs: number) {
     clearTimeout(this.replayAnalysisWatchdog)
     this.replayAnalysisWatchdog = setTimeout(() => {
-      if (this.activeGame?.id === gameId) {
+      const game = this.activeGame
+      if (game?.id === gameId) {
         log.warning(`Replay analysis ${gameId} didn't report its stats in time, stopping it`)
         this.clearGameConfig(gameId)
+        this.stopIfStillRunning(gameId, game.promise)
       }
     }, timeoutMs)
+  }
+
+  /**
+   * Ends a replay analysis's process if it hasn't exited `REPLAY_ANALYSIS_QUIT_GRACE_MS` after being
+   * told to quit, so a stuck StarCraft nobody can see doesn't stay running. `exited` settles once
+   * its process has exited, or couldn't be launched.
+   */
+  private stopIfStillRunning(gameId: string, exited: Promise<unknown> | undefined) {
+    let graceTimer: ReturnType<typeof setTimeout> | undefined
+    const graceOver = new Promise<boolean>(resolve => {
+      graceTimer = setTimeout(() => resolve(true), REPLAY_ANALYSIS_QUIT_GRACE_MS)
+    })
+    Promise.race([exited?.then(() => false) ?? graceOver, graceOver])
+      .then(stillRunning => {
+        clearTimeout(graceTimer)
+        if (stillRunning) {
+          log.warning(`Replay analysis ${gameId} didn't quit, ending its process`)
+          return stopLaunchedGame(gameId)
+        }
+        return undefined
+      })
+      .catch(err => {
+        log.error(`Error ending replay analysis ${gameId}: ${getErrorStack(err)}`)
+      })
   }
 
   /** Notifies the manager that a game instance has connected and is ready for configuration. */

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameLaunchConfig } from '../../common/games/game-launch-config'
 import { GameStatus } from '../../common/games/game-status'
+import { asMockedFunction } from '../../common/testing/mocks'
 import { ActiveGameManager } from './active-game-manager'
+import { stopLaunchedGame } from './stop-launched-game'
 
 // ActiveGameManager pulls in Electron (and modules that initialize against a real Electron
 // process) at module scope; these are irrelevant to the behavior under test, so they're stubbed
@@ -25,6 +27,7 @@ vi.mock('../settings', () => ({
 vi.mock('./check-starcraft-path', () => ({
   checkStarcraftPath: () => new Promise(() => {}),
 }))
+vi.mock('./stop-launched-game', () => ({ stopLaunchedGame: vi.fn(async () => {}) }))
 
 function makeManager(): ActiveGameManager {
   // The launch path's very first step awaits the local settings; pinning that await keeps the
@@ -123,6 +126,19 @@ describe('ActiveGameManager replay analysis', () => {
 
     expect(commands).toContainEqual(['analysis', 'quit'])
     expect(manager.getStatus()).toBeNull()
+  })
+
+  it("ends an analysis's process when it doesn't quit after being stopped", async () => {
+    vi.useFakeTimers()
+    const stop = asMockedFunction(stopLaunchedGame)
+    stop.mockClear()
+    manager.setGameConfig(analysisConfigFor('analysis'))
+
+    vi.advanceTimersByTime(90 * 1000)
+    expect(stop).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(15 * 1000)
+    expect(stop).toHaveBeenCalledWith('analysis')
   })
 
   it('gives a loaded replay longer to reach its end', () => {
