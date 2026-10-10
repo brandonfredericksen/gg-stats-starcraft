@@ -126,7 +126,20 @@ function toRaceChar(race: string | undefined): AssignedRaceChar | undefined {
 async function writeJson(filePath: string, value: unknown) {
   const temp = `${filePath}.tmp`
   await writeFile(temp, JSON.stringify(value, null, 1))
-  await rename(temp, filePath)
+  // Windows refuses to replace a file another program has open for a moment, like an antivirus
+  // scan or the search indexer, so the swap is tried again for a few seconds before giving up.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await rename(temp, filePath)
+      return
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (attempt >= 20 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) {
+        throw err
+      }
+      await new Promise(resolve => setTimeout(resolve, 250))
+    }
+  }
 }
 
 async function readJson(filePath: string): Promise<unknown> {
