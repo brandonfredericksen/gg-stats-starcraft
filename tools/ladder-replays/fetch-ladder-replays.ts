@@ -1,20 +1,23 @@
 /**
  * Downloads recent 1v1 ladder replays from players of every rank, for other players' numbers to
  * compare with: `pnpm run fetch-ladder-replays --out <folder> [--per-cell 40] [--per-map 25]
- * [--pages 40] [--port <port>] [--season <season>]`. It asks the StarCraft: Remastered that's
- * running and logged in, and has Battle.net start it when it isn't running or stops answering, so a
- * run left alone gets past a crash.
+ * [--add-per-cell 10] [--add-per-map 5] [--pages 40] [--port <port>] [--season <season>]`. It asks
+ * the StarCraft: Remastered that's running and logged in, and has Battle.net start it when it isn't
+ * running or stops answering, so a run left alone gets past a crash.
  *
- * It samples players from across the season's global leaderboard, looks through their latest
- * games and keeps the ones that fill something short of games: a matchup at a rank (PvT at C, say)
- * with fewer than `--per-cell`, or a matchup on a map with fewer than `--per-map`, at any rank. It
- * goes until every one is full or it runs out of players. Each replay is saved as `<md5>.rep`, and
- * `ladder-manifest.json` next to them records the map and both players' MMR and rank going into
- * the game. It picks up where it left off, from `fetch-state.json` in the same folder.
+ * It samples players from across the season's global leaderboard, looks through their latest games
+ * and keeps the ones that fill something short of games: a matchup at a rank (PvT at C, say), or a
+ * matchup on a map at any rank. Each run aims for `--add-per-cell` and `--add-per-map` more than
+ * the folder had, and at least `--per-cell` and `--per-map`, so running it again keeps adding games
+ * evenly. It goes until every one is full or it runs out of players. Each replay is saved as
+ * `<md5>.rep`, and `ladder-manifest.json` next to them records the map and both players' MMR and
+ * rank going into the game.
  *
- * Only the season's own games count toward the targets, so running it again in a new season adds
- * a full set for that season to the same folder. Ladder replays are only kept for about a month,
- * so this only ever finds recent games.
+ * Every run samples other players, at other places on the leaderboard, and players keep playing,
+ * so there are new games to find. Matches seen before, kept or not, are remembered in
+ * `fetch-state.json` and skipped. Only the season's own games count toward the targets, so a new
+ * season starts a full set of its own. Ladder replays are only kept for about a month, so this only
+ * ever finds recent games.
  */
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -54,10 +57,7 @@ interface SampledPlayer {
 
 interface FetchState {
   season: number
-  players: SampledPlayer[]
-  /** `toon@gateway` of each player whose games were looked through. */
-  queried: string[]
-  /** Matches already looked at, kept or not. */
+  /** Matches already looked at this season, kept or not. */
   seenMatches: string[]
 }
 
@@ -97,6 +97,8 @@ const { values: args } = parseArgs({
     out: { type: 'string' },
     'per-cell': { type: 'string', default: '40' },
     'per-map': { type: 'string', default: '25' },
+    'add-per-cell': { type: 'string', default: '10' },
+    'add-per-map': { type: 'string', default: '5' },
     pages: { type: 'string', default: '40' },
     port: { type: 'string' },
     season: { type: 'string' },
@@ -234,10 +236,15 @@ async function countLeaderboard(bridge: Bridge, id: number) {
 async function samplePlayers(bridge: Bridge, id: number, pages: number): Promise<SampledPlayer[]> {
   const total = await countLeaderboard(bridge, id)
   console.log(`The leaderboard has about ${total} players. Sampling ${pages} pages of it.`)
-  // Spread from the top page to the last one, since F is only found at the very bottom.
+  // Spread from the top page to the last one, since F is only found at the very bottom, and moved
+  // along by a random amount each run, so each run samples other players.
   const last = Math.max(0, total - PAGE_LENGTH)
+  const step = pages > 1 ? last / (pages - 1) : 0
+  const shift = Math.random() * step
   const offsets = new Set(
-    Array.from({ length: pages }, (_, i) => (pages > 1 ? Math.round((last * i) / (pages - 1)) : 0)),
+    Array.from({ length: pages }, (_, i) =>
+      i === pages - 1 ? last : Math.min(last, Math.round(i * step + shift)),
+    ),
   )
   const players: SampledPlayer[] = []
   for (const offset of offsets) {
@@ -357,7 +364,7 @@ function countCells(games: ReadonlyArray<LadderGame>) {
   return counts
 }
 
-function printSummary(games: ReadonlyArray<LadderGame>, perCell: number, perMap: number) {
+function printSummary(games: ReadonlyArray<LadderGame>) {
   const counts = countCells(games)
   const mmrs = new Map<LadderRank, number[]>()
   for (const game of games) {
@@ -367,7 +374,7 @@ function printSummary(games: ReadonlyArray<LadderGame>, perCell: number, perMap:
       }
     }
   }
-  console.log(`\nGames per matchup and rank (target ${perCell}):`)
+  console.log('\nGames per matchup and rank this season:')
   const races: AssignedRaceChar[] = ['p', 't', 'z']
   console.log(`      ${LADDER_RANKS.map(r => r.toUpperCase().padStart(4)).join('')}`)
   for (const race of races) {
@@ -389,7 +396,7 @@ function printSummary(games: ReadonlyArray<LadderGame>, perCell: number, perMap:
       maps.set(getMapKey(game.mapName), getMapDisplayName(game.mapName))
     }
   }
-  console.log(`\nGames per map and matchup, any rank (target ${perMap}):`)
+  console.log('\nGames per map and matchup this season, any rank:')
   const width = Math.max(0, ...Array.from(maps.values(), name => name.length))
   const header = MATCHUPS.map(m => `${m[0]}v${m[1]}`.toUpperCase().padStart(5)).join('')
   console.log(`  ${''.padEnd(width)}${header}`)
@@ -406,6 +413,8 @@ async function main() {
   const outDir = path.resolve(args.out)
   const perCell = Number(args['per-cell'])
   const perMap = Number(args['per-map'])
+  const addPerCell = Number(args['add-per-cell'])
+  const addPerMap = Number(args['add-per-map'])
   const pages = Number(args.pages)
   await mkdir(outDir, { recursive: true })
 
@@ -420,17 +429,12 @@ async function main() {
   console.log(`Connected to StarCraft on port ${bridge.port}.`)
   const board = await findLeaderboard(bridge, args.season ? Number(args.season) : undefined)
 
-  let state = (await readJson(statePath)) as FetchState | undefined
-  if (state?.season !== board.season) {
-    state = {
-      season: board.season,
-      players: await samplePlayers(bridge, board.id, pages),
-      queried: [],
-      seenMatches: [],
-    }
-    await writeJson(statePath, state)
+  const saved = (await readJson(statePath)) as Partial<FetchState> | undefined
+  const state: FetchState = {
+    season: board.season,
+    seenMatches: saved?.season === board.season ? (saved.seenMatches ?? []) : [],
   }
-  const queried = new Set(state.queried)
+  const players = await samplePlayers(bridge, board.id, pages)
   const seenMatches = new Set([
     ...state.seenMatches,
     ...Object.values(manifest.games).map(g => g.matchId),
@@ -439,7 +443,13 @@ async function main() {
   const season = state.season
   const seasonGames = () => Object.values(manifest.games).filter(g => g.season === season)
   const counts = countCells(seasonGames())
-  const needs = (cell: string) => (counts.get(cell) ?? 0) < (cell.includes('@') ? perMap : perCell)
+  // What this run aims for, from what the folder had when it started.
+  const startCounts = new Map(counts)
+  const goal = (cell: string) =>
+    cell.includes('@')
+      ? Math.max(perMap, (startCounts.get(cell) ?? 0) + addPerMap)
+      : Math.max(perCell, (startCounts.get(cell) ?? 0) + addPerCell)
+  const needs = (cell: string) => (counts.get(cell) ?? 0) < goal(cell)
   const rankNeeds = (rank: LadderRank) => MATCHUPS.some(m => needs(`${m}${rank}`))
   // The season's maps, as they show up in anyone's games, whether those were kept or not.
   const maps = new Set(seasonGames().flatMap(g => (g.mapName ? [getMapKey(g.mapName)] : [])))
@@ -447,10 +457,7 @@ async function main() {
 
   // Players are taken a rank at a time, in turn, so every rank fills up together.
   const queues = new Map<LadderRank, SampledPlayer[]>(
-    LADDER_RANKS.map(rank => [
-      rank,
-      shuffle(state.players.filter(p => p.rank === rank && !queried.has(`${p.toon}@${p.gateway}`))),
-    ]),
+    LADDER_RANKS.map(rank => [rank, shuffle(players.filter(p => p.rank === rank))]),
   )
   let kept = 0
   let stopped = false
@@ -516,17 +523,15 @@ async function main() {
         )
       }
       if (stopped) {
-        // Not marked as looked through, so their games are looked at again next time.
         break
       }
-      queried.add(`${player.toon}@${player.gateway}`)
-      state.queried = Array.from(queried)
       state.seenMatches = Array.from(seenMatches)
       await writeJson(statePath, state)
     }
   }
 
-  printSummary(seasonGames(), perCell, perMap)
+  console.log(`\nKept ${kept} new games this run.`)
+  printSummary(seasonGames())
   if (stopped) {
     console.log('\nStopped. Run the same command again to go on from here.')
     return
@@ -538,7 +543,7 @@ async function main() {
   if (left.length) {
     console.log(
       `\nRan out of sampled players before filling ${left.join(', ')}. ` +
-        'Delete fetch-state.json and run again with more --pages to sample more.',
+        'Run it again to sample other players, or with more --pages to sample more at once.',
     )
   }
 }

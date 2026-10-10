@@ -35,6 +35,8 @@ const MAX_RESUMES_WITHOUT_PROGRESS = MAX_ATTEMPTS
 export interface LadderRunArgs {
   folder: string
   exportPath?: string
+  /** Whether to try the replays given up on in earlier runs again. */
+  retryFailed: boolean
 }
 
 export function getLadderRunArgs(argv: ReadonlyArray<string>): LadderRunArgs | undefined {
@@ -42,7 +44,9 @@ export function getLadderRunArgs(argv: ReadonlyArray<string>): LadderRunArgs | u
     argv.find(arg => arg.startsWith(`${name}=`))?.slice(name.length + 1)
   const folder = valueOf('--analyze-folder')
   const exportPath = valueOf('--export-baseline')
-  return folder ? { folder: path.resolve(folder), exportPath } : undefined
+  return folder
+    ? { folder: path.resolve(folder), exportPath, retryFailed: argv.includes('--retry-failed') }
+    : undefined
 }
 
 /** Printed for whoever started the run, and logged. */
@@ -85,19 +89,30 @@ async function toReplayToAnalyze(replayPath: string): Promise<ReplayToAnalyze | 
  */
 export async function analyzeFolder({
   folder,
+  retryFailed,
   autoCapture,
   backfill,
 }: {
   folder: string
+  retryFailed: boolean
   autoCapture: AutoCaptureService
   backfill: CommandStatsBackfill
 }): Promise<{ total: number; failed: number; stopped: boolean; quit: boolean }> {
   const files = (await readdir(folder)).filter(f => f.toLowerCase().endsWith('.rep'))
-  const replays = (
+  // Replays given up on in an earlier run, like ones without a known end, aren't tried again.
+  const keyOf = (replayPath: string) => path.resolve(replayPath).toLowerCase()
+  const givenUp = new Set(retryFailed ? [] : autoCapture.getStatus().failed.map(keyOf))
+  const readable = (
     await Promise.all(files.map(f => toReplayToAnalyze(path.join(folder, f))))
   ).filter((r): r is ReplayToAnalyze => !!r)
+  const replays = readable.filter(r => !givenUp.has(keyOf(r.path)))
   report(`Analyzing the replays of ${replays.length} games in ${folder}.`)
+  if (replays.length < readable.length) {
+    report(`Skipping ${readable.length - replays.length} that couldn't be analyzed before.`)
+  }
   await autoCapture.analyze(replays)
+  const failedThisRun = () =>
+    autoCapture.getStatus().failed.filter(p => !givenUp.has(keyOf(p))).length
 
   let lastLeft = -1
   let held = false
@@ -118,11 +133,11 @@ export async function analyzeFolder({
     const status = autoCapture.getStatus()
     if (stop && !status.running) {
       report('Stopped. Run the same command again to go on from here.')
-      return { total: replays.length, failed: status.failed.length, stopped: false, quit: true }
+      return { total: replays.length, failed: failedThisRun(), stopped: false, quit: true }
     }
     const left = status.queued.length + (status.running ? 1 : 0)
     if (left !== lastLeft) {
-      report(`${replays.length - left} of ${replays.length} done, ${status.failed.length} failed.`)
+      report(`${replays.length - left} of ${replays.length} done, ${failedThisRun()} failed.`)
       lastLeft = left
     }
     if (left && status.paused) {
@@ -143,7 +158,7 @@ export async function analyzeFolder({
       await backfill.readAll()
       return {
         total: replays.length,
-        failed: status.failed.length,
+        failed: failedThisRun(),
         // Failures in a row with nothing left only gave up on the last replays.
         stopped: status.paused && left > 0,
         quit: false,

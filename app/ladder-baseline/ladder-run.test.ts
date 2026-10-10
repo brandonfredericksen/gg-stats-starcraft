@@ -69,7 +69,14 @@ describe('app/ladder-baseline/ladder-run', () => {
   test('reads the folder to analyze and where to write the baseline', () => {
     expect(getLadderRunArgs(['electron', 'app', '--hidden'])).toBeUndefined()
     const run = getLadderRunArgs(['app', '--analyze-folder=reps', '--export-baseline=out.json.gz'])
-    expect(run).toEqual({ folder: path.resolve('reps'), exportPath: 'out.json.gz' })
+    expect(run).toEqual({
+      folder: path.resolve('reps'),
+      exportPath: 'out.json.gz',
+      retryFailed: false,
+    })
+    expect(getLadderRunArgs(['app', '--analyze-folder=reps', '--retry-failed'])?.retryFailed).toBe(
+      true,
+    )
   })
 
   describe('exporting', () => {

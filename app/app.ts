@@ -913,6 +913,7 @@ app.on('ready', () => {
         await autoCaptureStarted
         const result = await analyzeFolder({
           folder: ladderRun.folder,
+          retryFailed: ladderRun.retryFailed,
           autoCapture,
           backfill: commandStatsBackfill,
         })
