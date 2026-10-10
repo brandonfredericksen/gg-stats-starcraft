@@ -31,7 +31,7 @@ const SD_FILE_TYPE: u32 = 1;
 const HD_FILE_TYPE: u32 = 4;
 
 /// Bumped when the sheet or its list changes, so an older one is made again.
-const ICONS_VERSION: u32 = 3;
+const ICONS_VERSION: u32 = 4;
 /// Each icon's square in the sheet, in pixels. HD icons are scaled down to it.
 const CELL_SIZE: u32 = 64;
 /// Icons in each row of the sheet.
@@ -174,8 +174,9 @@ unsafe fn capture(handle: *mut scr::FileHandle, hd: bool) {
 }
 
 /// Saves the icons kept while the game started, if they're better than any saved before. Reads
-/// which icon each thing uses from the game's data, so it must run once that's loaded, on the
-/// game thread; the decoding and writing happen on a thread of their own.
+/// which icon each thing uses from the game's data, so it must run on the game thread once
+/// `init_game_data` has loaded it; before then every upgrade and tech reads as icon 0. The
+/// decoding and writing happen on a thread of their own.
 pub fn save_captured() {
     let Some(captured) = CAPTURED.lock().take() else {
         return;

@@ -211,7 +211,6 @@ unsafe fn handle_game_request(request: GameThreadRequestType) {
                 debug!("LobbyInitCompleter finished, proceeding to game loop");
 
                 send_game_msg_to_async(GameThreadMessage::GameStarting);
-                crate::game_icons::save_captured();
 
                 debug!("Game seed: {:#x}", bw.rng_seed());
 
@@ -350,6 +349,9 @@ pub unsafe fn after_init_game_data() {
         }
 
         send_game_msg_to_async(GameThreadMessage::PlayersRandomized);
+
+        // The game's data is loaded now, which says which icon each upgrade and tech uses.
+        crate::game_icons::save_captured();
 
         // Now that alliances are finalized, build the custom team-color assignment (a no-op unless
         // the feature is active). Must run before the minimap dialog inits so colors are correct
