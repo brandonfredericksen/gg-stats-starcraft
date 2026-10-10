@@ -213,10 +213,13 @@ export class GameStatsStore {
   }
 
   /**
-   * Reads a game's saved stats, or says why they couldn't be: there are none, or they can't be used
-   * because they're corrupt or were saved by an older version.
+   * Reads a game's saved stats, or says why they couldn't be: there are none, they can't be used
+   * because they're corrupt or were saved by an older version, or they were saved by a newer version
+   * of the app than this one, which a user going back to it can still read.
    */
-  private async readSavedFile(gameId: string): Promise<SavedGameStats | 'missing' | 'unusable'> {
+  private async readSavedFile(
+    gameId: string,
+  ): Promise<SavedGameStats | 'missing' | 'unusable' | 'newer'> {
     let contents: string
     try {
       contents = await readFile(this.getPath(gameId), 'utf8')
@@ -230,6 +233,11 @@ export class GameStatsStore {
       const saved: unknown = JSON.parse(contents)
       if (isSavedGameStats(saved, gameId)) {
         return upgradeSavedGameStats(saved)
+      }
+      const { version } = saved as Partial<SavedGameStats>
+      if (typeof version === 'number' && version > SAVED_GAME_STATS_VERSION) {
+        log.warning(`The saved stats for game ${gameId} are from a newer version`)
+        return 'newer'
       }
       log.warning(`The saved stats for game ${gameId} are from an older version`)
     } catch (err) {

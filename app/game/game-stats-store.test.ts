@@ -202,6 +202,22 @@ describe('app/game/game-stats-store', () => {
     expect(await readdir(dir)).toEqual(['new.json'])
   })
 
+  test('keeps stats saved by a newer version without reading them', async () => {
+    const newer = {
+      version: SAVED_GAME_STATS_VERSION + 1,
+      gameId: 'newer',
+      savedAt: 1,
+      source: { kind: 'game' },
+      stats: STATS,
+    }
+    await writeFile(path.join(dir, 'newer.json'), JSON.stringify(newer))
+    const store = new GameStatsStore(dir)
+
+    expect(await store.get('newer')).toBeUndefined()
+    await store.save('new', { kind: 'game' }, STATS)
+    expect((await readdir(dir)).sort()).toEqual(['new.json', 'newer.json'])
+  })
+
   test('keeps only the most recently saved games, including ones saved before a restart', async () => {
     for (const gameId of ['oldest', 'middle']) {
       await new GameStatsStore(dir, 2).save(gameId, { kind: 'game' }, STATS)

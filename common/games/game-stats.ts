@@ -172,7 +172,10 @@ export interface ReplayFileInfo {
 
 /**
  * The version of {@link SavedGameStats} written now. Stats saved by an older version are treated as
- * missing, since what they hold may mean something different.
+ * missing and deleted, since what they hold may mean something different, so raising it throws
+ * away every analysis users have. Prefer upgrading what older versions saved as it's read
+ * (`upgradeSavedGameStats` in `app/game/game-stats-store.ts`). Stats saved by a newer version are
+ * left alone, for when the user goes back to it.
  */
 export const SAVED_GAME_STATS_VERSION = 1
 
