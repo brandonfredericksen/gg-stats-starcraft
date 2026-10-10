@@ -8,6 +8,7 @@ import { ReplayChatMessage } from '../../common/games/replay-chat'
 import { TypedIpcRenderer } from '../../common/ipc'
 import logger from '../logging/logger'
 import { RaceTag } from '../material/race-tag'
+import { selectableTextContainer } from '../styles/text-selection'
 import { bodyMedium, labelLarge, singleLine } from '../styles/typography'
 import {
   PlayerSwatch,
@@ -20,8 +21,9 @@ import {
 
 const ipcRenderer = new TypedIpcRenderer()
 
-/** Long chats scroll rather than stretch the page. */
+/** Long chats scroll rather than stretch the page, and can be selected to copy. */
 const MessageList = styled.ol`
+  ${selectableTextContainer};
   max-height: 560px;
   margin: 0;
   padding: 6px 0;
@@ -51,6 +53,16 @@ const Sender = styled.span`
   align-self: center;
   gap: 8px;
   font-weight: 600;
+`
+
+/** A player's color and race, which copying the chat leaves out so only the name is copied. */
+const SenderMarks = styled.span`
+  display: contents;
+
+  &,
+  & * {
+    user-select: none;
+  }
 `
 
 const SenderName = styled.span`
@@ -95,8 +107,10 @@ function ChatMessageRow({
       <Sender title={name}>
         {player ? (
           <>
-            <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
-            {player.race ? <RaceTag race={player.race} /> : null}
+            <SenderMarks>
+              <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
+              {player.race ? <RaceTag race={player.race} /> : null}
+            </SenderMarks>
             <SenderName>{name}</SenderName>
           </>
         ) : (
@@ -109,6 +123,31 @@ function ChatMessageRow({
       </Sender>
       <Message>{message.message}</Message>
     </MessageRow>
+  )
+}
+
+/**
+ * Copies a selection that covers more than one message as one line per message, rather than the
+ * time, sender and message each on a line of their own. A selection within one message copies as
+ * selected.
+ */
+function copyMessages(
+  event: React.ClipboardEvent<HTMLOListElement>,
+  messages: ReplayChatMessage[],
+) {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed) {
+    return
+  }
+  const rows = Array.from(event.currentTarget.children)
+  const selected = messages.filter((_, i) => rows[i] && selection.containsNode(rows[i], true))
+  if (selected.length < 2) {
+    return
+  }
+  event.preventDefault()
+  event.clipboardData.setData(
+    'text/plain',
+    selected.map(m => `${getGameDurationString(m.timeMs)} ${m.name}: ${m.message}`).join('\n'),
   )
 }
 
@@ -164,7 +203,7 @@ export function GameChat({
       <SectionErrorBoundary>
         <StatsPanel>
           {chat.messages.length ? (
-            <MessageList>
+            <MessageList onCopy={event => copyMessages(event, chat.messages!)}>
               {chat.messages.map((message, i) => (
                 <ChatMessageRow
                   key={i}
