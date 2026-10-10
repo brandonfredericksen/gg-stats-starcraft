@@ -453,11 +453,15 @@ function StatsView({
   source: GameStatsSource
   playedAtMs?: number
 }) {
+  const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
+  const replayPath =
+    source.kind === 'replay' ? source.path : (source.replayPath ?? recentReplayPath)
   return (
     <GameStatsView
       key={gameId}
       stats={stats}
       source={source}
+      replayPath={replayPath}
       header={<StatsHeader gameId={gameId} stats={stats} source={source} playedAtMs={playedAtMs} />}
     />
   )

@@ -9,6 +9,7 @@ import { Tooltip } from '../material/tooltip'
 import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
+import { GameChat } from './game-stats-chat'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { Scoreboard } from './game-stats-scoreboard'
 import {
@@ -96,15 +97,17 @@ function getStatsKey(stats: GameStats) {
 
 /**
  * Everything about how a game went: who played who, the scoreboard, charts, units and build
- * orders. The header goes above who played who.
+ * orders, and the chat when there's a replay to read it from. The header goes above who played who.
  */
 export function GameStatsView({
   stats,
   source,
+  replayPath,
   header,
 }: {
   stats: GameStats
   source: GameStatsSource
+  replayPath?: string
   header?: React.ReactNode
 }) {
   const { t } = useTranslation()
@@ -162,6 +165,10 @@ export function GameStatsView({
       </SectionErrorBoundary>
 
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
+
+      {replayPath ? (
+        <GameChat replayPath={replayPath} players={players} playerColors={playerColors} />
+      ) : null}
     </Root>
   )
 }

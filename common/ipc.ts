@@ -18,6 +18,7 @@ import {
   SavedGameStats,
 } from './games/game-stats'
 import { ReportedGameStatus } from './games/game-status'
+import { ReplayChatMessage } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
 import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MyStatsQuery, MyStatsResult } from './my-stats/my-stats'
@@ -114,6 +115,9 @@ interface IpcInvokeables {
     headerData: ReplayHeader
     players: Player[]
   }>
+
+  /** The chat in the replay at `replayPath`, in the order it was sent. */
+  replayReadChat: (replayPath: string) => Promise<ReplayChatMessage[]>
 
   /**
    * Returns the page of indexed replays matching `filters` selected by `filters.offset`/

@@ -40,7 +40,7 @@ import { getLaunchReplayPaths } from './launch-args'
 import logger from './logger'
 import { setupMyStats } from './my-stats'
 import { ReplayLibraryService, setupReplayLibrary } from './replay-library'
-import { parseReplayMetadata } from './replay-library/replay-parser'
+import { parseReplayMetadata, readReplayChat } from './replay-library/replay-parser'
 import { LocalSettingsManager, ScrSettingsManager } from './settings'
 import type { NewInstanceNotification } from './single-instance'
 import SystemTray from './system-tray'
@@ -442,6 +442,8 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
   ipcMain.handle('replayParseMetadata', async (event, replayPath) => {
     return parseReplayMetadata(replayPath)
   })
+
+  ipcMain.handle('replayReadChat', async (event, replayPath) => readReplayChat(replayPath))
 
   ipcMain.handle('ggStatsCheckFiles', () => checkGgStatsFiles())
 }
