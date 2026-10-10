@@ -18,7 +18,7 @@ export function getReplayChat(
   commands: ReadonlyArray<ReplayCommand>,
 ): ReplayChatMessage[] {
   const result: ReplayChatMessage[] = []
-  for (const { frame, playerId, command } of commands) {
+  for (const { frame, command } of commands) {
     if (command.type !== 'chat') {
       continue
     }
@@ -26,9 +26,12 @@ export function getReplayChat(
     if (!message) {
       continue
     }
+    // Chat is recorded under the replay owner's id. The message's own sender byte says who sent
+    // it: their slot, or 128-131 for an observer, which matches observers' network ids.
     const sender =
-      players.find(p => p.networkId === playerId) ??
-      players.find(p => p.slotId === command.senderSlot)
+      command.senderSlot >= 128
+        ? players.find(p => p.isObserver && p.networkId === command.senderSlot)
+        : players.find(p => !p.isObserver && p.slotId === command.senderSlot)
     result.push({
       timeMs: frame * FASTEST_MS_PER_FRAME,
       name: sender?.name ?? '',
