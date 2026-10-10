@@ -186,6 +186,9 @@ pub struct GameStatsTracker {
     /// the game starts, so until a slot has finished units, whatever shows up for it is what it
     /// started with rather than anything it made.
     started: [bool; PLAYER_COUNT],
+    /// In games whose lobby gives everyone the same team, like Melee, the teams players made by
+    /// allying each other, as long as everyone was still in. See `alliance_teams`.
+    alliance_teams: Option<[u8; PLAYER_COUNT]>,
 }
 
 /// One of the game's units, as much as larvae and scouting need.
@@ -724,6 +727,36 @@ fn is_player_type(player_type: u8) -> bool {
     )
 }
 
+/// The teams players in the game made by allying each other, numbered from 1 in the order of their
+/// lowest slot, or `Some(None)` when nobody is allied with anybody. `None` when the alliances
+/// don't split everyone into clean teams: someone allied with a player who isn't allied back, or
+/// with someone outside their team, as happens for a moment while alliances are being changed.
+fn alliance_teams(
+    in_game: &[bool; PLAYER_COUNT],
+    allied: &[[bool; PLAYER_COUNT]; PLAYER_COUNT],
+) -> Option<Option<[u8; PLAYER_COUNT]>> {
+    let mut teams = [0u8; PLAYER_COUNT];
+    let mut next_team = 1;
+    for a in (0..PLAYER_COUNT).filter(|&a| in_game[a]) {
+        if teams[a] == 0 {
+            teams[a] = next_team;
+            next_team += 1;
+            for b in (a + 1..PLAYER_COUNT).filter(|&b| in_game[b] && allied[a][b]) {
+                teams[b] = teams[a];
+            }
+        }
+    }
+    let players = || (0..PLAYER_COUNT).filter(|&id| in_game[id]);
+    let clean = players().all(|a| {
+        players().all(|b| a == b || (teams[a] == teams[b]) == (allied[a][b] && allied[b][a]))
+    });
+    if !clean {
+        return None;
+    }
+    let anyone_allied = players().any(|a| players().any(|b| a != b && teams[a] == teams[b]));
+    Some(anyone_allied.then_some(teams))
+}
+
 /// Runs after every game step. Keeps the stats up to date, and while analyzing a replay, seeks to
 /// its end once it has started and reports when it gets there.
 pub unsafe fn after_step() {
@@ -865,6 +898,7 @@ impl GameStatsTracker {
                     bank: [Resources::default(); PLAYER_COUNT],
                 }),
                 started: [false; PLAYER_COUNT],
+                alliance_teams: None,
             };
             tracker.update(game, players, (*game).frame_count);
             tracker
@@ -890,6 +924,7 @@ impl GameStatsTracker {
             self.following = std::array::from_fn(|slot| {
                 self.following[slot] && self.is_still_played(game, slot)
             });
+            self.update_alliance_teams(game);
             for slot in 0..PLAYER_COUNT {
                 if self.following[slot] && !self.started[slot] && has_finished_units(game, slot) {
                     self.start_slot(game, slot);
@@ -1192,6 +1227,7 @@ impl GameStatsTracker {
     /// Notes where each slot started, who first had a unit near an enemy's starting base, and how
     /// long Zerg Hatcheries held all the larvae they could, from the units the game has at `frame`.
     fn record_scan(&mut self, units: &[SeenUnit], frame: u32) {
+        let teams: [Option<u8>; PLAYER_COUNT] = std::array::from_fn(|id| self.team_of(id));
         let scouting = &mut *self.scouting;
         let elapsed = scouting
             .last_scan_frame
@@ -1210,14 +1246,10 @@ impl GameStatsTracker {
         }
 
         // Without teams, everyone plays for themselves.
-        let first_team = self.players.iter().flatten().map(|p| p.team).next();
-        let has_teams = self
-            .players
-            .iter()
-            .flatten()
-            .any(|p| Some(p.team) != first_team);
-        let side = |slot: usize| match &self.players[slot] {
-            Some(player) if has_teams => usize::from(player.team),
+        let first_team = teams.iter().flatten().next();
+        let has_teams = teams.iter().flatten().any(|team| Some(team) != first_team);
+        let side = |slot: usize| match teams[slot] {
+            Some(team) if has_teams => usize::from(team),
             _ => slot,
         };
         for slot in (0..PLAYER_COUNT).filter(|&slot| self.following[slot]) {
@@ -1297,6 +1329,33 @@ impl GameStatsTracker {
         }))
     }
 
+    /// Follows the teams players make by allying each other in games whose lobby put everyone on the
+    /// same team. Only while everyone is still in, since the game drops a player's alliances when
+    /// they leave or lose. Alliances that are being changed, and so are one sided for a moment, keep
+    /// the teams seen before.
+    unsafe fn update_alliance_teams(&mut self, game: *mut bw::Game) {
+        let mut teams = self.players.iter().flatten().map(|p| p.team);
+        let first_team = teams.next();
+        if !teams.all(|team| Some(team) == first_team)
+            || self.activity.iter().any(|a| a.left_at_frame.is_some())
+        {
+            return;
+        }
+        let in_game: [bool; PLAYER_COUNT] = std::array::from_fn(|id| self.players[id].is_some());
+        let allied: [[bool; PLAYER_COUNT]; PLAYER_COUNT] = std::array::from_fn(|a| {
+            std::array::from_fn(|b| unsafe { (*game).alliances[a][b] } != 0)
+        });
+        if let Some(teams) = alliance_teams(&in_game, &allied) {
+            self.alliance_teams = teams;
+        }
+    }
+
+    /// A player's team: the one their lobby gave them, or the one they made by allying others.
+    fn team_of(&self, id: usize) -> Option<u8> {
+        let player = self.players[id].as_ref()?;
+        Some(self.alliance_teams.map_or(player.team, |teams| teams[id]))
+    }
+
     /// Whether a slot is still being played: it wasn't defeated, and someone playing it hasn't
     /// left. A winner's slot is still played, since winning doesn't clear anything, and so is a
     /// shared slot whose main player dropped while teammates play on.
@@ -1327,7 +1386,7 @@ impl GameStatsTracker {
                     id: id as u8,
                     names: vec![player.name.clone()],
                     race: player.race,
-                    team: player.team,
+                    team: self.team_of(id).unwrap_or(player.team),
                     victory_state: victory_states.get(slot).copied().unwrap_or(0),
                     left_at_frame: activity.left_at_frame,
                     actions: (!player.is_computer).then_some(activity.actions),
@@ -2086,6 +2145,32 @@ mod test {
             build_order: None,
             first_scout_frame: None,
         }
+    }
+
+    fn alliances(in_game: usize, pairs: &[(usize, usize)]) -> Option<Option<[u8; PLAYER_COUNT]>> {
+        let in_game = std::array::from_fn(|id| id < in_game);
+        let mut allied = [[false; PLAYER_COUNT]; PLAYER_COUNT];
+        for &(a, b) in pairs {
+            allied[a][b] = true;
+        }
+        alliance_teams(&in_game, &allied)
+    }
+
+    #[test]
+    fn players_allied_in_pairs_are_teams() {
+        let teams = alliances(4, &[(0, 2), (2, 0), (1, 3), (3, 1)]);
+        assert_eq!(teams, Some(Some([1, 2, 1, 2, 0, 0, 0, 0])));
+    }
+
+    #[test]
+    fn nobody_allied_is_a_free_for_all() {
+        assert_eq!(alliances(4, &[]), Some(None));
+    }
+
+    #[test]
+    fn one_sided_or_crossing_alliances_are_no_teams() {
+        assert_eq!(alliances(4, &[(0, 1)]), None);
+        assert_eq!(alliances(3, &[(0, 1), (1, 0), (1, 2), (2, 1)]), None);
     }
 
     #[test]
