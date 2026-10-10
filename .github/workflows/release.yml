@@ -42,6 +42,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: i686-pc-windows-msvc, x86_64-pc-windows-msvc
+          components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -57,8 +58,39 @@ jobs:
       - name: Build native modules for Electron
         run: pnpm exec electron-builder install-app-deps
 
+      # The same checks JS CI and Game CI run, so a tag on a commit they never passed can't ship.
       - name: Run unit tests
         run: pnpm test --run
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Check for circular dependencies
+        run: pnpm run check-circular
+
+      - name: Check translation files
+        run: pnpm gen-translations --ci
+
+      - name: Check the game's formatting
+        run: cargo fmt --all -- --check
+        working-directory: ./game
+
+      - name: Lint the game for both architectures
+        shell: bash
+        run: |
+          cargo clippy --all-targets --workspace --target i686-pc-windows-msvc -- -D warnings
+          cargo clippy --all-targets --workspace --target x86_64-pc-windows-msvc -- -D warnings
+        working-directory: ./game
+
+      - name: Test the game for both architectures
+        shell: bash
+        run: |
+          cargo test --all-targets --no-fail-fast --target i686-pc-windows-msvc
+          cargo test --all-targets --no-fail-fast --target x86_64-pc-windows-msvc
+        working-directory: ./game
 
       - name: Build the app
         run: |
