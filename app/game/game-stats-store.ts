@@ -26,7 +26,7 @@ import log from '../logger'
 const MAX_SAVED_GAMES = 5000
 
 /** The version of what an index entry holds, apart from the saved stats and metrics it's built from. */
-const INDEX_ENTRY_VERSION = 2
+const INDEX_ENTRY_VERSION = 3
 /**
  * The version of the index cache. Changes with what an index entry holds, so a cache from an older
  * version is built again from the saved files instead of being misread.

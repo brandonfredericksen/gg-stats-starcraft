@@ -338,15 +338,16 @@ function getSides(players: ReadonlyArray<GamePlayerStats>): GamePlayerStats[][] 
 }
 
 export function getGameShape(players: ReadonlyArray<GamePlayerStats>): GameShape {
-  const sides = getSides(players)
-  if (sides.every(side => side.length === 1)) {
-    if (sides.length === 2) {
+  // Everyone sharing control of a player counts toward their side's size.
+  const sizes = getSides(players).map(side => sum(side.map(p => Math.max(1, p.names.length))))
+  if (sizes.every(size => size === 1)) {
+    if (sizes.length === 2) {
       return '1v1'
     }
-    return sides.length > 2 ? 'ffa' : 'other'
+    return sizes.length > 2 ? 'ffa' : 'other'
   }
-  const size = sides[0].length
-  if (sides.length === 2 && sides[1].length === size && size >= 2 && size <= 4) {
+  const [size] = sizes
+  if (sizes.length === 2 && sizes[1] === size && size >= 2 && size <= 4) {
     return `${size}v${size}` as GameShape
   }
   return 'other'

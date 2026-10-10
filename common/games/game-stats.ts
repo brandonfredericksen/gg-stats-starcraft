@@ -500,6 +500,8 @@ export interface GameStatsSummary {
   durationMs: number
   players: Array<{
     name: string
+    /** More than one in games with shared control. */
+    names: string[]
     race?: AssignedRaceChar
     team: number
     result: GameStatsResult
@@ -519,6 +521,7 @@ export function summarizeGameStats(gameId: string, stats: GameStats): GameStatsS
     durationMs: stats.durationMs,
     players: stats.players.map(p => ({
       name: p.name,
+      names: p.names,
       race: p.race,
       team: p.team,
       result: p.result,

@@ -407,6 +407,12 @@ describe('common/games/player-metrics/getGameShape', () => {
     expect(getGameShape([p(1), p(1), p(1), p(2), p(2), p(2)])).toBe('3v3')
     expect(getGameShape([p(1), p(1), p(2)])).toBe('other')
   })
+
+  test('counts everyone sharing control of a player toward their team', () => {
+    const shared = (team: number) => player('x', 60_000, { team, names: ['A', 'B', 'C'] })
+    expect(getGameShape([shared(1), shared(2)])).toBe('3v3')
+    expect(getGameShape([shared(1), p(2), p(2)])).toBe('other')
+  })
 })
 
 describe('common/games/map-family', () => {

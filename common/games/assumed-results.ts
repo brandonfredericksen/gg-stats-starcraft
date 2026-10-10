@@ -1,5 +1,5 @@
 import { GameStatsResult } from './game-stats'
-import { isMyPlayerName } from './player-names'
+import { isMyPlayer } from './player-names'
 
 /**
  * A side's result from its players': a win if any of them won, and a loss once all of them are out,
@@ -19,6 +19,8 @@ export function getSideResult(
 
 interface ResultPlayer {
   name: string
+  /** Everyone playing as this player, when that's more than one, see `GamePlayerStats.names`. */
+  names?: ReadonlyArray<string>
   team: number
   result: GameStatsResult
   leftAtMs?: number
@@ -37,7 +39,7 @@ export function withAssumedResults<P extends ResultPlayer>(
   complete: boolean,
   myNames: ReadonlyArray<string> | undefined,
 ): ReadonlyArray<P> {
-  const me = players.find(p => isMyPlayerName(p.name, myNames))
+  const me = players.find(p => isMyPlayer(p, myNames))
   const meLeft =
     me !== undefined && me.result === 'unknown' && (!complete || me.leftAtMs !== undefined)
   const withMine = meLeft ? players.map(p => (p === me ? { ...p, result: 'loss' } : p)) : players

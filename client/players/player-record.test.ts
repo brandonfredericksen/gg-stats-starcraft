@@ -35,6 +35,7 @@ function summary(results: Array<[name: string, team: number, result: GameStatsRe
     durationMs: 600_000,
     players: results.map(([name, team, result]) => ({
       name,
+      names: [name],
       team,
       result,
       totalScore: 0,
@@ -108,6 +109,53 @@ describe('client/players/player-record', () => {
     }
     const record = tallyPlayerRecord(entries, { [entries[0].path]: left }, ['Me'], ['Foe'])
     expect(record.against).toEqual({ wins: 0, losses: 1, unknown: 0 })
+  })
+
+  test("takes the team's result when the user has none, and finds them sharing control", () => {
+    const entries = [
+      entry(1, [
+        ['Me', 1],
+        ['Ally', 1],
+        ['Foe', 2],
+        ['Foe2', 2],
+      ]),
+      entry(2, [
+        ['Me', 1],
+        ['Ally', 1],
+        ['Foe', 2],
+        ['Foe2', 2],
+      ]),
+    ]
+    const shared = summary([])
+    shared.players.push(
+      {
+        name: 'Ally + Me',
+        names: ['Ally', 'Me'],
+        team: 1,
+        result: 'win',
+        totalScore: 0,
+        resourcesMined: 0,
+      },
+      {
+        name: 'Foe + Foe2',
+        names: ['Foe', 'Foe2'],
+        team: 2,
+        result: 'loss',
+        totalScore: 0,
+        resourcesMined: 0,
+      },
+    )
+    const summaries = {
+      [entries[0].path]: summary([
+        ['Me', 1, 'unknown'],
+        ['Ally', 1, 'win'],
+        ['Foe', 2, 'loss'],
+        ['Foe2', 2, 'loss'],
+      ]),
+      [entries[1].path]: shared,
+    }
+    const record = tallyPlayerRecord(entries, summaries, ['Me'], ['Foe'])
+    expect(record.against).toEqual({ wins: 2, losses: 0, unknown: 0 })
   })
 
   test("skips games the user or the person wasn't in", () => {

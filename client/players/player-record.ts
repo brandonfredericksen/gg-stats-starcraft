@@ -1,10 +1,27 @@
-import { withAssumedResults } from '../../common/games/assumed-results'
-import { GameStatsSummary } from '../../common/games/game-stats'
-import { isMyPlayerName } from '../../common/games/player-names'
+import { getSideResult, withAssumedResults } from '../../common/games/assumed-results'
+import { GameStatsResult, GameStatsSummary } from '../../common/games/game-stats'
+import { isMyPlayer, isMyPlayerName } from '../../common/games/player-names'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { ReplayLibraryEntry } from '../../common/replays-library'
 
 const ipcRenderer = new TypedIpcRenderer()
+
+/**
+ * What happened to the user in a game: their own result if it has one, and otherwise their team's,
+ * the way My stats counts it.
+ */
+function getMySummaryResult(
+  summary: GameStatsSummary,
+  myNames: ReadonlyArray<string>,
+): GameStatsResult | undefined {
+  const players = withAssumedResults(summary.players, summary.complete, myNames)
+  const me = players.find(p => isMyPlayer(p, myNames))
+  if (!me || me.result !== 'unknown') {
+    return me?.result
+  }
+  const hasTeams = new Set(players.map(p => p.team)).size > 1
+  return hasTeams ? getSideResult(players.filter(p => p.team === me.team)) : me.result
+}
 
 /** Wins and losses in games with a known result, and how many games had none. */
 export interface Tally {
@@ -63,11 +80,7 @@ export function tallyPlayerRecord(
     const hasTeams = new Set(humans.map(p => p.team)).size > 1
     const tally = hasTeams && me.team === them.team ? record.with : record.against
     const summary = summaries[entry.path]
-    const result = summary
-      ? withAssumedResults(summary.players, summary.complete, myNames).find(p =>
-          isMyPlayerName(p.name, myNames),
-        )?.result
-      : undefined
+    const result = summary ? getMySummaryResult(summary, myNames) : undefined
     if (result === 'win') {
       tally.wins += 1
     } else if (result === 'loss') {

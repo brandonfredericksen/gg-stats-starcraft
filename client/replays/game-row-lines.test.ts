@@ -17,6 +17,7 @@ function summary(
     durationMs: 600_000,
     players: results.map(([name, result, leftAtMs]) => ({
       name,
+      names: [name],
       team: 0,
       result,
       leftAtMs,
@@ -60,6 +61,31 @@ describe('client/replays/game-row-lines', () => {
       ['D', 'win'],
     ])
     expect(names(getGameRowLines(TEAMS, result, false))).toEqual(['won:CD', 'lost:AB'])
+  })
+
+  test('finds the result of players sharing control under each of their names', () => {
+    const shared: GameStatsSummary = {
+      ...summary([]),
+      players: [
+        {
+          name: 'A + B',
+          names: ['A', 'B'],
+          team: 1,
+          result: 'loss',
+          totalScore: 0,
+          resourcesMined: 0,
+        },
+        {
+          name: 'C + D',
+          names: ['C', 'D'],
+          team: 2,
+          result: 'win',
+          totalScore: 0,
+          resourcesMined: 0,
+        },
+      ],
+    }
+    expect(names(getGameRowLines(TEAMS, shared, false))).toEqual(['won:CD', 'lost:AB'])
   })
 
   test('keeps replay order without a result, or with results hidden', () => {

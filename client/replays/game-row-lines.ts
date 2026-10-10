@@ -28,7 +28,10 @@ export function getGameRowLines(
   hideResults: boolean,
 ): GameRowLine[] {
   const players = layout.teams.flat()
-  const results = new Map(summary?.players.map(p => [p.name, p]))
+  // Everyone sharing control of a player is listed in the replay under their own name.
+  const results = new Map(
+    summary?.players.flatMap(p => (p.names?.length ? p.names : [p.name]).map(name => [name, p])),
+  )
   const known =
     !hideResults && !!summary && players.some(p => results.get(p.name)?.result === 'win')
 
