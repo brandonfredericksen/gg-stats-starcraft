@@ -237,6 +237,72 @@ describe('common/my-stats', () => {
       expect.objectContaining({ mapName: 'Eclipse', family: 'standard', games: 1 }),
     ])
   })
+  test("splits 2v2 by the opposing team's races and filters by them", () => {
+    const twos = (result: GameStatsResult, foes: [AssignedRaceChar, AssignedRaceChar]) =>
+      game('2v2', [
+        player(me, 'p', 0, result),
+        player('Ally', 't', 0, result),
+        player('Foe', foes[0], 1, 'unknown', { workers: CHECKPOINT_MINUTES.map(() => 40) }),
+        player('Foe2', foes[1], 1, 'unknown'),
+      ])
+    const games = [twos('win', ['z', 'p']), twos('loss', ['p', 'z']), twos('win', ['t', 't'])]
+
+    const all = computeMyStats(games, { names: [me], range: 'all' }, NOW)
+    expect(all.byMatchup.map(r => [r.opponentRaces, r.wins, r.losses])).toEqual([
+      [['p', 'z'], 1, 1],
+      [['t', 't'], 1, 0],
+    ])
+
+    const vsPz = computeMyStats(
+      games,
+      { names: [me], range: 'all', shape: '2v2', opponentPair: 'pz' },
+      NOW,
+    )
+    expect(vsPz.record).toEqual({ games: 2, wins: 1, losses: 1 })
+    // Others are picked by who they played against too: only the user's team played against PZ.
+    expect(vsPz.othersGames).toBe(2)
+    expect(vsPz.macroOthers.workers6).toBeUndefined()
+  })
+
+  test('never sums up 3v3 on Fastest and Big Game Hunters together', () => {
+    const threes = (mapFamily: 'fastest' | 'bgh', result: GameStatsResult, workers: number) =>
+      game(
+        '3v3',
+        [
+          player(me, 'p', 0, result, { workers: CHECKPOINT_MINUTES.map(() => workers) }),
+          player('A1', 't', 0, result),
+          player('A2', 'z', 0, result),
+          player('B1', 'p', 1, 'unknown', { workers: CHECKPOINT_MINUTES.map(() => workers) }),
+          player('B2', 't', 1, 'unknown'),
+          player('B3', 'z', 1, 'unknown'),
+        ],
+        { mapFamily, mapName: mapFamily === 'bgh' ? 'Big Game Hunters' : 'Fastest' },
+      )
+    const games = [
+      threes('bgh', 'win', 30),
+      threes('bgh', 'win', 30),
+      threes('fastest', 'loss', 60),
+    ]
+
+    const picked = computeMyStats(games, { names: [me], range: 'all', shape: '3v3' }, NOW)
+    expect(picked.mapFamily).toBe('bgh')
+    expect(picked.record).toEqual({ games: 2, wins: 2, losses: 0 })
+    expect(picked.macroOthers.workers6?.value).toBe(30)
+    expect(picked.team?.any?.byTeamRaces[0]?.games).toBe(2)
+
+    const fastest = computeMyStats(
+      games,
+      { names: [me], range: 'all', shape: '3v3', mapFamily: 'fastest' },
+      NOW,
+    )
+    expect(fastest.mapFamily).toBe('fastest')
+    expect(fastest.record).toEqual({ games: 1, wins: 0, losses: 1 })
+    expect(fastest.macroOthers.workers6?.value).toBe(60)
+
+    // Without a game type, nothing is split by map.
+    expect(computeMyStats(games, { names: [me], range: 'all' }, NOW).mapFamily).toBeUndefined()
+  })
+
   test('lists a teammate in an uneven game as a teammate', () => {
     const games = [
       game('other', [

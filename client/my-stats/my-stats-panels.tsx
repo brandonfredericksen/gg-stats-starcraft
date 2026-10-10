@@ -543,6 +543,17 @@ function Matchup({ row }: { row: MatchupRow }) {
       </MatchupCell>
     )
   }
+  if (row.opponentRaces?.length) {
+    return (
+      <MatchupCell>
+        {getShapeLabel(row.shape, t)}
+        <Muted>{t('myStats.versus', 'vs')}</Muted>
+        {row.opponentRaces.map((race, i) => (
+          <RaceTag key={i} race={race} />
+        ))}
+      </MatchupCell>
+    )
+  }
   return <MatchupCell>{getShapeLabel(row.shape, t)}</MatchupCell>
 }
 
@@ -591,7 +602,8 @@ export function ByMatchup({
         </thead>
         <tbody>
           {rows.map(row => (
-            <tr key={`${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}`}>
+            <tr
+              key={`${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}${row.opponentRaces?.join('') ?? ''}`}>
               <td>
                 <Matchup row={row} />
               </td>

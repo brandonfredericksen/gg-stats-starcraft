@@ -162,7 +162,9 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
   const oneKind = picksOneKind(filters)
   const buckets =
     oneKind && coach && coach !== 'error' && coach.status === 'ready'
-      ? coach.buckets.filter(bucket => bucket.userGames)
+      ? coach.buckets.filter(
+          bucket => bucket.userGames && (!stats.mapFamily || bucket.mapFamily === stats.mapFamily),
+        )
       : []
 
   if (buckets.length && coach && coach !== 'error') {
@@ -191,7 +193,7 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
       eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
       rank={stats.rank}
       extraNote={
-        oneKind
+        oneKind || (filters.race && filters.opponentPair)
           ? undefined
           : t(
               'myStats.macro.pickForAll',
@@ -297,7 +299,11 @@ export function MyStatsView() {
           />
         </PlayingAs>
       </Header>
-      <FilterBar autoRank={data?.stats.autoRank} rankMmr={data?.stats.rankMmr} />
+      <FilterBar
+        autoRank={data?.stats.autoRank}
+        rankMmr={data?.stats.rankMmr}
+        autoMapFamily={data?.stats.mapFamily}
+      />
       {data ? (
         <Coverage>
           {data.analyzedGames ? <span>{getCoverageText(data, filters, t)}</span> : null}

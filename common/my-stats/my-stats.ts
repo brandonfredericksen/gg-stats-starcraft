@@ -13,6 +13,10 @@ export const RECENT_GAMES = 20
 export const TREND_GAMES = 100
 
 export type MyStatsRange = '7d' | '30d' | 'all'
+
+/** A 2v2 team's races, in alphabetical order. */
+export type RacePair = `${AssignedRaceChar}${AssignedRaceChar}`
+export const RACE_PAIRS: ReadonlyArray<RacePair> = ['pp', 'pt', 'pz', 'tt', 'tz', 'zz']
 export type MyStatsShape = Exclude<GameShape, 'other'>
 
 export interface MyStatsQuery {
@@ -22,7 +26,12 @@ export interface MyStatsQuery {
   race?: AssignedRaceChar
   /** Only used in 1v1. */
   opponentRace?: AssignedRaceChar
-  /** Only used in game types that split by map, see `splitsByMap`. */
+  /** Only used in 2v2: the opposing team's races. */
+  opponentPair?: RacePair
+  /**
+   * Only used in game types that split by map, see `splitsByMap`. Without one, the family the user
+   * played most is picked.
+   */
   mapFamily?: MapFamily
   /** The EAPM other players need for the comparisons to count them. */
   eapmFloor?: number
@@ -77,6 +86,8 @@ export interface MatchupRow extends WinLoss {
   /** In 1v1, the races on each side. */
   race?: AssignedRaceChar
   opponentRace?: AssignedRaceChar
+  /** In 2v2, the opposing team's races, in alphabetical order. */
+  opponentRaces?: AssignedRaceChar[]
   apm?: number
   durationMs?: number
 }
@@ -153,6 +164,11 @@ export interface MyStatsResult {
   autoRank?: LadderRank
   /** In 1v1, the MMRs each rank covers. */
   rankMmr?: RankMmr
+  /**
+   * In game types that split by map, the family these numbers are for: the one picked, or else the
+   * one the user played most. See `splitsByMap`.
+   */
+  mapFamily?: MapFamily
   /** The people the user played with most, then against most. */
   teammates: PersonRow[]
   opponents: PersonRow[]
@@ -241,11 +257,22 @@ function matchesQuery(g: MyGame, query: MyStatsQuery, nowMs: number) {
   ) {
     return false
   }
+  if (query.opponentPair && !playsAgainstPair(g.game, g.opponents, query.opponentPair)) {
+    return false
+  }
   return true
 }
 
 function races(players: ReadonlyArray<PlayerMetrics>) {
   return players.flatMap(p => (p.race ? [p.race] : [])).sort()
+}
+
+function playsAgainstPair(
+  game: GameMetrics,
+  opponents: ReadonlyArray<PlayerMetrics>,
+  pair: RacePair,
+) {
+  return game.shape === '2v2' && races(opponents).join('') === pair
 }
 
 function toGame({ game, me, result, teammates, opponents }: MyGame): MyStatsGame {
@@ -274,7 +301,8 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
     const oneVsOne = g.game.shape === '1v1'
     const race = oneVsOne ? g.me.race : undefined
     const opponentRace = oneVsOne ? g.opponents[0]?.race : undefined
-    const key = `${g.game.shape}:${race ?? ''}:${opponentRace ?? ''}`
+    const opponentRaces = g.game.shape === '2v2' ? races(g.opponents) : undefined
+    const key = `${g.game.shape}:${race ?? ''}:${opponentRace ?? ''}:${opponentRaces?.join('') ?? ''}`
     let row = rows.get(key)
     if (!row) {
       row = {
@@ -282,6 +310,7 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
         shape: g.game.shape,
         race,
         opponentRace,
+        opponentRaces,
         apmAverage: new Averager(),
         length: new Averager(),
       }
@@ -300,7 +329,8 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
     (a, b) =>
       order.indexOf(a.shape) - order.indexOf(b.shape) ||
       (a.race ?? '').localeCompare(b.race ?? '') ||
-      (a.opponentRace ?? '').localeCompare(b.opponentRace ?? ''),
+      (a.opponentRace ?? '').localeCompare(b.opponentRace ?? '') ||
+      (a.opponentRaces?.join('') ?? '').localeCompare(b.opponentRaces?.join('') ?? ''),
   )
 }
 
@@ -464,7 +494,7 @@ function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
 
 /**
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
- * filters pick, playing the race they pick against the opponent race they pick, at or above the
+ * filters pick, playing the race they pick against the opponents' races they pick, at or above the
  * EAPM floor and, in 1v1, at `rank`, who played at least 5 minutes. Games from any time count,
  * since how others play doesn't depend on when the user did.
  */
@@ -491,22 +521,52 @@ function getOthers(
         playedEnough(game, p) &&
         (!query.race || p.race === query.race) &&
         (!query.opponentRace ||
-          (game.shape === '1v1' && getSidesOf(game, p).opponents[0]?.race === query.opponentRace)),
+          (game.shape === '1v1' &&
+            getSidesOf(game, p).opponents[0]?.race === query.opponentRace)) &&
+        (!query.opponentPair ||
+          playsAgainstPair(game, getSidesOf(game, p).opponents, query.opponentPair)),
     )
     return players.map(player => ({ player, baseline: game.ladderBaseline === true }))
   })
 }
 
+/**
+ * The map family to sum up in game types that split by map: the one picked, or else the one the user
+ * played most of the games the rest of `query` picks. Families are never summed up together, since
+ * each plays like a different game.
+ */
+function pickMapFamily(
+  myGames: ReadonlyArray<MyGame>,
+  query: MyStatsQuery,
+  nowMs: number,
+): MapFamily | undefined {
+  if (!splitsByMap(query.shape)) {
+    return undefined
+  }
+  if (query.mapFamily) {
+    return query.mapFamily
+  }
+  const counts = new Map<MapFamily, number>()
+  for (const g of myGames) {
+    if (matchesQuery(g, query, nowMs)) {
+      counts.set(g.game.mapFamily, (counts.get(g.game.mapFamily) ?? 0) + 1)
+    }
+  }
+  return Array.from(counts).sort(([, a], [, b]) => b - a)[0]?.[0]
+}
+
 /** Sums up the user's analyzed games that match `query`. */
 export function computeMyStats(
   allGames: ReadonlyArray<DatedGameMetrics>,
-  query: MyStatsQuery,
+  pickedQuery: MyStatsQuery,
   nowMs: number,
 ): MyStatsResult {
   const myGames = allGames
-    .map(game => toMyGame(game, query.names))
+    .map(game => toMyGame(game, pickedQuery.names))
     .filter((g): g is MyGame => g !== undefined)
     .sort((a, b) => a.game.gameTimeMs - b.game.gameTimeMs)
+  const mapFamily = pickMapFamily(myGames, pickedQuery, nowMs)
+  const query = { ...pickedQuery, mapFamily }
   const games = myGames.filter(g => matchesQuery(g, query, nowMs))
 
   const record = emptyRecord()
@@ -547,6 +607,7 @@ export function computeMyStats(
     rank,
     autoRank,
     rankMmr: query.shape === '1v1' ? getRankMmr(allGames) : undefined,
+    mapFamily,
     teammates: people.filter(p => p.relation === 'teammate'),
     opponents: people.filter(p => p.relation === 'opponent'),
     maps: getMaps(games),

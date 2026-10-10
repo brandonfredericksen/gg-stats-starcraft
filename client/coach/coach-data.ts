@@ -196,10 +196,16 @@ export function useCoach(): { coach: CoachResult | 'error' | undefined; retry: (
 
 /**
  * Whether My stats' filters pick one kind of game, which the coach's numbers need: a game type,
- * the user's race, and in 1v1, the opponent's.
+ * the user's race, and in 1v1, the opponent's. The coach doesn't split 2v2 by the opponents' races,
+ * so picking them leaves its numbers out.
  */
 export function picksOneKind(filters: MyStatsFilters) {
-  return !!filters.shape && !!filters.race && (filters.shape !== '1v1' || !!filters.opponentRace)
+  return (
+    !!filters.shape &&
+    !!filters.race &&
+    (filters.shape !== '1v1' || !!filters.opponentRace) &&
+    !filters.opponentPair
+  )
 }
 
 /**

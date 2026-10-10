@@ -6,7 +6,7 @@ import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { RankMmr } from '../../common/my-stats/coach'
 import { DEFAULT_EAPM_FLOOR, EAPM_FLOORS } from '../../common/my-stats/coach'
-import { MyStatsRange, MyStatsShape } from '../../common/my-stats/my-stats'
+import { MyStatsRange, MyStatsShape, RACE_PAIRS, RacePair } from '../../common/my-stats/my-stats'
 import { splitsByMap } from '../../common/my-stats/player-games'
 import { AssignedRaceChar } from '../../common/races'
 import { useFitLevel } from '../dom/use-fit-level'
@@ -99,12 +99,20 @@ function Choice<T>({
 
 /**
  * Every My stats filter, in one row: the kind of game first, then what that kind of game divides
- * by (the map in 3v3 and 4v4, the opponent's race in 1v1), the user's race, when, and the EAPM
+ * by (the map in 3v3 and 4v4, the opponents' races in 1v1 and 2v2), the user's race, when, and the EAPM
  * (and in 1v1, the ladder rank) other players need to be compared with. The last ones rarely
  * change, so they're menus. `autoRank` is the rank picked until the user picks one, and `rankMmr`
- * the MMRs each covers.
+ * the MMRs each covers. `autoMapFamily` is likewise the map family picked until the user picks one.
  */
-export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMmr?: RankMmr }) {
+export function FilterBar({
+  autoRank,
+  rankMmr,
+  autoMapFamily,
+}: {
+  autoRank?: LadderRank
+  rankMmr?: RankMmr
+  autoMapFamily?: MapFamily
+}) {
   const { t } = useTranslation()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
   const floor = filters.eapmFloor ?? DEFAULT_EAPM_FLOOR
@@ -114,11 +122,13 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
       filters.shape,
       filters.race,
       filters.opponentRace,
+      filters.opponentPair,
       filters.mapFamily,
       filters.range,
       floor,
       filters.rank,
       autoRank,
+      autoMapFamily,
     ].join('|'),
   )
 
@@ -136,8 +146,9 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
     { value: 't', label: 'T', title: t('myStats.filters.terran', 'Terran') },
     { value: 'z', label: 'Z', title: t('myStats.filters.zerg', 'Zerg') },
   ]
+  // No option for any map: each family plays like a different game, so they're never summed up
+  // together.
   const maps: Array<SegmentOption<MapFamily | undefined>> = [
-    { value: undefined, label: t('myStats.filters.anyMap', 'Any') },
     { value: 'bgh', label: 'BGH', title: t('myStats.filters.bgh', 'Big Game Hunters') },
     { value: 'fastest', label: t('myStats.filters.fastest', 'Fastest') },
     {
@@ -145,6 +156,10 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
       label: t('myStats.filters.otherMaps', 'Other'),
       title: t('myStats.filters.otherMapsTitle', 'Maps other than Fastest and Big Game Hunters'),
     },
+  ]
+  const pairs: Array<SegmentOption<RacePair | undefined>> = [
+    { value: undefined, label: t('myStats.filters.any', 'Any') },
+    ...RACE_PAIRS.map(pair => ({ value: pair, label: pair.toUpperCase() })),
   ]
   const ranges: Array<SegmentOption<MyStatsRange>> = [
     { value: '7d', label: t('myStats.filters.lastWeek', 'Last 7 days') },
@@ -177,6 +192,7 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
               ...f,
               shape,
               opponentRace: shape === '1v1' ? f.opponentRace : undefined,
+              opponentPair: shape === '2v2' ? f.opponentPair : undefined,
               mapFamily: splitsByMap(shape) ? f.mapFamily : undefined,
             }))
           }
@@ -187,7 +203,7 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
           <Choice
             label={mapLabel}
             options={maps}
-            value={filters.mapFamily}
+            value={filters.mapFamily ?? autoMapFamily}
             asMenu={fitLevel >= FitLevel.MapMenu}
             onChange={mapFamily => setFilters(f => ({ ...f, mapFamily }))}
           />
@@ -210,6 +226,17 @@ export function FilterBar({ autoRank, rankMmr }: { autoRank?: LadderRank; rankMm
             value={filters.opponentRace}
             asMenu={fitLevel >= FitLevel.RaceMenus}
             onChange={opponentRace => setFilters(f => ({ ...f, opponentRace }))}
+          />
+        </Field>
+      ) : null}
+      {filters.shape === '2v2' ? (
+        <Field caption={opponentLabel}>
+          <Choice
+            label={opponentLabel}
+            options={pairs}
+            value={filters.opponentPair}
+            asMenu={fitLevel >= FitLevel.RaceMenus}
+            onChange={opponentPair => setFilters(f => ({ ...f, opponentPair }))}
           />
         </Field>
       ) : null}
