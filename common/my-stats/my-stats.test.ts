@@ -299,8 +299,10 @@ describe('common/my-stats', () => {
     expect(fastest.record).toEqual({ games: 1, wins: 0, losses: 1 })
     expect(fastest.macroOthers.workers6?.value).toBe(60)
 
-    // Without a game type, nothing is split by map.
-    expect(computeMyStats(games, { names: [me], range: 'all' }, NOW).mapFamily).toBeUndefined()
+    // Without a game type, nothing is split by map, and nobody is compared with.
+    const any = computeMyStats(games, { names: [me], range: 'all' }, NOW)
+    expect(any.mapFamily).toBeUndefined()
+    expect(any.othersGames).toBe(0)
   })
 
   test('lists a teammate in an uneven game as a teammate', () => {

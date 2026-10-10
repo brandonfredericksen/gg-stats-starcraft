@@ -1079,6 +1079,7 @@
       "othersNote_other": "Others come from {{count}} games of other players {{source}}, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
       "perMinute": "{{amount}} a min",
       "pickForAll": "Pick a game type and your race, and in 1v1 the race you played against, to see every number.",
+      "pickTypeToCompare": "Pick a game type to compare your numbers with other players.",
       "sources": "From {{mine}} of your games and {{theirs}} of theirs",
       "spending": "Spending",
       "supply100": "Reached 100 supply",

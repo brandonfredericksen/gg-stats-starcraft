@@ -189,6 +189,14 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
       macro={stats.macro}
       others={stats.macroOthers}
       othersGames={stats.othersGames}
+      noOthersNote={
+        filters.shape
+          ? undefined
+          : t(
+              'myStats.macro.pickTypeToCompare',
+              'Pick a game type to compare your numbers with other players.',
+            )
+      }
       othersFromBaseline={stats.othersFromBaseline}
       eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
       rank={stats.rank}

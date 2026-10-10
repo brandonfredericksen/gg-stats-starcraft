@@ -588,7 +588,9 @@ export function computeMyStats(
           return !!g && matchesQuery(g, query, nowMs)
         })
       : { auto: undefined, rank: undefined }
-  const others = getOthers(allGames, query, rank)
+  // Each game type plays differently, and the ladder games the app ships are all 1v1, so other
+  // players are only compared with once a game type is picked.
+  const others = query.shape ? getOthers(allGames, query, rank) : []
   return {
     games: games.length,
     record,

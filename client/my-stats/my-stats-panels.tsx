@@ -1163,6 +1163,7 @@ export function MacroAveragesPanel({
   macro,
   others,
   othersGames,
+  noOthersNote,
   othersFromBaseline,
   eapmFloor,
   rank,
@@ -1171,6 +1172,8 @@ export function MacroAveragesPanel({
   macro: MyStatsResult['macro']
   others: MyStatsResult['macroOthers']
   othersGames: number
+  /** Says why there's nobody to compare with, in place of saying none of them were found. */
+  noOthersNote?: string
   othersFromBaseline: number
   eapmFloor: number
   rank?: LadderRank
@@ -1351,7 +1354,7 @@ export function MacroAveragesPanel({
       <MacroNote>
         {hasOthers
           ? null
-          : `${t('myStats.macro.noOthers', 'No other players over {{floor}} EAPM in these games yet, so there is nothing to compare with.', { floor: eapmFloor })} `}
+          : `${noOthersNote ?? t('myStats.macro.noOthers', 'No other players over {{floor}} EAPM in these games yet, so there is nothing to compare with.', { floor: eapmFloor })} `}
         {!hasOthers
           ? null
           : t('myStats.macro.othersNote', {
