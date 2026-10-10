@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { withAssumedResults } from './assumed-results'
+import { getSideResult, withAssumedResults } from './assumed-results'
 import { GameStatsResult } from './game-stats'
 
 function player(
@@ -15,13 +15,64 @@ const results = (players: ReadonlyArray<{ name: string; result: GameStatsResult 
   Object.fromEntries(players.map(p => [p.name, p.result]))
 
 describe('common/games/assumed-results', () => {
-  test("gives the user's team a loss and the other a win when the user's replay stopped early", () => {
+  test('gives the user a loss when their replay stopped early, but not their teammates', () => {
     const players = [player('Me', 1), player('Ally', 1), player('Foe', 2), player('Foe2', 2)]
     expect(results(withAssumedResults(players, false, ['me']))).toEqual({
+      Me: 'loss',
+      Ally: 'unknown',
+      Foe: 'unknown',
+      Foe2: 'unknown',
+    })
+
+    const allyOut = [
+      player('Me', 1),
+      player('Ally', 1, 'loss'),
+      player('Foe', 2),
+      player('Foe2', 2),
+    ]
+    expect(results(withAssumedResults(allyOut, false, ['me']))).toEqual({
       Me: 'loss',
       Ally: 'loss',
       Foe: 'win',
       Foe2: 'win',
+    })
+
+    const one = [player('Me', 1), player('Foe', 2)]
+    expect(results(withAssumedResults(one, false, ['me']))).toEqual({ Me: 'loss', Foe: 'win' })
+  })
+
+  test("doesn't give a team a loss while any of it plays on", () => {
+    const players = [
+      player('A', 1, 'loss'),
+      player('B', 1, 'unknown', 120_000),
+      player('C', 1),
+      player('D', 2),
+      player('E', 2),
+      player('F', 2),
+    ]
+    expect(withAssumedResults(players, false, ['Me'])).toBe(players)
+
+    const allOut = [
+      player('A', 1, 'loss'),
+      player('B', 1, 'unknown', 120_000),
+      player('C', 1, 'loss'),
+      player('D', 2),
+    ]
+    expect(results(withAssumedResults(allOut, false, ['Me']))).toEqual({
+      A: 'loss',
+      B: 'unknown',
+      C: 'loss',
+      D: 'win',
+    })
+  })
+
+  test('keeps a teammate who lost on a team that won as having lost', () => {
+    const players = [player('A', 1, 'loss'), player('B', 1, 'win'), player('C', 2), player('D', 2)]
+    expect(results(withAssumedResults(players, true, ['Me']))).toEqual({
+      A: 'loss',
+      B: 'win',
+      C: 'loss',
+      D: 'loss',
     })
   })
 
@@ -40,10 +91,10 @@ describe('common/games/assumed-results', () => {
   })
 
   test('gives the other side the opposite result when only one side has one', () => {
-    const lost = [player('A', 1, 'loss'), player('B', 1), player('C', 2), player('D', 2)]
+    const lost = [player('A', 1, 'loss'), player('B', 1, 'loss'), player('C', 2), player('D', 2)]
     expect(results(withAssumedResults(lost, true, ['Me']))).toEqual({
       A: 'loss',
-      B: 'unknown',
+      B: 'loss',
       C: 'win',
       D: 'win',
     })
@@ -64,5 +115,13 @@ describe('common/games/assumed-results', () => {
 
     const finished = [player('Me', 1), player('Foe', 2)]
     expect(withAssumedResults(finished, true, ['Me'])).toBe(finished)
+  })
+
+  test('decides a side once one of it won or all of it is out', () => {
+    expect(getSideResult([{ result: 'loss' }, { result: 'win' }])).toBe('win')
+    expect(getSideResult([{ result: 'loss' }, { result: 'unknown' }])).toBe('unknown')
+    expect(getSideResult([{ result: 'loss' }, { result: 'unknown', leftAtMs: 1 }])).toBe('loss')
+    expect(getSideResult([{ result: 'unknown', leftAtMs: 1 }])).toBe('loss')
+    expect(getSideResult([{ result: 'unknown' }])).toBe('unknown')
   })
 })

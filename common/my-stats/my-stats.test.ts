@@ -118,13 +118,24 @@ describe('common/my-stats', () => {
     const games = [
       game('2v2', [
         player(me, 'p', 0, 'unknown'),
-        player('Ally', 't', 0, 'loss'),
+        player('Ally', 't', 0, 'win'),
         player('Foe', 'z', 1, 'unknown'),
         player('Foe2', 'z', 1, 'unknown'),
       ]),
+      // A teammate out with the rest still playing doesn't decide it.
+      game(
+        '2v2',
+        [
+          player(me, 'p', 0, 'unknown'),
+          player('Ally', 't', 0, 'loss'),
+          player('Foe', 'z', 1, 'unknown'),
+          player('Foe2', 'z', 1, 'unknown'),
+        ],
+        { complete: true },
+      ),
     ]
     const stats = computeMyStats(games, { names: [me], range: 'all' }, NOW)
-    expect(stats.record).toEqual({ games: 1, wins: 0, losses: 1 })
+    expect(stats.record).toEqual({ games: 2, wins: 1, losses: 0 })
   })
 
   test('counts a team game the user left as a loss, even when their team won', () => {
