@@ -25,7 +25,7 @@ const MAX_IN_PARAMS = 900
 interface DbReplayRow {
   id: number
   path: string
-  path_key: string
+  path_key: string | null
   file_mtime: number | null
   file_size: number | null
   content_hash: string | null
