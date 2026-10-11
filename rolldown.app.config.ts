@@ -60,8 +60,8 @@ export default defineConfig([
     ...shared,
     input: {
       index: path.join(ROOT, 'app/startup.js'),
-      // The replay library's DB, watcher and parser run in a worker thread; this is its entry,
-      // loaded via `new Worker(...)` from the main bundle.
+      // The replay library's DB, watcher and parser run in a worker process; this is its entry,
+      // loaded via `utilityProcess.fork(...)` from the main bundle.
       'db-worker': path.join(ROOT, 'app/replay-library/worker/db-worker.ts'),
     },
     plugins: [

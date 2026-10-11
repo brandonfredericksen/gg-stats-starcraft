@@ -1,38 +1,48 @@
 import { rmSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { isMainThread, parentPort, workerData } from 'node:worker_threads'
+import { readFile, stat } from 'node:fs/promises'
+import os from 'node:os'
 import { getErrorStack } from '../../../common/errors'
 import { ReplayLibraryStatus } from '../../../common/replays-library'
 import { ReplayDb } from '../replay-db'
 import {
-  computeContentHash,
+  hashReplayContents,
+  IndexedReplay,
   makeParseErrorRecord,
-  parseReplayFile,
+  parseReplayContents,
   readReplayCommandStats,
   ReplayFileInfo,
 } from '../replay-parser'
 import { ReplayLibraryLogger, ReplayWatcher } from '../replay-watcher'
 import { FromWorkerMessage, ReplayDbCalls, ReplayDbWorkerData, ToWorkerMessage } from './messages'
 
-// Owns the SQLite index and the folder watcher, off the main thread. All the synchronous
-// better-sqlite3 work (queries plus the per-file writes a backfill does) and the WASM replay
-// parsing happen here, so they never block Electron's main thread. The main thread talks to this
-// worker purely through the message protocol in `./messages`.
+// Owns the SQLite index and the folder watcher, in a utility process of its own. All the
+// synchronous better-sqlite3 work (queries plus the per-file writes a backfill does) and the WASM
+// replay parsing happen here, so they never block Electron's main thread. The main process talks to
+// this worker purely through the message protocol in `./messages`.
 
-if (isMainThread) {
-  throw new Error('db-worker should not be run in the main thread')
+const parentPort = process.parentPort
+if (!parentPort) {
+  throw new Error('db-worker must be run as a utility process')
 }
 
-const { dbPath, watchedFolders } = workerData as ReplayDbWorkerData
+const { dbPath, watchedFolders } = JSON.parse(process.argv.at(-1)!) as ReplayDbWorkerData
 
 function post(message: FromWorkerMessage): void {
-  parentPort!.postMessage(message)
+  parentPort.postMessage(message)
 }
 
 const logger: ReplayLibraryLogger = {
   error: message => post({ type: 'log', level: 'error', message }),
   warning: message => post({ type: 'log', level: 'warning', message }),
   verbose: message => post({ type: 'log', level: 'verbose', message }),
+}
+
+// Indexing can wait, so it only gets CPU time nothing else wants, like a game the user is playing
+// or the analysis of one.
+try {
+  os.setPriority(os.constants.priority.PRIORITY_LOW)
+} catch (err) {
+  logger.warning(`Couldn't lower the replay index's priority: ${getErrorStack(err)}`)
 }
 
 /**
@@ -90,20 +100,25 @@ function getStatus(): ReplayLibraryStatus {
  */
 async function indexFile(path: string): Promise<number | undefined> {
   const stats = await stat(path)
-  const contentHash = await computeContentHash(path)
+  const contents = await readFile(path)
   const fileInfo: ReplayFileInfo = {
     path,
     fileMtime: Math.floor(stats.mtimeMs),
     fileSize: stats.size,
-    contentHash,
+    contentHash: hashReplayContents(contents),
   }
 
-  const record = await parseReplayFile(fileInfo).catch(() => makeParseErrorRecord(fileInfo))
+  let record: IndexedReplay
+  try {
+    record = parseReplayContents(fileInfo, contents)
+  } catch {
+    record = makeParseErrorRecord(fileInfo)
+  }
   db.upsertReplay(record)
   return db.getIdByPath(path)
 }
 
-/** Implementations of the operations the main thread can request (see `ReplayDbCalls`). */
+/** Implementations of the operations the main process can request (see `ReplayDbCalls`). */
 const calls: ReplayDbCalls = {
   query: filters => db.query(filters),
   status: () => getStatus(),
@@ -119,13 +134,13 @@ const calls: ReplayDbCalls = {
   getPlaylistsForReplay: replayId => db.getPlaylistsForReplay(replayId),
   suggestOwnNames: knownNames => db.suggestOwnNames(knownNames),
   getFrequentMaps: limit => db.getFrequentMaps(limit),
-  getGameTimes: () => db.getGameTimes(),
+  getGameTimes: pathKeys => db.getGameTimes(pathKeys),
   readCommandStats: path => readReplayCommandStats(path),
   indexFile: path => indexFile(path),
   setWatchedFolders: folders => watcher.setWatchedFolders(folders),
 }
 
-parentPort!.on('message', (message: ToWorkerMessage) => {
+parentPort.on('message', ({ data: message }: { data: ToWorkerMessage }) => {
   // `message.method`/`message.args` aren't correlated after transfer (see `CallRequest`), so the
   // invocation goes through an untyped signature; `calls` itself is fully typed. Wrapping the call
   // in `Promise.resolve()` lets a synchronous method's result and a `Promise`-returning one's

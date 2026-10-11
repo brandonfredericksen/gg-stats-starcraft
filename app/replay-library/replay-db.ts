@@ -15,7 +15,7 @@ import {
 } from '../../common/replays-library'
 import { reorderPlaylistEntries } from './playlist-order'
 import { deriveTeamLayout, IndexedReplay } from './replay-parser'
-import { buildReplaySqlQuery } from './replay-queries'
+import { buildReplaySqlQuery, escapeLike } from './replay-queries'
 
 const SCHEMA_VERSION = 10
 
@@ -48,6 +48,11 @@ interface DbPlayerRow {
   is_computer: number | null
 }
 
+type ExistingReplayRow = Pick<
+  DbReplayRow,
+  'id' | 'path' | 'file_mtime' | 'file_size' | 'content_hash'
+>
+
 /** Existing index state for a path, used when reconciling the on-disk folder with the DB. */
 export interface ExistingReplayInfo {
   id: number
@@ -68,8 +73,15 @@ const MAX_SUGGESTED_OWN_NAMES = 10
 
 export class ReplayDb {
   private readonly db: SqliteDatabase
+  /**
+   * When each readable replay was played, by its path key (see `getGameTimes`). Built on first use
+   * and dropped by every write that could change it, since building it reads the whole index.
+   */
+  private gameTimesByPathKey: Map<string, number> | undefined
 
   private readonly getIdByPathStmt: Statement
+  private readonly getExistingReplayStmt: Statement
+  private readonly getExistingReplaysUnderStmt: Statement
   private readonly insertReplayStmt: Statement
   private readonly updateReplayByIdStmt: Statement
   private readonly insertPlayerStmt: Statement
@@ -118,6 +130,12 @@ export class ReplayDb {
     }
 
     this.getIdByPathStmt = this.db.prepare('SELECT id FROM replays WHERE path = ?')
+    this.getExistingReplayStmt = this.db.prepare(
+      'SELECT id, path, file_mtime, file_size, content_hash FROM replays WHERE path = ?',
+    )
+    this.getExistingReplaysUnderStmt = this.db.prepare(
+      "SELECT id, path, file_mtime, file_size, content_hash FROM replays WHERE path LIKE ? ESCAPE '\\'",
+    )
     this.insertReplayStmt = this.db.prepare(`
       INSERT INTO replays (
         path, file_mtime, file_size, content_hash, game_time, map_name, game_type,
@@ -495,38 +513,45 @@ export class ReplayDb {
 
   /** Returns the current index state keyed by file path, for reconciliation. */
   getExistingReplays(): Map<string, ExistingReplayInfo> {
-    const rows = this.db
-      .prepare('SELECT id, path, file_mtime, file_size, content_hash FROM replays')
-      .all() as Array<
-      Pick<DbReplayRow, 'id' | 'path' | 'file_mtime' | 'file_size' | 'content_hash'>
-    >
-    const result = new Map<string, ExistingReplayInfo>()
-    for (const row of rows) {
-      result.set(row.path, {
-        id: row.id,
-        fileMtime: row.file_mtime,
-        fileSize: row.file_size,
-        contentHash: row.content_hash,
-      })
-    }
-    return result
+    return toExistingReplays(
+      this.db
+        .prepare('SELECT id, path, file_mtime, file_size, content_hash FROM replays')
+        .all() as ExistingReplayRow[],
+    )
+  }
+
+  /** The index state of the replay at `filePath`, if it's indexed. */
+  getExistingReplay(filePath: string): ExistingReplayInfo | undefined {
+    const row = this.getExistingReplayStmt.get(filePath) as ExistingReplayRow | undefined
+    return row ? toExistingReplayInfo(row) : undefined
+  }
+
+  /** The index state of every replay inside `folder` (at any depth), keyed by file path. */
+  getExistingReplaysUnder(folder: string): Map<string, ExistingReplayInfo> {
+    const prefix = folder.endsWith(path.sep) ? folder : folder + path.sep
+    return toExistingReplays(
+      this.getExistingReplaysUnderStmt.all(`${escapeLike(prefix)}%`) as ExistingReplayRow[],
+    )
   }
 
   /** Inserts or replaces the index entry for a single replay (keyed by path). */
   upsertReplay(record: IndexedReplay): void {
     this.upsertTxn(record)
+    this.gameTimesByPathKey = undefined
   }
 
   /** Removes the index entries for the given file paths. */
   deleteByPaths(paths: string[]): void {
     if (paths.length > 0) {
       this.deleteTxn(paths)
+      this.gameTimesByPathKey = undefined
     }
   }
 
   /** Points an existing index entry at a new path (a moved/renamed file), keeping its parsed data. */
   updateReplayFile(id: number, newPath: string, fileMtime: number): void {
     this.updateReplayFileStmt.run(newPath, fileMtime, id)
+    this.gameTimesByPathKey = undefined
   }
 
   /** Number of replays currently in the index (including parse-error rows). */
@@ -597,16 +622,29 @@ export class ReplayDb {
     return rows.map(r => r.mapName)
   }
 
-  /** When each readable replay was played, by its path. */
-  getGameTimes(): Array<[path: string, gameTime: number]> {
-    const rows = this.db
-      .prepare(
-        `SELECT path, game_time AS gameTime
-        FROM replays
-        WHERE parse_error = 0 AND game_time IS NOT NULL`,
+  /**
+   * When each of the given readable replays was played. Replays are given and keyed by path key:
+   * the resolved, lowercased path, which is how saved stats name the replay they came from.
+   */
+  getGameTimes(pathKeys: ReadonlyArray<string>): Array<[pathKey: string, gameTime: number]> {
+    if (!this.gameTimesByPathKey) {
+      const rows = this.db
+        .prepare(
+          `SELECT path, game_time AS gameTime
+          FROM replays
+          WHERE parse_error = 0 AND game_time IS NOT NULL`,
+        )
+        .all() as Array<{ path: string; gameTime: number }>
+      this.gameTimesByPathKey = new Map(
+        rows.map(r => [path.resolve(r.path).toLowerCase(), r.gameTime]),
       )
-      .all() as Array<{ path: string; gameTime: number }>
-    return rows.map(r => [r.path, r.gameTime])
+    }
+
+    const gameTimes = this.gameTimesByPathKey
+    return pathKeys.flatMap(key => {
+      const gameTime = gameTimes.get(key)
+      return gameTime !== undefined ? [[key, gameTime] as [string, number]] : []
+    })
   }
 
   /** Number of replays currently bookmarked. */
@@ -731,6 +769,19 @@ export class ReplayDb {
 
     return result
   }
+}
+
+function toExistingReplayInfo(row: ExistingReplayRow): ExistingReplayInfo {
+  return {
+    id: row.id,
+    fileMtime: row.file_mtime,
+    fileSize: row.file_size,
+    contentHash: row.content_hash,
+  }
+}
+
+function toExistingReplays(rows: ExistingReplayRow[]): Map<string, ExistingReplayInfo> {
+  return new Map(rows.map(row => [row.path, toExistingReplayInfo(row)]))
 }
 
 function rowToEntry(row: DbReplayRow, playerRows: DbPlayerRow[]): ReplayLibraryEntry {

@@ -8,7 +8,7 @@ import {
   SuggestedOwnName,
 } from '../../../common/replays-library'
 
-/** The data handed to the replay DB worker at construction time (via `workerData`). */
+/** The data handed to the replay DB worker when it starts, as its last argument in JSON. */
 export interface ReplayDbWorkerData {
   /** Absolute path to the SQLite index file. */
   dbPath: string
@@ -23,7 +23,7 @@ export interface ReplayQueryResult {
 }
 
 /**
- * The operations the main thread can invoke on the worker, each mirroring a method of the
+ * The operations the main process can invoke on the worker, each mirroring a method of the
  * worker-side DB (or, for `indexFile`, a parse-and-index step built from the same pieces the
  * watcher uses). Most are synchronous; `indexFile` does file I/O and returns a `Promise`, which the
  * worker's dispatch loop awaits before answering. The worker runs the method and answers with a
@@ -46,7 +46,8 @@ export interface ReplayDbCalls {
   getPlaylistsForReplay: (replayId: number) => Array<{ id: number; name: string }>
   suggestOwnNames: (knownNames: string[]) => SuggestedOwnName[]
   getFrequentMaps: (limit: number) => string[]
-  getGameTimes: () => Array<[path: string, gameTime: number]>
+  /** When each of the given replays was played, for the ones indexed, by path key. */
+  getGameTimes: (pathKeys: string[]) => Array<[pathKey: string, gameTime: number]>
   /** Reads what each player did from a replay's commands. */
   readCommandStats: (path: string) => Promise<ReplayCommandStats>
   /**
@@ -63,7 +64,7 @@ export interface ReplayDbCalls {
   setWatchedFolders: (folders: string[]) => void
 }
 
-// --- Main thread -> worker ---
+// --- Main process -> worker ---
 
 /**
  * A request to run one of `ReplayDbCalls` in the worker. `id` correlates the eventual
@@ -80,7 +81,7 @@ export interface CallRequest<M extends keyof ReplayDbCalls = keyof ReplayDbCalls
 
 export type ToWorkerMessage = CallRequest
 
-// --- Worker -> main thread ---
+// --- Worker -> main process ---
 
 /** Posted once the DB is open and the watcher has started; purely informational for logging. */
 export interface ReadyMessage {
@@ -107,7 +108,7 @@ export interface ChangedMessage {
   type: 'changed'
 }
 
-/** A log line from the worker, written to the app log by the main thread (which owns the logger). */
+/** A log line from the worker, written to the app log by the main process (which owns the logger). */
 export interface LogMessage {
   type: 'log'
   level: 'error' | 'warning' | 'verbose'

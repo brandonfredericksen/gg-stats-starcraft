@@ -1,6 +1,5 @@
-import { shell } from 'electron'
+import { shell, utilityProcess, UtilityProcess } from 'electron'
 import path from 'node:path'
-import { Worker } from 'node:worker_threads'
 import createDeferred, { Deferred } from '../../common/async/deferred'
 import { getErrorStack } from '../../common/errors'
 import { ReplayCommandStats } from '../../common/games/command-stats'
@@ -35,15 +34,17 @@ export interface ReplayLibraryOptions {
 
 /**
  * Owns the local replay index. The actual SQLite DB, folder watcher, and replay parsing all live in
- * a worker thread (`./worker/db-worker`) so their synchronous file I/O never blocks Electron's main
- * thread; this class is the main-thread half — it spawns/supervises the worker, exposes the index to
- * the renderer over IPC by forwarding requests to the worker, and relays the worker's index-change
- * events (and log lines) back out.
+ * a worker process (`./worker/db-worker`) at idle CPU priority, so indexing a large library never
+ * blocks Electron's main thread or takes CPU time from a game; this class is the main-process half —
+ * it spawns/supervises the worker, exposes the index to the renderer over IPC by forwarding
+ * requests to the worker, and relays the worker's index-change events (and log lines) back out.
  */
 export class ReplayLibraryService {
-  private worker: Worker | undefined
+  private worker: UtilityProcess | undefined
   private nextRequestId = 0
   private consecutiveRestarts = 0
+  /** Set once the app is quitting, so the worker exiting along with it isn't restarted. */
+  private stopped = false
   private readonly pending = new Map<number, Deferred<any>>()
   /**
    * The folders currently being indexed. Kept as service state (rather than reading `options` each
@@ -134,12 +135,12 @@ export class ReplayLibraryService {
     this.notifyChanged()
   }
 
-  /** When each indexed replay was played, keyed by its resolved, lowercased path. */
-  async getGameTimes(): Promise<Map<string, number>> {
-    const times = await this.call('getGameTimes')
-    return new Map(
-      times.map(([filePath, gameTime]) => [path.resolve(filePath).toLowerCase(), gameTime]),
-    )
+  /**
+   * When each of the given replays was played, for the ones the index has. Replays are given and
+   * keyed by their resolved, lowercased path.
+   */
+  async getGameTimes(pathKeys: string[]): Promise<Map<string, number>> {
+    return new Map(await this.call('getGameTimes', pathKeys))
   }
 
   /**
@@ -161,6 +162,12 @@ export class ReplayLibraryService {
     this.options.getSender().send('replayLibraryChanged')
   }
 
+  /** Stops the worker for good, as the app quits. */
+  stop(): void {
+    this.stopped = true
+    this.worker?.kill()
+  }
+
   private startWorker(): void {
     const workerData: ReplayDbWorkerData = {
       dbPath: this.options.dbPath,
@@ -168,20 +175,29 @@ export class ReplayLibraryService {
     }
     // Its own entry in the same build output as this module, so the path holds wherever the app
     // runs from.
-    const worker = new Worker(path.join(__dirname, 'db-worker.js'), {
-      workerData,
-      name: 'replay-db-worker',
-    })
+    const worker = utilityProcess.fork(
+      path.join(__dirname, 'db-worker.js'),
+      [JSON.stringify(workerData)],
+      { serviceName: 'Replay index', stdio: ['ignore', 'ignore', 'pipe'] },
+    )
 
+    // An uncaught error is written here just before the worker exits, and `exit` handles the
+    // restart.
+    worker.stderr?.setEncoding('utf8').on('data', (data: string) => {
+      log.error(`Replay DB worker: ${data.trimEnd()}`)
+    })
     worker
       .on('message', (message: FromWorkerMessage) => this.onWorkerMessage(message))
-      .on('error', err => {
-        // `exit` fires after this, which handles the restart.
-        log.error(`Replay DB worker error: ${getErrorStack(err)}`)
+      .on('error', (type, location, report) => {
+        // A fatal V8 error, like running out of memory. `exit` follows, which handles the restart.
+        log.error(`Replay DB worker ${type} at ${location}:\n${report}`)
       })
       .on('exit', code => {
         this.worker = undefined
         this.rejectAllPending(new Error('replay DB worker exited before responding'))
+        if (this.stopped) {
+          return
+        }
 
         this.consecutiveRestarts += 1
         if (this.consecutiveRestarts > MAX_CONSECUTIVE_RESTARTS) {

@@ -19,7 +19,7 @@ import { LadderManifests, withLadder } from './replay-library/ladder-manifests'
  */
 export function setupMyStats(
   gameStatsStore: GameStatsStore,
-  getGameTimes: () => Promise<Map<string, number>> | Map<string, number>,
+  getGameTimes: (pathKeys: string[]) => Promise<Map<string, number>> | Map<string, number>,
   loadBaseline: () => Promise<DatedGameMetrics[]> = loadLadderBaseline,
 ) {
   const ladderManifests = new LadderManifests()
@@ -27,22 +27,23 @@ export function setupMyStats(
   let baseline: Promise<DatedGameMetrics[]> | undefined
   const loadGames = async (): Promise<DatedGameMetrics[]> => {
     baseline ??= loadBaseline()
-    const [listings, gameTimes, baselineGames] = await Promise.all([
-      gameStatsStore.listMetrics(),
+    const listings = await gameStatsStore.listMetrics()
+    const replayPathKeys = listings.flatMap(l =>
+      l.replayPathKey !== undefined ? [l.replayPathKey] : [],
+    )
+    const [gameTimes, baselineGames] = await Promise.all([
       Promise.resolve()
-        .then(getGameTimes)
+        .then(() => getGameTimes(replayPathKeys))
         .catch((err: unknown) => {
           log.warning(`Couldn't read when replays were played: ${getErrorStack(err)}`)
           return new Map<string, number>()
         }),
       baseline,
     ])
-    const ladderGames = await ladderManifests
-      .getGames(listings.flatMap(l => (l.replayPathKey !== undefined ? [l.replayPathKey] : [])))
-      .catch((err: unknown) => {
-        log.warning(`Couldn't read ladder manifests: ${getErrorStack(err)}`)
-        return new Map<string, LadderGame>()
-      })
+    const ladderGames = await ladderManifests.getGames(replayPathKeys).catch((err: unknown) => {
+      log.warning(`Couldn't read ladder manifests: ${getErrorStack(err)}`)
+      return new Map<string, LadderGame>()
+    })
     const ownGames = listings.map(({ replayPathKey, savedAt, metrics }) => ({
       ...withLadder(
         metrics,
@@ -52,13 +53,9 @@ export function setupMyStats(
         (replayPathKey !== undefined ? gameTimes.get(replayPathKey) : undefined) ??
         savedAt - metrics.durationMs,
     }))
-    return [
-      ...ownGames,
-      ...withoutLibraryCopies(
-        baselineGames,
-        listings.flatMap(l => (l.replayPathKey !== undefined ? [l.replayPathKey] : [])),
-      ),
-    ].filter(game => game.durationMs >= MIN_GAME_LENGTH_MS)
+    return [...ownGames, ...withoutLibraryCopies(baselineGames, replayPathKeys)].filter(
+      game => game.durationMs >= MIN_GAME_LENGTH_MS,
+    )
   }
 
   const ipcMain = new TypedIpcMain()

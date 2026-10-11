@@ -161,10 +161,15 @@ export async function computeContentHash(filePath: string): Promise<string> {
   try {
     const buffer = Buffer.alloc(CONTENT_HASH_BYTES)
     const { bytesRead } = await fd.read(buffer, 0, CONTENT_HASH_BYTES, 0)
-    return createHash('sha256').update(buffer.subarray(0, bytesRead)).digest('hex')
+    return hashReplayContents(buffer.subarray(0, bytesRead))
   } finally {
     await fd.close()
   }
+}
+
+/** Computes the content hash for a replay already read into memory. */
+export function hashReplayContents(contents: Uint8Array): string {
+  return createHash('sha256').update(contents.subarray(0, CONTENT_HASH_BYTES)).digest('hex')
 }
 
 export interface ReplayMetadata {
@@ -234,8 +239,10 @@ export async function readReplayChat(filePath: string): Promise<ReplayChatMessag
   }
 }
 
-/** Parses a replay file into an `IndexedReplay`. Rejects if the file can't be parsed. */
-export async function parseReplayFile(fileInfo: ReplayFileInfo): Promise<IndexedReplay> {
-  const { headerData, players, clientData } = await parseReplayMetadata(fileInfo.path)
+/**
+ * Parses a replay already read into memory into an `IndexedReplay`. Throws if it can't be parsed.
+ */
+export function parseReplayContents(fileInfo: ReplayFileInfo, contents: Uint8Array): IndexedReplay {
+  const { headerData, players, clientData } = parseReplayBuffer(contents)
   return mapReplayHeaderToRecord(fileInfo, headerData, players, clientData)
 }

@@ -862,7 +862,7 @@ app.on('ready', () => {
         // A failure to set up the replay index shouldn't take down the whole app.
         logger.error(`Error setting up the replay library: ${getErrorStack(err)}`)
       }
-      setupMyStats(gameStatsStore, () => replayLibrary?.getGameTimes() ?? new Map())
+      setupMyStats(gameStatsStore, pathKeys => replayLibrary?.getGameTimes(pathKeys) ?? new Map())
       const commandStatsBackfill = new CommandStatsBackfill(
         gameStatsStore,
         async replayPath => {
@@ -968,6 +968,7 @@ app.on('ready', () => {
 
       app.on('will-quit', () => {
         autoCapture.stop()
+        replayLibrary?.stop()
         localSettings.saveSettingsToDiskSync()
         scrSettings.saveSettingsToDiskSync()
       })

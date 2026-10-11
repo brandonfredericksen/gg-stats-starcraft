@@ -58,7 +58,7 @@ common/urls.ts                       - urlPath tagged template (auto-encodes URL
 common/games/replay-analysis-config.ts - Builds the launch config for watching/analyzing a replay
 app/game/active-game-manager.ts      - Launches StarCraft for a replay and tracks it
 app/game/game-stats-store.ts         - Saved stats on disk
-app/replay-library/                  - Replay index (SQLite in a worker thread) and folder watcher
+app/replay-library/                  - Replay index (SQLite in a worker process at idle priority) and folder watcher
 app/assets/locales/                  - Translations, served to the renderer by the app
 ```
 

@@ -1,5 +1,5 @@
-import { FSWatcher, watch } from 'node:fs'
-import { readdir, stat } from 'node:fs/promises'
+import { FSWatcher, watch, WatchEventType } from 'node:fs'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { getErrorStack } from '../../common/errors'
@@ -8,9 +8,10 @@ import { matchRenamedReplays, NewFileIdentity, VanishedReplay } from './rename-m
 import { ExistingReplayInfo, ReplayDb } from './replay-db'
 import {
   computeContentHash,
+  hashReplayContents,
   IndexedReplay,
   makeParseErrorRecord,
-  parseReplayFile,
+  parseReplayContents,
   ReplayFileInfo,
 } from './replay-parser'
 import { isIndexableReplayFilename, isIndexedPathVanished } from './replay-watcher-paths'
@@ -25,6 +26,11 @@ const WATCH_DEBOUNCE_MS = 500
 const PARSE_CONCURRENCY = 8
 /** Yield back to the event loop after parsing this many files, so indexing stays non-blocking. */
 const PARSE_YIELD_EVERY = 8
+/**
+ * Minimum time between progress reports while a reconcile is parsing. Each one re-renders the
+ * library, and a backfill parses thousands of replays a second.
+ */
+const PROGRESS_NOTIFY_INTERVAL_MS = 250
 /**
  * Minimum time between change notifications while a reconcile is still parsing, so a long
  * backfill fills the list in progressively instead of only at the end.
@@ -56,8 +62,8 @@ export interface ReplayWatcherCallbacks {
 
 /**
  * The subset of the app logger the watcher needs. Injected rather than importing the app logger
- * directly because the watcher runs inside a worker thread, where the app logger's electron
- * main-thread-only APIs (`app.getVersion()`, `app.getPath()`) aren't available.
+ * directly because the watcher runs in a worker process, where the app logger's Electron
+ * main-process-only APIs (`app.getVersion()`, `app.getPath()`) aren't available.
  */
 export interface ReplayLibraryLogger {
   error(message: string): void
@@ -67,23 +73,35 @@ export interface ReplayLibraryLogger {
 
 /**
  * Watches the configured replay folders and keeps the index reconciled with disk. Reconciliation
- * (used both for the initial backfill and for change events) scans each configured root for `.rep`
- * files, parses new/changed ones, re-points moved/renamed files at their new path by content
- * identity instead of re-parsing them, and prunes entries for files that no longer exist.
+ * parses new/changed `.rep` files, re-points moved/renamed files at their new path by content
+ * identity instead of re-parsing them, and prunes entries for files that no longer exist. The
+ * initial backfill scans each configured root; after that, only the paths the folder watchers
+ * report are looked at, so a replay saved after a game costs the same in a library of any size.
  */
 export class ReplayWatcher {
   private watchers: FSWatcher[] = []
   private watchedFolders: ReadonlyArray<string>
   private reconciling = false
   private reconcileQueued = false
+  /**
+   * Whether the next reconcile has to scan every root, rather than just the paths the watchers
+   * reported: for the initial backfill, after a failed reconcile, and when a watcher couldn't say
+   * what changed.
+   */
+  private fullScanNeeded = true
+  /**
+   * The paths the watchers reported since the last reconcile began, each with whether it was added,
+   * removed or renamed (a `rename` event) rather than only modified.
+   */
+  private changedPaths = new Map<string, boolean>()
   private debounceTimer: ReturnType<typeof setTimeout> | undefined
   private retryTimer: ReturnType<typeof setTimeout> | undefined
   private retryAttempts = 0
   private backfillProgress: ReplayBackfillProgress | undefined
   /**
-   * Whether the initial backfill has begun. The `scanning` phase is only surfaced for it: later,
-   * watch-triggered reconciles re-scan every folder too, but their work is small and showing a
-   * full "scanning" state on every added file would just flicker.
+   * Whether the initial backfill has begun. The `scanning` phase is only surfaced for it: a later
+   * full scan (after a failure, say) usually has little work, and showing a full "scanning" state
+   * for it would just flicker.
    */
   private initialScanStarted = false
 
@@ -113,11 +131,20 @@ export class ReplayWatcher {
   }
 
   start(): void {
+    this.fullScanNeeded = true
     this.reconcile().catch(swallowNonBuiltins)
 
     for (const folder of this.watchedFolders) {
       try {
-        this.watchers.push(watch(folder, { recursive: true }, () => this.onWatchEvent()))
+        this.watchers.push(
+          watch(folder, { recursive: true }, (eventType, filename) =>
+            this.onWatchEvent(folder, eventType, filename),
+          ).on('error', err => {
+            // The folder went away (deleted, or its drive removed), so what's under it is unknown.
+            this.logger.warning(`Error watching replay folder '${folder}': ${getErrorStack(err)}`)
+            this.onWatchEvent(folder, 'rename', null)
+          }),
+        )
       } catch (err) {
         // Folder may not exist yet, or recursive watching may be unavailable; the index just stays
         // as last reconciled.
@@ -152,7 +179,18 @@ export class ReplayWatcher {
     this.start()
   }
 
-  private onWatchEvent(): void {
+  private onWatchEvent(folder: string, eventType: WatchEventType, filename: string | null): void {
+    if (filename === null) {
+      // The watcher couldn't say what changed, like when more changed at once than it could track.
+      this.fullScanNeeded = true
+    } else {
+      const changedPath = path.join(folder, filename)
+      this.changedPaths.set(
+        changedPath,
+        eventType === 'rename' || this.changedPaths.get(changedPath) === true,
+      )
+    }
+
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
     }
@@ -175,10 +213,19 @@ export class ReplayWatcher {
       return
     }
     this.reconciling = true
+    // Taken up front, so whatever changes while this runs is left for the follow-up.
+    const fullScan = this.fullScanNeeded
+    const changedPaths = this.changedPaths
+    this.fullScanNeeded = false
+    this.changedPaths = new Map()
     try {
-      const failedCount = await this.runReconcile()
+      const failedCount = fullScan
+        ? await this.reconcileAll()
+        : await this.reconcilePaths(changedPaths)
       if (failedCount > 0) {
         this.logger.warning(`Failed to index ${failedCount} replay(s); scheduling a retry`)
+        // The files that failed are only found again by scanning for them.
+        this.fullScanNeeded = true
         this.scheduleRetry()
       } else {
         this.retryAttempts = 0
@@ -189,6 +236,7 @@ export class ReplayWatcher {
       }
     } catch (err) {
       this.logger.error(`Error reconciling replay index: ${getErrorStack(err)}`)
+      this.fullScanNeeded = true
       this.scheduleRetry()
     } finally {
       this.reconciling = false
@@ -220,8 +268,11 @@ export class ReplayWatcher {
     )
   }
 
-  /** Returns the number of files whose index write failed (they remain unindexed on disk). */
-  private async runReconcile(): Promise<number> {
+  /**
+   * Scans every root and reconciles the whole index with it. Returns the number of files whose
+   * index write failed (they remain unindexed on disk).
+   */
+  private async reconcileAll(): Promise<number> {
     // Surface a "scanning" state only for the very first reconcile, before we know how much work
     // there is; the folder walk over a large library is slow enough to be worth showing.
     const isInitial = !this.initialScanStarted
@@ -230,7 +281,7 @@ export class ReplayWatcher {
       this.emitProgress({ phase: 'scanning' })
     }
 
-    const { files, scannedRoots, unreadableDirs } = await this.scanReplayFiles()
+    const { files, scannedRoots, unreadableDirs } = await this.scanReplayFiles(this.watchedFolders)
 
     // If folders are configured but not a single one could be read (e.g. every folder is missing or
     // on an offline drive), leave the whole index untouched rather than treating every entry as
@@ -264,6 +315,102 @@ export class ReplayWatcher {
       }
     }
 
+    return await this.applyChanges(files, existing, vanished)
+  }
+
+  /**
+   * Reconciles the index with just the paths the watchers reported: replays that were added,
+   * changed or removed, and folders that appeared or went away along with the replays in them. A
+   * folder that was only modified needs nothing, since the files in it report their own changes.
+   * Returns the number of files whose index write failed (they remain unindexed on disk).
+   */
+  private async reconcilePaths(changedPaths: ReadonlyMap<string, boolean>): Promise<number> {
+    const files = new Map<string, FileMeta>()
+    const existing = new Map<string, ExistingReplayInfo>()
+    const vanished = new Map<string, ExistingReplayInfo>()
+    const addedFolders: string[] = []
+
+    for (const [changedPath, renamed] of changedPaths) {
+      let stats
+      try {
+        stats = await stat(changedPath)
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ENOTDIR') {
+          // Gone: a replay, or a folder and every replay that was in it.
+          const gone = isIndexableReplayFilename(path.basename(changedPath))
+            ? new Map<string, ExistingReplayInfo>()
+            : this.db.getExistingReplaysUnder(changedPath)
+          const goneReplay = this.db.getExistingReplay(changedPath)
+          if (goneReplay) {
+            gone.set(changedPath, goneReplay)
+          }
+          for (const [gonePath, info] of gone) {
+            existing.set(gonePath, info)
+            vanished.set(gonePath, info)
+          }
+        }
+        // Any other failure says nothing about whether it's still there, so it's left as indexed.
+        continue
+      }
+
+      if (stats.isFile()) {
+        if (isIndexableReplayFilename(path.basename(changedPath))) {
+          files.set(changedPath, { mtime: Math.floor(stats.mtimeMs), size: stats.size })
+        }
+      } else if (stats.isDirectory() && renamed) {
+        addedFolders.push(changedPath)
+      }
+    }
+
+    if (addedFolders.length > 0) {
+      // A folder that appeared may have come with replays in it (moved in whole, say), which don't
+      // get events of their own.
+      const scan = await this.scanReplayFiles(addedFolders)
+      const scannedPaths = new Set(scan.files.keys())
+      for (const [filePath, meta] of scan.files) {
+        files.set(filePath, meta)
+      }
+      for (const folder of scan.scannedRoots) {
+        for (const [existingPath, info] of this.db.getExistingReplaysUnder(folder)) {
+          existing.set(existingPath, info)
+          if (
+            isIndexedPathVanished(
+              existingPath,
+              this.watchedFolders,
+              scan.scannedRoots,
+              scannedPaths,
+              scan.unreadableDirs,
+            )
+          ) {
+            vanished.set(existingPath, info)
+          }
+        }
+      }
+    }
+
+    for (const filePath of files.keys()) {
+      if (!existing.has(filePath)) {
+        const info = this.db.getExistingReplay(filePath)
+        if (info) {
+          existing.set(filePath, info)
+        }
+      }
+    }
+
+    return await this.applyChanges(files, existing, vanished)
+  }
+
+  /**
+   * Brings the index in line with what was found on disk: `files` are the replays found, `existing`
+   * the index state for every path the reconcile looked at, and `vanished` the indexed replays that
+   * are gone. Returns the number of files whose index write failed (they remain unindexed on disk).
+   */
+  private async applyChanges(
+    files: ReadonlyMap<string, FileMeta>,
+    existing: ReadonlyMap<string, ExistingReplayInfo>,
+    vanished: Map<string, ExistingReplayInfo>,
+  ): Promise<number> {
     let toParse: string[] = []
     const newFilePaths: string[] = []
     for (const [filePath, meta] of files) {
@@ -347,6 +494,7 @@ export class ReplayWatcher {
     this.emitProgress({ phase: 'indexing', done, total })
 
     let nextIndex = 0
+    let lastProgressNotify = Date.now()
     let lastChangeNotify = Date.now()
     const worker = async () => {
       while (nextIndex < toParse.length) {
@@ -364,9 +512,13 @@ export class ReplayWatcher {
         done++
         if (done % PARSE_YIELD_EVERY === 0 || done === total) {
           if (done < total) {
-            this.emitProgress({ phase: 'indexing', done, total })
-            if (Date.now() - lastChangeNotify >= CHANGE_NOTIFY_INTERVAL_MS) {
-              lastChangeNotify = Date.now()
+            const now = Date.now()
+            if (now - lastProgressNotify >= PROGRESS_NOTIFY_INTERVAL_MS) {
+              lastProgressNotify = now
+              this.emitProgress({ phase: 'indexing', done, total })
+            }
+            if (now - lastChangeNotify >= CHANGE_NOTIFY_INTERVAL_MS) {
+              lastChangeNotify = now
               this.callbacks.onChange()
             }
           }
@@ -388,19 +540,32 @@ export class ReplayWatcher {
     meta: FileMeta,
     precomputedHash?: string,
   ): Promise<void> {
-    let fileInfo: ReplayFileInfo
+    // Read once for both the hash and the parse, since opening a file is a good share of the cost
+    // of indexing a replay.
+    let contents: Buffer
     try {
-      const contentHash = precomputedHash ?? (await computeContentHash(filePath))
-      fileInfo = { path: filePath, fileMtime: meta.mtime, fileSize: meta.size, contentHash }
+      contents = await readFile(filePath)
     } catch (err) {
-      // File likely vanished between the scan and hashing; a later reconcile will catch up.
+      const code = (err as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+        // Still there but unreadable for now (another program is still writing it, say). Failing
+        // it schedules a retry, since no further event may arrive for it.
+        throw err
+      }
+      // Vanished between the scan and reading it; its removal is reported and reconciled too.
       this.logger.verbose(`Skipping replay '${filePath}': ${getErrorStack(err)}`)
       return
+    }
+    const fileInfo: ReplayFileInfo = {
+      path: filePath,
+      fileMtime: meta.mtime,
+      fileSize: meta.size,
+      contentHash: precomputedHash ?? hashReplayContents(contents),
     }
 
     let record: IndexedReplay
     try {
-      record = await parseReplayFile(fileInfo)
+      record = parseReplayContents(fileInfo, contents)
     } catch (err) {
       this.logger.verbose(`Indexing replay '${filePath}' as a parse error: ${getErrorStack(err)}`)
       record = makeParseErrorRecord(fileInfo)
@@ -413,13 +578,13 @@ export class ReplayWatcher {
   }
 
   /**
-   * Walks every configured root into one union map keyed by absolute path (so overlapping roots
-   * dedupe naturally). Also reports which roots were scannable: a root counts as scanned when its
+   * Walks every given root into one union map keyed by absolute path (so overlapping roots dedupe
+   * naturally). Also reports which roots were scannable: a root counts as scanned when its
    * top-level read succeeds. Every directory whose read failed — a root or a subfolder encountered
    * mid-walk — is reported in `unreadableDirs`, so already-indexed rows beneath it can be protected
    * from pruning (its files being absent from the scan proves nothing about their existence).
    */
-  private async scanReplayFiles(): Promise<{
+  private async scanReplayFiles(roots: ReadonlyArray<string>): Promise<{
     files: Map<string, FileMeta>
     scannedRoots: string[]
     unreadableDirs: string[]
@@ -454,7 +619,7 @@ export class ReplayWatcher {
       return true
     }
 
-    for (const root of this.watchedFolders) {
+    for (const root of roots) {
       if (await walk(root)) {
         scannedRoots.push(root)
       }
