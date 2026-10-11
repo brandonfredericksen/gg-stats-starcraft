@@ -43,6 +43,7 @@ export function GgStatsHealthDialog({ onCancel, close }: CommonDialogProps) {
     if (healthy) {
       snackbarController.showSnackbar(
         t('starcraft.ggStatsHealth.noProblems', 'Your local installation is now free of problems.'),
+        { tone: 'success' },
       )
       close()
     }

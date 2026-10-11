@@ -25,6 +25,7 @@ export function StarcraftHealthCheckupDialog({ onCancel, close }: CommonDialogPr
           'starcraft.starcraftHealth.noProblems',
           'Your local installation is now free of problems.',
         ),
+        { tone: 'success' },
       )
       close()
     }

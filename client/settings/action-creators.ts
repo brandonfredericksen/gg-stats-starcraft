@@ -43,6 +43,7 @@ export function mergeLocalSettings(
     } catch (err) {
       externalShowSnackbar(
         i18n.t('settings.errors.save', 'There was an issue saving the settings.'),
+        { tone: 'error' },
       )
     }
   })
@@ -58,6 +59,7 @@ export function mergeScrSettings(
     } catch (err) {
       externalShowSnackbar(
         i18n.t('settings.errors.save', 'There was an issue saving the settings.'),
+        { tone: 'error' },
       )
     }
   })

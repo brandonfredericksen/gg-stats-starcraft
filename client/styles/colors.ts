@@ -311,6 +311,12 @@ export const THEME_CSS = css`
   --theme-tooltip-border: #3d3d44;
   --theme-tooltip-text: #f4f4f5;
   --theme-tooltip-muted: #b4b4bc;
+
+  /** Snackbars float over panels, so they sit a step lighter than any panel and cast a shadow. */
+  --theme-snackbar: #222226;
+  --theme-snackbar-sheen: #2a2a2f;
+  --theme-snackbar-border: #3a3a40;
+  --theme-snackbar-shadow: 0 12px 32px rgb(0 0 0 / 0.4);
 `
 
 /**
@@ -444,6 +450,11 @@ export const LIGHT_THEME_CSS = css`
   --theme-tooltip-border: #27272b;
   --theme-tooltip-text: #f4f4f5;
   --theme-tooltip-muted: #b4b4bc;
+
+  --theme-snackbar: #fbfbfc;
+  --theme-snackbar-sheen: #ffffff;
+  --theme-snackbar-border: var(--theme-outline-variant);
+  --theme-snackbar-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
 `
 
 export function getRaceColor(race: RaceChar) {

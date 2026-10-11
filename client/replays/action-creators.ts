@@ -91,7 +91,12 @@ export function watchGameAt(gameId: string, atMs: number): ThunkAction {
         const source = saved?.source
         const path = source?.kind === 'replay' ? source.path : source?.replayPath
         if (!path) {
-          externalShowSnackbar(i18n.t('replays.watchMissing', "Couldn't find this game's replay."))
+          externalShowSnackbar(
+            i18n.t('replays.watchMissing', "Couldn't find this game's replay."),
+            {
+              tone: 'error',
+            },
+          )
           return
         }
         const name = path.split(/[\\/]/).at(-1) ?? path

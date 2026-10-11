@@ -1,11 +1,11 @@
 import { AnimatePresence, Transition, Variants } from 'motion/react'
 import * as m from 'motion/react-m'
 import * as React from 'react'
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
+import { useWindowFocus } from '../dom/window-focus'
 import { Snackbar } from '../material/snackbar'
 import { zIndexSnackbar } from '../material/zindex'
-import { useStableCallback } from '../react/state-hooks'
 import {
   registerSnackbarController,
   SnackbarController,
@@ -14,11 +14,19 @@ import {
 } from './snackbar-controller-registry'
 import { DURATION_SHORT } from './snackbar-durations'
 
-interface QueuedSnackbar {
+/**
+ * The most snackbars on screen at once. Past this a new one pushes out the oldest, so a burst of
+ * them never leaves a backlog to click through.
+ */
+const MAX_SHOWN = 3
+
+interface ShownSnackbar {
   id: number
   message: string
   durationMillis: number
   options?: SnackbarOptions
+  /** How many times this message was asked for while it was showing. */
+  count: number
 }
 
 const SnackbarControllerContext = React.createContext<SnackbarController>({
@@ -29,117 +37,126 @@ export function useSnackbarController() {
   return useContext(SnackbarControllerContext)
 }
 
-const AnimatedContainer = styled(m.div)`
+const Stack = styled.div`
   position: fixed;
-  left: 50%;
-  top: calc(var(--gg-system-bar-height, 0px) + var(--gg-app-bar-height, 0px) + 24px);
-  transform: translate(-50%, 0%);
-
+  right: 24px;
+  bottom: 24px;
+  max-width: calc(100% - 48px);
   z-index: ${zIndexSnackbar};
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 `
 
-const snackbarVariants: Variants = {
-  initial: {
-    opacity: 0,
-    y: -100,
-    translateX: '-50%',
-    pointerEvents: 'none',
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    translateX: '-50%',
-    pointerEvents: 'auto',
-  },
-  exit: {
-    opacity: 0,
-    y: -200,
-    translateX: '-50%',
-    pointerEvents: 'none',
-  },
+const itemVariants: Variants = {
+  initial: { opacity: 0, x: 48 },
+  visible: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 48, transition: { duration: 0.12, ease: [0.3, 0, 1, 1] } },
 }
 
-const transition: Transition = {
-  default: { type: 'spring', duration: 0.4 },
-  opacity: { type: 'spring', duration: 0.3, bounce: 0 },
+const itemTransition: Transition = { duration: 0.2, ease: [0.2, 0, 0, 1] }
+
+/**
+ * Calls `onExpire` once `durationMillis` of unpaused time has passed, counting from the start again
+ * whenever `restartKey` changes.
+ */
+function useExpiry(
+  durationMillis: number,
+  restartKey: number,
+  paused: boolean,
+  onExpire: () => void,
+) {
+  const remainingRef = useRef(durationMillis)
+  const restartKeyRef = useRef(restartKey)
+  const expire = useEffectEvent(onExpire)
+
+  useEffect(() => {
+    if (restartKeyRef.current !== restartKey) {
+      restartKeyRef.current = restartKey
+      remainingRef.current = durationMillis
+    }
+    if (paused) {
+      return undefined
+    }
+
+    const startedAt = Date.now()
+    const timer = setTimeout(() => expire(), remainingRef.current)
+    return () => {
+      clearTimeout(timer)
+      remainingRef.current -= Date.now() - startedAt
+    }
+  }, [durationMillis, restartKey, paused])
+}
+
+function SnackbarItem({
+  snackbar,
+  paused,
+  onDismiss,
+}: {
+  snackbar: ShownSnackbar
+  paused: boolean
+  onDismiss: (id: number) => void
+}) {
+  const dismiss = () => onDismiss(snackbar.id)
+  useExpiry(snackbar.durationMillis, snackbar.count, paused, dismiss)
+
+  const action = snackbar.options?.action
+  return (
+    <Snackbar
+      message={snackbar.message}
+      tone={snackbar.options?.tone}
+      count={snackbar.count}
+      actionLabel={action?.label}
+      onAction={
+        action
+          ? () => {
+              action.onClick()
+              dismiss()
+            }
+          : undefined
+      }
+      onDismiss={dismiss}
+      durationMillis={snackbar.durationMillis}
+      paused={paused}
+    />
+  )
 }
 
 /**
  * Container component that provides a controller via `useSnackbarController` to any descendants and
- * will display snackbars over top of any content it contains when requested.
+ * shows the snackbars it's asked for, stacked in the bottom right corner over everything it
+ * contains. Asking for a message that's already showing counts it again rather than stacking a
+ * copy. The snackbars wait while the mouse or focus is on them, or the window isn't focused, so
+ * none of them goes away unseen.
  */
 export function SnackbarOverlay({ children }: { children: React.ReactNode }) {
   const idRef = useRef(0)
-  const [displayedSnackbar, setDisplayedSnackbar] = useState<QueuedSnackbar>()
-  const displayedRef = useRef<QueuedSnackbar | undefined>(undefined)
-  const [isHovering, setIsHovering] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const [queue, setQueue] = useState<QueuedSnackbar[]>([])
+  const [shown, setShown] = useState<ReadonlyArray<ShownSnackbar>>([])
+  // Tracked by id and checked against what's showing, since a snackbar removed from under the
+  // mouse or focus doesn't reliably get a leave or blur event.
+  const [hoveredId, setHoveredId] = useState<number>()
+  const [focusedId, setFocusedId] = useState<number>()
+  const windowFocused = useWindowFocus()
   const controller = useMemo<SnackbarController>(
     () => ({
-      showSnackbar(message, durationMillis = DURATION_SHORT, options) {
-        // The dedupe check runs inside the updater so that it sees every snackbar requested this
-        // tick, not just the ones React has re-rendered for.
-        setQueue(q => {
-          if (
-            options?.dedupe &&
-            (displayedRef.current?.message === message || q.some(s => s.message === message))
-          ) {
-            return q
-          }
-
-          return [...q, { id: idRef.current, message, durationMillis, options }]
-        })
+      showSnackbar(message, options) {
+        const id = idRef.current
         idRef.current = (idRef.current + 1) % Number.MAX_SAFE_INTEGER
+        const durationMillis = options?.durationMillis ?? DURATION_SHORT
+        setShown(shown => {
+          const same = shown.find(s => s.message === message)
+          // A repeat moves to the newest spot, so it's the last to be pushed out.
+          const next: ShownSnackbar = same
+            ? { ...same, durationMillis, options, count: same.count + 1 }
+            : { id, message, durationMillis, options, count: 1 }
+          return [...shown.filter(s => s !== same), next].slice(-MAX_SHOWN)
+        })
       },
     }),
     [],
   )
-
-  const onDismiss = useStableCallback(() => {
-    setDisplayedSnackbar(undefined)
-    setIsHovering(false)
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-    }
-    timerRef.current = undefined
-  })
-
-  const startDismissTimer = useStableCallback((duration: number) => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-    }
-
-    timerRef.current = setTimeout(() => {
-      onDismiss()
-    }, duration)
-  })
-
-  const onAnimationComplete = useStableCallback((definition: string) => {
-    if (definition === 'visible' && displayedSnackbar && !isHovering) {
-      startDismissTimer(displayedSnackbar.durationMillis)
-    }
-  })
-
-  const onMouseEnter = useStableCallback(() => {
-    setIsHovering(true)
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = undefined
-    }
-  })
-
-  const onMouseLeave = useStableCallback(() => {
-    setIsHovering(false)
-    if (displayedSnackbar) {
-      // Use half the original duration when hover ends
-      startDismissTimer(Math.round(displayedSnackbar.durationMillis / 2))
-    }
-  })
-
-  useLayoutEffect(() => {
-    displayedRef.current = displayedSnackbar
-  }, [displayedSnackbar])
 
   useEffect(() => {
     registerSnackbarController(controller)
@@ -148,61 +165,34 @@ export function SnackbarOverlay({ children }: { children: React.ReactNode }) {
     }
   }, [controller])
 
-  useLayoutEffect(() => {
-    if (displayedSnackbar) {
-      const onAbort = () => {
-        setDisplayedSnackbar(undefined)
-        if (timerRef.current) {
-          clearTimeout(timerRef.current)
-        }
-        timerRef.current = undefined
-      }
-      const signal = displayedSnackbar.options?.signal
-      if (signal?.aborted) {
-        onAbort()
-        return () => {}
-      }
-
-      signal?.addEventListener('abort', onAbort)
-      return () => {
-        signal?.removeEventListener('abort', onAbort)
-      }
-    }
-
-    return () => {}
-  }, [queue, displayedSnackbar])
-
-  if (queue.length > 0 && !displayedSnackbar) {
-    setDisplayedSnackbar(queue[0])
-    setQueue(q => q.slice(1))
+  const onDismiss = (id: number) => {
+    setShown(shown => shown.filter(s => s.id !== id))
   }
+  const paused = !windowFocused || shown.some(s => s.id === hoveredId || s.id === focusedId)
 
   return (
     <SnackbarControllerContext.Provider value={controller}>
       {children}
-      <AnimatePresence mode='wait'>
-        {displayedSnackbar && (
-          <AnimatedContainer
-            key={displayedSnackbar.id}
-            variants={snackbarVariants}
-            initial='initial'
-            animate='visible'
-            exit='exit'
-            transition={transition}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
-            onTouchStart={onMouseEnter}
-            onTouchEnd={onMouseLeave}
-            onAnimationComplete={onAnimationComplete}>
-            <Snackbar
-              message={displayedSnackbar.message}
-              actionLabel={displayedSnackbar.options?.action?.label}
-              onAction={displayedSnackbar.options?.action?.onClick}
-              onDismiss={onDismiss}
-            />
-          </AnimatedContainer>
-        )}
-      </AnimatePresence>
+      <Stack>
+        <AnimatePresence mode='popLayout' initial={false}>
+          {shown.map(snackbar => (
+            <m.div
+              key={snackbar.id}
+              layout={true}
+              variants={itemVariants}
+              initial='initial'
+              animate='visible'
+              exit='exit'
+              transition={itemTransition}
+              onMouseEnter={() => setHoveredId(snackbar.id)}
+              onMouseLeave={() => setHoveredId(id => (id === snackbar.id ? undefined : id))}
+              onFocus={() => setFocusedId(snackbar.id)}
+              onBlur={() => setFocusedId(id => (id === snackbar.id ? undefined : id))}>
+              <SnackbarItem snackbar={snackbar} paused={paused} onDismiss={onDismiss} />
+            </m.div>
+          ))}
+        </AnimatePresence>
+      </Stack>
     </SnackbarControllerContext.Provider>
   )
 }

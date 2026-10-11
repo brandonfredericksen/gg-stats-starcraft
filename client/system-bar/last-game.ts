@@ -32,7 +32,9 @@ export function openLastGame(): ThunkAction {
       })
       .catch(err => {
         logger.error(`Error finding the newest replay: ${getErrorStack(err)}`)
-        externalShowSnackbar(i18n.t('lastGame.error', "Couldn't find your last game."))
+        externalShowSnackbar(i18n.t('lastGame.error', "Couldn't find your last game."), {
+          tone: 'error',
+        })
       })
   }
 }

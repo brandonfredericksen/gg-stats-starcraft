@@ -30,6 +30,7 @@ const Buttons = styled.div`
   padding-block: 24px;
 
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -42,13 +43,18 @@ export function SnackbarTest() {
     <CenteredContentContainer>
       <Root>
         <StaticSnackbars>
-          <Snackbar message='You have just seen a cool test snackbar.' onDismiss={() => {}} />
-          <Snackbar message='This one has an action.' actionLabel='Confirm' onDismiss={() => {}} />
+          <Snackbar message='Analyzing 25 games in the background' onDismiss={() => {}} />
           <Snackbar
-            message={
-              'This snackbar has a really, super, crazy long message that should wrap and ' +
-              'not look completely terrible hopefully.'
-            }
+            message='New game analyzed: TvZ on Polypoid'
+            tone='success'
+            actionLabel='View stats'
+            durationMillis={DURATION_LONG}
+            onDismiss={() => {}}
+          />
+          <Snackbar
+            message="Couldn't find your last game."
+            tone='error'
+            count={3}
             onDismiss={() => {}}
           />
           <Snackbar
@@ -62,34 +68,36 @@ export function SnackbarTest() {
         </StaticSnackbars>
         <Buttons>
           <FilledButton
-            onClick={() => snackbarController.showSnackbar('This is a short duration snackbar.')}
-            label='Short duration'
+            onClick={() => snackbarController.showSnackbar('Moved 12 replays to Recycle Bin')}
+            label='Info'
           />
           <FilledButton
             onClick={() =>
-              snackbarController.showSnackbar('This is a long duration snackbar.', DURATION_LONG)
-            }
-            label='Long duration'
-          />
-          <FilledButton
-            onClick={() =>
-              snackbarController.showSnackbar('This is a snackbar with an action.', DURATION_LONG, {
-                action: {
-                  label: 'Action',
-                  onClick: () => {},
-                },
+              snackbarController.showSnackbar('New game analyzed: PvT on Fighting Spirit', {
+                durationMillis: DURATION_LONG,
+                tone: 'success',
+                action: { label: 'View stats', onClick: () => {} },
               })
             }
-            label='With action'
+            label='Success with action'
           />
           <FilledButton
             onClick={() =>
-              snackbarController.showSnackbar(
-                'This is a snackbar with a really, super, incredibly long message that will ' +
-                  'probably wrap and stuff.',
-              )
+              snackbarController.showSnackbar('There was an issue saving the settings.', {
+                tone: 'error',
+              })
             }
-            label='Long message'
+            label='Error'
+          />
+          <FilledButton
+            onClick={() => {
+              for (let i = 1; i <= 10; i++) {
+                snackbarController.showSnackbar(`New game analyzed: game ${i} of 10`, {
+                  tone: 'success',
+                })
+              }
+            }}
+            label='Burst of 10'
           />
         </Buttons>
       </Root>

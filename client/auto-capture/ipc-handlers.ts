@@ -26,8 +26,9 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
               defaultValue: 'New game analyzed: {{mapName}}',
               mapName,
             }),
-        DURATION_LONG,
         {
+          durationMillis: DURATION_LONG,
+          tone: 'success',
           action: {
             label: i18n.t('autoCapture.viewStats', 'View stats'),
             onClick: () => push(getGameStatsUrl(gameId)),

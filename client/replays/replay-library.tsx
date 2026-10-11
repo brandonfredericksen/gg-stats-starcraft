@@ -721,6 +721,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     const showError = () => {
       snackbarController.showSnackbar(
         t('replays.library.moveToRecycleBinError', 'Something went wrong removing the replay'),
+        { tone: 'error' },
       )
     }
 
@@ -745,6 +746,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           } else if (moved > 0) {
             snackbarController.showSnackbar(
               t('replays.library.movedToRecycleBin', 'Replay moved to Recycle Bin'),
+              { tone: 'success' },
             )
           }
         } else if (failed) {
@@ -755,6 +757,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
               count: targets.length,
               moved,
             }),
+            { tone: 'error' },
           )
         } else if (moved > 0) {
           snackbarController.showSnackbar(
@@ -763,6 +766,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
               defaultValue_other: 'Moved {{count}} replays to Recycle Bin',
               count: moved,
             }),
+            { tone: 'success' },
           )
         }
       })
@@ -835,6 +839,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
                 defaultValue_other: 'Removed the bookmark from {{count}} replays',
                 count: changed.length,
               }),
+          { tone: 'success' },
         )
       })
       .catch(swallowNonBuiltins)
@@ -865,6 +870,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             count: added.length,
             playlist: playlistName,
           }),
+          { tone: 'success' },
         )
       })
       .catch(swallowNonBuiltins)
@@ -889,6 +895,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             count: targets.length,
             playlist: playlistName,
           }),
+          { tone: 'success' },
         )
       })
       .catch(swallowNonBuiltins)
