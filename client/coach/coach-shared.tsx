@@ -18,6 +18,9 @@ import { bodyMedium, labelMedium, titleSmall } from '../styles/typography'
 /** Below this panel width, side by side lists stack. */
 const STACK_BELOW_PX = 720
 
+/** A share of the game is shown as seconds per 10 minutes. */
+const SECONDS_PER_TEN = 600
+
 export type Tone = 'good' | 'bad'
 
 export function toneColor(tone: Tone | undefined) {
@@ -418,7 +421,7 @@ export function useFormatValue() {
       case 'share':
         // Time supply blocked, which reads better as seconds than as a share of the game.
         return t('myStats.coach.secondsPerTen', '{{count}}s per 10 min', {
-          count: Math.round(value * 600),
+          count: Math.round(value * SECONDS_PER_TEN),
         })
       case 'perTenMinutes':
         return t('myStats.coach.perTen', '{{amount}} per 10 min', { amount: number(value) })
@@ -432,6 +435,29 @@ export function useFormatValue() {
         return number(value)
     }
   }
+}
+
+/** A number rounded the way `useFormatValue` shows it. */
+function roundAsShown(value: number, unit: CoachUnit) {
+  switch (unit) {
+    case 'time':
+      return Math.round(value / 1000) * 1000
+    case 'share':
+      return Math.round(value * SECONDS_PER_TEN) / SECONDS_PER_TEN
+    case 'ratio':
+    case 'percent':
+      return Math.round(value * 100) / 100
+    default:
+      return Math.abs(value) < 10 ? Math.round(value * 10) / 10 : Math.round(value)
+  }
+}
+
+/**
+ * How far apart two numbers are once rounded as `useFormatValue` shows them, so the gap is the
+ * difference between the numbers shown.
+ */
+export function getShownGap(a: number, b: number, unit: CoachUnit) {
+  return Math.abs(roundAsShown(a, unit) - roundAsShown(b, unit))
 }
 
 /** Armor, weapons and Plasma Shields, the upgrades with levels. The rest have only one. */

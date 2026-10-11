@@ -40,6 +40,7 @@ import {
   getBuildName,
   getMetricText,
   getRaceWords,
+  getShownGap,
   getTimingTip,
   getTip,
   getTipHeadline,
@@ -465,15 +466,7 @@ function GoalItem({
     target: formatValue(target, goal.unit),
     user: formatValue(shownUser, goal.unit),
   }
-  // Rounded as the numbers are shown, so the gap is the difference between them.
-  const asShown = (n: number) =>
-    goal.unit === 'time' || goal.unit === 'percent' || Math.abs(n) >= 10
-      ? n
-      : Math.round(n * 10) / 10
-  const gap =
-    goal.unit === 'count' && Math.abs(shownUser) >= 10
-      ? Math.abs(Math.round(target) - Math.round(shownUser))
-      : Math.abs(asShown(target) - asShown(shownUser))
+  const gap = getShownGap(target, shownUser, goal.unit)
   const race = raceCharToLabel(bucket.race, t)
   const headlineValues = {
     gap: goal.unit === 'time' ? formatTimeDiff(gap, t) : formatValue(gap, goal.unit),
