@@ -75,7 +75,7 @@ const MAX_SUGGESTED_OWN_NAMES = 10
 export class ReplayDb {
   private readonly db: SqliteDatabase
   /**
-   * When each readable replay was played, by its path key (see `getGameTimes`). Built on first use
+   * When each readable replay was played, by its path key (see `toPathKey`). Built on first use
    * and dropped by every write that could change it, since building it reads the whole index.
    */
   private gameTimesByPathKey: Map<string, number> | undefined
@@ -232,7 +232,7 @@ export class ReplayDb {
         id = existing.id
         this.updateReplayByIdStmt.run(
           record.path,
-          record.path.toLowerCase(),
+          toPathKey(record.path),
           record.fileMtime,
           record.fileSize,
           record.contentHash,
@@ -250,7 +250,7 @@ export class ReplayDb {
       } else {
         const info = this.insertReplayStmt.run(
           record.path,
-          record.path.toLowerCase(),
+          toPathKey(record.path),
           record.fileMtime,
           record.fileSize,
           record.contentHash,
@@ -473,10 +473,11 @@ export class ReplayDb {
         }
 
         if (version < 11) {
-          // Lowercased copies of each replay's path and player names, for matching them ignoring
-          // case. They're lowercased in JS, the same way as the paths and names compared against
-          // them. SQLite's LOWER() can't stand in: it's built without ICU, so it only folds ASCII
-          // letters, and a name like "Ärger" or a folder like "Иван" would never match.
+          // Each replay's path key (see `toPathKey`) and its players' lowercased names, for matching
+          // them ignoring case. They're lowercased in JS, the same way as the paths and names
+          // compared against them. SQLite's LOWER() can't stand in: it's built without ICU, so it
+          // only folds ASCII letters, and a name like "Ärger" or a folder like "Иван" would never
+          // match.
           this.db.exec(`
           ALTER TABLE replays ADD COLUMN path_key TEXT;
           ALTER TABLE replay_players ADD COLUMN name_key TEXT;
@@ -544,7 +545,7 @@ export class ReplayDb {
     >
     const updatePathKeyStmt = this.db.prepare('UPDATE replays SET path_key = ? WHERE id = ?')
     for (const row of replayRows) {
-      updatePathKeyStmt.run(row.path.toLowerCase(), row.id)
+      updatePathKeyStmt.run(toPathKey(row.path), row.id)
     }
 
     const playerRows = this.db
@@ -597,7 +598,7 @@ export class ReplayDb {
 
   /** Points an existing index entry at a new path (a moved/renamed file), keeping its parsed data. */
   updateReplayFile(id: number, newPath: string, fileMtime: number): void {
-    this.updateReplayFileStmt.run(newPath, newPath.toLowerCase(), fileMtime, id)
+    this.updateReplayFileStmt.run(newPath, toPathKey(newPath), fileMtime, id)
     this.gameTimesByPathKey = undefined
   }
 
@@ -669,22 +670,17 @@ export class ReplayDb {
     return rows.map(r => r.mapName)
   }
 
-  /**
-   * When each of the given readable replays was played. Replays are given and keyed by path key:
-   * the resolved, lowercased path, which is how saved stats name the replay they came from.
-   */
+  /** When each of the given readable replays was played. Replays are given and keyed by path key. */
   getGameTimes(pathKeys: ReadonlyArray<string>): Array<[pathKey: string, gameTime: number]> {
     if (!this.gameTimesByPathKey) {
       const rows = this.db
         .prepare(
-          `SELECT path, game_time AS gameTime
+          `SELECT path_key AS pathKey, game_time AS gameTime
           FROM replays
           WHERE parse_error = 0 AND game_time IS NOT NULL`,
         )
-        .all() as Array<{ path: string; gameTime: number }>
-      this.gameTimesByPathKey = new Map(
-        rows.map(r => [path.resolve(r.path).toLowerCase(), r.gameTime]),
-      )
+        .all() as Array<{ pathKey: string; gameTime: number }>
+      this.gameTimesByPathKey = new Map(rows.map(r => [r.pathKey, r.gameTime]))
     }
 
     const gameTimes = this.gameTimesByPathKey
@@ -816,6 +812,14 @@ export class ReplayDb {
 
     return result
   }
+}
+
+/**
+ * A replay's path key: its resolved, lowercased path, which is how saved stats name the replay
+ * they came from.
+ */
+function toPathKey(filePath: string): string {
+  return path.resolve(filePath).toLowerCase()
 }
 
 function toExistingReplayInfo(row: ExistingReplayRow): ExistingReplayInfo {

@@ -94,6 +94,10 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
   test('keeps the path key in step when a replay moves', async () => {
     const db = await open()
     addGames(db)
+    const oldKey = path.win32.join(AUTOSAVE, 'Other.rep').toLowerCase()
+    const newKey = path.win32.join(AUTOSAVE, 'Ünder.rep').toLowerCase()
+    expect(db.getGameTimes([oldKey, newKey])).toEqual([[oldKey, 5000]])
+
     const id = db.getIdByPath(path.win32.join(AUTOSAVE, 'Other.rep'))!
     db.updateReplayFile(id, path.win32.join(AUTOSAVE, 'Ünder.rep'), 2)
 
@@ -101,6 +105,7 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
       db.query({ excludePaths: [path.win32.join(AUTOSAVE, 'ÜNDER.REP')], includeShort: true })
         .total,
     ).toBe(12)
+    expect(db.getGameTimes([oldKey, newKey])).toEqual([[newKey, 5000]])
   })
 
   test('fills in the keys of an index made before they existed', async () => {
@@ -123,5 +128,7 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
       db.query({ excludePaths: [path.win32.join(AUTOSAVE, 'OTHER.rep')], includeShort: true })
         .total,
     ).toBe(12)
+    const key = path.win32.join(AUTOSAVE, 'Game 3.rep').toLowerCase()
+    expect(db.getGameTimes([key])).toEqual([[key, 1003]])
   })
 })
