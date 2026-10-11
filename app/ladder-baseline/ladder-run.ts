@@ -22,6 +22,7 @@ import { GameStatsStore } from '../game/game-stats-store'
 import log from '../logger'
 import { LadderManifests, withLadder } from '../replay-library/ladder-manifests'
 import { mapReplayHeaderToRecord, parseReplayMetadata } from '../replay-library/replay-parser'
+import { getBaselineGameId } from './load-baseline'
 
 const POLL_MS = 5000
 /**
@@ -219,7 +220,7 @@ export async function exportLadderBaseline({
     }
     games.push({
       ...withRanks,
-      gameId: `ladder-${path.basename(replayPathKey!, '.rep')}`,
+      gameId: getBaselineGameId(replayPathKey!),
       gameTimeMs,
       players: withRanks.players.map(p => anonymize(p, idOf)),
     })

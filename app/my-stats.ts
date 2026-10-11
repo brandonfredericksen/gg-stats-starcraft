@@ -2,9 +2,10 @@ import { getErrorStack } from '../common/errors'
 import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
+import { computeMetaBuilds } from '../common/my-stats/meta-builds'
 import { computeMyStats, DatedGameMetrics } from '../common/my-stats/my-stats'
 import { GameStatsStore } from './game/game-stats-store'
-import { loadLadderBaseline } from './ladder-baseline/load-baseline'
+import { loadLadderBaseline, withoutLibraryCopies } from './ladder-baseline/load-baseline'
 import log from './logger'
 import { LadderManifests, withLadder } from './replay-library/ladder-manifests'
 
@@ -49,7 +50,13 @@ export function setupMyStats(
         (replayPathKey !== undefined ? gameTimes.get(replayPathKey) : undefined) ??
         savedAt - metrics.durationMs,
     }))
-    return [...ownGames, ...baselineGames]
+    return [
+      ...ownGames,
+      ...withoutLibraryCopies(
+        baselineGames,
+        listings.flatMap(l => (l.replayPathKey !== undefined ? [l.replayPathKey] : [])),
+      ),
+    ]
   }
 
   const ipcMain = new TypedIpcMain()
@@ -57,4 +64,7 @@ export function setupMyStats(
     computeMyStats(await loadGames(), query, Date.now()),
   )
   ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
+  ipcMain.handle('metaBuildsQuery', async (_event, query) =>
+    computeMetaBuilds(await loadGames(), query),
+  )
 }

@@ -353,6 +353,8 @@ describe('common/games/player-metrics/getGameShape', () => {
             step(4.5, 37, { count: 2 }),
             step(5, 38, { count: 4 }),
             step(5.5, 103, { count: 2 }),
+            // Past the first few minutes, only the first two of a supply building count.
+            step(6, 42),
           ],
         }),
       ]),
@@ -361,6 +363,7 @@ describe('common/games/player-metrics/getGameShape', () => {
       ['u42', 0.5],
       ['u142', 1],
       ['u42', 2],
+      ['u42', 2.5],
       ['u146', 3],
       ['u37', 4],
       ['u38', 5],

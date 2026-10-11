@@ -154,6 +154,28 @@ describe('common/games/game-stats/fromGameStatsPayload', () => {
     expect(stats.players[2].buildOrder).toBeUndefined()
   })
 
+  test('starts building morphs when they started in older build orders', () => {
+    const steps: GamePlayerStatsPayload['buildOrder'] = [
+      { frame: 2000, kind: 'unit', id: 141, supply: 16, count: 1, cancelled: false },
+      // A Lair reported when it finished, 1500 frames after it started.
+      { frame: 3000, kind: 'unit', id: 132, supply: 24, count: 1, cancelled: false },
+      { frame: 1550, kind: 'unit', id: 37, supply: 14, count: 2, cancelled: false },
+    ]
+    const zerg = player({ race: 0, buildOrder: steps })
+    const old = fromGameStatsPayload(payload({ players: [zerg] })).players[0]
+    expect(old.buildOrder?.map(s => [s.id, s.timeMs / 42, s.supply])).toEqual([
+      [132, 1500, 14],
+      [37, 1550, 14],
+      [141, 2000, 16],
+    ])
+    const current = fromGameStatsPayload(payload({ buildOrderVersion: 2, players: [zerg] }))
+    expect(current.players[0].buildOrder?.map(s => [s.id, s.timeMs / 42, s.supply])).toEqual([
+      [141, 2000, 16],
+      [132, 3000, 24],
+      [37, 1550, 14],
+    ])
+  })
+
   test('names everyone sharing a slot', () => {
     const stats = fromGameStatsPayload(
       payload({ players: [player({ names: ['Jaedong', 'Flash'] }), player({ names: [] })] }),

@@ -74,6 +74,10 @@ jobs:
       - name: Check translation files
         run: pnpm gen-translations --ci
 
+      # Only a warning: the baseline needs StarCraft to build, so CI can't, and a fix can still ship.
+      - name: Check the ladder baseline's age
+        run: pnpm run check-baseline-age
+
       - name: Check the game's formatting
         run: cargo fmt --all -- --check
         working-directory: ./game

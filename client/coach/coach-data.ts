@@ -11,6 +11,7 @@ import {
   computeCoach,
   DEFAULT_EAPM_FLOOR,
 } from '../../common/my-stats/coach'
+import { computeMetaBuilds, MetaQuery, MetaResult } from '../../common/my-stats/meta-builds'
 import { MyStatsRange, MyStatsShape, RANGE_MS } from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
@@ -178,6 +179,54 @@ function useCoachResult(query: Omit<CoachQuery, 'names'> | undefined, range?: My
     current: data?.key === dataKey,
     retry: () => setAttempt(a => a + 1),
   }
+}
+
+/**
+ * The builds top players use in a kind of game, again whenever games are analyzed, or `error` when
+ * they couldn't be worked out. Until the answer to a changed query comes, it's the last answer.
+ */
+export function useMetaBuilds(query: MetaQuery): MetaResult | 'error' | undefined {
+  const demo = useDemoPlayer()
+  const [data, setData] = useState<{ key: string; result: MetaResult | 'error' }>()
+  // By value, so a query built anew each render doesn't ask again.
+  const queryKey = JSON.stringify(query)
+
+  useEffect(() => {
+    let current = true
+    const load = () => {
+      const full: MetaQuery = JSON.parse(queryKey)
+      Promise.resolve()
+        .then(() =>
+          demo
+            ? computeMetaBuilds(getDemoGames(), full)
+            : ipcRenderer.invoke('metaBuildsQuery', full),
+        )
+        .then(result => {
+          if (current && result) {
+            setData({ key: queryKey, result })
+          }
+        })
+        .catch(err => {
+          logger.error(`Error loading the meta builds: ${getErrorStack(err)}`)
+          if (current) {
+            setData({ key: queryKey, result: 'error' })
+          }
+        })
+    }
+    load()
+
+    const refresh = debounce(load, REFRESH_DELAY_MS)
+    ipcRenderer.on('activeGameStats', refresh)
+    ipcRenderer.on('myStatsChanged', refresh)
+    return () => {
+      current = false
+      refresh.cancel()
+      ipcRenderer.removeListener('activeGameStats', refresh)
+      ipcRenderer.removeListener('myStatsChanged', refresh)
+    }
+  }, [queryKey, demo])
+
+  return data?.result
 }
 
 /**

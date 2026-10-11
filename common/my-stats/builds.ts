@@ -44,6 +44,11 @@ export interface BuildSample {
   carried: boolean
   /** How long the player played. */
   playedMs: number
+  /**
+   * How much the game counts toward a build's typical steps, as if it were there this many times.
+   * A whole number, 1 unless given.
+   */
+  weight?: number
 }
 
 /** A step most games of a build take: the building, unit, tech or upgrade, and when. */
@@ -140,22 +145,55 @@ export interface TeamBuildSample {
   user: boolean
 }
 
-/** The value a share of these are at or under, between the two nearest when none is exactly. */
-function quantile(values: ReadonlyArray<number>, share: number): number {
-  const sorted = values.toSorted((a, b) => a - b)
-  const at = (sorted.length - 1) * share
-  const below = Math.floor(at)
-  const above = Math.min(below + 1, sorted.length - 1)
-  return sorted[below] + (sorted[above] - sorted[below]) * (at - below)
+/** How many times a sample counts, see {@link BuildSample.weight}. */
+function weightOf(sample: BuildSample) {
+  return sample.weight ?? 1
 }
 
-function median(values: ReadonlyArray<number>): number {
-  return quantile(values, 0.5)
+function sum(values: ReadonlyArray<number>) {
+  return values.reduce((total, value) => total + value, 0)
+}
+
+/**
+ * The value a share of these are at or under, between the two nearest when none is exactly. With
+ * weights, each value counts as if it were there that many times.
+ */
+export function quantile(
+  values: ReadonlyArray<number>,
+  share: number,
+  weights?: ReadonlyArray<number>,
+): number {
+  const sorted = values
+    .map((value, i) => ({ value, weight: weights?.[i] ?? 1 }))
+    .sort((a, b) => a.value - b.value)
+  const total = sum(sorted.map(v => v.weight))
+  const valueAt = (position: number) => {
+    let start = 0
+    for (const { value, weight } of sorted) {
+      start += weight
+      if (position < start) {
+        return value
+      }
+    }
+    return sorted[sorted.length - 1].value
+  }
+  const at = (total - 1) * share
+  const below = Math.floor(at)
+  const above = Math.min(below + 1, total - 1)
+  return valueAt(below) + (valueAt(above) - valueAt(below)) * (at - below)
+}
+
+function median(values: ReadonlyArray<number>, weights?: ReadonlyArray<number>): number {
+  return quantile(values, 0.5, weights)
 }
 
 /** A step's typical time, and the times the middle half of the games take it between. */
-function timingOf(times: ReadonlyArray<number>) {
-  return { timeMs: median(times), earlyMs: quantile(times, 0.25), lateMs: quantile(times, 0.75) }
+function timingOf(times: ReadonlyArray<number>, weights: ReadonlyArray<number>) {
+  return {
+    timeMs: median(times, weights),
+    earlyMs: quantile(times, 0.25, weights),
+    lateMs: quantile(times, 0.75, weights),
+  }
 }
 
 /**
@@ -164,32 +202,51 @@ function timingOf(times: ReadonlyArray<number>) {
  */
 function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
   const games = samples.filter(s => s.player.buildSteps)
+  const gamesWeight = sum(games.map(weightOf))
   const byStep = new Map<
     string,
-    { key: string; nth: number; times: number[]; supplies: number[] }
+    {
+      key: string
+      nth: number
+      times: number[]
+      weights: number[]
+      supplies: number[]
+      supplyWeights: number[]
+    }
   >()
-  for (const { player } of games) {
+  for (const sample of games) {
     const seen = new Map<string, number>()
-    for (const step of player.buildSteps ?? []) {
+    for (const step of sample.player.buildSteps ?? []) {
       const nth = (seen.get(step.key) ?? 0) + 1
       seen.set(step.key, nth)
       const id = `${step.key}#${nth}`
-      const entry = byStep.get(id) ?? { key: step.key, nth, times: [], supplies: [] }
+      const entry = byStep.get(id) ?? {
+        key: step.key,
+        nth,
+        times: [],
+        weights: [],
+        supplies: [],
+        supplyWeights: [],
+      }
       entry.times.push(step.timeMs)
+      entry.weights.push(weightOf(sample))
       if (step.supply !== undefined) {
         entry.supplies.push(step.supply)
+        entry.supplyWeights.push(weightOf(sample))
       }
       byStep.set(id, entry)
     }
   }
   const steps = Array.from(byStep.values())
-    .filter(entry => entry.times.length >= games.length * USUAL_STEP_SHARE)
+    .filter(entry => sum(entry.weights) >= gamesWeight * USUAL_STEP_SHARE)
     .map(entry => ({
       key: entry.key,
       nth: entry.nth,
-      ...timingOf(entry.times),
-      supply: entry.supplies.length ? Math.round(median(entry.supplies)) : undefined,
-      share: entry.times.length / games.length,
+      ...timingOf(entry.times, entry.weights),
+      supply: entry.supplies.length
+        ? Math.round(median(entry.supplies, entry.supplyWeights))
+        : undefined,
+      share: sum(entry.weights) / gamesWeight,
     }))
     .sort((a, b) => a.timeMs - b.timeMs)
   const byKey = new Map<string, BuildStepSummary[]>()
@@ -205,26 +262,28 @@ function usualSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
  */
 function usualUnitSteps(samples: ReadonlyArray<BuildSample>): BuildStepSummary[] {
   const games = samples.filter(s => s.player.unitTimes)
-  const byStep = new Map<string, { key: string; nth: number; times: number[] }>()
-  for (const { player } of games) {
-    for (const [unitId, times] of Object.entries(player.unitTimes ?? {})) {
+  const gamesWeight = sum(games.map(weightOf))
+  const byStep = new Map<string, { key: string; nth: number; times: number[]; weights: number[] }>()
+  for (const sample of games) {
+    for (const [unitId, times] of Object.entries(sample.player.unitTimes ?? {})) {
       const first = WORKER_IDS.has(Number(unitId)) ? STARTING_WORKERS + 1 : 1
       times.forEach((timeMs, i) => {
         const nth = first + i
         const id = `u${unitId}#${nth}`
-        const entry = byStep.get(id) ?? { key: `u${unitId}`, nth, times: [] }
+        const entry = byStep.get(id) ?? { key: `u${unitId}`, nth, times: [], weights: [] }
         entry.times.push(timeMs)
+        entry.weights.push(weightOf(sample))
         byStep.set(id, entry)
       })
     }
   }
   return Array.from(byStep.values())
-    .filter(entry => entry.times.length >= games.length * USUAL_STEP_SHARE)
+    .filter(entry => sum(entry.weights) >= gamesWeight * USUAL_STEP_SHARE)
     .map(entry => ({
       key: entry.key,
       nth: entry.nth,
-      ...timingOf(entry.times),
-      share: entry.times.length / games.length,
+      ...timingOf(entry.times, entry.weights),
+      share: sum(entry.weights) / gamesWeight,
     }))
     .sort((a, b) => a.timeMs - b.timeMs || a.nth - b.nth)
 }
@@ -247,11 +306,18 @@ function workerStopOf(samples: ReadonlyArray<BuildSample>): WorkerStopSummary | 
 function workersAtOf(samples: ReadonlyArray<BuildSample>): Array<number | null> {
   return WORKER_MINUTES.map(minute => {
     const index = CHECKPOINT_MINUTES.indexOf(minute)
-    const counts = samples.flatMap(s => {
+    const counted = samples.filter(s => {
       const count = s.player.workers[index]
-      return count !== null && count !== undefined ? [count] : []
+      return count !== null && count !== undefined
     })
-    return counts.length ? Math.round(median(counts)) : null
+    return counted.length
+      ? Math.round(
+          median(
+            counted.map(s => s.player.workers[index]!),
+            counted.map(weightOf),
+          ),
+        )
+      : null
   })
 }
 
@@ -312,7 +378,8 @@ function countTeams(samples: ReadonlyArray<BuildSample>) {
   }
 }
 
-function sideOf(samples: ReadonlyArray<BuildSample>): BuildSide {
+/** How these games play a build: their typical steps, workers and army, and their results. */
+export function summarizeBuildSide(samples: ReadonlyArray<BuildSample>): BuildSide {
   return {
     games: samples.length,
     ...countTeams(samples),
@@ -332,11 +399,11 @@ function sideOf(samples: ReadonlyArray<BuildSample>): BuildSide {
 export function summarizeBuilds(
   user: ReadonlyArray<BuildSample>,
   pool: ReadonlyArray<BuildSample>,
-  familyOf: (player: PlayerMetrics) => string | undefined,
+  familyOf: (sample: BuildSample) => string | undefined,
 ): CoachBuild[] {
   const byFamily = new Map<string, { user: BuildSample[]; pool: BuildSample[] }>()
   const add = (sample: BuildSample, side: 'user' | 'pool') => {
-    const family = familyOf(sample.player)
+    const family = familyOf(sample)
     if (!family) {
       return
     }
@@ -364,9 +431,9 @@ export function summarizeBuilds(
     return {
       family,
       players: new Set(games.pool.map(s => s.name)).size,
-      others: sideOf(games.pool),
-      winners: winners.length >= MIN_WINNER_GAMES ? sideOf(winners) : undefined,
-      user: games.user.length ? sideOf(games.user) : undefined,
+      others: summarizeBuildSide(games.pool),
+      winners: winners.length >= MIN_WINNER_GAMES ? summarizeBuildSide(winners) : undefined,
+      user: games.user.length ? summarizeBuildSide(games.user) : undefined,
     }
   })
 }

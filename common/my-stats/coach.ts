@@ -216,7 +216,7 @@ interface CoachContext {
 }
 
 /** One player in one game, with what's needed to read their numbers fairly. */
-interface Sample {
+export interface Sample {
   player: PlayerMetrics
   game: DatedGameMetrics
   playedMs: number
@@ -1020,7 +1020,7 @@ function mostCommon<T>(values: ReadonlyArray<T>): T | undefined {
   return Array.from(counts).sort(([, a], [, b]) => b - a)[0]?.[0]
 }
 
-function nameOf(p: PlayerMetrics) {
+export function nameOf(p: PlayerMetrics) {
   return p.names.join(' + ').toLowerCase()
 }
 
@@ -1033,14 +1033,14 @@ function quitEarly(p: PlayerMetrics) {
  * Whether a game can be compared for this player: they didn't quit early, and in a team game,
  * nobody did, which would leave everyone else playing an uneven game.
  */
-function isComparable(game: DatedGameMetrics, player: PlayerMetrics) {
+export function isComparable(game: DatedGameMetrics, player: PlayerMetrics) {
   if (quitEarly(player)) {
     return false
   }
   return !(isTeamGame(game.shape) && game.players.some(p => p.human && quitEarly(p)))
 }
 
-function toSample(game: DatedGameMetrics, player: PlayerMetrics): Sample {
+export function toSample(game: DatedGameMetrics, player: PlayerMetrics): Sample {
   const { teammates, opponents } = getSidesOf(game, player)
   const outTimes = game.players.flatMap(p =>
     p.human && p.leftAtMs !== undefined && p.leftAtMs < game.durationMs ? [p.leftAtMs] : [],
@@ -1061,7 +1061,7 @@ function outAt(s: Sample, p: PlayerMetrics) {
 }
 
 /** In a team game, whether the player went out clearly before a teammate. */
-function wentOutFirst(s: Sample) {
+export function wentOutFirst(s: Sample) {
   return s.teammates.some(t => outAt(s, t) - outAt(s, s.player) > TOGETHER_MS)
 }
 
@@ -1070,14 +1070,20 @@ function wasLeftAlone(s: Sample) {
   return s.teammates.some(t => outAt(s, s.player) - outAt(s, t) > TOGETHER_MS)
 }
 
-/** At most a few games of each player, so one met often doesn't become the benchmark. */
-function capPerPlayer(samples: ReadonlyArray<Sample>): Sample[] {
+/**
+ * At most a few games of each player, the first ones listed, so one met often doesn't become the
+ * benchmark.
+ */
+export function capPerPlayer<T extends Sample>(
+  samples: ReadonlyArray<T>,
+  max = MAX_GAMES_PER_PLAYER,
+): T[] {
   const counts = new Map<string, number>()
   return samples.filter(s => {
     const name = nameOf(s.player)
     const played = counts.get(name) ?? 0
     counts.set(name, played + 1)
-    return played < MAX_GAMES_PER_PLAYER
+    return played < max
   })
 }
 
@@ -1307,6 +1313,7 @@ function getPairBuilds(
   user: ReadonlyArray<BuildSample>,
   pool: ReadonlyArray<BuildSample>,
   games: ReadonlyMap<string, DatedGameMetrics>,
+  familyOf: (sample: BuildSample) => string | undefined,
 ): Pick<CoachBucket, 'buildsAgainst' | 'teamBuilds'> {
   const sidesOf = (s: BuildSample) => {
     const game = games.get(s.gameId)
@@ -1338,8 +1345,8 @@ function getPairBuilds(
     .map(([opponents, group]) => ({
       opponents,
       games: group.pool.length,
-      builds: summarizeBuilds(group.user, group.pool, getBuildFamily),
-      userBuild: mostCommon(group.user.flatMap(s => getBuildFamily(s.player) ?? [])),
+      builds: summarizeBuilds(group.user, group.pool, familyOf),
+      userBuild: mostCommon(group.user.flatMap(s => familyOf(s) ?? [])),
     }))
 
   const teams = new Map<string, TeamBuildSample>()
@@ -1350,8 +1357,15 @@ function getPairBuilds(
     for (const s of samples) {
       const id = `${s.gameId}:${s.player.team}`
       const teammate = sidesOf(s)?.teammates[0]
-      const mine = getBuildFamily(s.player)
-      const theirs = teammate && getBuildFamily(teammate)
+      const game = games.get(s.gameId)
+      const mine = familyOf(s)
+      const theirs =
+        teammate &&
+        game &&
+        getBuildFamily(teammate, {
+          shape: game.shape,
+          playedMs: Math.min(teammate.leftAtMs ?? game.durationMs, game.durationMs),
+        })
       if (!teams.has(id) && mine && theirs) {
         teams.set(id, { families: [mine, theirs], result: s.result, user: isUser })
       }
@@ -2193,14 +2207,16 @@ export function computeCoach(
     const poolBuildSamples = pool.map(sample =>
       toBuildSample(sample, sample.player.result, fromUserGames.has(sample)),
     )
-    const builds = summarizeBuilds(userBuildSamples, poolBuildSamples, getBuildFamily)
-    const userBuild = mostCommon(user.flatMap(s => getBuildFamily(s.player) ?? []))
+    const familyOf = (s: BuildSample) => getBuildFamily(s.player, { shape, playedMs: s.playedMs })
+    const builds = summarizeBuilds(userBuildSamples, poolBuildSamples, familyOf)
+    const userBuild = mostCommon(userBuildSamples.flatMap(s => familyOf(s) ?? []))
     const pairBuilds =
       shape === '2v2'
         ? getPairBuilds(
             userBuildSamples,
             poolBuildSamples,
             new Map([...user, ...pool].map(sample => [sample.game.gameId, sample.game])),
+            familyOf,
           )
         : {}
     // What changed lately is pointed out as a note or a goal, so only numbers that can be count.

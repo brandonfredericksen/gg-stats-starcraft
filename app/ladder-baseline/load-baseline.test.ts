@@ -5,7 +5,8 @@ import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LADDER_BASELINE_VERSION } from '../../common/games/ladder-baseline'
 import { GAME_METRICS_VERSION } from '../../common/games/player-metrics'
-import { loadLadderBaseline } from './load-baseline'
+import { DatedGameMetrics } from '../../common/my-stats/my-stats'
+import { loadLadderBaseline, withoutLibraryCopies } from './load-baseline'
 
 vi.mock('../logger', () => ({
   default: { verbose: () => {}, info: () => {}, warning: () => {}, error: () => {} },
@@ -62,5 +63,12 @@ describe('app/ladder-baseline/load-baseline', () => {
     expect(await loadLadderBaseline(filePath)).toEqual([])
     await writeFile(filePath, 'not gzip')
     expect(await loadLadderBaseline(filePath)).toEqual([])
+  })
+
+  test('leaves out the games made from a replay in the library', () => {
+    const other = { ...GAME, gameId: 'ladder-def' } as DatedGameMetrics
+    const games = [GAME as DatedGameMetrics, other]
+    const keys = [path.join('c:', 'replays', 'ladder', 'abc.rep')]
+    expect(withoutLibraryCopies(games, keys)).toEqual([other])
   })
 })

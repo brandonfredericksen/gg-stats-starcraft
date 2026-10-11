@@ -8,7 +8,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 12
+export const GAME_METRICS_VERSION = 13
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -78,12 +78,22 @@ const FINAL_MINUTE_MS = 60_000
 /** How far into a game a build order is kept: the part a build decides. */
 const BUILD_MS = 10 * 60_000
 /** The most build steps kept for a game. */
-const MAX_BUILD_STEPS = 32
+const MAX_BUILD_STEPS = 48
 /**
  * Supply buildings, Overlords and static defense of one kind past this many follow the supply or
- * the threat, not the build, so they're left out of the steps rather than filling them.
+ * the threat, not the build, so they're left out of the steps rather than filling them, unless
+ * they're early enough to be part of the build, see {@link SUPPLY_STEPS_MS}.
  */
 const MAX_REPEATED_STEPS = 2
+/**
+ * Every supply building started by this is part of the build, like the third Pylon of a 2 Gate
+ * into a 21 Pylon.
+ */
+const SUPPLY_STEPS_MS = 5 * 60_000
+/** Every Cannon, Bunker, Turret, Sunken or Spore started by this is part of the build. */
+const DEFENSE_STEPS_MS = 6 * 60_000
+/** Supply Depots, Pylons and Overlords. */
+const SUPPLY_STEP_IDS: ReadonlySet<number> = new Set([109, 156, 42])
 /** The most workers made that {@link PlayerMetrics.unitTimes} times, past the starting ones. */
 const MAX_TIMED_WORKERS = 46
 /** The most of each army unit that {@link PlayerMetrics.unitTimes} times. */
@@ -263,7 +273,8 @@ export interface PlayerMetrics {
    * The buildings, tech and upgrades the player started in the first 10 minutes, and the first of
    * each army unit, in order, up to {@link MAX_BUILD_STEPS}: each one's build key, when, and the
    * supply in use just before. Supply, and static defense of each kind, only count their first
-   * {@link MAX_REPEATED_STEPS}, and a Sunken or Spore Colony starts when its Creep Colony did.
+   * {@link MAX_REPEATED_STEPS} and the ones started early, see {@link SUPPLY_STEPS_MS}, and a
+   * Sunken or Spore Colony starts when its Creep Colony did, at its supply.
    */
   buildSteps?: BuildStepMetric[]
   /**
@@ -548,28 +559,32 @@ function getBuildSteps(player: GamePlayerStats): BuildStepMetric[] {
     .filter(step => !step.cancelled && step.timeMs <= BUILD_MS)
     .toSorted((a, b) => a.timeMs - b.timeMs)
   const counts = new Map<string, number>()
-  const creepColonies: number[] = []
+  const creepColonies: BuildStep[] = []
   const buildSteps: BuildStepMetric[] = []
   for (const step of steps) {
     const isUnit = step.kind === 'unit'
     if (isUnit && step.id === CREEP_COLONY_ID) {
-      creepColonies.push(step.timeMs)
+      creepColonies.push(step)
       continue
     }
+    const fromCreep = isUnit && FROM_CREEP_IDS.has(step.id) ? creepColonies.shift() : undefined
+    const started = fromCreep ?? step
     const key = buildKey(step)
     const count = (counts.get(key) ?? 0) + 1
     counts.set(key, count)
     let keep = true
     if (isUnit && REPEATED_STEP_IDS.has(step.id)) {
-      keep = count <= MAX_REPEATED_STEPS && (step.id !== OVERLORD_ID || player.race === 'z')
+      const earlyMs = SUPPLY_STEP_IDS.has(step.id) ? SUPPLY_STEPS_MS : DEFENSE_STEPS_MS
+      keep =
+        (count <= MAX_REPEATED_STEPS || started.timeMs <= earlyMs) &&
+        (step.id !== OVERLORD_ID || player.race === 'z')
     } else if (isUnit && step.id < FIRST_BUILDING_ID) {
       keep = isArmyUnit(step.id) && count === 1
     }
     if (!keep) {
       continue
     }
-    const fromCreep = isUnit && FROM_CREEP_IDS.has(step.id) ? creepColonies.shift() : undefined
-    buildSteps.push({ key, timeMs: fromCreep ?? step.timeMs, supply: step.supply })
+    buildSteps.push({ key, timeMs: started.timeMs, supply: started.supply })
   }
   return buildSteps.toSorted((a, b) => a.timeMs - b.timeMs).slice(0, MAX_BUILD_STEPS)
 }

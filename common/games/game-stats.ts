@@ -132,6 +132,11 @@ export interface TimelinePayload {
 }
 
 export interface GameStatsPayload {
+  /**
+   * What the build orders mean, missing for version 1. From version 2, buildings morphed from
+   * buildings start when the morph did rather than when it finished.
+   */
+  buildOrderVersion?: number
   mapName: string
   frames: number
   /** The frames each player's progress was recorded on, about every 10 seconds. */
@@ -366,6 +371,53 @@ function toArmyWorth(value: unknown): ArmyWorth | undefined {
     : undefined
 }
 
+/**
+ * How long each building morphed from another building takes, in frames: Lair, Hive, Greater
+ * Spire, Sunken and Spore Colony. Build orders before version 2 have them when they finished.
+ */
+const BUILDING_MORPH_FRAMES: Readonly<Record<number, number>> = {
+  132: 1500,
+  133: 1800,
+  137: 1800,
+  146: 300,
+  144: 300,
+}
+
+/**
+ * Moves the building morphs of a version 1 build order back to when they started. Their supply is
+ * the next step's, which is just after, or the player's progress at the time without one close by.
+ */
+function startBuildingMorphs(
+  steps: BuildStep[],
+  timeline: PlayerTimeline | undefined,
+  snapshotTimesMs: ReadonlyArray<number>,
+): BuildStep[] {
+  const inOrder = steps.toSorted((a, b) => a.timeMs - b.timeMs)
+  const supplyAt = (timeMs: number) => {
+    const next = inOrder.find(
+      s => s.timeMs >= timeMs && s.supply !== undefined && !BUILDING_MORPH_FRAMES[s.id],
+    )
+    if (next && next.timeMs - timeMs <= MORPH_SUPPLY_NEAR_MS) {
+      return next.supply
+    }
+    const index = snapshotTimesMs.findLastIndex(ms => ms <= timeMs)
+    return index >= 0 ? timeline?.supplyUsed?.[index] : undefined
+  }
+  return steps
+    .map(step => {
+      const frames = step.kind === 'unit' ? BUILDING_MORPH_FRAMES[step.id] : undefined
+      if (!frames) {
+        return step
+      }
+      const timeMs = Math.max(0, step.timeMs - frames * FASTEST_MS_PER_FRAME)
+      return { ...step, timeMs, supply: supplyAt(timeMs) }
+    })
+    .sort((a, b) => a.timeMs - b.timeMs)
+}
+
+/** A step this close after a morph started tells its supply, see `startBuildingMorphs`. */
+const MORPH_SUPPLY_NEAR_MS = 15_000
+
 function toBuildOrder(value: unknown): BuildStep[] | undefined {
   if (!Array.isArray(value)) {
     return undefined
@@ -426,12 +478,14 @@ function perMinute(n: number | undefined, ms: number) {
 function toPlayerStats(
   player: GamePlayerStatsPayload,
   frames: number,
-  snapshotCount: number,
+  snapshotTimesMs: ReadonlyArray<number>,
+  buildOrderVersion: number,
 ): GamePlayerStats {
   const leftAtFrame = optionalCount(player.leftAtFrame)
   const playedMs = (leftAtFrame ?? frames) * FASTEST_MS_PER_FRAME
   const produced = unitCounts(player.produced)
-  const timeline = toTimeline(player.timeline, snapshotCount)
+  const timeline = toTimeline(player.timeline, snapshotTimesMs.length)
+  const buildOrder = toBuildOrder(player.buildOrder)
   const names = Array.isArray(player.names)
     ? player.names.filter(name => typeof name === 'string' && name)
     : []
@@ -469,7 +523,10 @@ function toPlayerStats(
     firstScoutMs: framesToMs(optionalCount(player.firstScoutFrame)),
     averageUnspent: average(timeline?.unspent),
     timeline,
-    buildOrder: toBuildOrder(player.buildOrder),
+    buildOrder:
+      buildOrder && buildOrderVersion < 2
+        ? startBuildingMorphs(buildOrder, timeline, snapshotTimesMs)
+        : buildOrder,
   }
 }
 
@@ -482,14 +539,16 @@ export function fromGameStatsPayload(payload: GameStatsPayload): GameStats {
   const frames = count(payload?.frames)
   const players = Array.isArray(payload?.players) ? payload.players : []
   const snapshotFrames = countList(payload?.snapshotFrames, Infinity) ?? []
+  const snapshotTimesMs = snapshotFrames.map(frame => frame * FASTEST_MS_PER_FRAME)
+  const buildOrderVersion = optionalCount(payload?.buildOrderVersion) ?? 1
   return {
     mapName: typeof payload?.mapName === 'string' ? payload.mapName : '',
     durationMs: frames * FASTEST_MS_PER_FRAME,
     complete: payload?.complete !== false,
-    snapshotTimesMs: snapshotFrames.map(frame => frame * FASTEST_MS_PER_FRAME),
+    snapshotTimesMs,
     players: players
       .filter(player => player && typeof player === 'object')
-      .map(player => toPlayerStats(player, frames, snapshotFrames.length)),
+      .map(player => toPlayerStats(player, frames, snapshotTimesMs, buildOrderVersion)),
   }
 }
 

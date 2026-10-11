@@ -12,6 +12,23 @@ const gunzipAsync = promisify(gunzip)
 
 export const LADDER_BASELINE_PATH = path.join(APP_ROOT, 'assets', LADDER_BASELINE_FILE)
 
+/** The id a baseline game made from this replay has, named by its file. */
+export function getBaselineGameId(replayPathKey: string) {
+  return `ladder-${path.basename(replayPathKey, '.rep')}`
+}
+
+/**
+ * The baseline's games, leaving out the ones made from a replay in the library. The library's copy
+ * keeps the real names, so the user is still told apart from the players they played.
+ */
+export function withoutLibraryCopies(
+  baseline: ReadonlyArray<DatedGameMetrics>,
+  replayPathKeys: ReadonlyArray<string>,
+): DatedGameMetrics[] {
+  const inLibrary = new Set(replayPathKeys.map(getBaselineGameId))
+  return baseline.filter(game => !inLibrary.has(game.gameId))
+}
+
 /**
  * The ladder games shipped with the app, each marked as from the baseline. None if there's no
  * baseline, or it was built with other metrics than these and so can't be compared with them.

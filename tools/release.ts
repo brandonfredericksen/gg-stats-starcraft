@@ -2,16 +2,18 @@
  * Releases a new version: `pnpm run release <patch|minor|major|x.y.z>`. Naming the version main is
  * already at releases it as is, and finishes a release whose tag was already pushed.
  *
- * Checks that `main` is clean and matches origin, runs lint, typecheck and tests, bumps the version
- * in `package.json` and `app/package.json`, commits and tags it, and pushes both. Then it waits for
- * the Release workflow to upload the installer to a draft GitHub release, fills in notes from the
- * commits since the last release, and publishes the draft once you confirm. Publishing is what
- * ships the update to everyone's installed app, so `--yes` is the only way to skip that question.
+ * Checks that `main` is clean and matches origin, runs lint, typecheck and tests, asks before going
+ * on with a ladder baseline over a month old, bumps the version in `package.json` and
+ * `app/package.json`, commits and tags it, and pushes both. Then it waits for the Release workflow
+ * to upload the installer to a draft GitHub release, fills in notes from the commits since the last
+ * release, and publishes the draft once you confirm. Publishing is what ships the update to
+ * everyone's installed app, so `--yes` is the only way to skip that question, and the baseline's.
  */
 import { execFileSync, execSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
+import { getBaselineAgeWarning } from './ladder-replays/check-baseline-age'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const PACKAGE_FILES = ['package.json', path.join('app', 'package.json')]
@@ -153,6 +155,14 @@ async function main() {
     pnpm('run lint')
     pnpm('run typecheck')
     pnpm('test --run')
+
+    const baselineWarning = getBaselineAgeWarning()
+    if (baselineWarning) {
+      console.log(`\n${baselineWarning}\n`)
+      if (!skipConfirm && !(await confirm('Release with it as it is?'))) {
+        fail('Stopped before releasing.')
+      }
+    }
 
     if (version !== current) {
       for (const file of PACKAGE_FILES) {

@@ -111,6 +111,10 @@ const MINERAL_REACH: i32 = 10 * 32;
 /// a main one, in pixels.
 const BASE_SPREAD: i32 = 12 * 32;
 
+/// What the build orders reported mean. Version 2 starts buildings morphed from buildings, like a
+/// Lair or a Sunken Colony, when the morph started rather than when it finished.
+const BUILD_ORDER_VERSION: u32 = 2;
+
 /// Supply is counted in halves, since Zerglings and Scourge take half a supply each.
 const SUPPLY_LIMIT: u32 = 200 * 2;
 
@@ -415,7 +419,8 @@ struct UnitCatalog {
     kind: [UnitKind; UNIT_TYPE_COUNT],
     building: [bool; UNIT_TYPE_COUNT],
     /// How long units hatched from larvae or cocoons take, in frames, which the game only counts
-    /// once they hatch. Zero for everything else.
+    /// once they hatch, and buildings morphed from buildings, like a Lair, which the game only
+    /// counts once the morph is done. Zero for everything else.
     hatch_time: [u32; UNIT_TYPE_COUNT],
     research: ResearchTimes,
     added: [UnitWorth; UNIT_TYPE_COUNT],
@@ -461,7 +466,10 @@ impl UnitCatalog {
         catalog.hatch_time = std::array::from_fn(|i| {
             let id = UnitId(i as u16);
             let is_zerg = id.group_flags() & ZERG_GROUP_FLAG != 0;
-            if is_zerg && !id.is_building() && !NOT_PRODUCED[i] {
+            let morphed_building = MORPHS
+                .iter()
+                .any(|&(morphed, from)| morphed == id && from.is_building());
+            if (is_zerg && !id.is_building() && !NOT_PRODUCED[i]) || morphed_building {
                 id.build_time()
             } else {
                 0
@@ -593,6 +601,9 @@ struct PlayerActivity {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameStats {
+    /// Raised when what the build orders mean changes, so stats reported before can be read the
+    /// way they were meant. See `BUILD_ORDER_VERSION`.
+    build_order_version: u32,
     map_name: String,
     frames: u32,
     /// False when the stats don't cover the whole game: a replay being analyzed stopped before its
@@ -1105,7 +1116,8 @@ impl GameStatsTracker {
 
             for (unit_id, &count) in started.iter().enumerate().filter(|&(_, &count)| count > 0) {
                 steps.push(BuildStep {
-                    // Units hatched from larvae are only counted once they hatch.
+                    // Units hatched from larvae are only counted once they hatch, and buildings
+                    // morphed from buildings once they're done.
                     frame: frame.saturating_sub(self.units.hatch_time[unit_id]),
                     kind: BuildStepKind::Unit,
                     id: unit_id as u16,
@@ -1713,6 +1725,7 @@ unsafe fn collect() -> Option<GameStats> {
         }
 
         Some(GameStats {
+            build_order_version: BUILD_ORDER_VERSION,
             map_name: map_name(&(*game).map_title),
             frames,
             complete,

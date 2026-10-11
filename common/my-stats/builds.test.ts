@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest'
 import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
-import { BuildSample, isArmyMixUnit, summarizeBuilds, summarizeTeamBuilds } from './builds'
+import {
+  BuildSample,
+  isArmyMixUnit,
+  quantile,
+  summarizeBuilds,
+  summarizeBuildSide,
+  summarizeTeamBuilds,
+} from './builds'
 
 const empty = CHECKPOINT_MINUTES.map(() => null)
 
@@ -73,10 +80,24 @@ function forgeFirst(name: string): BuildSample {
   }
 }
 
-const familyOf = (p: PlayerMetrics) =>
-  p.buildSteps?.some(s => s.key === 'u166') ? 'oneBase:forge' : 'oneBase:gates3'
+const familyOf = ({ player }: BuildSample) =>
+  player.buildSteps?.some(s => s.key === 'u166') ? 'oneBase:forge' : 'oneBase:gates3'
 
 describe('common/my-stats/builds', () => {
+  test('weighs values as if each were there that many times', () => {
+    expect(quantile([1, 2, 3, 4], 0.5)).toBe(2.5)
+    expect(quantile([1, 2, 3, 4], 0.5, [1, 1, 1, 1])).toBe(2.5)
+    expect(quantile([1, 3], 0.5, [2, 1])).toBe(quantile([1, 1, 3], 0.5))
+    expect(quantile([4, 1, 3], 0.25, [1, 3, 2])).toBe(quantile([4, 1, 1, 1, 3, 3], 0.25))
+  })
+
+  test('takes typical steps by how much each game counts', () => {
+    const light = threeGate('a', 'win', 200_000)
+    const heavy = { ...threeGate('b', 'win', 300_000), weight: 2 }
+    const [gas] = summarizeBuildSide([light, heavy]).steps.filter(s => s.key === 'u157')
+    expect(gas.timeMs).toBe(300_000)
+  })
+
   test('lists builds by how many games play them, with how most players play each', () => {
     const pool = [
       ...['a', 'b', 'c', 'd'].map((name, i) => threeGate(name, i % 2 ? 'win' : 'loss')),
@@ -141,8 +162,8 @@ describe('common/my-stats/builds', () => {
       }),
     ).flat()
     const user = [1, 2, 3].map(() => forgeFirst('me'))
-    const builds = summarizeBuilds(user, busy, p =>
-      p.buildSteps?.some(s => s.key === 'u166') ? 'mine' : p.names[0],
+    const builds = summarizeBuilds(user, busy, ({ player }) =>
+      player.buildSteps?.some(s => s.key === 'u166') ? 'mine' : player.names[0],
     )
     expect(builds).toHaveLength(9)
     expect(builds.at(-1)?.family).toBe('mine')
