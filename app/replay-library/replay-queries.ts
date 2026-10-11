@@ -122,7 +122,7 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
   if (filters.search) {
     const accounts = filters.searchAccounts ?? []
     const accountsClause = accounts.length
-      ? ` OR LOWER(p.name) IN (${accounts.map(() => '?').join(', ')})`
+      ? ` OR p.name_key IN (${accounts.map(() => '?').join(', ')})`
       : ''
     whereClauses.push(
       `(r.map_name LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND (p.name LIKE ? ESCAPE '\\'${accountsClause})))`,
@@ -135,7 +135,7 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
   if (filters.whose?.names.length) {
     const { names, match } = filters.whose
     whereClauses.push(
-      `${match === 'others' ? 'NOT ' : ''}EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND LOWER(p.name) IN (${names.map(() => '?').join(', ')}))`,
+      `${match === 'others' ? 'NOT ' : ''}EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND p.name_key IN (${names.map(() => '?').join(', ')}))`,
     )
     params.push(...names.map(n => n.toLowerCase()))
     hasValueFilter = true
@@ -144,7 +144,7 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
   if (filters.withAccounts?.length) {
     const accounts = filters.withAccounts
     whereClauses.push(
-      `EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND LOWER(p.name) IN (${accounts.map(() => '?').join(', ')}))`,
+      `EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND p.name_key IN (${accounts.map(() => '?').join(', ')}))`,
     )
     params.push(...accounts.map(n => n.toLowerCase()))
     hasValueFilter = true
@@ -175,11 +175,9 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
   if (filters.analysis !== undefined) {
     const paths = filters.analyzedPaths ?? []
     if (filters.analysis === 'analyzed') {
-      whereClauses.push(
-        paths.length ? `LOWER(r.path) IN (${paths.map(() => '?').join(', ')})` : '0',
-      )
+      whereClauses.push(paths.length ? `r.path_key IN (${paths.map(() => '?').join(', ')})` : '0')
     } else if (paths.length) {
-      whereClauses.push(`LOWER(r.path) NOT IN (${paths.map(() => '?').join(', ')})`)
+      whereClauses.push(`r.path_key NOT IN (${paths.map(() => '?').join(', ')})`)
     }
     params.push(...paths)
     hasValueFilter = true
@@ -187,7 +185,7 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
 
   if (filters.excludePaths?.length) {
     const paths = filters.excludePaths
-    whereClauses.push(`LOWER(r.path) NOT IN (${paths.map(() => '?').join(', ')})`)
+    whereClauses.push(`r.path_key NOT IN (${paths.map(() => '?').join(', ')})`)
     params.push(...paths.map(p => p.toLowerCase()))
     hasValueFilter = true
   }

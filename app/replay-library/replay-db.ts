@@ -17,7 +17,7 @@ import { reorderPlaylistEntries } from './playlist-order'
 import { deriveTeamLayout, IndexedReplay } from './replay-parser'
 import { buildReplaySqlQuery, escapeLike } from './replay-queries'
 
-const SCHEMA_VERSION = 10
+const SCHEMA_VERSION = 11
 
 /** Max number of bind parameters per statement; keeps `IN (...)` lists within SQLite limits. */
 const MAX_IN_PARAMS = 900
@@ -25,6 +25,7 @@ const MAX_IN_PARAMS = 900
 interface DbReplayRow {
   id: number
   path: string
+  path_key: string
   file_mtime: number | null
   file_size: number | null
   content_hash: string | null
@@ -138,29 +139,29 @@ export class ReplayDb {
     )
     this.insertReplayStmt = this.db.prepare(`
       INSERT INTO replays (
-        path, file_mtime, file_size, content_hash, game_time, map_name, game_type,
+        path, path_key, file_mtime, file_size, content_hash, game_time, map_name, game_type,
         duration_frames, linked_game_id, parse_error, team_size, matchup
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     // Deliberately omits `bookmarked_at`: a reparse (see `upsertTxn`) updates a row in place so the
     // user's bookmark (and, via the stable id, playlist memberships) survive the reparse.
     this.updateReplayByIdStmt = this.db.prepare(`
       UPDATE replays SET
-        path = ?, file_mtime = ?, file_size = ?, content_hash = ?, game_time = ?, map_name = ?,
-        game_type = ?, duration_frames = ?, linked_game_id = ?, parse_error = ?, team_size = ?,
-        matchup = ?
+        path = ?, path_key = ?, file_mtime = ?, file_size = ?, content_hash = ?, game_time = ?,
+        map_name = ?, game_type = ?, duration_frames = ?, linked_game_id = ?, parse_error = ?,
+        team_size = ?, matchup = ?
       WHERE id = ?
     `)
     this.insertPlayerStmt = this.db.prepare(`
-      INSERT INTO replay_players (replay_id, slot, team, name, race, is_computer)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO replay_players (replay_id, slot, team, name, name_key, race, is_computer)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
     this.deleteReplayByIdStmt = this.db.prepare('DELETE FROM replays WHERE id = ?')
     this.deletePlayersByReplayIdStmt = this.db.prepare(
       'DELETE FROM replay_players WHERE replay_id = ?',
     )
     this.updateReplayFileStmt = this.db.prepare(
-      'UPDATE replays SET path = ?, file_mtime = ? WHERE id = ?',
+      'UPDATE replays SET path = ?, path_key = ?, file_mtime = ? WHERE id = ?',
     )
     // Both bookmark statements are guarded on the current state, so `changes` reports whether the
     // call actually flipped anything (a re-bookmark also keeps the original bookmark time).
@@ -231,6 +232,7 @@ export class ReplayDb {
         id = existing.id
         this.updateReplayByIdStmt.run(
           record.path,
+          record.path.toLowerCase(),
           record.fileMtime,
           record.fileSize,
           record.contentHash,
@@ -248,6 +250,7 @@ export class ReplayDb {
       } else {
         const info = this.insertReplayStmt.run(
           record.path,
+          record.path.toLowerCase(),
           record.fileMtime,
           record.fileSize,
           record.contentHash,
@@ -264,7 +267,15 @@ export class ReplayDb {
       }
 
       for (const p of record.players) {
-        this.insertPlayerStmt.run(id, p.slot, p.team, p.name, p.race, p.isComputer ? 1 : 0)
+        this.insertPlayerStmt.run(
+          id,
+          p.slot,
+          p.team,
+          p.name,
+          p.name.toLowerCase(),
+          p.race,
+          p.isComputer ? 1 : 0,
+        )
       }
     }).immediate
 
@@ -461,6 +472,18 @@ export class ReplayDb {
         `)
         }
 
+        if (version < 11) {
+          // Lowercased copies of each replay's path and player names, for matching them ignoring
+          // case. They're lowercased in JS, the same way as the paths and names compared against
+          // them. SQLite's LOWER() can't stand in: it's built without ICU, so it only folds ASCII
+          // letters, and a name like "Ärger" or a folder like "Иван" would never match.
+          this.db.exec(`
+          ALTER TABLE replays ADD COLUMN path_key TEXT;
+          ALTER TABLE replay_players ADD COLUMN name_key TEXT;
+        `)
+          this.backfillMatchKeys()
+        }
+
         if (version < SCHEMA_VERSION) {
           this.db.pragma(`user_version = ${SCHEMA_VERSION}`)
         }
@@ -511,6 +534,30 @@ export class ReplayDb {
     backfillTxn()
   }
 
+  /**
+   * Populates `path_key`/`name_key` for rows that predate their addition. Called from within
+   * `migrate()`'s own transaction.
+   */
+  private backfillMatchKeys(): void {
+    const replayRows = this.db.prepare('SELECT id, path FROM replays').all() as Array<
+      Pick<DbReplayRow, 'id' | 'path'>
+    >
+    const updatePathKeyStmt = this.db.prepare('UPDATE replays SET path_key = ? WHERE id = ?')
+    for (const row of replayRows) {
+      updatePathKeyStmt.run(row.path.toLowerCase(), row.id)
+    }
+
+    const playerRows = this.db
+      .prepare('SELECT rowid, name FROM replay_players WHERE name IS NOT NULL')
+      .all() as Array<{ rowid: number; name: string }>
+    const updateNameKeyStmt = this.db.prepare(
+      'UPDATE replay_players SET name_key = ? WHERE rowid = ?',
+    )
+    for (const row of playerRows) {
+      updateNameKeyStmt.run(row.name.toLowerCase(), row.rowid)
+    }
+  }
+
   /** Returns the current index state keyed by file path, for reconciliation. */
   getExistingReplays(): Map<string, ExistingReplayInfo> {
     return toExistingReplays(
@@ -550,7 +597,7 @@ export class ReplayDb {
 
   /** Points an existing index entry at a new path (a moved/renamed file), keeping its parsed data. */
   updateReplayFile(id: number, newPath: string, fileMtime: number): void {
-    this.updateReplayFileStmt.run(newPath, fileMtime, id)
+    this.updateReplayFileStmt.run(newPath, newPath.toLowerCase(), fileMtime, id)
     this.gameTimesByPathKey = undefined
   }
 
@@ -576,7 +623,7 @@ export class ReplayDb {
       const marks = known.map(() => '?').join(', ')
       const withKnown = known.length
         ? `EXISTS (SELECT 1 FROM replay_players k WHERE k.replay_id = r.id AND k.is_computer = 0
-            AND LOWER(k.name) IN (${marks}))`
+            AND k.name_key IN (${marks}))`
         : '0'
       const next = this.db
         .prepare(
@@ -584,9 +631,9 @@ export class ReplayDb {
             COUNT(DISTINCT CASE WHEN ${withKnown} THEN r.id END) AS gamesWithKnown
           FROM replay_players p JOIN replays r ON r.id = p.replay_id
           WHERE p.is_computer = 0 AND p.name IS NOT NULL AND p.name != ''
-            AND r.parse_error = 0 AND LOWER(r.path) LIKE ?
-            ${known.length ? `AND LOWER(p.name) NOT IN (${marks})` : ''}
-          GROUP BY LOWER(p.name)
+            AND r.parse_error = 0 AND r.path_key LIKE ?
+            ${known.length ? `AND p.name_key NOT IN (${marks})` : ''}
+          GROUP BY p.name_key
           HAVING games >= ? AND gamesWithKnown <= games * ?
           ORDER BY games DESC
           LIMIT 1`,

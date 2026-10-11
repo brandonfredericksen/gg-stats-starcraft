@@ -65,7 +65,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       includeShort: true,
     })
     expect(mine.sql).toContain(
-      'WHERE EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND LOWER(p.name) IN (?, ?))',
+      'WHERE EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND p.name_key IN (?, ?))',
     )
     expect(mine.params).toEqual(['flash', 'flash2'])
     expect(
@@ -84,7 +84,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       includeShort: true,
     })
     expect(sql).toContain(
-      'EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND LOWER(p.name) IN (?, ?))',
+      'EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.is_computer = 0 AND p.name_key IN (?, ?))',
     )
     expect(params).toEqual(['me', 'mordant', 'm0rdant'])
   })
@@ -108,7 +108,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       analyzedPaths: ['c:/a.rep', 'c:/b.rep'],
       includeShort: true,
     })
-    expect(analyzed.sql).toContain('LOWER(r.path) IN (?, ?)')
+    expect(analyzed.sql).toContain('r.path_key IN (?, ?)')
     expect(analyzed.params).toEqual(['c:/a.rep', 'c:/b.rep'])
 
     expect(
@@ -117,7 +117,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
         analyzedPaths: ['c:/a.rep'],
         includeShort: true,
       }).sql,
-    ).toContain('LOWER(r.path) NOT IN (?)')
+    ).toContain('r.path_key NOT IN (?)')
     expect(
       buildReplaySqlQuery({ analysis: 'analyzed', analyzedPaths: [], includeShort: true }).sql,
     ).toContain('WHERE 0')
@@ -128,8 +128,21 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       excludePaths: ['C:/Replays/A.rep'],
       includeShort: true,
     })
-    expect(sql).toContain('LOWER(r.path) NOT IN (?)')
+    expect(sql).toContain('r.path_key NOT IN (?)')
     expect(params).toEqual(['c:/replays/a.rep'])
+  })
+
+  test("names and paths match the stored lowercase keys, past ASCII, never SQLite's LOWER()", () => {
+    const { sql, params } = buildReplaySqlQuery({
+      search: 'x',
+      searchAccounts: ['Ärger'],
+      whose: { names: ['Иван'], match: 'mine' },
+      withAccounts: ['ÉCLAIR'],
+      excludePaths: ['C:/Users/Иван/A.rep'],
+      includeShort: true,
+    })
+    expect(sql).not.toContain('LOWER(')
+    expect(params).toEqual(['%x%', '%x%', 'ärger', 'иван', 'éclair', 'c:/users/иван/a.rep'])
   })
 
   test('countSql reuses the WHERE clause and params, without an ORDER BY', () => {
