@@ -1,4 +1,5 @@
 import { getErrorStack } from '../common/errors'
+import { MIN_GAME_LENGTH_MS } from '../common/games/game-filters'
 import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
@@ -10,10 +11,11 @@ import log from './logger'
 import { LadderManifests, withLadder } from './replay-library/ladder-manifests'
 
 /**
- * Answers My stats and the coach from the saved stats, dating each game by its replay. A replay the
- * library doesn't know, like one moved away, is dated by when its stats were saved. Players of a
- * ladder replay get their MMR and rank from the ladder manifest next to it, if there is one. The
- * ladder baseline the app ships adds other players' games to compare with.
+ * Answers My stats, the coach and Builds from the saved stats, dating each game by its replay. A
+ * replay the library doesn't know, like one moved away, is dated by when its stats were saved.
+ * Players of a ladder replay get their MMR and rank from the ladder manifest next to it, if there is
+ * one. The ladder baseline the app ships adds other players' games to compare with. Games shorter
+ * than `MIN_GAME_LENGTH_MS` don't count.
  */
 export function setupMyStats(
   gameStatsStore: GameStatsStore,
@@ -56,7 +58,7 @@ export function setupMyStats(
         baselineGames,
         listings.flatMap(l => (l.replayPathKey !== undefined ? [l.replayPathKey] : [])),
       ),
-    ]
+    ].filter(game => game.durationMs >= MIN_GAME_LENGTH_MS)
   }
 
   const ipcMain = new TypedIpcMain()

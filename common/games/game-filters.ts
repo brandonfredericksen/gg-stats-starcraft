@@ -4,7 +4,7 @@ import { AssignedRaceChar } from '../races'
 /**
  * Games shorter than this (in ms) are hidden from every games/replays list by default (instant
  * leaves and failed launches are noise, not games worth browsing); an `includeShort` filter opts
- * back into seeing them.
+ * back into seeing them. They never count toward the user's stats.
  */
 export const MIN_GAME_LENGTH_MS = 2 * 60 * 1000
 

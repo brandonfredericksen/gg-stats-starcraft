@@ -96,7 +96,10 @@ export function tallyPlayerRecord(
   return record
 }
 
-/** Finds every game the user played with or against the person behind `accounts`, and tallies it. */
+/**
+ * Finds every game the user played with or against the person behind `accounts`, and tallies it.
+ * Short games are left out, the same as on My stats.
+ */
 export async function loadPlayerRecord(
   accounts: ReadonlyArray<string>,
   myNames: ReadonlyArray<string>,
@@ -104,7 +107,6 @@ export async function loadPlayerRecord(
   const result = await ipcRenderer.invoke('replayLibraryQuery', {
     whose: { names: [...myNames], match: 'mine' },
     withAccounts: [...accounts],
-    includeShort: true,
   })
   const entries = result?.entries ?? []
   const summaries = entries.length
