@@ -1,0 +1,27 @@
+name: winget
+
+# Publishing a release opens a pull request to microsoft/winget-pkgs that adds the new version to
+# BrandonFredericksen.GGStats. Needs WINGET_TOKEN: a classic token with public_repo scope, from an
+# account with a fork of winget-pkgs.
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to submit (v1.2.3)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: BrandonFredericksen.GGStats
+          installers-regex: '^GGStats-setup-.*\.exe$'
+          release-tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ secrets.WINGET_TOKEN }}

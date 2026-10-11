@@ -2,6 +2,10 @@
 
 Post game stats for StarCraft: Remastered.
 
+```
+winget install GGStats
+```
+
 Play a game, and a minute later GG Stats has the numbers: scoreboard, army and economy over time,
 supply blocks, bases, units, and every player's build order. It works for Battle.net and
 ShieldBattery games, and for any replay you already have.
@@ -11,11 +15,12 @@ against, and how all of it changes over your last hundred games.
 
 ## Download
 
-Get the installer from [Releases](https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest).
-It needs Windows 10 or 11 and StarCraft: Remastered.
+Run `winget install GGStats`, or get the installer from
+[Releases](https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest). It needs
+Windows 10 or 11 and StarCraft: Remastered.
 
-The installer isn't signed yet, so Windows SmartScreen will warn about it. Click **More info**, then
-**Run anyway**. GG Stats updates itself after that.
+The installer isn't signed, so Windows SmartScreen will warn about it. Click **More info**, then
+**Run anyway**. winget skips the warning. GG Stats updates itself after that.
 
 ## How it works
 
