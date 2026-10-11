@@ -3,7 +3,7 @@
   "productName": "GG Stats-Local",
   "productFilename": "GGStats-Local",
   "private": true,
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Post game stats for StarCraft, from your replays",
   "main": "dist/index.js",
   "license": "MIT",
