@@ -6,6 +6,7 @@ import path from 'node:path'
 const NONCE_SCRIPT_SLOT = '<!--ggstats:csp-nonce-script-->'
 const HEAD_SCRIPTS_SLOT = '<!--ggstats:head-scripts-->'
 const FONTS_SLOT = '<!--ggstats:fonts-->'
+const SPLASH_SLOT = '<!--ggstats:splash-->'
 
 /**
  * Nonce placeholder, which only appears when the dev server produced the shell. Vite injects
@@ -20,7 +21,7 @@ const NONCE_TOKEN = '__GGSTATS_CSP_NONCE__'
  * Every placeholder filled here, matched in one pass so that substitution order cannot matter.
  * Replacing sequentially would mean each later pattern scans text the earlier ones just inserted.
  */
-const PLACEHOLDERS = [NONCE_TOKEN, NONCE_SCRIPT_SLOT, HEAD_SCRIPTS_SLOT, FONTS_SLOT]
+const PLACEHOLDERS = [NONCE_TOKEN, NONCE_SCRIPT_SLOT, HEAD_SCRIPTS_SLOT, FONTS_SLOT, SPLASH_SLOT]
 const PLACEHOLDER_PATTERN = new RegExp(PLACEHOLDERS.map(escapeForRegExp).join('|'), 'g')
 
 /** No placeholder above currently needs this; it's here so adding one can't quietly need it. */
@@ -35,6 +36,65 @@ export interface ClientShellData {
   cspNonce: string
   /** URL of a running React DevTools standalone instance, if one should be connected to. */
   reactDevToolsUrl?: string
+  /** The window's background color, which the splash covers the page in while the app loads. */
+  backgroundColor: string
+}
+
+/** How big the logo on the splash is, in CSS pixels. Its image is twice that, for sharp HiDPI. */
+const SPLASH_LOGO_SIZE = 128
+
+/**
+ * What the window shows while the app loads: the logo, with the app's loading indicator rendered
+ * under it once the client runs. It's part of the page rather than the client, so it's in the very
+ * first frame, and the client fades it out once it has a page to show (see `client/splash.tsx`).
+ * The window has no frame, so it can be dragged by the splash.
+ */
+function renderSplash(nonceAttr: string, backgroundColor: string): string {
+  const style = `
+    #splash {
+      position: fixed;
+      inset: 0;
+      /* Above every layer in client/material/zindex.ts */
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: ${backgroundColor};
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    #splash-logo {
+      width: ${SPLASH_LOGO_SIZE}px;
+      height: ${SPLASH_LOGO_SIZE}px;
+      filter: drop-shadow(0 12px 24px rgb(0 0 0 / 0.5));
+    }
+
+    #splash-indicator {
+      position: absolute;
+      top: calc(50% + ${SPLASH_LOGO_SIZE / 2 + 32}px);
+      inset-inline: 0;
+      display: flex;
+      justify-content: center;
+    }
+
+    #splash-indicator > * {
+      animation: splash-fade-in 300ms ease-out both;
+    }
+
+    @keyframes splash-fade-in {
+      from {
+        opacity: 0;
+      }
+    }`
+
+  return (
+    `<style${nonceAttr}>${style}</style>` +
+    '<div id="splash" aria-hidden="true">' +
+    `<img id="splash-logo" src="/assets/splash-logo.webp" alt="" draggable="false">` +
+    '<div id="splash-indicator"></div>' +
+    '</div>'
+  )
 }
 
 let cachedTemplate: string | undefined
@@ -107,7 +167,7 @@ export async function getClientShellTemplate(devServer?: {
 }
 
 export function renderClientShell(template: string, data: ClientShellData): string {
-  const { cspNonce, reactDevToolsUrl } = data
+  const { cspNonce, reactDevToolsUrl, backgroundColor } = data
   const nonceAttr = ` nonce="${escapeAttribute(cspNonce)}"`
 
   // Read by client code (and by styled-components via `__webpack_nonce__`) to nonce the style and
@@ -131,6 +191,7 @@ export function renderClientShell(template: string, data: ClientShellData): stri
     [NONCE_SCRIPT_SLOT, nonceScript],
     [HEAD_SCRIPTS_SLOT, headScripts],
     [FONTS_SLOT, fonts],
+    [SPLASH_SLOT, renderSplash(nonceAttr, backgroundColor)],
   ])
 
   return template.replace(PLACEHOLDER_PATTERN, match => substitutions.get(match) ?? match)

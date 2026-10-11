@@ -3,7 +3,7 @@ import styled from 'styled-components'
 import { FilledButton } from '../material/button'
 import { useDemoPlayer } from '../my-stats/demo-player'
 import { MyStatsView } from '../my-stats/my-stats-page'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { bodyMedium } from '../styles/typography'
 import { openLastGame } from './last-game'
@@ -30,7 +30,7 @@ export function LastGamePage() {
   const state = useOwnGamesState()
 
   if (!state) {
-    return <LoadingDotsArea />
+    return <LoadingIndicatorArea />
   }
   if (state !== 'found') {
     return <OwnGamesNeeded state={state} />
@@ -51,7 +51,7 @@ export function MyStatsPage() {
   const demo = useDemoPlayer()
 
   if (!demo && !state) {
-    return <LoadingDotsArea />
+    return <LoadingIndicatorArea />
   }
   if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />

@@ -7,9 +7,11 @@ import {
   colorContainerHighest,
   colorContainerLowest,
   grey10,
+  grey40,
+  grey95,
 } from '../../styles/colors'
 import { headlineSmall, labelMedium } from '../../styles/typography'
-import { DotsIndicator, LoadingDotsArea } from '../dots'
+import { LoadingIndicator, LoadingIndicatorArea } from '../loading-indicator'
 
 const Root = styled.div`
   display: flex;
@@ -29,7 +31,7 @@ const SurfaceRow = styled.div`
   gap: 16px;
 `
 
-const Surface = styled.div<{ $color: string }>`
+const Surface = styled.div<{ $color: string; $light?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -37,6 +39,8 @@ const Surface = styled.div<{ $color: string }>`
   padding: 24px;
   background-color: ${props => props.$color};
   border-radius: 8px;
+
+  --theme-on-surface-variant: ${props => (props.$light ? grey40 : undefined)};
 `
 
 const SurfaceLabel = styled.div`
@@ -61,7 +65,7 @@ const DelayedDemo = styled(Card)`
   gap: 16px;
 `
 
-export function DotsTest() {
+export function LoadingIndicatorTest() {
   const [mountKey, setMountKey] = useState(0)
 
   return (
@@ -70,36 +74,40 @@ export function DotsTest() {
       <SurfaceRow>
         <Surface $color={grey10}>
           <SurfaceLabel>app background</SurfaceLabel>
-          <DotsIndicator showImmediately={true} />
+          <LoadingIndicator showImmediately={true} />
         </Surface>
         <Surface $color={colorContainerLowest}>
           <SurfaceLabel>container lowest</SurfaceLabel>
-          <DotsIndicator showImmediately={true} />
+          <LoadingIndicator showImmediately={true} />
         </Surface>
         <Surface $color={colorContainer}>
           <SurfaceLabel>container</SurfaceLabel>
-          <DotsIndicator showImmediately={true} />
+          <LoadingIndicator showImmediately={true} />
         </Surface>
         <Surface $color={colorContainerHighest}>
           <SurfaceLabel>container highest</SurfaceLabel>
-          <DotsIndicator showImmediately={true} />
+          <LoadingIndicator showImmediately={true} />
+        </Surface>
+        <Surface $color={grey95} $light={true}>
+          <SurfaceLabel>light theme</SurfaceLabel>
+          <LoadingIndicator showImmediately={true} />
         </Surface>
       </SurfaceRow>
 
       <SectionTitle>Magnified (4x)</SectionTitle>
       <Magnified>
-        <DotsIndicator showImmediately={true} />
+        <LoadingIndicator showImmediately={true} />
       </Magnified>
 
-      <SectionTitle>LoadingDotsArea</SectionTitle>
+      <SectionTitle>LoadingIndicatorArea</SectionTitle>
       <Card>
-        <LoadingDotsArea showImmediately={true} />
+        <LoadingIndicatorArea showImmediately={true} />
       </Card>
 
       <SectionTitle>Delayed reveal</SectionTitle>
       <DelayedDemo>
         <FilledButton label='Remount' onClick={() => setMountKey(k => k + 1)} />
-        <DotsIndicator key={mountKey} />
+        <LoadingIndicator key={mountKey} />
       </DelayedDemo>
     </Root>
   )

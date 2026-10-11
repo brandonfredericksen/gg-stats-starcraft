@@ -513,9 +513,11 @@ function setupCspProtocol(curSession: Session) {
         const template = await getClientShellTemplate(
           isHot ? { shellUrl: DEV_SHELL_URL, origin: DEV_SERVER_ORIGIN } : undefined,
         )
+        const { themeMode } = await container.resolve(LocalSettingsManager).get()
         const result = renderClientShell(template, {
           cspNonce: nonce,
           reactDevToolsUrl: process.env.GGSTATS_REACT_DEV ? 'http://localhost:8097' : undefined,
+          backgroundColor: getWindowBackgroundColor(themeMode),
         })
 
         // While hot-reloading the renderer's modules come from the dev server, which is a
@@ -637,6 +639,11 @@ function getWindowBorderColor(themeMode: LocalSettings['themeMode']) {
   return isDarkTheme(themeMode) ? '#2c2c31' : '#e0e0e4'
 }
 
+function getWindowBackgroundColor(themeMode: LocalSettings['themeMode']) {
+  // NOTE(tec27): This should always match the background in root CSS
+  return isDarkTheme(themeMode) ? '#0f0f11' : '#e8e8eb'
+}
+
 async function createWindow() {
   const localSettings = container.resolve(LocalSettingsManager)
   const curSession = currentSession()
@@ -656,8 +663,7 @@ async function createWindow() {
 
     acceptFirstMouse: true,
     accentColor: getWindowBorderColor(themeMode),
-    // NOTE(tec27): This should always match the background in root CSS
-    backgroundColor: isDarkTheme(themeMode) ? '#0f0f11' : '#e8e8eb',
+    backgroundColor: getWindowBackgroundColor(themeMode),
     frame: false,
     transparent: false,
     show: false,

@@ -9,7 +9,7 @@ import { useAutoFocusRef } from '../material/auto-focus'
 import { TextButton } from '../material/button'
 import { Dialog } from '../material/dialog'
 import { TextField } from '../material/text-field'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { bodyLarge } from '../styles/typography'
 
 const ipcRenderer = new TypedIpcRenderer()
@@ -82,7 +82,7 @@ export function CreatePlaylistDialog({ onCancel, close, onCreated }: CreatePlayl
       buttons={buttons}
       onCancel={onCancel}>
       {submitting ? (
-        <LoadingDotsArea />
+        <LoadingIndicatorArea />
       ) : (
         <>
           {lastError ? (
@@ -161,7 +161,7 @@ export function RenamePlaylistDialog({
       buttons={buttons}
       onCancel={onCancel}>
       {submitting ? (
-        <LoadingDotsArea />
+        <LoadingIndicatorArea />
       ) : (
         <>
           {lastError ? (

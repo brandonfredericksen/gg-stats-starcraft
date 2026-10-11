@@ -6,7 +6,7 @@ import { waitForActiveGame } from '../active-game/wait-for-active-game'
 import { CommonDialogProps } from '../dialogs/common-dialog-props'
 import { TextButton } from '../material/button'
 import { Dialog } from '../material/dialog'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { bodyLarge } from '../styles/typography'
 
@@ -58,7 +58,7 @@ export function ReplayLoadDialog({ onCancel, gameId, close }: ReplayLoadDialogPr
           {t('replays.loading.errorGeneric', 'Something went wrong while loading the replay.')}
         </ErrorText>
       ) : (
-        <LoadingDotsArea showImmediately={true} />
+        <LoadingIndicatorArea showImmediately={true} />
       )}
     </StyledDialog>
   )

@@ -5,6 +5,7 @@ import styled from 'styled-components'
 import logger from './logging/logger'
 import { FilledButton } from './material/button'
 import { zIndexSystemBar } from './material/zindex'
+import { DismissSplash } from './splash'
 import GlobalStyle from './styles/global'
 import ResetStyle from './styles/reset'
 import { bodyLarge, TitleLarge } from './styles/typography'
@@ -121,6 +122,7 @@ export class RootErrorBoundary extends React.Component<
           <Container>
             <ContentsErrorBoundary rootError={error} />
           </Container>
+          <DismissSplash />
         </>
       )
     }

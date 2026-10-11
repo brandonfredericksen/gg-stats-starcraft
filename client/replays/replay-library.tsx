@@ -44,7 +44,7 @@ import { push, replace } from '../navigation/routing'
 import { createViewStateStore } from '../navigation/view-state-store'
 import { useVirtuosoScrollMemory } from '../navigation/virtuoso-scroll-memory'
 import { useRefreshToken } from '../network/refresh-token'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useUserLocalStorageValue } from '../react/state-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -1131,7 +1131,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   if (entries === undefined) {
     // The backfill's own progress rides in the bar above the list; here we just need a light loader
     // until the first page resolves.
-    listContent = <LoadingDotsArea />
+    listContent = <LoadingIndicatorArea />
   } else if (entries.length === 0) {
     if (hasActiveFilters) {
       listContent = (
@@ -1179,7 +1179,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     } else if (backfill) {
       // A backfill is still populating the index (progress shows in the bar above); don't claim
       // there are no replays while it's just getting started.
-      listContent = <LoadingDotsArea />
+      listContent = <LoadingIndicatorArea />
     } else {
       listContent = (
         <CenteredState>

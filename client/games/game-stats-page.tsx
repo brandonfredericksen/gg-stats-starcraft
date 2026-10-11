@@ -18,7 +18,7 @@ import { buttonReset } from '../material/button-reset'
 import { Card } from '../material/card'
 import { PageNav } from '../navigation/page-nav'
 import { push } from '../navigation/routing'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch, useAppSelector } from '../redux-hooks'
 import { analyzeReplay, startReplay } from '../replays/action-creators'
@@ -73,7 +73,7 @@ export function GameStatsPage({ params }: { params: { gameId: string } }) {
       } else if (gameStats?.status === 'missing') {
         content = <MissingView />
       } else {
-        content = <LoadingDotsArea />
+        content = <LoadingIndicatorArea />
       }
       break
     case 'analyzing':

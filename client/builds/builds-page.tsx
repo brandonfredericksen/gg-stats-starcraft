@@ -52,7 +52,7 @@ import {
   PanelNote,
   PanelTitle,
 } from '../my-stats/my-stats-panels'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
@@ -1640,7 +1640,7 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
       </Message>
     )
   } else if (!coach) {
-    content = <LoadingDotsArea />
+    content = <LoadingIndicatorArea />
   } else {
     content = (
       <>
@@ -1683,7 +1683,7 @@ export function BuildsPage() {
   const { coach } = useCoach()
   const demo = useDemoPlayer()
   if (!demo && !state) {
-    return <LoadingDotsArea />
+    return <LoadingIndicatorArea />
   }
   if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />

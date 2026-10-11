@@ -41,7 +41,7 @@ import {
   PanelTitle,
 } from '../my-stats/my-stats-panels'
 import { push } from '../navigation/routing'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { getGameStatsUrl } from '../replays/action-creators'
 import { titleSmall } from '../styles/typography'
 import {
@@ -582,7 +582,7 @@ export function MetaBuilds({ scope }: { scope: Omit<CoachScope, 'games'> }) {
       </Text>
     )
   } else if (!meta) {
-    content = <LoadingDotsArea />
+    content = <LoadingIndicatorArea />
   } else if (!meta.builds.length) {
     content = <ThinMeta meta={meta} />
   } else {

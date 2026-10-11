@@ -8,7 +8,7 @@ import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
 import { Comparison } from '../coach/coach-page'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
@@ -182,7 +182,7 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
     )
   }
   if (oneKind && coach === undefined) {
-    return <LoadingDotsArea />
+    return <LoadingIndicatorArea />
   }
   return (
     <MacroAveragesPanel
@@ -222,7 +222,7 @@ export function MyStatsView() {
 
   let content: React.ReactNode
   if (!data) {
-    content = <LoadingDotsArea />
+    content = <LoadingIndicatorArea />
   } else if (!data.analyzedGames) {
     content = (
       <Message>

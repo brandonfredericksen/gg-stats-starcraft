@@ -12,11 +12,12 @@ import { FileDropZoneProvider } from './file-browser/file-drop-zone'
 import { jotaiStore } from './jotai-store'
 import { KeyListenerBoundary } from './keyboard/key-listener'
 import { NavigationTrapProvider } from './navigation/navigation-trap'
-import { LoadingDotsArea } from './progress/dots'
+import { LoadingIndicatorArea } from './progress/loading-indicator'
 import { useAppSelector } from './redux-hooks'
 import { RootErrorBoundary } from './root-error-boundary'
 import { RootState } from './root-reducer'
 import { SnackbarOverlay } from './snackbars/snackbar-overlay'
+import { DismissSplash, SplashIndicator } from './splash'
 import GlobalStyle from './styles/global'
 import ResetStyle from './styles/reset'
 import { applyThemeMode } from './styles/theme-mode'
@@ -69,9 +70,10 @@ export interface GgStatsRootProps {
 export function GgStatsRoot({ reduxStore }: GgStatsRootProps) {
   return (
     <RootErrorBoundary isVeryTopLevel={true}>
+      <SplashIndicator />
       <JotaiProvider store={jotaiStore}>
         <ReduxProvider store={reduxStore}>
-          <Suspense fallback={<LoadingDotsArea />}>
+          <Suspense fallback={<LoadingIndicatorArea />}>
             <InnerApp />
             {ReduxDevToolsContainer ? <ReduxDevToolsContainer /> : null}
             {JotaiDevTools ? <JotaiDevTools /> : null}
@@ -117,7 +119,7 @@ function InnerApp() {
                   <NavigationTrapProvider>
                     <FileDropZoneProvider>
                       <SnackbarOverlay>
-                        <React.Suspense fallback={<LoadingDotsArea />}>
+                        <React.Suspense fallback={<LoadingIndicatorArea />}>
                           <AppContent />
                         </React.Suspense>
                       </SnackbarOverlay>
@@ -143,9 +145,16 @@ function AppContent() {
     <>
       <WindowControls />
       <SystemBar />
-      <React.Suspense fallback={<LoadingDotsArea />}>
+      <React.Suspense fallback={<LoadingIndicatorArea />}>
         <Switch>
-          {import.meta.env.DEV ? <Route path='/dev/*?' component={DevComponent} /> : <></>}
+          {import.meta.env.DEV ? (
+            <Route path='/dev/*?'>
+              <DevComponent />
+              <DismissSplash />
+            </Route>
+          ) : (
+            <></>
+          )}
           <Route>
             <Layout />
           </Route>
@@ -188,7 +197,7 @@ function Layout() {
   return (
     <LayoutRoot>
       <ContentPanel>
-        <React.Suspense fallback={<LoadingDotsArea />}>
+        <React.Suspense fallback={<LoadingIndicatorArea />}>
           <Switch>
             <Route path='/replays/stats/:gameId' component={GameStatsPage} />
             <Route path='/replays/*?' component={ReplaysRoot} />
@@ -201,6 +210,7 @@ function Layout() {
               <Redirect to='/replays' replace={true} />
             </Route>
           </Switch>
+          <DismissSplash />
         </React.Suspense>
       </ContentPanel>
     </LayoutRoot>

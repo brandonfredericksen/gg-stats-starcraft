@@ -15,7 +15,7 @@ import { MapNoImage } from '../maps/map-image'
 import { TextButton } from '../material/button'
 import { Dialog } from '../material/dialog'
 import { Tooltip } from '../material/tooltip'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { RaceIcon } from '../races/race-icon'
 import { useAppDispatch } from '../redux-hooks'
 import { bodyLarge, labelMedium, singleLine, titleLarge } from '../styles/typography'
@@ -225,7 +225,7 @@ export function ReplayInfoDisplay({ filePath, className }: ReplayInfoDisplayProp
       </ErrorText>
     )
   } else if (!replayMetadata) {
-    content = <LoadingDotsArea />
+    content = <LoadingIndicatorArea />
   } else if (replayMetadata) {
     content = (
       <InfoContainer>

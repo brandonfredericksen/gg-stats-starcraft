@@ -2,7 +2,7 @@ import React from 'react'
 import styled from 'styled-components'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
-import { LoadingDotsArea } from '../progress/dots'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import {
   bodyLarge,
   bodyMedium,
@@ -235,7 +235,7 @@ export function SettingsCard({
   return (
     <CardRoot data-testid={testName}>
       {title ? <CardTitle>{title}</CardTitle> : null}
-      <React.Suspense fallback={<LoadingDotsArea />}>{children}</React.Suspense>
+      <React.Suspense fallback={<LoadingIndicatorArea />}>{children}</React.Suspense>
     </CardRoot>
   )
 }

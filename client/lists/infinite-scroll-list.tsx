@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useEffect, useRef } from 'react'
 import styled from 'styled-components'
-import LoadingIndicator from '../progress/dots'
+import { LoadingIndicator } from '../progress/loading-indicator'
 
 /**
  * The minimum time between two loads requested for the same edge of the list while the list's
