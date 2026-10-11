@@ -11,7 +11,7 @@ import {
   LADDER_STOP_FILE,
   LadderBaseline,
 } from '../../common/games/ladder-baseline'
-import { GAME_METRICS_VERSION, PlayerMetrics } from '../../common/games/player-metrics'
+import { GAME_METRICS_VERSION, GameShape, PlayerMetrics } from '../../common/games/player-metrics'
 import { ReplayToAnalyze } from '../../common/ipc'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { AutoCaptureService } from '../auto-capture'
@@ -34,7 +34,8 @@ const MAX_RESUMES_WITHOUT_PROGRESS = MAX_ATTEMPTS
 
 /** What `--analyze-folder` and `--export-baseline` ask the app to do instead of opening. */
 export interface LadderRunArgs {
-  folder: string
+  /** Every `--analyze-folder` given, in order. The first holds the pause and stop files. */
+  folders: string[]
   exportPath?: string
   /** Whether to try the replays given up on in earlier runs again. */
   retryFailed: boolean
@@ -43,10 +44,14 @@ export interface LadderRunArgs {
 export function getLadderRunArgs(argv: ReadonlyArray<string>): LadderRunArgs | undefined {
   const valueOf = (name: string) =>
     argv.find(arg => arg.startsWith(`${name}=`))?.slice(name.length + 1)
-  const folder = valueOf('--analyze-folder')
+  const folders = argv.flatMap(arg =>
+    arg.startsWith('--analyze-folder=')
+      ? [path.resolve(arg.slice('--analyze-folder='.length))]
+      : [],
+  )
   const exportPath = valueOf('--export-baseline')
-  return folder
-    ? { folder: path.resolve(folder), exportPath, retryFailed: argv.includes('--retry-failed') }
+  return folders.length
+    ? { folders, exportPath, retryFailed: argv.includes('--retry-failed') }
     : undefined
 }
 
@@ -85,16 +90,18 @@ async function toReplayToAnalyze(replayPath: string): Promise<ReplayToAnalyze | 
  * only stops early when analyzing keeps failing with nothing done in between. Replays analyzed
  * before are skipped, so a run that was stopped picks up where it left off.
  *
- * A pause file in the folder holds off starting another replay until it's gone, and a stop file
+ * A pause file in `controlFolder` holds off starting another replay until it's gone, and a stop file
  * returns once the replay being analyzed is done, with `quit` set.
  */
 export async function analyzeFolder({
   folder,
+  controlFolder,
   retryFailed,
   autoCapture,
   backfill,
 }: {
   folder: string
+  controlFolder: string
   retryFailed: boolean
   autoCapture: AutoCaptureService
   backfill: CommandStatsBackfill
@@ -122,8 +129,8 @@ export async function analyzeFolder({
   let leftAtLastStop: number | undefined
   let resumesWithoutProgress = 0
   for (;;) {
-    const stop = existsSync(path.join(folder, LADDER_STOP_FILE))
-    const hold = stop || existsSync(path.join(folder, LADDER_PAUSE_FILE))
+    const stop = existsSync(path.join(controlFolder, LADDER_STOP_FILE))
+    const hold = stop || existsSync(path.join(controlFolder, LADDER_PAUSE_FILE))
     if (hold !== held) {
       autoCapture.setPaused(hold)
       held = hold
@@ -185,23 +192,29 @@ function anonymize(player: PlayerMetrics, idOf: (name: string) => string): Playe
   return { ...rest, names: [idOf(player.names[0] ?? '')] }
 }
 
+/** The kinds of game the ladders play, which a baseline keeps. */
+const LADDER_SHAPES: ReadonlySet<GameShape> = new Set(['1v1', '2v2', '3v3'])
+
 /**
- * Writes the 1v1 games analyzed from a folder of ladder replays, with each player's MMR and rank
- * from its ladder manifest, as a baseline the app ships. Games without a ladder game in the
- * manifest are left out.
+ * Writes the ladder games analyzed from folders of ladder replays, with each player's MMR and rank
+ * from the ladder manifest next to them, as a baseline the app ships: 1v1 games from StarCraft's
+ * ladder, and 2v2 and 3v3 games from ShieldBattery's, whose players have a rating but no rank.
+ * Games without a ladder game in a manifest are left out.
  */
 export async function exportLadderBaseline({
-  folder,
+  folders,
   exportPath,
   gameStatsStore,
 }: {
-  folder: string
+  folders: ReadonlyArray<string>
   exportPath: string
   gameStatsStore: GameStatsStore
 }) {
-  const folderKey = path.resolve(folder).toLowerCase() + path.sep
+  const folderKeys = folders.map(folder => path.resolve(folder).toLowerCase() + path.sep)
   const listings = (await gameStatsStore.listMetrics()).filter(
-    l => l.replayPathKey?.startsWith(folderKey) && l.metrics.shape === '1v1',
+    l =>
+      folderKeys.some(key => l.replayPathKey?.startsWith(key)) &&
+      LADDER_SHAPES.has(l.metrics.shape),
   )
   const ladderGames = await new LadderManifests().getGames(listings.map(l => l.replayPathKey!))
   const idOf = makeAnonymizer()

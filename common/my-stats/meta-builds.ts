@@ -24,10 +24,13 @@ const META_WINDOW_MS = 180 * 24 * 60 * 60_000
 /** How much a 1v1 game counts by the player's ladder rank. Ranks not listed don't count. */
 const RANK_WEIGHTS: Readonly<Record<string, number>> = { s: 2, a: 1 }
 /**
- * The fewest S and A rank players whose EAPM tells which unranked players play at their level.
- * With fewer, the fastest quarter of everyone counts instead.
+ * The fewest S and A rank players whose EAPM tells which unranked players play at their level, and
+ * the fewest rated players in team games for ratings to pick the best. With fewer, the fastest
+ * quarter of everyone counts instead.
  */
-const MIN_RANKED_TOP_PLAYERS = 20
+const MIN_RATED_PLAYERS = 20
+/** In team games with ratings, where the better rated half of the players starts. */
+const TOP_RATING_QUANTILE = 0.5
 /** Where the fastest quarter of players starts, by their EAPM. */
 const TOP_EAPM_QUANTILE = 0.75
 /** How many games one player can add, their latest, so no one player sets the meta. */
@@ -157,9 +160,14 @@ export interface MetaSplit<T extends string> {
 
 /** The builds top players use in one kind of game, and how they play them. */
 export interface MetaResult {
-  /** How top players were picked: by ladder rank in 1v1, otherwise by EAPM. */
-  topBy: 'rank' | 'eapm'
-  /** The early game EAPM an unranked player, or any player outside 1v1, needed to count. */
+  /**
+   * How top players were picked: by ladder rank in 1v1, by ladder rating in team games with
+   * enough rated players, like ShieldBattery's, otherwise by EAPM.
+   */
+  topBy: 'rank' | 'rating' | 'eapm'
+  /** The rating a rated player needed to count, see {@link topBy}. */
+  ratingCutoff?: number
+  /** The early game EAPM a player without a rank or rating needed to count. */
   eapmCutoff?: number
   /** Top players' games, after each player's are capped. */
   games: number
@@ -200,19 +208,44 @@ function median(values: ReadonlyArray<number>) {
   return quantile(values, 0.5)
 }
 
+/** Each player's median of a number over their games, leaving out games without it. */
+function medianByPlayer(
+  samples: ReadonlyArray<Sample>,
+  value: (s: Sample) => number | null | undefined,
+): Map<string, number> {
+  const byPlayer = new Map<string, number[]>()
+  for (const s of samples) {
+    const v = value(s)
+    if (v !== undefined && v !== null) {
+      const name = nameOf(s.player)
+      byPlayer.set(name, [...(byPlayer.get(name) ?? []), v])
+    }
+  }
+  return new Map(Array.from(byPlayer, ([name, values]) => [name, median(values)]))
+}
+
 /** A player's EAPM in the early game, which short games and long ones both have. */
 function earlyEapm(p: PlayerMetrics) {
   return p.eapmByPhase?.[0] ?? p.eapm
 }
 
-/** How likely the player was to win, by their MMR and their opponent's, or even without both. */
+/** The average MMR of these players, if every one of them has one. */
+function averageMmr(players: ReadonlyArray<PlayerMetrics>) {
+  const mmrs = players.flatMap(p => (p.mmr !== undefined ? [p.mmr] : []))
+  return players.length && mmrs.length === players.length ? sum(mmrs) / mmrs.length : undefined
+}
+
+/**
+ * How likely the player was to win, by their team's average MMR and their opponents', or even
+ * without everyone's.
+ */
 function expectedWin(s: Sample) {
-  const mmr = s.player.mmr
-  const opponentMmr = s.opponent?.mmr
-  if (mmr === undefined || opponentMmr === undefined) {
+  const ours = averageMmr([s.player, ...s.teammates])
+  const theirs = averageMmr(getSidesOf(s.game, s.player).opponents)
+  if (ours === undefined || theirs === undefined) {
     return 0.5
   }
-  return 1 / (1 + 10 ** ((opponentMmr - mmr) / 400))
+  return 1 / (1 + 10 ** ((theirs - ours) / 400))
 }
 
 /**
@@ -428,8 +461,9 @@ function openingOf(family: string | undefined) {
  * The builds the best players use in one kind of game, the most played first, with how each
  * does and the order the game closest to its usual play took its steps in. Every analyzed game
  * counts, the ladder baseline's and the user's own replays', the user's own play included. Top
- * players are picked player by player: in 1v1, S rank (counted twice) and A rank, and unranked
- * players as fast in the early game as them; otherwise the fastest quarter of players.
+ * players are picked player by player: in 1v1, S rank (counted twice) and A rank; in team games
+ * with ratings, the better rated half; and players without either as fast in the early game as
+ * them. Otherwise the fastest quarter of players.
  */
 export function computeMetaBuilds(
   everyGame: ReadonlyArray<DatedGameMetrics>,
@@ -468,30 +502,36 @@ export function computeMetaBuilds(
   const fromMs = toMs - META_WINDOW_MS
   const recent = all.filter(s => s.game.gameTimeMs >= fromMs)
 
-  // Players are judged by their usual speed over their games here, not game by game.
-  const eapmsByPlayer = new Map<string, number[]>()
-  for (const s of recent) {
-    const eapm = earlyEapm(s.player)
-    if (eapm !== undefined && eapm !== null) {
-      const name = nameOf(s.player)
-      eapmsByPlayer.set(name, [...(eapmsByPlayer.get(name) ?? []), eapm])
-    }
-  }
-  const playerEapm = new Map(Array.from(eapmsByPlayer, ([name, eapms]) => [name, median(eapms)]))
+  // Players are judged by their usual speed and rating over their games here, not game by game.
+  const playerEapm = medianByPlayer(recent, s => earlyEapm(s.player))
   const fastestQuarter = playerEapm.size
     ? quantile(Array.from(playerEapm.values()), TOP_EAPM_QUANTILE)
     : undefined
-  const rankedTop = new Set(
-    recent.flatMap(s => (s.player.rank && RANK_WEIGHTS[s.player.rank] ? [nameOf(s.player)] : [])),
+  // Team games from a ladder have their players' ratings, which tell the best apart better.
+  const playerRating =
+    shape === '1v1' ? new Map<string, number>() : medianByPlayer(recent, s => s.player.mmr)
+  const byRating = playerRating.size >= MIN_RATED_PLAYERS
+  const ratingCutoff = byRating
+    ? quantile(Array.from(playerRating.values()), TOP_RATING_QUANTILE)
+    : undefined
+  const topRated = new Set(
+    shape === '1v1'
+      ? recent.flatMap(s =>
+          s.player.rank && RANK_WEIGHTS[s.player.rank] ? [nameOf(s.player)] : [],
+        )
+      : Array.from(playerRating).flatMap(([name, rating]) =>
+          ratingCutoff !== undefined && rating >= ratingCutoff ? [name] : [],
+        ),
   )
-  const rankedTopEapms = Array.from(rankedTop).flatMap(name => playerEapm.get(name) ?? [])
+  const topRatedEapms = Array.from(topRated).flatMap(name => playerEapm.get(name) ?? [])
   const eapmCutoff =
-    shape === '1v1' && rankedTopEapms.length >= MIN_RANKED_TOP_PLAYERS
-      ? median(rankedTopEapms)
-      : fastestQuarter
+    topRatedEapms.length >= MIN_RATED_PLAYERS ? median(topRatedEapms) : fastestQuarter
   const weightOf = (s: Sample) => {
     if (shape === '1v1' && s.player.rank) {
       return RANK_WEIGHTS[s.player.rank] ?? 0
+    }
+    if (byRating && playerRating.has(nameOf(s.player))) {
+      return topRated.has(nameOf(s.player)) ? 1 : 0
     }
     const eapm = playerEapm.get(nameOf(s.player))
     return eapmCutoff !== undefined && eapm !== undefined && eapm >= eapmCutoff ? 1 : 0
@@ -586,6 +626,8 @@ export function computeMetaBuilds(
   return {
     ...empty,
     ...result,
+    topBy: byRating ? 'rating' : topBy,
+    ratingCutoff,
     eapmCutoff,
     games: top.length,
     players: new Set(top.map(s => nameOf(s.player))).size,

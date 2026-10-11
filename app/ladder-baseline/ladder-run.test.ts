@@ -68,9 +68,14 @@ const LADDER_GAME: LadderGame = {
 describe('app/ladder-baseline/ladder-run', () => {
   test('reads the folder to analyze and where to write the baseline', () => {
     expect(getLadderRunArgs(['electron', 'app', '--hidden'])).toBeUndefined()
-    const run = getLadderRunArgs(['app', '--analyze-folder=reps', '--export-baseline=out.json.gz'])
+    const run = getLadderRunArgs([
+      'app',
+      '--analyze-folder=reps',
+      '--analyze-folder=team',
+      '--export-baseline=out.json.gz',
+    ])
     expect(run).toEqual({
-      folder: path.resolve('reps'),
+      folders: [path.resolve('reps'), path.resolve('team')],
       exportPath: 'out.json.gz',
       retryFailed: false,
     })
@@ -118,11 +123,11 @@ describe('app/ladder-baseline/ladder-run', () => {
           savedAt: 0,
           metrics: metrics('g2', '1v1', [player('Kestrel', 'p'), player('Wren', 'z')]),
         },
-        // Not 1v1.
+        // Not a kind of game the ladders play.
         {
           replayPathKey: keyOf('def.rep'),
           savedAt: 0,
-          metrics: metrics('g3', '2v2', [player('Kestrel', 'p'), player('Wren', 'z')]),
+          metrics: metrics('g3', '4v4', [player('Kestrel', 'p'), player('Wren', 'z')]),
         },
         // No time to date it by: neither the replay, which can't be read, nor the ladder has one.
         {
@@ -139,7 +144,7 @@ describe('app/ladder-baseline/ladder-run', () => {
       ]
       const store = { listMetrics: async () => listings } as unknown as GameStatsStore
       const exportPath = path.join(dir, 'baseline.json.gz')
-      await exportLadderBaseline({ folder: replays, exportPath, gameStatsStore: store })
+      await exportLadderBaseline({ folders: [replays], exportPath, gameStatsStore: store })
 
       const baseline = parseLadderBaseline(
         JSON.parse(gunzipSync(await readFile(exportPath)).toString('utf8')),
@@ -154,6 +159,55 @@ describe('app/ladder-baseline/ladder-run', () => {
       expect(kestrel.names[0]).toMatch(/^#[0-9a-f]{12}$/)
       expect(kestrel.names[0]).not.toBe(wren.names[0])
       expect(JSON.stringify(baseline)).not.toMatch(/kestrel|wren/i)
+    })
+
+    test("adds another folder's team games, with ratings and no ranks", async () => {
+      const team = path.join(dir, 'team')
+      await mkdir(team, { recursive: true })
+      const players = ['Kestrel', 'Wren', 'Heron', 'Finch']
+      await writeFile(
+        path.join(team, LADDER_MANIFEST_FILE),
+        JSON.stringify({
+          version: 1,
+          games: {
+            'ghi.rep': {
+              ...LADDER_GAME,
+              players: players.map((name, i) => ({ name, mmr: 1700 + i })),
+            },
+          },
+        }),
+      )
+      const listings: MetricsListing[] = [
+        {
+          replayPathKey: keyOf('abc.rep'),
+          savedAt: 0,
+          metrics: metrics('g1', '1v1', [player('Kestrel', 'p'), player('Wren', 'z')]),
+        },
+        {
+          replayPathKey: path.join(team, 'ghi.rep').toLowerCase(),
+          savedAt: 0,
+          metrics: metrics(
+            'g6',
+            '2v2',
+            players.map(name => player(name, 'p')),
+          ),
+        },
+      ]
+      const store = { listMetrics: async () => listings } as unknown as GameStatsStore
+      const exportPath = path.join(dir, 'baseline.json.gz')
+      await exportLadderBaseline({ folders: [replays, team], exportPath, gameStatsStore: store })
+
+      const baseline = parseLadderBaseline(
+        JSON.parse(gunzipSync(await readFile(exportPath)).toString('utf8')),
+      )
+      expect(baseline?.games.map(g => g.shape)).toEqual(['1v1', '2v2'])
+      const teamGame = baseline!.games.find(g => g.shape === '2v2')!
+      expect(teamGame.players.map(p => [p.mmr, p.rank])).toEqual([
+        [1700, undefined],
+        [1701, undefined],
+        [1702, undefined],
+        [1703, undefined],
+      ])
     })
   })
 })

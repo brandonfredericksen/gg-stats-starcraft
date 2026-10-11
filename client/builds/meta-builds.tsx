@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { assertUnreachable } from '../../common/assert-unreachable'
 import { MapFamily } from '../../common/games/map-family'
 import { WORKER_MINUTES } from '../../common/my-stats/builds'
 import { CoachScope } from '../../common/my-stats/coach'
@@ -97,6 +98,32 @@ const Checkpoints = styled.ul`
   gap: var(--space-1);
 `
 
+/** How the top players were picked, see `MetaResult.topBy`. */
+function getTopPlayersNote(meta: MetaResult, values: Record<string, unknown>, t: TFunction) {
+  switch (meta.topBy) {
+    case 'rank':
+      return t(
+        'builds.metaFieldRank',
+        'From {{games}} games of {{players}} {{race}} players over the last 6 months: S and A rank, S counting twice, and unranked players as fast as them, over {{eapm}} early game EAPM.',
+        values,
+      )
+    case 'rating':
+      return t(
+        'builds.metaFieldRating',
+        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the better rated half of ladder players here, rated {{rating}} or more, and unrated players as fast as them, over {{eapm}} early game EAPM.',
+        values,
+      )
+    case 'eapm':
+      return t(
+        'builds.metaFieldEapm',
+        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the fastest quarter of players here, over {{eapm}} early game EAPM.',
+        values,
+      )
+    default:
+      return assertUnreachable(meta.topBy)
+  }
+}
+
 /** Who the top players are here, and where their games come from. */
 function getFieldNote(meta: MetaResult, scope: Omit<CoachScope, 'games'>, t: TFunction) {
   const values = {
@@ -104,20 +131,9 @@ function getFieldNote(meta: MetaResult, scope: Omit<CoachScope, 'games'>, t: TFu
     players: meta.players,
     race: raceCharToLabel(scope.race, t),
     eapm: Math.round(meta.eapmCutoff ?? 0),
+    rating: Math.round(meta.ratingCutoff ?? 0),
   }
-  const notes = [
-    meta.topBy === 'rank'
-      ? t(
-          'builds.metaFieldRank',
-          'From {{games}} games of {{players}} {{race}} players over the last 6 months: S and A rank, S counting twice, and unranked players as fast as them, over {{eapm}} early game EAPM.',
-          values,
-        )
-      : t(
-          'builds.metaFieldEapm',
-          'From {{games}} games of {{players}} {{race}} players over the last 6 months: the fastest quarter of players here, over {{eapm}} early game EAPM.',
-          values,
-        ),
-  ]
+  const notes = [getTopPlayersNote(meta, values, t)]
   if (meta.anyAlly && scope.allyRace) {
     notes.push(
       t('builds.metaAnyAlly', 'With any teammate, since too few top players had a {{ally}} one.', {
@@ -337,7 +353,7 @@ function ThinMeta({ meta }: { meta: MetaResult }) {
         <PanelNote>
           {t(
             'builds.metaThinTeam',
-            "Team game builds come from your own replays. Adding a folder of strong players' team games fills this in.",
+            "Team games come from the ladder baseline and your own replays. Adding a folder of strong players' games fills this in.",
           )}
         </PanelNote>
       ) : null}
@@ -357,7 +373,7 @@ function MetaTable({
 }) {
   const { t } = useTranslation()
   const winLabel =
-    meta.topBy === 'rank'
+    meta.topBy !== 'eapm'
       ? t('builds.metaWinVsMmr', 'Win vs MMR')
       : t('builds.metaWinRate', 'Win rate')
   return (
@@ -373,7 +389,7 @@ function MetaTable({
         <HelpLabel
           label={winLabel}
           help={
-            meta.topBy === 'rank'
+            meta.topBy !== 'eapm'
               ? t(
                   'builds.metaWinVsMmrHelp',
                   "How it wins against the other builds here, once the players' MMRs are taken into account: 50% is like the rest. Pulled toward 50% when it has few games, and faded under {{minimum}}.",

@@ -325,6 +325,25 @@ describe('common/my-stats/meta-builds', () => {
     expect(meta.players).toBe(3)
   })
 
+  test('in team games with ratings, counts the better rated half and judges by team ratings', () => {
+    // 24 rated players, each in one game, the better rated half winning against the rest.
+    const games = times(12, i =>
+      game(
+        [
+          player({ name: `high${i}`, mmr: 1800 + i, eapm: 100 }),
+          player({ name: `low${i}`, mmr: 1400 + i, team: 1, result: 'loss', eapm: 300 }),
+        ],
+        { shape: '3v3', mapFamily: 'bgh' },
+      ),
+    )
+    const meta = computeMetaBuilds(games, { shape: '3v3', race: 'p', mapFamily: 'bgh' })
+    expect(meta.topBy).toBe('rating')
+    expect(meta.ratingCutoff).toBeCloseTo((1411 + 1800) / 2)
+    expect(meta.players).toBe(12)
+    // Every win was expected from the ratings, so the build wins like everything else here.
+    expect(meta.builds[0].winScore).toBeCloseTo(0.5)
+  })
+
   test('in 2v2, shows the most played kind of map and offers the pairs of opponents', () => {
     const twoVsTwo = (mapFamily: MapFamily, opponents: 'z' | 't', i: number) =>
       game(

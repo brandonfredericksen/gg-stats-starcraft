@@ -1,24 +1,30 @@
 /**
- * Builds the 1v1 ladder baseline the app ships, from start to end: `pnpm run ladder-baseline --dir
- * <folder> [--skip-fetch] [--retry-failed]`, with the fetch options of `fetch-ladder-replays.ts`
- * passed on.
+ * Builds the ladder baseline the app ships, from start to end: `pnpm run ladder-baseline --dir
+ * <folder> [--team-dir <folder>] [--skip-fetch] [--skip-ladder-fetch] [--retry-failed]`, with the fetch options of
+ * `fetch-ladder-replays.ts` passed on, and `--team-top`, `--team-per-player` and
+ * `--team-since-days` passed to `fetch-shieldbattery-replays.ts` as `--top`, `--per-player` and
+ * `--since-days`.
  *
- * 1. Downloads ladder replays into the folder with `fetch-ladder-replays.ts`, which asks a logged
+ * 1. Downloads 1v1 ladder replays into `--dir` with `fetch-ladder-replays.ts`, which asks a logged
  *    in StarCraft: Remastered, starting it through Battle.net when it isn't running or crashes.
- *    `--skip-fetch` uses the replays already there.
- * 2. Starts the app with no window and its own data files (the `ladder` session) to analyze every
- *    replay in the folder, one at a time in a hidden StarCraft, the way it analyzes replays in the
+ * 2. With `--team-dir`, downloads 2v2 and 3v3 replays of ShieldBattery's best rated players into
+ *    its `2v2` and `3v3` folders with `fetch-shieldbattery-replays.ts`. `--skip-fetch` skips both
+ *    downloads and uses the replays already there, and `--skip-ladder-fetch` only the first, which
+ *    needs StarCraft.
+ * 3. Starts the app with no window and its own data files (the `ladder` session) to analyze every
+ *    replay in the folders, one at a time in a hidden StarCraft, the way it analyzes replays in the
  *    background. This is the slow part. Replays analyzed before are skipped, so it can be stopped
  *    and run again, and so are replays it gave up on before, like broken ones, unless
  *    `--retry-failed` asks for them again.
- * 3. Has the app write the analyzed games, with each player's MMR and rank and every name replaced
- *    by a made up id, to `app/assets/ladder-baseline.json.gz`.
+ * 4. Has the app write the analyzed games, with each player's MMR and rank, or rating for
+ *    ShieldBattery's, and every name replaced by a made up id, to
+ *    `app/assets/ladder-baseline.json.gz`.
  *
  * While it runs, P pauses it and goes on again, and Q (or Ctrl+C) stops it once what it's in the
  * middle of is done, like the replay being analyzed. Q again stops it right away.
  *
- * Each step picks up where it left off, and each fetch adds more games than the folder had, so
- * running this again with the same folder keeps growing the baseline.
+ * Each step picks up where it left off, and each fetch adds games the folders don't have yet, so
+ * running this again with the same folders keeps growing the baseline.
  */
 import { ChildProcess, spawn } from 'node:child_process'
 import { existsSync, rmSync, writeFileSync } from 'node:fs'
@@ -34,12 +40,19 @@ import {
 const ROOT = path.resolve(import.meta.dirname, '..', '..')
 const SESSION = 'ladder'
 const DLL_PATH = path.join(ROOT, 'game', 'dist', 'ggstats_64.dll')
+/** The ShieldBattery ladders' formats, each in its own folder of `--team-dir`. */
+const TEAM_FORMATS = ['2v2', '3v3']
 const EXPORT_PATH = path.join(ROOT, 'app', 'assets', LADDER_BASELINE_FILE)
 
 const { values: args } = parseArgs({
   options: {
     dir: { type: 'string' },
+    'team-dir': { type: 'string' },
+    'team-top': { type: 'string' },
+    'team-per-player': { type: 'string' },
+    'team-since-days': { type: 'string' },
     'skip-fetch': { type: 'boolean', default: false },
+    'skip-ladder-fetch': { type: 'boolean', default: false },
     'retry-failed': { type: 'boolean', default: false },
     'per-cell': { type: 'string' },
     'per-map': { type: 'string' },
@@ -140,6 +153,9 @@ async function main() {
     fail('Pass the folder for the replays with --dir.')
   }
   const dir = path.resolve(args.dir)
+  const teamDirs = args['team-dir']
+    ? TEAM_FORMATS.map(format => path.join(path.resolve(args['team-dir']!), format))
+    : []
   if (!existsSync(DLL_PATH)) {
     fail(`Analyzing needs the game DLL at ${DLL_PATH}. Build it with: pnpm run build-game`)
   }
@@ -153,7 +169,7 @@ async function main() {
     return true
   }
 
-  if (!args['skip-fetch']) {
+  if (!args['skip-fetch'] && !args['skip-ladder-fetch']) {
     const passed = (
       ['per-cell', 'per-map', 'add-per-cell', 'add-per-map', 'pages', 'port'] as const
     ).flatMap(name => (args[name] !== undefined ? [`--${name}`, args[name]!] : []))
@@ -169,6 +185,26 @@ async function main() {
       return
     }
   }
+  if (!args['skip-fetch']) {
+    const teamPassed = (['top', 'per-player', 'since-days'] as const).flatMap(name =>
+      args[`team-${name}`] !== undefined ? [`--${name}`, args[`team-${name}`]!] : [],
+    )
+    for (const [i, teamDir] of teamDirs.entries()) {
+      await run(process.execPath, [
+        '-r',
+        '@swc-node/register',
+        path.join(ROOT, 'tools', 'shieldbattery-replays', 'fetch-shieldbattery-replays.ts'),
+        '--out',
+        teamDir,
+        '--format',
+        TEAM_FORMATS[i],
+        ...teamPassed,
+      ])
+      if (stopped()) {
+        return
+      }
+    }
+  }
 
   // pnpm is a .cmd file on Windows, which only starts through a shell.
   await run('pnpm', ['run', 'build-app-main'], {}, true)
@@ -179,7 +215,7 @@ async function main() {
     [
       'app',
       '--hidden',
-      `--analyze-folder=${dir}`,
+      ...[dir, ...teamDirs].map(folder => `--analyze-folder=${folder}`),
       `--export-baseline=${EXPORT_PATH}`,
       ...(args['retry-failed'] ? ['--retry-failed'] : []),
     ],

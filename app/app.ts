@@ -824,7 +824,7 @@ app.on('ready', () => {
           throw new Error('Analyzing a folder needs its own GGSTATS_SESSION, apart from your stats')
         }
         // Only the folder's replays, and none of the user's own games captured along the way.
-        await localSettings.merge({ autoCapture: false, replayLibraryFolders: [ladderRun.folder] })
+        await localSettings.merge({ autoCapture: false, replayLibraryFolders: ladderRun.folders })
       }
 
       // Namespaced by GGSTATS_SESSION (like the settings/log files) so concurrent dev instances in the
@@ -913,24 +913,34 @@ app.on('ready', () => {
 
       if (ladderRun) {
         await autoCaptureStarted
-        const result = await analyzeFolder({
-          folder: ladderRun.folder,
-          retryFailed: ladderRun.retryFailed,
-          autoCapture,
-          backfill: commandStatsBackfill,
-        })
-        if (result.stopped) {
-          console.error('Stopped analyzing after too many failures in a row. See the app log.')
+        let stopped = false
+        let quit = false
+        for (const folder of ladderRun.folders) {
+          const result = await analyzeFolder({
+            folder,
+            controlFolder: ladderRun.folders[0],
+            retryFailed: ladderRun.retryFailed,
+            autoCapture,
+            backfill: commandStatsBackfill,
+          })
+          if (result.stopped) {
+            stopped = true
+            console.error('Stopped analyzing after too many failures in a row. See the app log.')
+          }
+          if (result.quit || result.stopped) {
+            quit = result.quit
+            break
+          }
         }
-        if (ladderRun.exportPath && !result.quit) {
+        if (ladderRun.exportPath && !quit) {
           await exportLadderBaseline({
-            folder: ladderRun.folder,
+            folders: ladderRun.folders,
             exportPath: ladderRun.exportPath,
             gameStatsStore,
           })
         }
         autoCapture.stop()
-        app.exit(result.stopped ? 1 : 0)
+        app.exit(stopped ? 1 : 0)
         return
       }
 

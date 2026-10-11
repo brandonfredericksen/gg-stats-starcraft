@@ -2,9 +2,10 @@ import type { DatedGameMetrics } from '../my-stats/my-stats'
 import { GAME_METRICS_VERSION } from './player-metrics'
 
 /**
- * Other players' 1v1 ladder games, shipped with the app so 1v1 players have someone of their race
- * to be compared with in every matchup, which their own replays can't give them. Built by
- * `pnpm run ladder-baseline`.
+ * Other players' ladder games, shipped with the app so players have someone of their race to be
+ * compared with in every kind of game, which their own replays can't give them: 1v1 games from
+ * StarCraft's ladder, with each player's MMR and rank, and 2v2 and 3v3 games from ShieldBattery's,
+ * with each player's rating as their MMR. Built by `pnpm run ladder-baseline`.
  */
 export const LADDER_BASELINE_FILE = 'ladder-baseline.json.gz'
 
