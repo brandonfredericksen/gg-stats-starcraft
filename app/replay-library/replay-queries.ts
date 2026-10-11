@@ -113,9 +113,9 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
 
   if (filters.playerName !== undefined) {
     whereClauses.push(
-      "EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.name LIKE ? ESCAPE '\\')",
+      "EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.name_key LIKE ? ESCAPE '\\')",
     )
-    params.push(`%${escapeLike(filters.playerName)}%`)
+    params.push(`%${escapeLike(filters.playerName.toLowerCase())}%`)
     hasValueFilter = true
   }
 
@@ -125,10 +125,13 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
       ? ` OR p.name_key IN (${accounts.map(() => '?').join(', ')})`
       : ''
     whereClauses.push(
-      `(r.map_name LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND (p.name LIKE ? ESCAPE '\\'${accountsClause})))`,
+      `(r.map_name LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND (p.name_key LIKE ? ESCAPE '\\'${accountsClause})))`,
     )
-    const pattern = `%${escapeLike(filters.search)}%`
-    params.push(pattern, pattern, ...accounts.map(a => a.toLowerCase()))
+    params.push(
+      `%${escapeLike(filters.search)}%`,
+      `%${escapeLike(filters.search.toLowerCase())}%`,
+      ...accounts.map(a => a.toLowerCase()),
+    )
     hasValueFilter = true
   }
 

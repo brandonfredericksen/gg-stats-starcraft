@@ -134,7 +134,8 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
 
   test("names and paths match the stored lowercase keys, past ASCII, never SQLite's LOWER()", () => {
     const { sql, params } = buildReplaySqlQuery({
-      search: 'x',
+      playerName: 'Örn',
+      search: 'Полигон',
       searchAccounts: ['Ärger'],
       whose: { names: ['Иван'], match: 'mine' },
       withAccounts: ['ÉCLAIR'],
@@ -142,7 +143,17 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       includeShort: true,
     })
     expect(sql).not.toContain('LOWER(')
-    expect(params).toEqual(['%x%', '%x%', 'ärger', 'иван', 'éclair', 'c:/users/иван/a.rep'])
+    expect(sql).not.toContain('p.name LIKE')
+    expect(params).toEqual([
+      '%örn%',
+      // The map name is matched as typed, since it has no lowercase key.
+      '%Полигон%',
+      '%полигон%',
+      'ärger',
+      'иван',
+      'éclair',
+      'c:/users/иван/a.rep',
+    ])
   })
 
   test('countSql reuses the WHERE clause and params, without an ORDER BY', () => {
@@ -192,7 +203,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
   test('player name becomes an EXISTS subquery over replay_players', () => {
     const { sql, params } = buildReplaySqlQuery({ playerName: 'flash', includeShort: true })
     expect(sql).toContain(
-      "EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.name LIKE ? ESCAPE '\\')",
+      "EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id AND p.name_key LIKE ? ESCAPE '\\')",
     )
     expect(params).toEqual(['%flash%'])
   })
