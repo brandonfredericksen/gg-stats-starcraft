@@ -89,8 +89,8 @@ export interface MetaBuild {
   standard: boolean
   /** How top players play it, summed up the way every other side of a build is. */
   side: BuildSide
-  /** The game closest to how top players play it, see `typicalOf`. */
-  typical: { gameId: string; fromLibrary: boolean }
+  /** The top player's game in the user's replays closest to how top players play it, if any. */
+  typicalGame?: string
 }
 
 /** A way to split the games, like against one opening, and how many top games it has. */
@@ -223,9 +223,10 @@ function stepsById(player: PlayerMetrics) {
 const idOf = (step: Pick<BuildStepSummary, 'key' | 'nth'>) => `${step.key}#${step.nth}`
 
 /**
- * The game that took a build's steps closest to when most of its games did: for each step most
- * games take, how far off it was against how spread out the games are, or a fixed cost if it
- * didn't take it. Games that got through the build order first, if most did.
+ * The game in the user's replays that took a build's steps closest to when most of its games did:
+ * for each step most games take, how far off it was against how spread out the games are, or a
+ * fixed cost if it didn't take it. Games that got through the build order first, if most did. The
+ * ladder baseline's games have no replay to open, so they don't count.
  */
 function typicalOf(samples: ReadonlyArray<TopSample>, steps: ReadonlyArray<BuildStepSummary>) {
   const core = steps.filter(step => step.share >= CORE_STEP_SHARE && step.timeMs <= ORDER_END_MS)
@@ -243,13 +244,18 @@ function typicalOf(samples: ReadonlyArray<TopSample>, steps: ReadonlyArray<Build
     )
   }
   // A build most games of are over before the order ends, like an all-in, is judged by them.
-  const lasted = samples.filter(s => s.playedMs >= ORDER_END_MS)
-  return (lasted.length * 2 >= samples.length ? lasted : samples)
-    .map(s => ({ s, cost: cost(s) }))
+  const mostLasted = samples.filter(s => s.playedMs >= ORDER_END_MS).length * 2 >= samples.length
+  const judged = (s: TopSample) => !mostLasted || s.playedMs >= ORDER_END_MS
+  return samples
+    .filter(s => !s.game.ladderBaseline)
+    .map(s => ({ s, judged: judged(s), cost: cost(s) }))
     .sort(
       (a, b) =>
-        a.cost - b.cost || b.s.weight - a.s.weight || b.s.game.gameTimeMs - a.s.game.gameTimeMs,
-    )[0].s
+        Number(b.judged) - Number(a.judged) ||
+        a.cost - b.cost ||
+        b.s.weight - a.s.weight ||
+        b.s.game.gameTimeMs - a.s.game.gameTimeMs,
+    )[0]?.s
 }
 
 function toBuildSample(s: TopSample): BuildSample {
@@ -270,11 +276,7 @@ function toBuildSample(s: TopSample): BuildSample {
 /** How a build's games play it, see {@link MetaBuild}. */
 function describeBuild(samples: ReadonlyArray<TopSample>) {
   const side = summarizeBuildSide(samples.map(toBuildSample))
-  const typical = typicalOf(samples, side.steps)
-  return {
-    side,
-    typical: { gameId: typical.game.gameId, fromLibrary: !typical.game.ladderBaseline },
-  }
+  return { side, typicalGame: typicalOf(samples, side.steps)?.game.gameId }
 }
 
 function playersOf(samples: ReadonlyArray<TopSample>) {

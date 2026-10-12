@@ -278,7 +278,22 @@ describe('common/my-stats/meta-builds', () => {
     expect(build.side.steps[2]).toMatchObject({ earlyMs: 3 * 60_000, lateMs: 3.25 * 60_000 })
     expect(build.side.workersAt).toEqual([30, 30, 30, 30])
     // The first 12 games take the steps when most games do.
-    expect(Number(build.typical.gameId)).toBeLessThan(12)
+    expect(Number(build.typicalGame)).toBeLessThan(12)
+  })
+
+  test("finds the closest game in the user's replays, which the ladder baseline's aren't", () => {
+    const later: Array<[string, number]> = [['u155', 8]]
+    const close = () => ({
+      ...pvt({ rank: 'a', steps: [...GATE_EXPAND, ...later] }),
+      ladderBaseline: true,
+    })
+    const off = () =>
+      pvt({ rank: 'a', steps: [['u160', 1.2], ['u164', 2.5], ['u154', 4], ...later] })
+    const [build] = computeMetaBuilds([...times(12, close), ...times(4, off)], PVT).builds
+    expect(Number(build.typicalGame)).toBeGreaterThanOrEqual(12)
+
+    const [baselineOnly] = computeMetaBuilds(times(16, close), PVT).builds
+    expect(baselineOnly.typicalGame).toBeUndefined()
   })
 
   test('leaves games over too soon to name a build out of the shares', () => {

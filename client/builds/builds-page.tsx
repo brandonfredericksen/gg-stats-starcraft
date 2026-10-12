@@ -306,7 +306,7 @@ function getCompare(
   return {
     compare: { family: entry.family, sides, basis },
     note: standIns.length ? standIns.join(' ') : undefined,
-    typicalGame: top?.typical.fromLibrary ? top.typical.gameId : undefined,
+    typicalGame: top?.typicalGame,
   }
 }
 
