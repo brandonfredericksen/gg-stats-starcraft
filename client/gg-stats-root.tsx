@@ -12,7 +12,7 @@ import { FileDropZoneProvider } from './file-browser/file-drop-zone'
 import { jotaiStore } from './jotai-store'
 import { KeyListenerBoundary } from './keyboard/key-listener'
 import { NavigationTrapProvider } from './navigation/navigation-trap'
-import { LoadingIndicatorArea } from './progress/loading-indicator'
+import { PageLoadingIndicator } from './progress/loading-indicator'
 import { useAppSelector } from './redux-hooks'
 import { RootErrorBoundary } from './root-error-boundary'
 import { RootState } from './root-reducer'
@@ -73,7 +73,7 @@ export function GgStatsRoot({ reduxStore }: GgStatsRootProps) {
       <SplashIndicator />
       <JotaiProvider store={jotaiStore}>
         <ReduxProvider store={reduxStore}>
-          <Suspense fallback={<LoadingIndicatorArea />}>
+          <Suspense fallback={<PageLoadingIndicator />}>
             <InnerApp />
             {ReduxDevToolsContainer ? <ReduxDevToolsContainer /> : null}
             {JotaiDevTools ? <JotaiDevTools /> : null}
@@ -119,7 +119,7 @@ function InnerApp() {
                   <NavigationTrapProvider>
                     <FileDropZoneProvider>
                       <SnackbarOverlay>
-                        <React.Suspense fallback={<LoadingIndicatorArea />}>
+                        <React.Suspense fallback={<PageLoadingIndicator />}>
                           <AppContent />
                         </React.Suspense>
                       </SnackbarOverlay>
@@ -145,7 +145,7 @@ function AppContent() {
     <>
       <WindowControls />
       <SystemBar />
-      <React.Suspense fallback={<LoadingIndicatorArea />}>
+      <React.Suspense fallback={<PageLoadingIndicator />}>
         <Switch>
           {import.meta.env.DEV ? (
             <Route path='/dev/*?'>
@@ -197,7 +197,7 @@ function Layout() {
   return (
     <LayoutRoot>
       <ContentPanel>
-        <React.Suspense fallback={<LoadingIndicatorArea />}>
+        <React.Suspense fallback={<PageLoadingIndicator />}>
           <Switch>
             <Route path='/replays/stats/:gameId' component={GameStatsPage} />
             <Route path='/replays/*?' component={ReplaysRoot} />

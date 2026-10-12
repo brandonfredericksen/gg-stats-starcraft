@@ -1,4 +1,5 @@
 import { rgba } from 'polished'
+import { useLayoutEffect, useRef } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import { accelerateEasing, decelerateEasing } from '../material/curve-constants'
 import { blue60, blue70, blue95 } from '../styles/colors'
@@ -215,6 +216,10 @@ interface LoadingIndicatorProps {
  * first plot starts just as a delayed reveal fades in rather than being caught halfway through.
  * `fadeRoot` controls whether this element hides/fades itself — a delayed containing area does its
  * own fading and only needs the animation start to match it.
+ *
+ * A plot shown right away runs on the document's clock rather than starting when it mounts, so one
+ * that takes over from another, like a page's loader replacing the splash's or the next one as the
+ * page goes on to wait for something else, carries on the same line instead of starting it over.
  */
 function StatPlot({
   delayed,
@@ -226,9 +231,19 @@ function StatPlot({
   className?: string
 }) {
   const delayMs = delayed ? LOADING_SHOW_DELAY_MS : 0
+  const plotRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (delayed) {
+      return
+    }
+    for (const animation of plotRef.current?.getAnimations({ subtree: true }) ?? []) {
+      animation.startTime = 0
+    }
+  }, [delayed])
+
   return (
     <Root className={className} $showImmediately={!fadeRoot}>
-      <Plot>
+      <Plot ref={plotRef}>
         <LineSvg
           width={PLOT_WIDTH}
           height={PLOT_HEIGHT}
@@ -270,4 +285,12 @@ export function LoadingIndicatorArea({
       <StatPlot delayed={!showImmediately} fadeRoot={false} />
     </LoadingArea>
   )
+}
+
+/**
+ * What a page shows until it has something to show. It shows from the page's first paint, unlike
+ * loading within a page, so opening a page never leaves it blank.
+ */
+export function PageLoadingIndicator() {
+  return <LoadingIndicatorArea showImmediately={true} />
 }

@@ -42,7 +42,7 @@ import {
 } from '../my-stats/my-stats-panels'
 import { getPoolSource } from '../my-stats/pool-source'
 import { RankMenu } from '../my-stats/rank-menu'
-import { LoadingIndicatorArea } from '../progress/loading-indicator'
+import { PageLoadingIndicator } from '../progress/loading-indicator'
 import {
   bodyMedium,
   headlineMedium,
@@ -2025,7 +2025,7 @@ export function CoachView({
       </>
     )
   } else {
-    content = <LoadingIndicatorArea />
+    content = <PageLoadingIndicator />
   }
 
   return (
@@ -2100,7 +2100,7 @@ export function CoachPage() {
   const demo = useDemoPlayer()
 
   if (!demo && !state) {
-    return <LoadingIndicatorArea />
+    return <PageLoadingIndicator />
   }
   if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />

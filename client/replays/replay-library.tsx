@@ -1127,11 +1127,14 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     )
   }
 
+  // The list's first load in a visit is part of the page opening, so its loader shows right away. A
+  // reload after the filters change waits, so a quick one doesn't flash it.
+  const listLoading = <LoadingIndicatorArea showImmediately={!snapshotInvalidated} />
   let listContent: React.ReactNode = null
   if (entries === undefined) {
     // The backfill's own progress rides in the bar above the list; here we just need a light loader
     // until the first page resolves.
-    listContent = <LoadingIndicatorArea />
+    listContent = listLoading
   } else if (entries.length === 0) {
     if (hasActiveFilters) {
       listContent = (
@@ -1179,7 +1182,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     } else if (backfill) {
       // A backfill is still populating the index (progress shows in the bar above); don't claim
       // there are no replays while it's just getting started.
-      listContent = <LoadingIndicatorArea />
+      listContent = listLoading
     } else {
       listContent = (
         <CenteredState>

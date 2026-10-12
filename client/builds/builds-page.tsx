@@ -16,7 +16,7 @@ import { TextButton } from '../material/button'
 import { RaceTag } from '../material/race-tag'
 import { useDemoPlayer } from '../my-stats/demo-player'
 import { HelpLabel, PaddedPanel, PanelHead, PanelTitle } from '../my-stats/my-stats-panels'
-import { LoadingIndicatorArea } from '../progress/loading-indicator'
+import { PageLoadingIndicator } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
@@ -329,7 +329,7 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
     opponentOpening: opening || undefined,
   })
   if (!meta) {
-    return <LoadingIndicatorArea />
+    return <PageLoadingIndicator />
   }
 
   const level: LevelBuilds = against
@@ -417,7 +417,7 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
       </Message>
     )
   } else if (!coach) {
-    content = <LoadingIndicatorArea />
+    content = <PageLoadingIndicator />
   } else {
     content = (
       <>
@@ -455,7 +455,7 @@ export function BuildsPage() {
   const { coach } = useCoach()
   const demo = useDemoPlayer()
   if (!demo && !state) {
-    return <LoadingIndicatorArea />
+    return <PageLoadingIndicator />
   }
   if (!demo && state && state !== 'found') {
     return <OwnGamesNeeded state={state} />
