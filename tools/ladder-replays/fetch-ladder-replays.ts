@@ -18,6 +18,10 @@
  * `fetch-state.json` and skipped. Only the season's own games count toward the targets, so a new
  * season starts a full set of its own. Ladder replays are only kept for about a month, so this only
  * ever finds recent games.
+ *
+ * With `--player <name> [--gateway <id>]` it downloads one player's games instead: every game of
+ * theirs this season that still has a replay, for a folder of one player's games to look at as
+ * that player. `--gateway` picks between players of the same name.
  */
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -44,6 +48,11 @@ const STATE_FILE = 'fetch-state.json'
 const GAME_MODE_1V1 = 1
 const PAGE_LENGTH = 100
 const HISTORY_LENGTH = 15
+/**
+ * How many of a player's games in a row can be without a replay before the rest of their history
+ * is taken to be too old to have one.
+ */
+const MAX_MISSING_IN_A_ROW = 10
 const DOWNLOAD_INTERVAL_MS = 1000
 const REPLAY_HOSTS = ['storage.googleapis.com', 's3-us-west-1.amazonaws.com']
 /** StarCraft: Remastered replays have this at offset 12. */
@@ -102,6 +111,8 @@ const { values: args } = parseArgs({
     pages: { type: 'string', default: '40' },
     port: { type: 'string' },
     season: { type: 'string' },
+    player: { type: 'string' },
+    gateway: { type: 'string' },
   },
 })
 
@@ -367,6 +378,119 @@ async function downloadReplay(url: string): Promise<Uint8Array | undefined> {
   return magic === REPLAY_MAGIC ? bytes : undefined
 }
 
+/**
+ * Downloads a game's replay into the folder and adds the game to the manifest, if the ladder still
+ * has the replay. Says whether it did.
+ */
+async function saveGame(
+  bridge: Bridge,
+  outDir: string,
+  manifest: LadderManifest,
+  game: LadderGame,
+): Promise<boolean> {
+  const info = (await getOrSkip(
+    bridge,
+    `web-api/v1/matchmaker-gameinfo-playerinfo/${encodeURIComponent(game.matchId)}`,
+  )) as { replays?: BridgeReplay[] } | undefined
+  const replay = (info?.replays ?? []).find(
+    r => r.url && /^[0-9a-f]{32}$/i.test(r.md5 ?? '') && r.attributes?.replay_humans === '2',
+  )
+  const bytes = replay && (await downloadReplay(replay.url!))
+  if (!bytes) {
+    return false
+  }
+  game.createdMs ||= toTimeMs(replay!.create_time) ?? 0
+  const fileName = `${replay!.md5!.toLowerCase()}.rep`
+  await writeFile(path.join(outDir, fileName), bytes)
+  manifest.games[fileName] = game
+  await writeJson(path.join(outDir, LADDER_MANIFEST_FILE), manifest)
+  return true
+}
+
+function logKept(kept: number, game: LadderGame) {
+  const [a, b] = game.players
+  console.log(
+    `${kept}: ${a.race?.toUpperCase() ?? '?'} ${a.rank?.toUpperCase() ?? '-'} ${a.mmr} vs ` +
+      `${b.race?.toUpperCase() ?? '?'} ${b.rank?.toUpperCase() ?? '-'} ${b.mmr}`,
+  )
+}
+
+/** A player on the season's leaderboard, by name, and on `gateway` when it's given. */
+async function findPlayer(bridge: Bridge, boardId: number, name: string, gateway?: number) {
+  const found = (await bridge.get(
+    `web-api/v1/leaderboard-name-search/${boardId}/${encodeURIComponent(name)}`,
+  )) as Array<{ name?: string; gateway_id?: number }>
+  const matches = (Array.isArray(found) ? found : []).filter(
+    p =>
+      p.name?.toLowerCase() === name.toLowerCase() &&
+      p.gateway_id !== undefined &&
+      (gateway === undefined || p.gateway_id === gateway),
+  )
+  if (!matches.length) {
+    fail(`Couldn't find ${name} on the season's 1v1 leaderboard.`)
+  }
+  if (matches.length > 1) {
+    const gateways = matches.map(p => p.gateway_id).join(', ')
+    fail(`More than one ${name} is on the leaderboard. Pick one with --gateway (${gateways}).`)
+  }
+  return { toon: matches[0].name!, gateway: matches[0].gateway_id! }
+}
+
+/**
+ * Downloads each of one player's games this season that still has a replay and that the folder
+ * doesn't have yet, going back from their latest. Says whether it was stopped.
+ */
+async function fetchPlayer(
+  bridge: Bridge,
+  outDir: string,
+  manifest: LadderManifest,
+  season: number,
+  player: { toon: string; gateway: number },
+): Promise<boolean> {
+  const known = new Set(Object.values(manifest.games).map(g => g.matchId))
+  let kept = 0
+  let missing = 0
+  // Each game takes two places in the history, one for each player, which `offset` counts.
+  for (let offset = 0; missing < MAX_MISSING_IN_A_ROW; offset += HISTORY_LENGTH) {
+    if (await shouldStop(outDir)) {
+      return true
+    }
+    const history = (await getOrSkip(
+      bridge,
+      `web-api/v1/matchmaker-gameinfo-by-toon/${encodeURIComponent(player.toon)}/${player.gateway}/${GAME_MODE_1V1}/${season}?offset=${offset}&limit=${HISTORY_LENGTH}`,
+    )) as Array<Record<string, BridgeMatch>> | undefined
+    const matches = (Array.isArray(history) ? history : []).flatMap(entry => Object.entries(entry))
+    if (!matches.length) {
+      break
+    }
+    for (const [matchId, match] of matches) {
+      if (known.has(matchId)) {
+        continue
+      }
+      known.add(matchId)
+      const game = toLadderGame(matchId, match, season)
+      if (!game) {
+        continue
+      }
+      if (await shouldStop(outDir)) {
+        return true
+      }
+      if (await saveGame(bridge, outDir, manifest, game)) {
+        kept += 1
+        missing = 0
+        logKept(kept, game)
+      } else if (++missing >= MAX_MISSING_IN_A_ROW) {
+        break
+      }
+    }
+  }
+  console.log(
+    `\nKept ${kept} new games of ${player.toon}. ` +
+      `The folder has ${Object.keys(manifest.games).length}.`,
+  )
+  return false
+}
+
 function countCells(games: ReadonlyArray<LadderGame>) {
   const counts = new Map<string, number>()
   for (const game of games) {
@@ -442,6 +566,15 @@ async function main() {
   console.log(`Connected to StarCraft on port ${bridge.port}.`)
   const board = await findLeaderboard(bridge, args.season ? Number(args.season) : undefined)
 
+  if (args.player) {
+    const gateway = args.gateway !== undefined ? Number(args.gateway) : undefined
+    const player = await findPlayer(bridge, board.id, args.player, gateway)
+    if (await fetchPlayer(bridge, outDir, manifest, board.season, player)) {
+      console.log('\nStopped. Run the same command again to go on from here.')
+    }
+    return
+  }
+
   const saved = (await readJson(statePath)) as Partial<FetchState> | undefined
   const state: FetchState = {
     season: board.season,
@@ -509,31 +642,14 @@ async function main() {
         if (stopped) {
           break
         }
-        const info = (await getOrSkip(
-          bridge,
-          `web-api/v1/matchmaker-gameinfo-playerinfo/${encodeURIComponent(matchId)}`,
-        )) as { replays?: BridgeReplay[] } | undefined
-        const replay = (info?.replays ?? []).find(
-          r => r.url && /^[0-9a-f]{32}$/i.test(r.md5 ?? '') && r.attributes?.replay_humans === '2',
-        )
-        const bytes = replay && (await downloadReplay(replay.url!))
-        if (!bytes) {
+        if (!(await saveGame(bridge, outDir, manifest, game))) {
           continue
         }
-        game.createdMs ||= toTimeMs(replay!.create_time) ?? 0
-        const fileName = `${replay!.md5!.toLowerCase()}.rep`
-        await writeFile(path.join(outDir, fileName), bytes)
-        manifest.games[fileName] = game
-        await writeJson(manifestPath, manifest)
         for (const cell of [...cellsOf(game), ...mapCellsOf(game)]) {
           counts.set(cell, (counts.get(cell) ?? 0) + 1)
         }
         kept += 1
-        const [a, b] = game.players
-        console.log(
-          `${kept}: ${a.race?.toUpperCase() ?? '?'} ${a.rank?.toUpperCase() ?? '-'} ${a.mmr} vs ` +
-            `${b.race?.toUpperCase() ?? '?'} ${b.rank?.toUpperCase() ?? '-'} ${b.mmr}`,
-        )
+        logKept(kept, game)
       }
       if (stopped) {
         break
