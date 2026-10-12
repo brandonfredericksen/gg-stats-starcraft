@@ -1,6 +1,7 @@
 /**
  * Builds the ladder baseline the app ships, from start to end: `pnpm run ladder-baseline --dir
- * <folder> [--team-dir <folder>] [--skip-fetch] [--skip-ladder-fetch] [--retry-failed]`, with the fetch options of
+ * <folder> [--team-dir <folder>] [--skip-fetch] [--skip-ladder-fetch] [--retry-failed]
+ * [--reanalyze] [--skip-analysis]`, with the fetch options of
  * `fetch-ladder-replays.ts` passed on, and `--team-top`, `--team-per-player` and
  * `--team-since-days` passed to `fetch-shieldbattery-replays.ts` as `--top`, `--per-player` and
  * `--since-days`.
@@ -15,7 +16,11 @@
  *    replay in the folders, one at a time in a hidden StarCraft, the way it analyzes replays in the
  *    background. This is the slow part. Replays analyzed before are skipped, so it can be stopped
  *    and run again, and so are replays it gave up on before, like broken ones, unless
- *    `--retry-failed` asks for them again.
+ *    `--retry-failed` asks for them again. `--reanalyze` analyzes replays again whose analysis is
+ *    older than the game DLL, for numbers a new DLL collects. Numbers worked out from what's
+ *    already saved, or from the replays' commands, don't need it: the app works them out again
+ *    when their version changes. `--skip-analysis` does only that, in minutes, using the games
+ *    analyzed before and fetching nothing.
  * 4. Has the app write the analyzed games, with each player's MMR and rank, or rating for
  *    ShieldBattery's, and every name replaced by a made up id, to
  *    `app/assets/ladder-baseline.json.gz`.
@@ -27,7 +32,7 @@
  * running this again with the same folders keeps growing the baseline.
  */
 import { ChildProcess, spawn } from 'node:child_process'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -54,6 +59,8 @@ const { values: args } = parseArgs({
     'skip-fetch': { type: 'boolean', default: false },
     'skip-ladder-fetch': { type: 'boolean', default: false },
     'retry-failed': { type: 'boolean', default: false },
+    reanalyze: { type: 'boolean', default: false },
+    'skip-analysis': { type: 'boolean', default: false },
     'per-cell': { type: 'string' },
     'per-map': { type: 'string' },
     'add-per-cell': { type: 'string' },
@@ -156,7 +163,13 @@ async function main() {
   const teamDirs = args['team-dir']
     ? TEAM_FORMATS.map(format => path.join(path.resolve(args['team-dir']!), format))
     : []
-  if (!existsSync(DLL_PATH)) {
+  const skipAnalysis = args['skip-analysis']
+  // Replays fetched now couldn't get into a baseline that analyzes nothing.
+  const skipFetch = args['skip-fetch'] || skipAnalysis
+  if (skipAnalysis && args.reanalyze) {
+    fail('Pass either --reanalyze or --skip-analysis, not both.')
+  }
+  if (!skipAnalysis && !existsSync(DLL_PATH)) {
     fail(`Analyzing needs the game DLL at ${DLL_PATH}. Build it with: pnpm run build-game`)
   }
   const release = watchKeys(dir)
@@ -169,7 +182,7 @@ async function main() {
     return true
   }
 
-  if (!args['skip-fetch'] && !args['skip-ladder-fetch']) {
+  if (!skipFetch && !args['skip-ladder-fetch']) {
     const passed = (
       ['per-cell', 'per-map', 'add-per-cell', 'add-per-map', 'pages', 'port'] as const
     ).flatMap(name => (args[name] !== undefined ? [`--${name}`, args[name]!] : []))
@@ -185,7 +198,7 @@ async function main() {
       return
     }
   }
-  if (!args['skip-fetch']) {
+  if (!skipFetch) {
     const teamPassed = (['top', 'per-player', 'since-days'] as const).flatMap(name =>
       args[`team-${name}`] !== undefined ? [`--${name}`, args[`team-${name}`]!] : [],
     )
@@ -218,6 +231,8 @@ async function main() {
       ...[dir, ...teamDirs].map(folder => `--analyze-folder=${folder}`),
       `--export-baseline=${EXPORT_PATH}`,
       ...(args['retry-failed'] ? ['--retry-failed'] : []),
+      ...(args.reanalyze ? [`--reanalyze-before=${statSync(DLL_PATH).mtimeMs}`] : []),
+      ...(skipAnalysis ? ['--skip-analysis'] : []),
     ],
     { GGSTATS_SESSION: SESSION },
   )

@@ -78,10 +78,18 @@ describe('app/ladder-baseline/ladder-run', () => {
       folders: [path.resolve('reps'), path.resolve('team')],
       exportPath: 'out.json.gz',
       retryFailed: false,
+      skipAnalysis: false,
     })
     expect(getLadderRunArgs(['app', '--analyze-folder=reps', '--retry-failed'])?.retryFailed).toBe(
       true,
     )
+    expect(
+      getLadderRunArgs(['app', '--analyze-folder=reps', '--reanalyze-before=1790000000000'])
+        ?.staleBefore,
+    ).toBe(1_790_000_000_000)
+    expect(
+      getLadderRunArgs(['app', '--analyze-folder=reps', '--skip-analysis'])?.skipAnalysis,
+    ).toBe(true)
   })
 
   describe('exporting', () => {

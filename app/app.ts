@@ -35,7 +35,12 @@ import { checkStarcraftPath } from './game/check-starcraft-path'
 import { CommandStatsBackfill } from './game/command-stats-backfill'
 import createGameServer, { GameServer } from './game/game-server'
 import { GameStatsStore } from './game/game-stats-store'
-import { analyzeFolder, exportLadderBaseline, getLadderRunArgs } from './ladder-baseline/ladder-run'
+import {
+  analyzeFolder,
+  exportLadderBaseline,
+  getLadderRunArgs,
+  readMissingCommands,
+} from './ladder-baseline/ladder-run'
 import { getLaunchReplayPaths } from './launch-args'
 import logger from './logger'
 import { setupMyStats } from './my-stats'
@@ -839,7 +844,11 @@ app.on('ready', () => {
       const statsDirName = process.env.GGSTATS_SESSION
         ? `game-stats-${process.env.GGSTATS_SESSION}`
         : 'game-stats'
-      const gameStatsStore = new GameStatsStore(path.join(app.getPath('userData'), statsDirName))
+      const gameStatsStore = new GameStatsStore(
+        path.join(app.getPath('userData'), statsDirName),
+        // The baseline is made from every game a ladder run analyzes, so none can be let go.
+        ladderRun ? Infinity : undefined,
+      )
       container.register(GameStatsStore, { useValue: gameStatsStore })
 
       setupIpc(localSettings, scrSettings)
@@ -921,21 +930,27 @@ app.on('ready', () => {
         await autoCaptureStarted
         let stopped = false
         let quit = false
-        for (const folder of ladderRun.folders) {
-          const result = await analyzeFolder({
-            folder,
-            controlFolder: ladderRun.folders[0],
-            retryFailed: ladderRun.retryFailed,
-            autoCapture,
-            backfill: commandStatsBackfill,
-          })
-          if (result.stopped) {
-            stopped = true
-            console.error('Stopped analyzing after too many failures in a row. See the app log.')
-          }
-          if (result.quit || result.stopped) {
-            quit = result.quit
-            break
+        if (ladderRun.skipAnalysis) {
+          await readMissingCommands(commandStatsBackfill)
+        } else {
+          for (const folder of ladderRun.folders) {
+            const result = await analyzeFolder({
+              folder,
+              controlFolder: ladderRun.folders[0],
+              retryFailed: ladderRun.retryFailed,
+              staleBefore: ladderRun.staleBefore,
+              autoCapture,
+              backfill: commandStatsBackfill,
+              gameStatsStore,
+            })
+            if (result.stopped) {
+              stopped = true
+              console.error('Stopped analyzing after too many failures in a row. See the app log.')
+            }
+            if (result.quit || result.stopped) {
+              quit = result.quit
+              break
+            }
           }
         }
         if (ladderRun.exportPath && !quit) {

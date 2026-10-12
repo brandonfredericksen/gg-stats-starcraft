@@ -181,6 +181,28 @@ async function toIndexEntry(saved: SavedGameStats, savedFile: ReplayFileInfo): P
 }
 
 /**
+ * The one game to go by for each replay analyzed more than once, or played and then analyzed:
+ * stats covering the whole game first, then the newest. Games without a replay are their own.
+ */
+function pickBestPerReplay(
+  index: ReadonlyMap<string, IndexEntry>,
+): Map<string, [gameId: string, entry: IndexEntry]> {
+  const best = new Map<string, [string, IndexEntry]>()
+  for (const [gameId, entry] of index) {
+    const key = entry.replayKey ?? `game:${gameId}`
+    const current = best.get(key)?.[1]
+    if (
+      !current ||
+      (entry.complete && !current.complete) ||
+      (entry.complete === current.complete && entry.savedAt > current.savedAt)
+    ) {
+      best.set(key, [gameId, entry])
+    }
+  }
+  return best
+}
+
+/**
  * Saves the stats of played games and analyzed replays as one JSON file per game, so they can be
  * looked at again after the app restarts. Writes go through a temporary file so an interrupted
  * write can't leave a broken file behind, and a file that can't be read is treated as missing.
@@ -512,23 +534,40 @@ export class GameStatsStore {
    */
   async listMetrics(): Promise<MetricsListing[]> {
     await this.writes
-    const best = new Map<string, IndexEntry>()
-    for (const [gameId, entry] of await this.getIndex()) {
-      const key = entry.replayKey ?? `game:${gameId}`
-      const current = best.get(key)
-      if (
-        !current ||
-        (entry.complete && !current.complete) ||
-        (entry.complete === current.complete && entry.savedAt > current.savedAt)
-      ) {
-        best.set(key, entry)
-      }
-    }
-    return Array.from(best.values(), entry => ({
+    return Array.from(pickBestPerReplay(await this.getIndex()).values(), ([, entry]) => ({
       replayPathKey: entry.replayPathKey,
       savedAt: entry.savedAt,
       metrics: entry.metrics,
     }))
+  }
+
+  /**
+   * Removes the stats of every game {@link listMetrics} leaves out for another analysis of the same
+   * replay, so analyzing replays again doesn't keep each older analysis around. Returns how many
+   * were removed.
+   */
+  removeReplaced(): Promise<number> {
+    return this.enqueue(async () => {
+      const index = await this.getIndex()
+      const kept = new Set(Array.from(pickBestPerReplay(index).values(), ([gameId]) => gameId))
+      let removed = 0
+      for (const gameId of Array.from(index.keys())) {
+        if (kept.has(gameId)) {
+          continue
+        }
+        try {
+          await rm(this.getPath(gameId), { force: true })
+          index.delete(gameId)
+          removed += 1
+        } catch (err) {
+          log.warning(`Couldn't remove the saved stats for game ${gameId}: ${getErrorStack(err)}`)
+        }
+      }
+      if (removed) {
+        this.scheduleCacheWrite()
+      }
+      return removed
+    })
   }
 
   /** The lowercased paths of every replay with saved stats, as they were saved. */

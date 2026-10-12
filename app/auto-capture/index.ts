@@ -203,14 +203,18 @@ export class AutoCaptureService {
     this.sendStatus()
   }
 
-  /** Analyzes replays the user picked, one after another, skipping ones that have stats. */
-  async analyze(replays: ReadonlyArray<ReplayToAnalyze>) {
+  /**
+   * Analyzes replays the user picked, one after another, skipping ones that have stats saved since
+   * `staleBefore`, or at all without it.
+   */
+  async analyze(replays: ReadonlyArray<ReplayToAnalyze>, staleBefore?: number) {
     // Asking for games to be analyzed is asking for analyzing to happen, so it ends a pause.
     if (this.state.pausedByUser) {
       this.setPaused(false)
     }
     for (const replay of replays) {
-      if (await this.options.gameStatsStore.findByReplayPath(replay.path)) {
+      const saved = await this.options.gameStatsStore.findByReplayPath(replay.path)
+      if (saved && (staleBefore === undefined || saved.savedAt >= staleBefore)) {
         continue
       }
       this.state.failed = this.state.failed.filter(r => r.path !== replay.path)

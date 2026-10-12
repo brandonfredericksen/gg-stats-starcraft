@@ -39,6 +39,13 @@ export interface LadderRunArgs {
   exportPath?: string
   /** Whether to try the replays given up on in earlier runs again. */
   retryFailed: boolean
+  /**
+   * From `--reanalyze-before`: replays analyzed before this time, in milliseconds since the epoch,
+   * are analyzed again rather than skipped.
+   */
+  staleBefore?: number
+  /** Whether to only use the games analyzed before, analyzing none. */
+  skipAnalysis: boolean
 }
 
 export function getLadderRunArgs(argv: ReadonlyArray<string>): LadderRunArgs | undefined {
@@ -50,9 +57,25 @@ export function getLadderRunArgs(argv: ReadonlyArray<string>): LadderRunArgs | u
       : [],
   )
   const exportPath = valueOf('--export-baseline')
+  const staleBefore = valueOf('--reanalyze-before')
   return folders.length
-    ? { folders, exportPath, retryFailed: argv.includes('--retry-failed') }
+    ? {
+        folders,
+        exportPath,
+        retryFailed: argv.includes('--retry-failed'),
+        staleBefore: staleBefore ? Number(staleBefore) : undefined,
+        skipAnalysis: argv.includes('--skip-analysis'),
+      }
     : undefined
+}
+
+/**
+ * Reads the commands of the games analyzed before that are missing them, analyzing nothing, for
+ * numbers worked out from the replays' commands.
+ */
+export async function readMissingCommands(backfill: CommandStatsBackfill) {
+  report('Reading the replays’ commands, without analyzing any.')
+  await backfill.readAll()
 }
 
 /** Printed for whoever started the run, and logged. */
@@ -88,7 +111,8 @@ async function toReplayToAnalyze(replayPath: string): Promise<ReplayToAnalyze | 
  * Analyzes every replay in a folder, one after another the same way the app analyzes replays in
  * the background, reads their commands, and returns once all of them are done or given up on. It
  * only stops early when analyzing keeps failing with nothing done in between. Replays analyzed
- * before are skipped, so a run that was stopped picks up where it left off.
+ * before are skipped, unless that was before `staleBefore`, so a run that was stopped picks up where
+ * it left off. Older analyses of replays analyzed again are removed.
  *
  * A pause file in `controlFolder` holds off starting another replay until it's gone, and a stop file
  * returns once the replay being analyzed is done, with `quit` set.
@@ -97,14 +121,18 @@ export async function analyzeFolder({
   folder,
   controlFolder,
   retryFailed,
+  staleBefore,
   autoCapture,
   backfill,
+  gameStatsStore,
 }: {
   folder: string
   controlFolder: string
   retryFailed: boolean
+  staleBefore?: number
   autoCapture: AutoCaptureService
   backfill: CommandStatsBackfill
+  gameStatsStore: GameStatsStore
 }): Promise<{ total: number; failed: number; stopped: boolean; quit: boolean }> {
   const files = (await readdir(folder)).filter(f => f.toLowerCase().endsWith('.rep'))
   // Replays given up on in an earlier run, like ones without a known end, aren't tried again.
@@ -118,7 +146,7 @@ export async function analyzeFolder({
   if (replays.length < readable.length) {
     report(`Skipping ${readable.length - replays.length} that couldn't be analyzed before.`)
   }
-  await autoCapture.analyze(replays)
+  await autoCapture.analyze(replays, staleBefore)
   const failedThisRun = () =>
     autoCapture.getStatus().failed.filter(p => !givenUp.has(keyOf(p))).length
 
@@ -162,6 +190,10 @@ export async function analyzeFolder({
       continue
     }
     if (!left || status.paused) {
+      const removed = await gameStatsStore.removeReplaced()
+      if (removed) {
+        report(`Removed ${removed} older analyses of replays analyzed again.`)
+      }
       report('Reading the replays’ commands.')
       await backfill.readAll()
       return {

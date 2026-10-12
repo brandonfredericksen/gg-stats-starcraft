@@ -252,6 +252,23 @@ describe('app/game/game-stats-store', () => {
     expect(listed.map(l => l.metrics.gameId).toSorted()).toEqual(['other', 'whole'])
   })
 
+  test('removes older analyses of a replay analyzed again', async () => {
+    const replayPath = await makeReplay('game.rep')
+    const store = new GameStatsStore(dir)
+    await store.save('first', analysis(replayPath), STATS)
+    // Make sure each save gets its own timestamp.
+    await new Promise(resolve => setTimeout(resolve, 2))
+    await store.save('again', analysis(replayPath), STATS)
+    await store.save('other', { kind: 'game' }, STATS)
+
+    expect(await store.removeReplaced()).toBe(1)
+    expect((await readdir(dir)).filter(f => f.endsWith('.json')).toSorted()).toEqual([
+      'again.json',
+      'other.json',
+    ])
+    expect((await store.findByReplayPath(replayPath))?.gameId).toBe('again')
+  })
+
   test('keeps an index of the saved stats, and reads changed files again', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
