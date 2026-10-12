@@ -17,11 +17,11 @@
     <title>GG Stats for StarCraft</title>
     <meta
       name="description"
-      content="StarCraft: Remastered and Brood War replay analyzer and personal stat tracking. Free and open source." />
+      content="Stats for every StarCraft: Remastered and Brood War game you play. GG Stats analyzes each replay as soon as the game ends. Free and open source." />
     <meta property="og:title" content="GG Stats for StarCraft" />
     <meta
       property="og:description"
-      content="StarCraft: Remastered and Brood War replay analyzer and personal stat tracking." />
+      content="Stats for every StarCraft: Remastered and Brood War game you play." />
     <meta property="og:url" content="https://ggstats.app/" />
     <meta property="og:image" content="https://ggstats.app/og.jpg" />
     <meta property="og:image:width" content="1200" />
@@ -191,7 +191,7 @@
         opacity: 1;
       }
 
-      /* The screen picker and the coach and builds chips copy the app's top bar tabs. */
+      /* The screen picker copies the app's top bar tabs. */
       .tabs {
         display: flex;
         flex-wrap: wrap;
@@ -200,8 +200,7 @@
         margin-top: 16px;
       }
 
-      .tab,
-      .chip {
+      .tab {
         display: inline-flex;
         align-items: center;
         gap: 7px;
@@ -214,8 +213,7 @@
         white-space: nowrap;
       }
 
-      .tab svg,
-      .chip svg {
+      .tab svg {
         width: 20px;
         height: 20px;
         fill: var(--tab);
@@ -231,8 +229,7 @@
         color: var(--on-surface);
       }
 
-      .tab[aria-selected='true'],
-      .chip {
+      .tab[aria-selected='true'] {
         background: var(--tint);
         box-shadow: inset 0 0 0 1px var(--ring);
         color: var(--on-surface);
@@ -273,24 +270,11 @@
         text-wrap: balance;
       }
 
-      .also {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        align-items: center;
-        gap: 8px;
-        margin: 16px 0 0;
+      .lede {
+        max-width: 560px;
+        margin: 12px 0 0;
         color: var(--on-surface-variant);
-      }
-
-      .chips {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .chip:hover {
-        filter: brightness(1.15);
+        text-wrap: balance;
       }
 
       .install {
@@ -573,27 +557,10 @@
         </button>
       </div>
 
-      <h1>StarCraft: Remastered and Brood War replay analyzer and personal stat tracking</h1>
-
-      <p class="also">
-        Also includes experimental
-        <span class="chips">
-          <button class="chip coach" data-tab="tab-coach" type="button">
-            <svg viewBox="0 -960 960 960" aria-hidden="true">
-              <path
-                d="M440-200q-101 0-170.5-69.5T200-440q0-11 1-23t3-21q-5 2-12 3t-12 1q-44 0-72-28t-28-72q0-44 28-72t72-28q31 0 57 18.5t37 46.5q31-28 74.5-46.5T441-680h439v120H680v120q0 101-69.5 170.5T440-200ZM209-551q11-11 11-29t-11-29q-11-11-29-11t-29 11q-11 11-11 29t11 29q11 11 29 11t29-11Zm287.5 167.5Q520-407 520-440t-23.5-56.5Q473-520 440-520t-56.5 23.5Q360-473 360-440t23.5 56.5Q407-360 440-360t56.5-23.5Z" />
-            </svg>
-            coach
-          </button>
-          and
-          <button class="chip builds" data-tab="tab-builds" type="button">
-            <svg viewBox="0 -960 960 960" aria-hidden="true">
-              <path
-                d="M604-120v-125H450v-410h-93v130H80v-315h277v125h247v-125h276v315H604v-130h-94v350h94v-130h276v315H604Z" />
-            </svg>
-            builds
-          </button>
-        </span>
+      <h1>Stats for every StarCraft game you play</h1>
+      <p class="lede">
+        GG Stats analyzes each replay as soon as the game ends, from Battle.net or ShieldBattery.
+        Your old replays work too.
       </p>
 
       <div class="install">
@@ -696,19 +663,6 @@
         pick(next)
         tabs[current].focus()
       })
-
-      for (const chip of document.querySelectorAll('.chip')) {
-        chip.addEventListener('click', () => {
-          pick(tabs.findIndex(tab => tab.id === chip.dataset.tab))
-          const rect = panel.getBoundingClientRect()
-          if (rect.top < 0 || rect.bottom > innerHeight) {
-            panel.scrollIntoView({
-              behavior: reduceMotion.matches ? 'auto' : 'smooth',
-              block: 'center',
-            })
-          }
-        })
-      }
 
       for (const elem of showcase) {
         elem.addEventListener('pointerenter', () => {
