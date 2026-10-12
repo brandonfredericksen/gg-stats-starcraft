@@ -120,6 +120,9 @@ export const Badge = styled.span`
   font-weight: 700;
 `
 
+/** How far below the stuck bar its edge reaches: a 1px line, then a shadow fading out. */
+const STUCK_EDGE_PX = 12
+
 /**
  * The kind of game to coach, which games, and who to compare with. Stays in view while the page
  * scrolls, like My stats' filters.
@@ -128,7 +131,7 @@ const Toolbar = styled.div<{ $stuck: boolean }>`
   position: sticky;
   top: 0;
   z-index: 3;
-  /* Out to the page's edges, so the bar's edge spans the page rather than underlining it. */
+  /* Out to the column's edges, so it covers all of what scrolls beneath it. */
   margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-8));
   padding: var(--space-3) var(--space-8);
 
@@ -138,10 +141,19 @@ const Toolbar = styled.div<{ $stuck: boolean }>`
   gap: var(--space-2);
 
   background-color: var(--theme-container-lowest);
-  /* An edge once the page scrolls under it, so what passes beneath isn't cut off mid line. */
-  box-shadow: ${props =>
+  /*
+   * An edge once the page scrolls under it, so what passes beneath isn't cut off mid line: a line
+   * and a shadow below the bar. It's painted past the page's column, out to the panel's sides,
+   * which clip it, so it spans the panel however much wider than the column the window is.
+   */
+  border-image: ${props =>
     props.$stuck
-      ? '0 1px 0 var(--theme-outline-variant), 0 8px 12px -8px rgb(0 0 0 / 0.5)'
+      ? `linear-gradient(
+          transparent calc(100% - ${STUCK_EDGE_PX}px),
+          var(--theme-outline-variant) 0 calc(100% - ${STUCK_EDGE_PX - 1}px),
+          rgb(0 0 0 / 0.3) 0,
+          transparent
+        ) fill 0 / 0 / 0 100vw ${STUCK_EDGE_PX}px`
       : 'none'};
 `
 
