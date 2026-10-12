@@ -110,7 +110,6 @@
     "metaError": "The meta couldn't be worked out. Your replays are fine.",
     "metaFieldEapm": "From {{games}} games of {{players}} {{race}} players over the last 6 months: the fastest quarter of players here, over {{eapm}} early game EAPM.",
     "metaFieldRank": "From {{games}} games of {{players}} {{race}} players over the last 6 months: S and A rank, S counting twice, and unranked players as fast as them, over {{eapm}} early game EAPM.",
-    "metaFieldRating": "From {{games}} games of {{players}} {{race}} players over the last 6 months: the better rated half of ladder players here, rated {{rating}} or more, and unrated players as fast as them, over {{eapm}} early game EAPM.",
     "metaFromLibrary_one": "{{count}} of them is from your replays.",
     "metaFromLibrary_other": "{{count}} of them are from your replays.",
     "metaMaps": "Maps",

@@ -5,7 +5,8 @@ import { GAME_METRICS_VERSION } from './player-metrics'
  * Other players' ladder games, shipped with the app so players have someone of their race to be
  * compared with in every kind of game, which their own replays can't give them: 1v1 games from
  * StarCraft's ladder, with each player's MMR and rank, and 2v2 and 3v3 games from ShieldBattery's,
- * with each player's rating as their MMR. Built by `pnpm run ladder-baseline`.
+ * with each player's rating as their MMR. Nothing goes by the team ratings yet, since most players
+ * never play on ShieldBattery. Built by `pnpm run ladder-baseline`.
  */
 export const LADDER_BASELINE_FILE = 'ladder-baseline.json.gz'
 

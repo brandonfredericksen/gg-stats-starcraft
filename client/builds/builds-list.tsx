@@ -87,12 +87,6 @@ function getTopPlayersNote(meta: MetaResult, values: Record<string, unknown>, t:
         'From {{games}} games of {{players}} {{race}} players over the last 6 months: S and A rank, S counting twice, and unranked players as fast as them, over {{eapm}} early game EAPM.',
         values,
       )
-    case 'rating':
-      return t(
-        'builds.metaFieldRating',
-        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the better rated half of ladder players here, rated {{rating}} or more, and unrated players as fast as them, over {{eapm}} early game EAPM.',
-        values,
-      )
     case 'eapm':
       return t(
         'builds.metaFieldEapm',
@@ -118,7 +112,6 @@ export function getTopPlayersHelp(
     players: meta.players,
     race: raceCharToLabel(scope.race, t),
     eapm: Math.round(meta.eapmCutoff ?? 0),
-    rating: Math.round(meta.ratingCutoff ?? 0),
   }
   const notes = meta.games
     ? [getTopPlayersNote(meta, values, t)]
@@ -375,11 +368,12 @@ export function BuildsList({
   pickers: React.ReactNode
 }) {
   const { t } = useTranslation()
-  const byRating = meta !== 'error' && meta.topBy !== 'eapm'
-  const topWinLabel = byRating
+  // Only 1v1 wins go by MMR, see `computeMetaBuilds`.
+  const byMmr = scope.shape === '1v1'
+  const topWinLabel = byMmr
     ? t('builds.metaWinVsMmr', 'Win vs MMR')
     : t('builds.metaWinRate', 'Win rate')
-  const topWinHelp = byRating
+  const topWinHelp = byMmr
     ? t(
         'builds.metaWinVsMmrHelp',
         "How it wins against the other builds here, once the players' MMRs are taken into account: 50% is like the rest. Pulled toward 50% when it has few games, and faded under {{minimum}}.",

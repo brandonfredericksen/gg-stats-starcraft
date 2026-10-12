@@ -325,23 +325,38 @@ describe('common/my-stats/meta-builds', () => {
     expect(meta.players).toBe(3)
   })
 
-  test('in team games with ratings, counts the better rated half and judges by team ratings', () => {
-    // 24 rated players, each in one game, the better rated half winning against the rest.
-    const games = times(12, i =>
+  test('in team games, goes by EAPM and results even when players have ratings', () => {
+    // The fast players are rated far below their opponents. 6 of them won every game with one
+    // build, and 6 lost every game with another.
+    const games = times(24, i =>
       game(
         [
-          player({ name: `high${i}`, mmr: 1800 + i, eapm: 100 }),
-          player({ name: `low${i}`, mmr: 1400 + i, team: 1, result: 'loss', eapm: 300 }),
+          player({
+            name: `fast${i % 12}`,
+            mmr: 1400,
+            eapm: 300,
+            steps: i % 12 < 6 ? FORGE_EXPAND : GATE_EXPAND,
+            result: i % 12 < 6 ? 'win' : 'loss',
+          }),
+          player({
+            name: `slow${i % 12}`,
+            mmr: 1800,
+            eapm: 100,
+            team: 1,
+            result: i % 12 < 6 ? 'loss' : 'win',
+          }),
         ],
         { shape: '3v3', mapFamily: 'bgh' },
       ),
     )
     const meta = computeMetaBuilds(games, { shape: '3v3', race: 'p', mapFamily: 'bgh' })
-    expect(meta.topBy).toBe('rating')
-    expect(meta.ratingCutoff).toBeCloseTo((1411 + 1800) / 2)
+    expect(meta.topBy).toBe('eapm')
     expect(meta.players).toBe(12)
-    // Every win was expected from the ratings, so the build wins like everything else here.
-    expect(meta.builds[0].winScore).toBeCloseTo(0.5)
+    // 12 wins and 12 losses, each pulled toward 50% by 20 more games, with no rating making the
+    // wins any more of a surprise.
+    const byFamily = new Map(meta.builds.map(b => [b.family, b.winScore]))
+    expect(byFamily.get('p forgeExpand')).toBeCloseTo(0.5 + 6 / 32)
+    expect(byFamily.get('p gates1 expand')).toBeCloseTo(0.5 - 6 / 32)
   })
 
   test('in 2v2, shows the most played kind of map and offers the pairs of opponents', () => {
