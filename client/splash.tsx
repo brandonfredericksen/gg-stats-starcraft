@@ -50,6 +50,11 @@ function dismissSplash() {
     .finished.then(removeSplash, removeSplash)
 }
 
+/** Whether the splash still covers the window, fading out included. */
+export function isSplashShowing() {
+  return splash !== null
+}
+
 /** The app's loading indicator, under the splash's logo for as long as the splash is up. */
 export function SplashIndicator() {
   const slot = useSyncExternalStore(subscribe, () => (splash ? indicatorSlot : null))

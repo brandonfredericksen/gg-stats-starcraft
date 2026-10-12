@@ -44,7 +44,8 @@ import { push, replace } from '../navigation/routing'
 import { createViewStateStore } from '../navigation/view-state-store'
 import { useVirtuosoScrollMemory } from '../navigation/virtuoso-scroll-memory'
 import { useRefreshToken } from '../network/refresh-token'
-import { LoadingIndicatorArea, PageLoadingIndicator } from '../progress/loading-indicator'
+import { LoadingIndicatorArea } from '../progress/loading-indicator'
+import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useUserLocalStorageValue } from '../react/state-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -369,6 +370,14 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   // don't hit this: they push a new pathname and remount the component under a new visit.
   const [snapshotInvalidated, setSnapshotInvalidated] = useState(false)
   const restoreStateFrom = snapshotInvalidated ? undefined : restoredSnapshot
+  // The list fills in its rows a few frames after it mounts, once it has measured them. Until then
+  // it renders one row to measure, or none while it restores where it was scrolled to.
+  const [rowsMeasured, setRowsMeasured] = useState(false)
+  const onItemsRendered = (items: ReadonlyArray<{ size: number }>) => {
+    if (items.some(item => item.size)) {
+      setRowsMeasured(true)
+    }
+  }
 
   // Right-click on a row selects it and opens this menu at the cursor, offering the same actions
   // as the inspector's overflow menu.
@@ -1127,14 +1136,13 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     )
   }
 
-  // The list's first load in a visit is part of the page opening, so it gets the page's loader. A
+  // The list's first load in a visit is part of the page opening, so the page waits for its rows. A
   // reload after the filters change loads in the list, and waits so a quick one doesn't flash it.
-  const listLoading = snapshotInvalidated ? <LoadingIndicatorArea /> : <PageLoadingIndicator />
+  const pageLoading =
+    !snapshotInvalidated && (entries === undefined || (entries.length > 0 && !rowsMeasured))
   let listContent: React.ReactNode = null
   if (entries === undefined) {
-    // The backfill's own progress rides in the bar above the list; here we just need a loader until
-    // the first page resolves.
-    listContent = listLoading
+    listContent = snapshotInvalidated ? <LoadingIndicatorArea /> : null
   } else if (entries.length === 0) {
     if (hasActiveFilters) {
       listContent = (
@@ -1180,9 +1188,9 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         </CenteredState>
       )
     } else if (backfill) {
-      // A backfill is still populating the index (progress shows in the bar above); don't claim
-      // there are no replays while it's just getting started.
-      listContent = listLoading
+      // A backfill is still populating the index (progress shows in the bar above, so the page
+      // shows); don't claim there are no replays while it's just getting started.
+      listContent = <LoadingIndicatorArea showImmediately={true} />
     } else {
       listContent = (
         <CenteredState>
@@ -1222,6 +1230,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           slotWidth,
         }}
         itemContent={renderRow}
+        itemsRendered={onItemsRendered}
       />
     ) : (
       <GroupedVirtuoso
@@ -1240,6 +1249,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         // isn't in the entries themselves.
         context={{ selectedIds, slotWidth }}
         itemContent={renderRow}
+        itemsRendered={onItemsRendered}
       />
     )
   }
@@ -1479,6 +1489,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             onLoadNextData={onLoadNextData}>
             {listContent}
           </InfiniteScrollList>
+          {pageLoading ? <PageLoadingIndicator /> : null}
         </ListColumn>
 
         <Popover {...contextMenuPopoverProps}>{rowMenu}</Popover>

@@ -42,7 +42,7 @@ import {
 } from '../my-stats/my-stats-panels'
 import { getPoolSource } from '../my-stats/pool-source'
 import { RankMenu } from '../my-stats/rank-menu'
-import { PageLoadingIndicator } from '../progress/loading-indicator'
+import { PageLoadingIndicator } from '../progress/page-loading'
 import {
   bodyMedium,
   headlineMedium,

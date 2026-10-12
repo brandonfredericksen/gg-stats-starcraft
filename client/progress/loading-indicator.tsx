@@ -1,6 +1,5 @@
 import { rgba } from 'polished'
-import { createContext, ReactNode, useContext, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useLayoutEffect, useRef } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import {
   LOADING_LINE_GAP,
@@ -8,7 +7,6 @@ import {
   LOADING_LOGO_SIZE,
   LOADING_LOGO_URL,
 } from '../../common/loading-logo'
-import { CONTENT_PANEL_INSET, SYSTEM_BAR_HEIGHT } from '../../common/window-layout'
 import { accelerateEasing, decelerateEasing } from '../material/curve-constants'
 import { blue60, blue70, blue95 } from '../styles/colors'
 
@@ -131,16 +129,17 @@ const fadeIn = keyframes`
 const LOADING_SHOW_DELAY_MS = 750
 const LOADING_FADE_IN_MS = 450
 
-const delayedShowCss = css`
-  opacity: 0;
-  animation: ${LOADING_FADE_IN_MS}ms ${decelerateEasing} ${LOADING_SHOW_DELAY_MS}ms forwards
-    ${fadeIn};
-`
+function delayedShowCss(delayMs: number) {
+  return css`
+    opacity: 0;
+    animation: ${LOADING_FADE_IN_MS}ms ${decelerateEasing} ${delayMs}ms forwards ${fadeIn};
+  `
+}
 
 const Root = styled.div<{ $showImmediately?: boolean }>`
   padding: 4px 8px;
 
-  ${props => (!props.$showImmediately ? delayedShowCss : '')};
+  ${props => (!props.$showImmediately ? delayedShowCss(LOADING_SHOW_DELAY_MS) : '')};
 `
 
 /** The plot's own box, which the line's points and the lit point's path are measured from. */
@@ -220,34 +219,33 @@ interface LoadingIndicatorProps {
 }
 
 /**
- * Renders the plotted line. When `delayed`, the animation waits out `LOADING_SHOW_DELAY_MS`, so the
- * first plot starts just as a delayed reveal fades in rather than being caught halfway through.
- * `fadeRoot` controls whether this element hides/fades itself — a delayed containing area does its
- * own fading and only needs the animation start to match it.
+ * Renders the plotted line. With a `delayMs`, the animation waits that long, so the first plot
+ * starts just as a delayed reveal fades in rather than being caught halfway through. `fadeRoot`
+ * controls whether this element hides/fades itself — a delayed containing area does its own fading
+ * and only needs the animation start to match it.
  *
  * A plot shown right away runs on the document's clock rather than starting when it mounts, so one
- * that takes over from another, like a page's loader replacing the splash's or the next one as the
- * page goes on to wait for something else, carries on the same line instead of starting it over.
+ * that takes over from another, like a page's loader replacing the splash's, carries on the same
+ * line instead of starting it over.
  */
 function StatPlot({
-  delayed,
+  delayMs,
   fadeRoot,
   className,
 }: {
-  delayed: boolean
+  delayMs: number
   fadeRoot: boolean
   className?: string
 }) {
-  const delayMs = delayed ? LOADING_SHOW_DELAY_MS : 0
   const plotRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    if (delayed) {
+    if (delayMs) {
       return
     }
     for (const animation of plotRef.current?.getAnimations({ subtree: true }) ?? []) {
       animation.startTime = 0
     }
-  }, [delayed])
+  }, [delayMs])
 
   return (
     <Root className={className} $showImmediately={!fadeRoot}>
@@ -270,7 +268,13 @@ function StatPlot({
 }
 
 export function LoadingIndicator({ showImmediately = false, className }: LoadingIndicatorProps) {
-  return <StatPlot className={className} delayed={!showImmediately} fadeRoot={!showImmediately} />
+  return (
+    <StatPlot
+      className={className}
+      delayMs={showImmediately ? 0 : LOADING_SHOW_DELAY_MS}
+      fadeRoot={!showImmediately}
+    />
+  )
 }
 
 const LoadingArea = styled.div<{ $showImmediately?: boolean }>`
@@ -281,7 +285,7 @@ const LoadingArea = styled.div<{ $showImmediately?: boolean }>`
   min-height: 56px;
   padding: 16px 0;
 
-  ${props => (!props.$showImmediately ? delayedShowCss : '')};
+  ${props => (!props.$showImmediately ? delayedShowCss(LOADING_SHOW_DELAY_MS) : '')};
 `
 
 export function LoadingIndicatorArea({
@@ -290,50 +294,16 @@ export function LoadingIndicatorArea({
 }: LoadingIndicatorProps) {
   return (
     <LoadingArea className={className} $showImmediately={showImmediately}>
-      <StatPlot delayed={!showImmediately} fadeRoot={false} />
+      <StatPlot delayMs={showImmediately ? 0 : LOADING_SHOW_DELAY_MS} fadeRoot={false} />
     </LoadingArea>
   )
 }
 
-/**
- * Where the page loaders inside a `PageLoadingFrame` go, or null until it's attached. Undefined
- * outside of one.
- */
-const PageLoadingLayerContext = createContext<HTMLElement | null | undefined>(undefined)
-
-const Frame = styled.div`
-  position: relative;
-  width: 100%;
-  height: 100%;
-`
-
-const Layer = styled.div`
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-`
-
-/**
- * The box the page loaders inside it sit in the middle of, over whatever a page shows around its
- * loader and however far it's scrolled, so a page's loader is in the same spot as every other's.
- */
-export function PageLoadingFrame({ children }: { children: ReactNode }) {
-  const [layer, setLayer] = useState<HTMLDivElement | null>(null)
-  return (
-    <Frame>
-      <PageLoadingLayerContext value={layer}>{children}</PageLoadingLayerContext>
-      <Layer ref={setLayer} />
-    </Frame>
-  )
-}
-
 /** The logo, with the line under it. Laid out like the splash's (see `app/client-shell.ts`). */
-const Mark = styled.div`
-  /* Loaders mounted together, as one page's takes over from another's, stack in one spot */
-  grid-area: 1 / 1;
+const Mark = styled.div<{ $delayMs: number }>`
   position: relative;
+
+  ${props => (props.$delayMs ? delayedShowCss(props.$delayMs) : '')};
 `
 
 const Logo = styled.img`
@@ -351,35 +321,17 @@ const MarkLine = styled.div`
   justify-content: center;
 `
 
-/** Where the content panel goes, for a loader shown before there is one. */
-const UnframedArea = styled.div`
-  position: fixed;
-  inset: ${SYSTEM_BAR_HEIGHT}px ${CONTENT_PANEL_INSET}px ${CONTENT_PANEL_INSET}px;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-`
-
 /**
- * What a page shows until it has something to show: the logo with the loading line under it, like
- * the splash. It shows from the page's first paint, unlike loading within a page, so opening a page
- * never leaves it blank, and sits in the middle of the `PageLoadingFrame` it's in rather than where
- * the page renders it.
+ * The logo with the loading line under it, like the splash. With a `delayMs`, it waits that long to
+ * fade in.
  */
-export function PageLoadingIndicator() {
-  const layer = useContext(PageLoadingLayerContext)
-  const mark = (
-    <Mark>
+export function LogoLoadingIndicator({ delayMs = 0 }: { delayMs?: number }) {
+  return (
+    <Mark $delayMs={delayMs}>
       <Logo src={LOADING_LOGO_URL} alt='' draggable={false} />
       <MarkLine>
-        <StatPlot delayed={false} fadeRoot={false} />
+        <StatPlot delayMs={delayMs} fadeRoot={false} />
       </MarkLine>
     </Mark>
   )
-
-  if (layer === undefined) {
-    // Outside of a page frame, like while the app around the pages is still loading.
-    return <UnframedArea>{mark}</UnframedArea>
-  }
-  return layer ? createPortal(mark, layer) : null
 }

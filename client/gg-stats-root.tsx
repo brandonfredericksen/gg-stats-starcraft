@@ -13,7 +13,7 @@ import { FileDropZoneProvider } from './file-browser/file-drop-zone'
 import { jotaiStore } from './jotai-store'
 import { KeyListenerBoundary } from './keyboard/key-listener'
 import { NavigationTrapProvider } from './navigation/navigation-trap'
-import { PageLoadingFrame, PageLoadingIndicator } from './progress/loading-indicator'
+import { PageContent, PageLoadingFrame, PageLoadingIndicator } from './progress/page-loading'
 import { useAppSelector } from './redux-hooks'
 import { RootErrorBoundary } from './root-error-boundary'
 import { RootState } from './root-reducer'
@@ -199,21 +199,23 @@ function Layout() {
     <LayoutRoot>
       <PageLoadingFrame>
         <ContentPanel>
-          <React.Suspense fallback={<PageLoadingIndicator />}>
-            <Switch>
-              <Route path='/replays/stats/:gameId' component={GameStatsPage} />
-              <Route path='/replays/*?' component={ReplaysRoot} />
-              <Route path='/settings' component={SettingsScreen} />
-              <Route path='/last-game' component={LastGamePage} />
-              <Route path='/my-stats' component={MyStatsPage} />
-              <Route path='/coach' component={CoachPage} />
-              <Route path='/builds' component={BuildsPage} />
-              <Route>
-                <Redirect to='/replays' replace={true} />
-              </Route>
-            </Switch>
-            <DismissSplash />
-          </React.Suspense>
+          <PageContent>
+            <React.Suspense fallback={<PageLoadingIndicator />}>
+              <Switch>
+                <Route path='/replays/stats/:gameId' component={GameStatsPage} />
+                <Route path='/replays/*?' component={ReplaysRoot} />
+                <Route path='/settings' component={SettingsScreen} />
+                <Route path='/last-game' component={LastGamePage} />
+                <Route path='/my-stats' component={MyStatsPage} />
+                <Route path='/coach' component={CoachPage} />
+                <Route path='/builds' component={BuildsPage} />
+                <Route>
+                  <Redirect to='/replays' replace={true} />
+                </Route>
+              </Switch>
+              <DismissSplash />
+            </React.Suspense>
+          </PageContent>
         </ContentPanel>
       </PageLoadingFrame>
     </LayoutRoot>
