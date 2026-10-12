@@ -6,7 +6,28 @@ import { PHASE_MINUTES } from './player-metrics'
  * The version of {@link ReplayCommandStats} worked out now. Stats from an older version are worked
  * out again from the replay.
  */
-export const COMMAND_STATS_VERSION = 2
+export const COMMAND_STATS_VERSION = 3
+
+/**
+ * How many commands that do something, from one player, per frame of a network turn, make a frame
+ * a burst. A turn runs everything sent during it on one frame, and lasts a frame or more depending
+ * on latency. Over about 14,000 player-games of ladder and team replays, players playing by hand
+ * almost never sent this many, while macro programs and bots select and order building after
+ * building in one go.
+ */
+const BURST_COMMANDS_PER_TURN_FRAME = 4
+
+/**
+ * At this share of a player's commands sent in bursts, a program played the game. Players playing
+ * by hand stayed under 0.1 in the same replays, and most programs sent over half in bursts.
+ */
+export const SCRIPTED_BURST_SHARE = 0.2
+
+/** Gaps between commands longer than this are players pausing, not the length of a turn. */
+const MAX_TURN_FRAMES = 12
+
+/** A gap is the turn's length once at least this share of gaps are that long. */
+const TURN_GAP_SHARE = 0.02
 
 /** BW's hotkey commands: assigning a group, selecting it, and adding to it. */
 const HOTKEY_ASSIGN = 0
@@ -69,6 +90,11 @@ export interface PlayerCommandStats {
   groupsUsed: number
   /** Commands to cast each spell, keyed by the names in {@link SPELL_ORDERS}. */
   casts: Record<string, number>
+  /**
+   * The share of the player's commands that do something sent in bursts no hand could manage, the
+   * way a macro program or bot plays. See {@link SCRIPTED_BURST_SHARE}.
+   */
+  burstShare: number
 }
 
 /** What a replay's commands say about how each player played, which the game's stats don't. */
@@ -90,6 +116,40 @@ function emptyPhase(minutes: number): PhaseCommands {
 
 function phaseIndex(ms: number) {
   return PHASE_MINUTES.findIndex(([start, end]) => ms >= start * 60_000 && ms < end * 60_000)
+}
+
+/**
+ * How many frames a network turn lasts in a game, from the frames the players' commands ran on:
+ * the shortest gap between them that's common, since no command runs between turns.
+ */
+function estimateTurnFrames(frames: Iterable<number>): number {
+  const sorted = Array.from(new Set(frames)).sort((a, b) => a - b)
+  const gaps = new Map<number, number>()
+  let total = 0
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i] - sorted[i - 1]
+    if (gap <= MAX_TURN_FRAMES) {
+      gaps.set(gap, (gaps.get(gap) ?? 0) + 1)
+      total += 1
+    }
+  }
+  const common = Array.from(gaps).flatMap(([gap, count]) =>
+    count >= total * TURN_GAP_SHARE ? [gap] : [],
+  )
+  return common.length ? Math.min(...common) : 1
+}
+
+/** The share of a player's commands sent in frames with a burst of them, from how many per frame. */
+function burstShareOf(commandsByFrame: ReadonlyMap<number, number>, turnFrames: number) {
+  let total = 0
+  let inBursts = 0
+  for (const sent of commandsByFrame.values()) {
+    total += sent
+    if (sent >= BURST_COMMANDS_PER_TURN_FRAME * turnFrames) {
+      inBursts += sent
+    }
+  }
+  return total ? inBursts / total : 0
 }
 
 /** Counts what each human player did from a replay's commands. */
@@ -115,8 +175,18 @@ export function summarizeCommands(
       return [
         p.networkId,
         {
-          stats: { name: p.name, phases, groupsUsed: 0, casts: {} } as PlayerCommandStats,
+          stats: {
+            name: p.name,
+            phases,
+            groupsUsed: 0,
+            casts: {},
+            burstShare: 0,
+          } as PlayerCommandStats,
           groups: new Set<number>(),
+          /** Commands that did something, by the frame they ran on. */
+          commandsByFrame: new Map<number, number>(),
+          /** The frame of a selection no order has followed yet. */
+          selectedAt: undefined as number | undefined,
         },
       ]
     }),
@@ -129,8 +199,28 @@ export function summarizeCommands(
       continue
     }
     const kind = command.type as CommandKind
+    if (NOT_ACTIONS.has(kind)) {
+      continue
+    }
+    phase.actions += 1
+    // A selection only does something once an order follows it, so one replaced by another first,
+    // like a hotkey pressed over and over, isn't counted toward bursts.
+    const count = (at: number) =>
+      entry.commandsByFrame.set(at, (entry.commandsByFrame.get(at) ?? 0) + 1)
+    if (
+      SELECTION_KINDS.has(kind) ||
+      (command.type === 'hotkey' && command.hotkeyType === HOTKEY_RECALL)
+    ) {
+      entry.selectedAt = frame
+    } else {
+      if (entry.selectedAt !== undefined) {
+        count(entry.selectedAt)
+        entry.selectedAt = undefined
+      }
+      count(frame)
+    }
+
     if (command.type === 'hotkey') {
-      phase.actions += 1
       if (command.hotkeyType === HOTKEY_ASSIGN) {
         phase.hotkeyAssigns += 1
       } else if (command.hotkeyType === HOTKEY_RECALL) {
@@ -140,24 +230,24 @@ export function summarizeCommands(
         phase.hotkeyAdds += 1
       }
     } else if (SELECTION_KINDS.has(kind)) {
-      phase.actions += 1
       phase.selections += 1
     } else if (command.type === 'targetedOrder') {
-      phase.actions += 1
       const spell = SPELL_ORDERS.get(command.order)
       if (spell) {
         entry.stats.casts[spell] = (entry.stats.casts[spell] ?? 0) + 1
       }
-    } else if (!NOT_ACTIONS.has(kind)) {
-      phase.actions += 1
     }
   }
 
+  const turnFrames = estimateTurnFrames(
+    Array.from(byId.values()).flatMap(({ commandsByFrame }) => Array.from(commandsByFrame.keys())),
+  )
   return {
     version: COMMAND_STATS_VERSION,
-    players: Array.from(byId.values(), ({ stats, groups }) => ({
+    players: Array.from(byId.values(), ({ stats, groups, commandsByFrame }) => ({
       ...stats,
       groupsUsed: groups.size,
+      burstShare: burstShareOf(commandsByFrame, turnFrames),
     })),
   }
 }

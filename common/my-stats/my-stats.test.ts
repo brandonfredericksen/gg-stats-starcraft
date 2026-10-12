@@ -372,6 +372,24 @@ describe('common/my-stats', () => {
     expect(stats.othersGames).toBe(2)
     expect(stats.othersFromBaseline).toBe(2)
   })
+
+  test('leaves out other players a program played for, and says how many games that was', () => {
+    const games = [
+      game('1v1', [player(me, 'p', 0, 'win'), player('Mordant', 'z', 0, 'loss')]),
+      game('1v1', [player('Stork', 'p', 0, 'win'), player('Zero', 'z', 0, 'loss')]),
+      game('1v1', [
+        player('Macro', 'p', 0, 'win', { burstShare: 0.6 }),
+        player('Zero', 'z', 0, 'loss'),
+      ]),
+    ]
+    const stats = computeMyStats(
+      games,
+      { names: [me], range: 'all', shape: '1v1', race: 'p', opponentRace: 'z' },
+      NOW,
+    )
+    expect(stats.othersGames).toBe(1)
+    expect(stats.othersScripted).toBe(1)
+  })
 })
 
 function share(income: number) {

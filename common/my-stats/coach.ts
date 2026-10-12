@@ -13,7 +13,15 @@ import {
   TeamBuildSample,
 } from './builds'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
-import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
+import {
+  findMe,
+  getMyResult,
+  getSidesOf,
+  isTeamGame,
+  makeScriptedCheck,
+  nameOf,
+  splitsByMap,
+} from './player-games'
 
 /** How many of the user's games a number needs before it's compared. */
 export const COACH_MIN_USER_GAMES = 10
@@ -784,6 +792,11 @@ export interface CoachBucket {
   poolFromUserGames: number
   /** Of {@link poolGames}, how many are from the ladder baseline the app ships. */
   poolFromBaseline: number
+  /**
+   * Other players' games here a program played, which would be in {@link poolGames} otherwise.
+   * See `makeScriptedCheck`.
+   */
+  poolScripted: number
   /** The opening the user plays most here, as build keys. */
   opening: string[]
   gaps: CoachFinding[]
@@ -1032,10 +1045,6 @@ function mostCommon<T>(values: ReadonlyArray<T>): T | undefined {
     counts.set(value, (counts.get(value) ?? 0) + 1)
   }
   return Array.from(counts).sort(([, a], [, b]) => b - a)[0]?.[0]
-}
-
-export function nameOf(p: PlayerMetrics) {
-  return p.names.join(' + ').toLowerCase()
 }
 
 /** Whether a player quit, rather than being defeated, before the game was worth comparing. */
@@ -1315,6 +1324,8 @@ interface PoolEntry {
   withUser: boolean
   /** Whether it's from the ladder baseline the app ships, rather than the user's replays. */
   baseline: boolean
+  /** Whether a program played it, see `makeScriptedCheck`. */
+  scripted: boolean
 }
 
 interface BucketGames {
@@ -2052,6 +2063,9 @@ export function computeCoach(
       return me ? [{ teammates: getSidesOf(game, me).teammates.map(nameOf) }] : []
     }),
   )
+  // Programs play nothing like people, so their games don't count as other players'. Every game,
+  // not only the ones in the time picked, says who they are.
+  const isScripted = makeScriptedCheck(everyGame)
 
   const buckets = new Map<string, BucketGames>()
   const bucketFor = (game: DatedGameMetrics) => {
@@ -2099,6 +2113,7 @@ export function computeCoach(
         sameAlly: hasAlly(game, p),
         withUser: !!me,
         baseline: game.ladderBaseline === true,
+        scripted: isScripted(p),
       })
     }
   }
@@ -2132,14 +2147,18 @@ export function computeCoach(
 
     const userGames = bucket.user.toSorted((a, b) => a.gameTimeMs - b.gameTimeMs)
     const user = userGames.map(g => g.sample)
-    const sameAlly = bucket.pool.filter(e => e.sameAlly)
-    const anyAlly = !!allyRace && sameAlly.length < COACH_MIN_POOL_GAMES
-    const entries = (allyRace && !anyAlly ? sameAlly : bucket.pool).filter(
-      e => !rank || e.sample.player.rank === rank,
-    )
+    const played = bucket.pool.filter(e => !e.scripted)
+    const anyAlly = !!allyRace && played.filter(e => e.sameAlly).length < COACH_MIN_POOL_GAMES
+    const isPicked = (e: PoolEntry) =>
+      (!allyRace || anyAlly || e.sameAlly) && (!rank || e.sample.player.rank === rank)
+    const isFast = (e: PoolEntry) => (e.sample.player.eapm ?? 0) >= eapmFloor
+    const entries = played.filter(isPicked)
     const allPool = capPerPlayer(entries.map(e => e.sample))
-    const floored = entries.filter(e => (e.sample.player.eapm ?? 0) >= eapmFloor)
+    const floored = entries.filter(isFast)
     const pool = capPerPlayer(floored.map(e => e.sample))
+    const poolScripted = capPerPlayer(
+      bucket.pool.filter(e => e.scripted && isPicked(e) && isFast(e)).map(e => e.sample),
+    ).length
     const poolFromUser = new Set(pool)
     const poolFromUserGames = floored.filter(e => e.withUser && poolFromUser.has(e.sample)).length
     const poolFromBaseline = floored.filter(e => e.baseline && poolFromUser.has(e.sample)).length
@@ -2272,6 +2291,7 @@ export function computeCoach(
       poolPlayers: new Set(pool.map(sample => nameOf(sample.player))).size,
       poolFromUserGames,
       poolFromBaseline,
+      poolScripted,
       opening: openingKeys,
       gaps: topGaps.map(strip),
       closestGap,

@@ -29,9 +29,16 @@ const MAX_SAVED_GAMES = 5000
 const INDEX_ENTRY_VERSION = 3
 /**
  * The version of the index cache. Changes with what an index entry holds, so a cache from an older
- * version is built again from the saved files instead of being misread.
+ * version is built again from the saved files instead of being misread. That includes the command
+ * stats' version, since an entry says whether its game's are current and holds the metrics made
+ * from them.
  */
-const INDEX_CACHE_VERSION = `${SAVED_GAME_STATS_VERSION}.${GAME_METRICS_VERSION}.${INDEX_ENTRY_VERSION}`
+const INDEX_CACHE_VERSION = [
+  SAVED_GAME_STATS_VERSION,
+  GAME_METRICS_VERSION,
+  COMMAND_STATS_VERSION,
+  INDEX_ENTRY_VERSION,
+].join('.')
 /** How long to wait after a change before writing the index cache, so a burst of saves writes once. */
 const INDEX_CACHE_WRITE_DELAY_MS = 2000
 /** Kept with the saved stats, under a name that isn't read as a game's stats. */

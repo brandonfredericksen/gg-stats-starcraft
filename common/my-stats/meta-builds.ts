@@ -3,9 +3,9 @@ import { BuildStepMetric, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
 import { BuildSample, BuildSide, BuildStepSummary, quantile, summarizeBuildSide } from './builds'
-import { capPerPlayer, isComparable, nameOf, Sample, toSample, wentOutFirst } from './coach'
+import { capPerPlayer, isComparable, Sample, toSample, wentOutFirst } from './coach'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
-import { getSidesOf, isTeamGame, splitsByMap } from './player-games'
+import { getSidesOf, isTeamGame, makeScriptedCheck, nameOf, splitsByMap } from './player-games'
 
 /** How far back from the latest game the meta looks, so old patches and map pools drop out. */
 const META_WINDOW_MS = 180 * 24 * 60 * 60_000
@@ -354,9 +354,11 @@ export function computeMetaBuilds(
     p.human &&
     (shape !== '1v1' || getSidesOf(game, p).opponents[0]?.race === opponentRace)
 
+  // A program's builds are no top player's.
+  const isScripted = makeScriptedCheck(everyGame)
   const all = everyGame.flatMap(game =>
     game.players
-      .filter(p => isOfKind(game, p) && isComparable(game, p))
+      .filter(p => isOfKind(game, p) && isComparable(game, p) && !isScripted(p))
       .map(p => toSample(game, p)),
   )
   const topBy = shape === '1v1' ? 'rank' : 'eapm'

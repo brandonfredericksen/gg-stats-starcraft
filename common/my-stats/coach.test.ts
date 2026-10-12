@@ -161,6 +161,19 @@ describe('common/my-stats/coach', () => {
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
   })
 
+  test('leaves out players a program played for, and says how many games that was', () => {
+    const programs = Array.from({ length: 10 }, (_, i) =>
+      game('1v1', [
+        player(`macro${i}`, 'p', 0, 'win', { workers6: 30, burstShare: 0.6 }),
+        player(`zergling${i}`, 'z', 0, 'loss'),
+      ]),
+    )
+    const coach = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18), ...programs], query)
+    const bucket = coach.status === 'ready' ? coach.buckets[0] : undefined
+    expect(bucket?.poolGames).toBe(40)
+    expect(bucket?.poolScripted).toBe(10)
+  })
+
   test('lists army killed and lost without pointing them out', () => {
     const mine = Array.from({ length: 12 }, (_, i) =>
       game('1v1', [

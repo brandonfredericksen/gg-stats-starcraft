@@ -43,7 +43,7 @@ import {
   PanelHeadNote,
   PanelTitle,
 } from '../my-stats/my-stats-panels'
-import { getPoolSource } from '../my-stats/pool-source'
+import { getPoolSource, getScriptedNote } from '../my-stats/pool-source'
 import { RankMenu } from '../my-stats/rank-menu'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { STUCK_EDGE_PX, stuckEdgeGradient, useStuckBarBottom } from '../stuck-bar-edge'
@@ -1637,6 +1637,10 @@ export function Comparison({
             ally: raceCharToLabel(bucket.allyRace, t),
           }),
     )
+  }
+  // Last, so "them" and "theirs" above mean the players compared with.
+  if (bucket.poolScripted) {
+    source.push(getScriptedNote(bucket.poolScripted, t))
   }
 
   let content: React.ReactNode

@@ -1149,6 +1149,8 @@
     "poolSource": {
       "both": "in your replays and recent ladder games",
       "ladder": "in recent ladder games",
+      "scripted_one": "{{count}} game played by a bot or macro program is left out.",
+      "scripted_other": "{{count}} games played by bots or macro programs are left out.",
       "yours": "in your replays"
     },
     "rankOnly": "Only players who were rank {{rank}} going into the game count.",

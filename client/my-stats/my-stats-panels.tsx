@@ -46,7 +46,7 @@ import {
   singleLine,
   titleSmall,
 } from '../styles/typography'
-import { getPoolSource } from './pool-source'
+import { getPoolSource, getScriptedNote } from './pool-source'
 
 export const PanelTitle = styled.h2`
   ${titleSmall};
@@ -1165,6 +1165,7 @@ export function MacroAveragesPanel({
   othersGames,
   noOthersNote,
   othersFromBaseline,
+  othersScripted,
   eapmFloor,
   rank,
   extraNote,
@@ -1175,6 +1176,8 @@ export function MacroAveragesPanel({
   /** Says why there's nobody to compare with, in place of saying none of them were found. */
   noOthersNote?: string
   othersFromBaseline: number
+  /** Other players' games a bot or macro program played, left out of {@link othersGames}. */
+  othersScripted: number
   eapmFloor: number
   rank?: LadderRank
   /** A last sentence for the note under the numbers. */
@@ -1367,6 +1370,7 @@ export function MacroAveragesPanel({
               source: getPoolSource(othersFromBaseline, othersGames, t),
             })}
         {hasOthers ? ' ' : null}
+        {othersScripted ? `${getScriptedNote(othersScripted, t)} ` : null}
         {rank
           ? `${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: rank.toUpperCase() })} `
           : null}

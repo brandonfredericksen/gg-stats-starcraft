@@ -139,6 +139,7 @@ export const pvz: CoachBucket = {
   builds: [],
   poolFromUserGames: 64,
   poolFromBaseline: 0,
+  poolScripted: 3,
   goals: [
     {
       key: 'workers8',

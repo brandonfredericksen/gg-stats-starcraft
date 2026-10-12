@@ -200,6 +200,7 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
             )
       }
       othersFromBaseline={stats.othersFromBaseline}
+      othersScripted={stats.othersScripted}
       eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
       rank={stats.rank}
       extraNote={

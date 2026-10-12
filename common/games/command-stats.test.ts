@@ -1,12 +1,39 @@
 import type { CommandData, ReplayCommand } from '@shieldbattery/broodrep'
 import { describe, expect, test } from 'vitest'
-import { summarizeCommands } from './command-stats'
+import { SCRIPTED_BURST_SHARE, summarizeCommands } from './command-stats'
 
 /** Frames in a minute of game time on Fastest. */
 const MINUTE = 60_000 / 42
 
 function at(minutes: number, playerId: number, command: CommandData): ReplayCommand {
   return { frame: Math.round(minutes * MINUTE), playerId, command }
+}
+
+const select = (tag: number): CommandData => ({ type: 'select', unitTags: [tag] })
+const train = (unitType: number): CommandData => ({ type: 'train', unitType })
+const recall = (group: number): CommandData => ({ type: 'hotkey', hotkeyType: 1, group })
+const move = (x: number): CommandData => ({
+  type: 'rightClick',
+  x,
+  y: 0,
+  targetUnitTag: 0,
+  targetUnitType: 0,
+  queued: false,
+})
+
+/**
+ * A game where both players act on frames `turnFrames` apart, as a network turn that long runs
+ * them, with `burst` giving player 0's commands on some of those frames.
+ */
+function turnsGame(turnFrames: number, burst: (turn: number) => CommandData[] | undefined) {
+  const commands: ReplayCommand[] = []
+  for (let turn = 0; turn < 600; turn++) {
+    const frame = 100 + turn * turnFrames
+    const player = turn % 2
+    const sent = player === 0 ? (burst(turn) ?? [move(turn)]) : [move(1000 + turn)]
+    commands.push(...sent.map(command => ({ frame, playerId: player, command })))
+  }
+  return summarizeCommands(players, commands, Math.round(20 * MINUTE))
 }
 
 const players = [
@@ -80,5 +107,39 @@ describe('common/games/command-stats', () => {
       Math.round(20 * MINUTE),
     )
     expect(stats.players[1].phases.map(p => Math.round(p.minutes))).toEqual([4, 0, 0])
+  })
+
+  test('finds no bursts in commands sent by hand', () => {
+    const stats = turnsGame(1, turn => (turn % 10 === 0 ? [select(turn), train(65)] : undefined))
+    expect(stats.players.map(p => p.burstShare)).toEqual([0, 0])
+  })
+
+  test("counts a program's bursts of commands on one frame", () => {
+    const stats = turnsGame(1, turn =>
+      turn % 4 === 0 ? [select(turn), train(65), select(turn + 1), train(66)] : undefined,
+    )
+    const [program, person] = stats.players
+    expect(program.burstShare).toBeGreaterThanOrEqual(SCRIPTED_BURST_SHARE)
+    expect(person.burstShare).toBe(0)
+  })
+
+  test('leaves out selections replaced before any order, like hotkeys pressed over and over', () => {
+    const spam = (turn: number) =>
+      turn % 4 === 0
+        ? [recall(4), recall(5), recall(4), recall(5), recall(4), move(turn)]
+        : undefined
+    expect(turnsGame(1, spam).players[0].burstShare).toBe(0)
+  })
+
+  test('allows for more commands on a frame when turns last longer', () => {
+    const handFast = (turn: number) =>
+      turn % 4 === 0 ? [select(turn), train(65), select(turn + 1), train(66)] : undefined
+    expect(turnsGame(3, handFast).players[0].burstShare).toBe(0)
+
+    const program = (turn: number) =>
+      turn % 4 === 0
+        ? Array.from({ length: 6 }, (_, i) => [select(turn * 10 + i), train(65)]).flat()
+        : undefined
+    expect(turnsGame(3, program).players[0].burstShare).toBeGreaterThanOrEqual(SCRIPTED_BURST_SHARE)
   })
 })

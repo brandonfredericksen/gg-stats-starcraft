@@ -250,6 +250,11 @@ export interface PlayerMetrics {
   groupsUsed?: number
   /** Commands to cast each spell, keyed by the spell's name. */
   casts?: Record<string, number>
+  /**
+   * The share of the player's commands sent in bursts no hand could manage, from the replay's
+   * commands. See `isScriptedGame`.
+   */
+  burstShare?: number
   /** In team games, the player's part of what their team did, from 0 to 1. */
   teamShare?: { income?: number; armyProduced?: number; armyKilled?: number }
   /** In team games, 1 if the player was the first of their team to leave or be defeated, and so on. */
@@ -893,6 +898,7 @@ function addCommandMetrics(metrics: PlayerMetrics, commands: PlayerCommandStats)
   metrics.apmByPhase = perMinute(phase => phase.actions)
   metrics.groupsUsed = commands.groupsUsed
   metrics.casts = commands.casts
+  metrics.burstShare = commands.burstShare
 }
 
 /** Adds what only makes sense next to teammates: each player's share of the team, and who went first. */

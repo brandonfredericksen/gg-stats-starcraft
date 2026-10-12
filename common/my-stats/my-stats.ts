@@ -5,7 +5,14 @@ import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../ga
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
 import { DEFAULT_EAPM_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
-import { findMe, getMyResult, getSidesOf, isTeamGame, splitsByMap } from './player-games'
+import {
+  findMe,
+  getMyResult,
+  getSidesOf,
+  isTeamGame,
+  makeScriptedCheck,
+  splitsByMap,
+} from './player-games'
 
 /** How many of the latest games the recent results show. */
 export const RECENT_GAMES = 20
@@ -158,6 +165,11 @@ export interface MyStatsResult {
   othersGames: number
   /** Of {@link othersGames}, how many are from the ladder baseline the app ships. */
   othersFromBaseline: number
+  /**
+   * Other players' games a program played, which would count in {@link othersGames} otherwise.
+   * See `makeScriptedCheck`.
+   */
+  othersScripted: number
   /** The ladder rank other players were picked by, in 1v1. */
   rank?: LadderRank
   /** In 1v1, the rank of the user's latest ranked game here, which `auto` picks. */
@@ -496,13 +508,15 @@ function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
  * filters pick, playing the race they pick against the opponents' races they pick, at or above the
  * EAPM floor and, in 1v1, at `rank`, who played at least 5 minutes. Games from any time count,
- * since how others play doesn't depend on when the user did.
+ * since how others play doesn't depend on when the user did. Games a program played are marked, to
+ * be left out.
  */
 function getOthers(
   allGames: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
   rank: LadderRank | undefined,
-): Array<{ player: PlayerMetrics; baseline: boolean }> {
+): Array<{ player: PlayerMetrics; baseline: boolean; scripted: boolean }> {
+  const isScripted = makeScriptedCheck(allGames)
   const floor = query.eapmFloor ?? DEFAULT_EAPM_FLOOR
   return allGames.flatMap(game => {
     if (query.shape && game.shape !== query.shape) {
@@ -526,7 +540,11 @@ function getOthers(
         (!query.opponentPair ||
           playsAgainstPair(game, getSidesOf(game, p).opponents, query.opponentPair)),
     )
-    return players.map(player => ({ player, baseline: game.ladderBaseline === true }))
+    return players.map(player => ({
+      player,
+      baseline: game.ladderBaseline === true,
+      scripted: isScripted(player),
+    }))
   })
 }
 
@@ -590,7 +608,8 @@ export function computeMyStats(
       : { auto: undefined, rank: undefined }
   // Each game type plays differently, and the ladder games the app ships are all 1v1, so other
   // players are only compared with once a game type is picked.
-  const others = query.shape ? getOthers(allGames, query, rank) : []
+  const candidates = query.shape ? getOthers(allGames, query, rank) : []
+  const others = candidates.filter(o => !o.scripted)
   return {
     games: games.length,
     record,
@@ -606,6 +625,7 @@ export function computeMyStats(
     macroOthers: getMacroAverages(others.map(o => o.player)),
     othersGames: others.length,
     othersFromBaseline: others.filter(o => o.baseline).length,
+    othersScripted: candidates.length - others.length,
     rank,
     autoRank,
     rankMmr: query.shape === '1v1' ? getRankMmr(allGames) : undefined,

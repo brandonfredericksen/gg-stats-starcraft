@@ -46,6 +46,7 @@ interface PlayerOptions {
   team?: number
   /** When each Probe past the first four started, in minutes. */
   probes?: number[]
+  burstShare?: number
 }
 
 function player({
@@ -58,6 +59,7 @@ function player({
   eapm = 200,
   team = 0,
   probes,
+  burstShare,
 }: PlayerOptions): PlayerMetrics {
   return {
     names: [name],
@@ -84,6 +86,7 @@ function player({
     firstArmyMs: null,
     buildSteps: steps.map(([key, minutes]) => ({ key, timeMs: minutes * 60_000, supply: 10 })),
     unitTimes: probes ? { 64: probes.map(minutes => minutes * 60_000) } : undefined,
+    burstShare,
   }
 }
 
@@ -169,6 +172,16 @@ describe('common/my-stats/meta-builds', () => {
     // One player's games alone aren't a build to list.
     expect(meta.builds.map(b => b.family)).toEqual(['p gates1 expand'])
     expect(meta.otherShare).toBeCloseTo(1 / 3)
+  })
+
+  test('leaves out the builds of players a program played for', () => {
+    const games = [
+      ...times(10, () => pvt({ rank: 's', steps: GATE_EXPAND })),
+      ...times(10, () => pvt({ rank: 's', steps: FORGE_EXPAND, burstShare: 0.6 })),
+    ]
+    const meta = computeMetaBuilds(games, PVT)
+    expect(meta.games).toBe(10)
+    expect(meta.builds.map(b => b.family)).toEqual(['p gates1 expand'])
   })
 
   test('counts at most the latest 10 games of a player', () => {

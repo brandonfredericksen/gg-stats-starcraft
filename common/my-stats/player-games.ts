@@ -1,4 +1,5 @@
 import { getSideResult, withAssumedResults } from '../games/assumed-results'
+import { SCRIPTED_BURST_SHARE } from '../games/command-stats'
 import { GameStatsResult } from '../games/game-stats'
 import { GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
@@ -13,6 +14,44 @@ export function isTeamGame(shape: GameShape) {
  */
 export function splitsByMap(shape: GameShape | undefined) {
   return shape === '3v3' || shape === '4v4'
+}
+
+/** A player, the same from game to game: their names, in lower case. */
+export function nameOf(p: PlayerMetrics) {
+  return p.names.join(' + ').toLowerCase()
+}
+
+/** Whether a program played the game for the player, from the bursts of commands they sent. */
+export function isScriptedGame(player: PlayerMetrics) {
+  return (player.burstShare ?? 0) >= SCRIPTED_BURST_SHARE
+}
+
+/**
+ * Tells which players a program played for, to leave out of comparisons with other players: in the
+ * games it shows in, and in every game of a player it played at least half the games of, since a
+ * program's quieter games can look like a person's.
+ */
+export function makeScriptedCheck(
+  games: ReadonlyArray<GameMetrics>,
+): (player: PlayerMetrics) => boolean {
+  const counts = new Map<string, { measured: number; scripted: number }>()
+  for (const game of games) {
+    for (const p of game.players) {
+      if (p.burstShare === undefined) {
+        continue
+      }
+      const count = counts.get(nameOf(p)) ?? { measured: 0, scripted: 0 }
+      count.measured += 1
+      count.scripted += isScriptedGame(p) ? 1 : 0
+      counts.set(nameOf(p), count)
+    }
+  }
+  const scripted = new Set(
+    Array.from(counts).flatMap(([name, { measured, scripted }]) =>
+      scripted * 2 >= measured ? [name] : [],
+    ),
+  )
+  return player => isScriptedGame(player) || scripted.has(nameOf(player))
 }
 
 /** The user's player in a game, if they were in it. */
