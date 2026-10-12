@@ -48,7 +48,6 @@ import {
   headlineMedium,
   labelLarge,
   labelSmall,
-  titleLarge,
   titleMedium,
   titleSmall,
 } from '../styles/typography'
@@ -328,61 +327,24 @@ const HowItWorksButton = styled.button`
   }
 `
 
-/** What the page looks at, as a few numbers side by side, stacking once there's no room. */
-const Tiles = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-
-  @container coach (width < 720px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-`
-
-const Tile = styled(PaddedPanel)`
-  padding: var(--space-3) var(--space-4) var(--space-4);
+const ScopeRoot = styled.div`
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
 `
 
-const TileValue = styled.span`
-  ${titleLarge};
-  font-variant-numeric: tabular-nums;
-`
-
-const TileUnit = styled.span`
+/** What the page looks at, as parts of one quiet line that wraps where it must. */
+const ScopeParts = styled.div`
   ${bodyMedium};
-  margin-left: var(--space-1);
-  color: var(--theme-on-surface-variant);
-`
-
-const TileLabel = styled.span`
-  ${labelLarge};
-  font-weight: 600;
-`
-
-const TileDetail = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-`
-
-/** The bar and button at a tile's foot, the same height in every tile that has one. */
-const TileFoot = styled.div`
-  margin-top: auto;
-  padding-top: var(--space-2);
-
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--theme-on-surface-variant);
 `
 
-const TileTrack = styled.span`
-  position: relative;
-  width: 100%;
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--radius-full);
-  background: var(--theme-container-highest);
+const ScopeDot = styled.span`
+  color: var(--theme-outline);
 `
 
 /**
@@ -405,10 +367,6 @@ const SideColumn = styled.div`
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-`
-
-const OthersNote = styled(Text)`
-  margin-top: calc(-1 * var(--space-2));
 `
 
 /** Tabs over the comparison: everything against other players, wins against losses, timings. */
@@ -862,54 +820,12 @@ const ScopeTagsRoot = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
-/** How many of the user's replays of a game type are analyzed, with a way to analyze more. */
-function CoverageTile({
-  shape,
-  counts,
-}: {
-  shape: ShapeCount['shape']
-  counts: ReadonlyArray<ShapeCount>
-}) {
-  const { t } = useTranslation()
-  const names = useStatsPlayerNames() ?? []
-  const count = counts.find(c => c.shape === shape)
-  if (!count) {
-    return null
-  }
-  return (
-    <Tile>
-      <span>
-        <TileValue>{count.analyzed.toLocaleString()}</TileValue>
-        <TileUnit>
-          {t('myStats.coach.tileOfTotal', 'of {{total}}', { total: count.total.toLocaleString() })}
-        </TileUnit>
-      </span>
-      <TileLabel>
-        {t('myStats.coach.tileAnalyzed', 'Your {{shape}} replays analyzed', {
-          shape: getShapeName(shape, t),
-        })}
-      </TileLabel>
-      <TileDetail>
-        {t(
-          'myStats.coach.tileAnalyzedDetail',
-          'More analyzed means more of your games and more players to compare with.',
-        )}
-      </TileDetail>
-      <TileFoot>
-        <TileTrack>
-          <Fill $tone='good' style={{ width: `${(count.analyzed / count.total) * 100}%` }} />
-        </TileTrack>
-        <AnalyzeMine names={names} filters={{ range: 'all', shape }} compact={true} />
-      </TileFoot>
-    </Tile>
-  )
-}
-
 /**
- * What the coach is looking at, in three numbers: the user's games, and how far back the filter
- * reaches; other players' games from the same dates; and how many replays are analyzed.
+ * What the coach is looking at, in one quiet line: the user's games, other players' games from the
+ * same dates, and how many of the user's replays are analyzed, with a way to analyze more. Each part
+ * explains itself when hovered.
  */
-function ScopeTiles({
+function ScopeLine({
   bucket,
   eapmFloor,
   sinceMs,
@@ -917,6 +833,7 @@ function ScopeTiles({
   autoGames,
   autoMonths,
   counts,
+  others,
 }: {
   bucket: CoachBucket
   eapmFloor: number
@@ -925,16 +842,20 @@ function ScopeTiles({
   autoGames: number
   autoMonths: boolean
   counts: ReadonlyArray<ShapeCount>
+  /** The groups of games too small to show. */
+  others?: string
 }) {
   const { t } = useTranslation()
+  const names = useStatsPlayerNames() ?? []
   const race = raceCharToLabel(bucket.race, t)
+  const count = counts.find(c => c.shape === bucket.shape)
 
   let reach: string
   if (sinceMs === undefined) {
-    reach = t('myStats.coach.tileReachAll', 'Every one you have analyzed.')
+    reach = t('myStats.coach.scopeReachAll', 'Every one you have analyzed.')
   } else if (window === 'auto' && autoMonths) {
     reach = t(
-      'myStats.coach.tileReachMonths',
+      'myStats.coach.scopeReachMonths',
       'Back to {{date}}: your last 3 months, from the You filter.',
       {
         date: formatDate(sinceMs),
@@ -942,7 +863,7 @@ function ScopeTiles({
     )
   } else {
     reach = t(
-      'myStats.coach.tileReachGames',
+      'myStats.coach.scopeReachGames',
       'Back to {{date}}: your last {{count}}, from the You filter.',
       {
         date: formatDate(sinceMs),
@@ -950,57 +871,85 @@ function ScopeTiles({
       },
     )
   }
+  const skipped = bucket.skippedGames
+    ? t('myStats.coach.scopeSkipped', {
+        defaultValue: '{{count}} more left out: someone quit in the first 5 minutes.',
+        defaultValue_one: '{{count}} more left out: someone quit in the first 5 minutes.',
+        count: bucket.skippedGames,
+      })
+    : ''
   const poolSource = getPoolSource(bucket.poolFromBaseline, bucket.poolGames, t)
+  const theirs =
+    sinceMs === undefined
+      ? t(
+          'myStats.coach.scopeTheirsHelpAll',
+          '{{players}} players over {{floor}} EAPM {{source}}, up to 5 games each.',
+          { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
+        )
+      : t(
+          'myStats.coach.scopeTheirsHelp',
+          '{{players}} players over {{floor}} EAPM {{source}}, from the same dates, up to 5 games each.',
+          { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
+        )
+  const rankOnly = bucket.rank
+    ? t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', {
+        rank: bucket.rank.toUpperCase(),
+      })
+    : ''
 
   return (
-    <Tiles>
-      <Tile>
-        <span>
-          <TileValue>{bucket.userGames}</TileValue>
-          <TileUnit>{t('myStats.coach.tileGames', 'games')}</TileUnit>
-        </span>
-        <TileLabel>
-          {t('myStats.coach.tileYours', 'Your {{race}} games in {{where}}', {
+    <ScopeRoot>
+      <ScopeParts>
+        <HelpLabel
+          label={t('myStats.coach.scopeYours', {
+            defaultValue: 'Your {{games}} {{race}} games in {{where}}',
+            defaultValue_one: 'Your {{games}} {{race}} game in {{where}}',
+            count: bucket.userGames,
+            games: bucket.userGames.toLocaleString(),
             race,
             where: getPoolPlace(bucket, t),
           })}
-        </TileLabel>
-        <TileDetail>{reach}</TileDetail>
-        {bucket.skippedGames ? (
-          <TileDetail>
-            {t('myStats.coach.tileSkipped', {
-              defaultValue: '{{count}} more left out: someone quit in the first 5 minutes.',
-              defaultValue_one: '{{count}} more left out: someone quit in the first 5 minutes.',
-              count: bucket.skippedGames,
-            })}
-          </TileDetail>
-        ) : null}
-      </Tile>
-      <Tile>
-        <span>
-          <TileValue>{bucket.poolGames}</TileValue>
-          <TileUnit>{t('myStats.coach.tileGames', 'games')}</TileUnit>
-        </span>
-        <TileLabel>{t('myStats.coach.tileTheirs', 'Other {{race}} players', { race })}</TileLabel>
-        <TileDetail>
-          {sinceMs === undefined
-            ? t(
-                'myStats.coach.tileTheirsDetailAll',
-                '{{players}} players over {{floor}} EAPM {{source}}, up to 5 games each.',
-                { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
-              )
-            : t(
-                'myStats.coach.tileTheirsDetail',
-                '{{players}} players over {{floor}} EAPM {{source}}, from the same dates, up to 5 games each.',
-                { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
+          help={[reach, skipped].filter(Boolean).join(' ')}
+        />
+        <ScopeDot aria-hidden={true}>·</ScopeDot>
+        <HelpLabel
+          label={t('myStats.coach.scopeTheirs', {
+            defaultValue: '{{games}} games from other {{race}} players',
+            defaultValue_one: '{{games}} game from other {{race}} players',
+            count: bucket.poolGames,
+            games: bucket.poolGames.toLocaleString(),
+            race,
+          })}
+          help={[theirs, rankOnly].filter(Boolean).join(' ')}
+        />
+        {count ? (
+          <>
+            <ScopeDot aria-hidden={true}>·</ScopeDot>
+            <HelpLabel
+              label={t(
+                'myStats.coach.scopeAnalyzed',
+                '{{analyzed}} of your {{total}} {{shape}} replays analyzed',
+                {
+                  analyzed: count.analyzed.toLocaleString(),
+                  total: count.total.toLocaleString(),
+                  shape: getShapeName(bucket.shape, t),
+                },
               )}
-          {bucket.rank
-            ? ` ${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: bucket.rank.toUpperCase() })}`
-            : null}
-        </TileDetail>
-      </Tile>
-      <CoverageTile shape={bucket.shape} counts={counts} />
-    </Tiles>
+              help={t(
+                'myStats.coach.scopeAnalyzedHelp',
+                'More analyzed means more of your games and more players to compare with.',
+              )}
+            />
+            <AnalyzeMine
+              names={names}
+              filters={{ range: 'all', shape: bucket.shape }}
+              compact={true}
+            />
+          </>
+        ) : null}
+      </ScopeParts>
+      {others ? <Text>{others}</Text> : null}
+    </ScopeRoot>
   )
 }
 
@@ -1753,16 +1702,6 @@ function BucketView({
   return (
     <Bucket>
       {showTitle && title ? <BucketTitle>{title}</BucketTitle> : null}
-      <ScopeTiles
-        bucket={bucket}
-        eapmFloor={eapmFloor}
-        sinceMs={sinceMs}
-        window={window}
-        autoGames={autoGames}
-        autoMonths={autoMonths}
-        counts={counts}
-      />
-      {others ? <OthersNote>{others}</OthersNote> : null}
       <PlanColumns>
         <SectionErrorBoundary>
           {showNextGame ? (
@@ -1795,6 +1734,16 @@ function BucketView({
       {showNextGame && !ready ? (
         <Unlock bucket={bucket} eapmFloor={eapmFloor} sinceMs={sinceMs} />
       ) : null}
+      <ScopeLine
+        bucket={bucket}
+        eapmFloor={eapmFloor}
+        sinceMs={sinceMs}
+        window={window}
+        autoGames={autoGames}
+        autoMonths={autoMonths}
+        counts={counts}
+        others={others}
+      />
     </Bucket>
   )
 }
