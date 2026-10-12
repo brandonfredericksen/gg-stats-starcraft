@@ -202,6 +202,10 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     ),
     `${t('myStats.coach.help.unitsPerProduction', "Army units you started each minute, for each production building you had, which shows how often they sat idle. Zerg count each larva once, so a pair of Zerglings is one. Units morphed from others, like Lurkers and Archons, don't count.")} ${phaseHelp}`,
   ]
+  const hotkeyJumps = (phase: keyof typeof phases): [string, string] => [
+    t('myStats.coach.metric.hotkeyJumps', 'Hotkey jumps, {{phase}}', { phase: phases[phase] }),
+    `${t('myStats.coach.help.hotkeyJumps', 'Times a minute you double tapped a hotkey to move your screen to that group, from the replay.')} ${phaseHelp}`,
+  ]
   switch (key) {
     case 'workers4':
       return workers(4)
@@ -393,6 +397,12 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
       return hotkeys('mid')
     case 'hotkeysLate':
       return hotkeys('late')
+    case 'hotkeyJumpsEarly':
+      return hotkeyJumps('early')
+    case 'hotkeyJumpsMid':
+      return hotkeyJumps('mid')
+    case 'hotkeyJumpsLate':
+      return hotkeyJumps('late')
     case 'productionForIncome10':
       return [
         t('myStats.coach.metric.productionForIncome', 'Production for your mining at 10 min'),

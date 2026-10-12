@@ -18,14 +18,18 @@ import {
   VisuallyHidden,
 } from './game-stats-shared'
 
-interface ScoreColumn {
+export interface ScoreColumn {
   id: string
   label: string
   /** Undefined when the game couldn't track this stat for the player. */
   get: (player: GamePlayerStats) => number | undefined
   color?: string
+  /** The column the rest are about, which stands out in bold. */
+  primary?: boolean
   /** Whether less is better, so the lowest stands out as the best rather than the highest. */
   lowerIsBetter?: boolean
+  /** Whether no value is better than another, like a way of playing, so none stands out. */
+  neutral?: boolean
   /** Shows a value some other way than as a number, like a length of time. */
   format?: (value: number) => string
   /** Whether this is the first of a group of columns that measure the same kind of thing. */
@@ -44,8 +48,8 @@ const ScoreboardPanel = styled(StatsPanel)`
  * Stat columns share the room left over equally, but never get narrower than their widest value or
  * title, so every column's numbers line up and none of the titles wrap.
  */
-const ScoreGrid = styled.div<{ $columns: number }>`
-  min-width: 1040px;
+const ScoreGrid = styled.div<{ $columns: number; $minWidth?: number }>`
+  min-width: ${props => (props.$minWidth ? `${props.$minWidth}px` : 'auto')};
   display: grid;
   grid-template-columns: 40px minmax(160px, max-content) repeat(
       ${props => props.$columns},
@@ -203,7 +207,6 @@ export function Scoreboard({
   teamsByPlayer: ReadonlyMap<number, Side>
 }) {
   const { t } = useTranslation()
-  const format = useStatFormat()
   const armyDescription = t(
     'gameStats.armyScoreDescription',
     "StarCraft's own score for the army, which weighs gas and tech more than minerals. The " +
@@ -215,6 +218,7 @@ export function Scoreboard({
       id: 'totalScore',
       label: t('gameStats.totalScore', 'Total score'),
       get: p => p.totalScore,
+      primary: true,
     },
     {
       id: 'armyProduced',
@@ -269,6 +273,34 @@ export function Scoreboard({
     { id: 'apm', label: t('gameStats.apm', 'APM'), get: p => p.apm, startsGroup: true },
     { id: 'eapm', label: t('gameStats.eapm', 'EAPM'), get: p => p.eapm },
   ]
+  return (
+    <PlayerStatsGrid
+      players={players}
+      teamsByPlayer={teamsByPlayer}
+      columns={columns}
+      minWidth={1040}
+    />
+  )
+}
+
+/**
+ * Players' stats side by side, a row for each in the order given, with a bar under every value and
+ * the best in each column picked out.
+ */
+export function PlayerStatsGrid({
+  players,
+  teamsByPlayer,
+  columns,
+  minWidth,
+}: {
+  players: ReadonlyArray<GamePlayerStats>
+  teamsByPlayer: ReadonlyMap<number, Side>
+  columns: ReadonlyArray<ScoreColumn>
+  /** How narrow the grid can get before it scrolls instead, if not to fit its columns. */
+  minWidth?: number
+}) {
+  const { t } = useTranslation()
+  const format = useStatFormat()
   const maxes = columns.map(column => Math.max(0, ...players.map(p => column.get(p) ?? 0)))
   // A player who left early had less time to lose units or get supply blocked, so for the numbers
   // where less is better only the players who stayed until the end can be the best, unless nobody
@@ -280,6 +312,9 @@ export function Scoreboard({
   // The best value in each column, if anyone stands out. A column where everyone is the same, like
   // nobody being supply blocked, has nobody to pick out.
   const bests = columns.map((column, i) => {
+    if (column.neutral) {
+      return undefined
+    }
     if (!column.lowerIsBetter) {
       return maxes[i] > 0 ? maxes[i] : undefined
     }
@@ -290,7 +325,7 @@ export function Scoreboard({
 
   return (
     <ScoreboardPanel>
-      <ScoreGrid role='table' $columns={columns.length}>
+      <ScoreGrid role='table' $columns={columns.length} $minWidth={minWidth}>
         <GridRow role='row'>
           <HeaderCell role='columnheader' $alignStart={true}>
             <span aria-hidden={true}>#</span>
@@ -299,11 +334,11 @@ export function Scoreboard({
           <HeaderCell role='columnheader' $alignStart={true}>
             {t('gameStats.player', 'Player')}
           </HeaderCell>
-          {columns.map((column, i) => (
+          {columns.map(column => (
             <HeaderCell
               key={column.id}
               role='columnheader'
-              $primary={i === 0}
+              $primary={column.primary}
               $startsGroup={column.startsGroup}>
               {column.description ? (
                 <Tooltip text={column.description} position='top'>
@@ -345,7 +380,7 @@ export function Scoreboard({
                       $leader={
                         value !== undefined && value === bests[j] && canBeBest(column, player)
                       }
-                      $primary={j === 0}>
+                      $primary={!!column.primary}>
                       {shown}
                     </ScoreValue>
                     <ScoreBarTrack>

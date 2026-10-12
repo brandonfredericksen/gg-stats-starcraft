@@ -116,6 +116,14 @@ let lastReplayFolders: string[] | undefined
 let rendererReady = false
 let pendingReplaysToOpen: string[] = []
 
+/** Reads what each player did from a replay's commands, in the replay library's worker. */
+async function readCommandStats(replayPath: string) {
+  if (!replayLibrary) {
+    throw new Error('The replay library is not running')
+  }
+  return await replayLibrary.readCommandStats(replayPath)
+}
+
 export function notifyNewInstance(data: NewInstanceNotification) {
   if (mainWindow) {
     if (!mainWindow.isVisible()) {
@@ -449,6 +457,10 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
   })
 
   ipcMain.handle('replayReadChat', async (event, replayPath) => readReplayChat(replayPath))
+
+  ipcMain.handle('replayReadCommandStats', async (event, replayPath) =>
+    readCommandStats(replayPath),
+  )
 
   ipcMain.handle('ggStatsCheckFiles', () => checkGgStatsFiles())
 }
@@ -878,15 +890,8 @@ app.on('ready', () => {
         logger.error(`Error setting up the replay library: ${getErrorStack(err)}`)
       }
       setupMyStats(gameStatsStore, pathKeys => replayLibrary?.getGameTimes(pathKeys) ?? new Map())
-      const commandStatsBackfill = new CommandStatsBackfill(
-        gameStatsStore,
-        async replayPath => {
-          if (!replayLibrary) {
-            throw new Error('The replay library is not running')
-          }
-          return await replayLibrary.readCommandStats(replayPath)
-        },
-        () => TypedIpcSender.from(mainWindow?.webContents).send('myStatsChanged'),
+      const commandStatsBackfill = new CommandStatsBackfill(gameStatsStore, readCommandStats, () =>
+        TypedIpcSender.from(mainWindow?.webContents).send('myStatsChanged'),
       )
       commandStatsBackfill.start()
       // New stats, and a played game's replay once it's saved, have commands to read.

@@ -42,7 +42,7 @@ const MIN_SUPPLY_BLOCK_PLAYED_MS = 5 * 60_000
 /** How many samples, about 10 seconds apart, a phase needs for an average bank. */
 const MIN_PHASE_SAMPLES = 3
 /** How long a player has to have played in a phase for rates in it to mean anything. */
-const MIN_PHASE_MINUTES = 1
+export const MIN_PHASE_MINUTES = 1
 /** How many buildings make up an opening. */
 const OPENING_LENGTH = 4
 /**
@@ -242,6 +242,11 @@ export interface PlayerMetrics {
    * order, see {@link getArmyMadePerMin}.
    */
   armyMadePerMin?: Array<number | null>
+  /**
+   * Times a minute the player moved their screen to a group by double tapping its hotkey, in each
+   * of {@link PHASE_MINUTES}, from the replay's commands.
+   */
+  hotkeyJumpsPerMin?: Array<number | null>
   /** Actions per minute in each phase, from the replay's commands. */
   apmByPhase?: Array<number | null>
   /** Effective actions per minute in each of {@link PHASE_MINUTES}, from the game's timeline. */
@@ -888,6 +893,15 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
   }
 }
 
+/** The commands of the player going by any of `names`, as a game's stats name them. */
+export function findPlayerCommands(
+  commands: ReplayCommandStats,
+  names: ReadonlyArray<string>,
+): PlayerCommandStats | undefined {
+  const lowered = names.map(n => n.toLowerCase())
+  return commands.players.find(c => lowered.includes(c.name.toLowerCase()))
+}
+
 /** Adds what the replay's commands say about the player. */
 function addCommandMetrics(metrics: PlayerMetrics, commands: PlayerCommandStats) {
   const perMinute = (pick: (phase: PlayerCommandStats['phases'][number]) => number) =>
@@ -895,6 +909,7 @@ function addCommandMetrics(metrics: PlayerMetrics, commands: PlayerCommandStats)
       phase.minutes >= MIN_PHASE_MINUTES ? pick(phase) / phase.minutes : null,
     )
   metrics.hotkeyRecallsPerMin = perMinute(phase => phase.hotkeyRecalls)
+  metrics.hotkeyJumpsPerMin = perMinute(phase => phase.hotkeyJumps)
   metrics.apmByPhase = perMinute(phase => phase.actions)
   metrics.groupsUsed = commands.groupsUsed
   metrics.casts = commands.casts
@@ -939,8 +954,7 @@ export function computeGameMetrics(
   addTeamMetrics(game, players)
   if (commands) {
     players.forEach((metrics, i) => {
-      const names = game.players[i].names.map(n => n.toLowerCase())
-      const matching = commands.players.find(c => names.includes(c.name.toLowerCase()))
+      const matching = findPlayerCommands(commands, game.players[i].names)
       if (matching) {
         addCommandMetrics(metrics, matching)
       }

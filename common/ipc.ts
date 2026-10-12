@@ -8,6 +8,7 @@ import type {
 } from 'electron'
 import { Promisable } from 'type-fest'
 import { GameIconsManifest } from './game-icons'
+import { ReplayCommandStats } from './games/command-stats'
 import { GameDebugScreenshot } from './games/game-debug'
 import { GameLaunchConfig } from './games/game-launch-config'
 import {
@@ -119,6 +120,9 @@ interface IpcInvokeables {
 
   /** The chat in the replay at `replayPath`, in the order it was sent. */
   replayReadChat: (replayPath: string) => Promise<ReplayChatMessage[]>
+
+  /** What each player did, from the commands in the replay at `replayPath`. */
+  replayReadCommandStats: (replayPath: string) => Promise<ReplayCommandStats>
 
   /**
    * Returns the page of indexed replays matching `filters` selected by `filters.offset`/

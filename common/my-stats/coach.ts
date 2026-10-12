@@ -208,6 +208,9 @@ export type CoachMetricKey =
   | 'hotkeysEarly'
   | 'hotkeysMid'
   | 'hotkeysLate'
+  | 'hotkeyJumpsEarly'
+  | 'hotkeyJumpsMid'
+  | 'hotkeyJumpsLate'
   | 'unitsPerProductionMid'
   | 'unitsPerProductionLate'
 
@@ -550,6 +553,19 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     lateGame: i === 2,
     speed: true,
   })),
+  ...(['hotkeyJumpsEarly', 'hotkeyJumpsMid', 'hotkeyJumpsLate'] as const).map(
+    (key, i): CoachMetric => ({
+      key,
+      value: s => s.player.hotkeyJumpsPerMin?.[i],
+      higherIsBetter: true,
+      minDiff: 1,
+      relativeDiff: 0.15,
+      unit: 'perMinute',
+      minute: [6, 12, undefined][i],
+      lateGame: i === 2,
+      speed: true,
+    }),
+  ),
   // Army units for each production building, which shows how often it sits idle, whatever the
   // count.
   ...(['unitsPerProductionMid', 'unitsPerProductionLate'] as const).map((key, i): CoachMetric => ({

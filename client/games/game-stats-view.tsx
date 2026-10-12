@@ -10,6 +10,7 @@ import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat } from './game-stats-chat'
+import { GameHotkeys } from './game-stats-hotkeys'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { Scoreboard } from './game-stats-scoreboard'
 import {
@@ -165,6 +166,10 @@ export function GameStatsView({
       </SectionErrorBoundary>
 
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
+
+      {replayPath ? (
+        <GameHotkeys replayPath={replayPath} players={ranked} teamsByPlayer={teamsByPlayer} />
+      ) : null}
 
       {replayPath ? (
         <GameChat replayPath={replayPath} players={players} playerColors={playerColors} />

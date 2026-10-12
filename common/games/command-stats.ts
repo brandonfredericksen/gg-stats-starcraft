@@ -1,12 +1,12 @@
 import type { CommandKind, Player, ReplayCommand } from '@shieldbattery/broodrep'
 import { FASTEST_MS_PER_FRAME } from './game-stats'
-import { PHASE_MINUTES } from './player-metrics'
+import { MIN_PHASE_MINUTES, PHASE_MINUTES } from './player-metrics'
 
 /**
  * The version of {@link ReplayCommandStats} worked out now. Stats from an older version are worked
  * out again from the replay.
  */
-export const COMMAND_STATS_VERSION = 3
+export const COMMAND_STATS_VERSION = 5
 
 /**
  * How many commands that do something, from one player, per frame of a network turn, make a frame
@@ -33,6 +33,12 @@ const TURN_GAP_SHARE = 0.02
 const HOTKEY_ASSIGN = 0
 const HOTKEY_RECALL = 1
 const HOTKEY_ADD = 2
+
+/**
+ * Recalling the same group twice this many frames apart or closer is a double tap, which centers
+ * the screen on the group.
+ */
+const DOUBLE_TAP_FRAMES = 12
 
 /** Commands that pick units. */
 const SELECTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
@@ -80,6 +86,11 @@ export interface PhaseCommands {
   hotkeyRecalls: number
   hotkeyAdds: number
   selections: number
+  /**
+   * Times the player double tapped a hotkey, which moves the screen to the group, and didn't press
+   * another hotkey right away.
+   */
+  hotkeyJumps: number
 }
 
 export interface PlayerCommandStats {
@@ -111,6 +122,7 @@ function emptyPhase(minutes: number): PhaseCommands {
     hotkeyRecalls: 0,
     hotkeyAdds: 0,
     selections: 0,
+    hotkeyJumps: 0,
   }
 }
 
@@ -152,6 +164,27 @@ function burstShareOf(commandsByFrame: ReadonlyMap<number, number>, turnFrames: 
   return total ? inBursts / total : 0
 }
 
+/** How a player used hotkeys over the whole game, per minute they played. */
+export interface HotkeyRates {
+  recallsPerMin: number
+  /** See {@link PhaseCommands.hotkeyJumps}. */
+  jumpsPerMin: number
+}
+
+export function getHotkeyRates(player: PlayerCommandStats): HotkeyRates | undefined {
+  let minutes = 0
+  let recalls = 0
+  let jumps = 0
+  for (const phase of player.phases) {
+    minutes += phase.minutes
+    recalls += phase.hotkeyRecalls
+    jumps += phase.hotkeyJumps
+  }
+  return minutes >= MIN_PHASE_MINUTES
+    ? { recallsPerMin: recalls / minutes, jumpsPerMin: jumps / minutes }
+    : undefined
+}
+
 /** Counts what each human player did from a replay's commands. */
 export function summarizeCommands(
   players: ReadonlyArray<Pick<Player, 'networkId' | 'name' | 'playerType' | 'isObserver'>>,
@@ -187,14 +220,19 @@ export function summarizeCommands(
           commandsByFrame: new Map<number, number>(),
           /** The frame of a selection no order has followed yet. */
           selectedAt: undefined as number | undefined,
+          lastRecall: undefined as { group: number; frame: number; taps: number } | undefined,
+          /** When the player last double tapped a hotkey, until it's known to be a jump. */
+          doubleTappedAt: undefined as number | undefined,
         },
       ]
     }),
   )
+  const phaseAt = (stats: PlayerCommandStats, frame: number) =>
+    stats.phases[phaseIndex(frame * FASTEST_MS_PER_FRAME)]
 
   for (const { frame, playerId, command } of commands) {
     const entry = byId.get(playerId)
-    const phase = entry?.stats.phases[phaseIndex(frame * FASTEST_MS_PER_FRAME)]
+    const phase = entry && phaseAt(entry.stats, frame)
     if (!entry || !phase) {
       continue
     }
@@ -218,6 +256,27 @@ export function summarizeCommands(
         entry.selectedAt = undefined
       }
       count(frame)
+    }
+
+    const last = entry.lastRecall
+    const soon = last !== undefined && frame - last.frame <= DOUBLE_TAP_FRAMES
+    const recalled =
+      command.type === 'hotkey' && command.hotkeyType === HOTKEY_RECALL ? command.group : undefined
+    const taps = soon && recalled === last.group ? last.taps + 1 : 1
+    if (taps === 1 && entry.doubleTappedAt !== undefined) {
+      // Another hotkey right away flips past the group rather than looking at it, like warming
+      // up with "1 1 2 2".
+      const jumpedIn =
+        soon && command.type === 'hotkey' ? undefined : phaseAt(entry.stats, entry.doubleTappedAt)
+      if (jumpedIn) {
+        jumpedIn.hotkeyJumps += 1
+      }
+      entry.doubleTappedAt = undefined
+    }
+    entry.lastRecall = recalled === undefined ? undefined : { group: recalled, frame, taps }
+    // Tapping on after the double tap centers the screen on the same group again.
+    if (taps === 2) {
+      entry.doubleTappedAt = frame
     }
 
     if (command.type === 'hotkey') {

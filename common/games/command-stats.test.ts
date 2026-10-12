@@ -1,6 +1,6 @@
 import type { CommandData, ReplayCommand } from '@shieldbattery/broodrep'
 import { describe, expect, test } from 'vitest'
-import { SCRIPTED_BURST_SHARE, summarizeCommands } from './command-stats'
+import { getHotkeyRates, SCRIPTED_BURST_SHARE, summarizeCommands } from './command-stats'
 
 /** Frames in a minute of game time on Fastest. */
 const MINUTE = 60_000 / 42
@@ -98,6 +98,86 @@ describe('common/games/command-stats', () => {
       Math.round(20 * MINUTE),
     )
     expect(stats.players[0].phases[0].actions).toBe(8)
+  })
+
+  describe('hotkey jumps', () => {
+    const moveTo = (x: number, y: number): CommandData => ({
+      type: 'rightClick',
+      x,
+      y,
+      targetUnitTag: 0,
+      targetUnitType: 0,
+      queued: false,
+    })
+    function phaseOf(commands: Array<[frame: number, command: CommandData]>) {
+      const stats = summarizeCommands(
+        players,
+        commands.map(([frame, command]) => ({ frame, playerId: 0, command })),
+        Math.round(20 * MINUTE),
+      )
+      return stats.players[0].phases[0]
+    }
+
+    test('counts a double tapped hotkey once, however many taps follow', () => {
+      expect(
+        phaseOf([
+          [100, recall(1)],
+          [104, recall(1)],
+          [108, recall(1)],
+          [112, recall(1)],
+          [130, moveTo(100, 100)],
+        ]).hotkeyJumps,
+      ).toBe(1)
+    })
+
+    test('leaves out a double tap flipped past right away', () => {
+      expect(
+        phaseOf([
+          [100, recall(1)],
+          [102, recall(1)],
+          [104, recall(2)],
+          [106, recall(2)],
+          [108, recall(1)],
+          [110, recall(1)],
+          [112, { type: 'hotkey', hotkeyType: 0, group: 1 }],
+          [114, recall(4)],
+          [116, recall(4)],
+          [140, recall(3)],
+          [142, recall(3)],
+          [150, moveTo(100, 100)],
+        ]).hotkeyJumps,
+      ).toBe(2)
+    })
+
+    test('needs the taps close together, of one group, with nothing in between', () => {
+      expect(
+        phaseOf([
+          [100, recall(1)],
+          [140, recall(1)],
+          [200, recall(1)],
+          [204, recall(2)],
+          [300, recall(3)],
+          [302, moveTo(100, 100)],
+          [304, recall(3)],
+        ]).hotkeyJumps,
+      ).toBe(0)
+    })
+  })
+
+  test('works out hotkey rates over the time a player was in the game', () => {
+    const stats = summarizeCommands(
+      players,
+      [
+        at(1, 1, { type: 'hotkey', hotkeyType: 1, group: 1 }),
+        at(1, 1, { type: 'hotkey', hotkeyType: 1, group: 1 }),
+        at(1.1, 1, { type: 'hotkey', hotkeyType: 1, group: 2 }),
+        at(4, 1, { type: 'leaveGame', reason: 0 }),
+      ],
+      Math.round(20 * MINUTE),
+    )
+    const rates = getHotkeyRates(stats.players[1])
+    expect(rates?.recallsPerMin).toBeCloseTo(0.75)
+    expect(rates?.jumpsPerMin).toBeCloseTo(0.25)
   })
 
   test('only counts the time a player was in the game', () => {
