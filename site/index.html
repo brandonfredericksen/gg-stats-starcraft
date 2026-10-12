@@ -384,7 +384,7 @@
         white-space: nowrap;
       }
 
-      /* Two rows of three tabs on a phone. */
+      /* Three tabs to a row on a phone. */
       @media (max-width: 480px) {
         .tab {
           gap: 5px;
@@ -460,7 +460,17 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Coach: goals for your next game from your recent games, next to other players of your race." />
+          alt="Coach for an S rank Protoss player in PvT: goals for the next game, how their latest games are going and what to keep doing." />
+        <img
+          src="shots/numbers.webp"
+          srcset="shots/numbers-960.webp 960w, shots/numbers.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="All the numbers: economy, growth, fights and speed from their PvT games, next to other S rank Protoss players." />
         <img
           src="shots/builds.webp"
           srcset="shots/builds-960.webp 960w, shots/builds.webp 1920w"
@@ -540,6 +550,20 @@
               d="m89-412-49-36 193-310 125 146 165-268 125 186 143-226 48 35-190 301-124-184-159 258-125-146L89-412Zm494 192q48 0 82.5-33.5T700-335q0-49-34-83t-83-34q-48 0-81.5 34.5T468-335q0 48 33.5 81.5T583-220ZM797-80 685-192q-22 15-47.5 23.5T583-160q-73 0-124-51t-51-124q0-73 51-125t124-52q74 0 125.5 51.5T760-335q0 29-8.5 54.5T727-233l112 111-42 42Z" />
           </svg>
           Coach
+        </button>
+        <button
+          class="tab coach"
+          id="tab-numbers"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path
+              d="M450-340H120v160q0 24.75 17.63 42.37Q155.25-120 180-120h270v-220Zm60 0v220h270q24.75 0 42.38-17.63Q840-155.25 840-180v-160H510Zm-60-60v-220H120v220h330Zm60 0h330v-220H510v220ZM120-680h720v-100q0-24.75-17.62-42.38Q804.75-840 780-840H180q-24.75 0-42.37 17.62Q120-804.75 120-780v100Z" />
+          </svg>
+          All the numbers
         </button>
         <button
           class="tab builds"
