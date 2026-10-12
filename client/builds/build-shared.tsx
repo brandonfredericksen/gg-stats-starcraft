@@ -109,6 +109,11 @@ export type SideKey = 'top' | 'level' | 'winners' | 'you'
 export interface ShownSide {
   key: SideKey
   label: string
+  /**
+   * Who the side's players are, within a sentence, for a side the user's numbers can be compared
+   * with.
+   */
+  players?: string
   /** Missing when this side has no games of the build. */
   side: BuildSide | undefined
   /** What the side's column heading explains when hovered. */

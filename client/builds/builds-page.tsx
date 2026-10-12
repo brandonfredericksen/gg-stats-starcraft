@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { CoachBuild, CoachTeamBuild, MIN_WINNER_GAMES } from '../../common/my-stats/builds'
 import { CoachBucket, CoachResult, CoachScope } from '../../common/my-stats/coach'
@@ -37,6 +38,7 @@ import {
   BuildsList,
   BuildsPickers,
   getLevelHelp,
+  getLevelName,
   getTopPlayersHelp,
   hasSplits,
   MIN_RATE_GAMES,
@@ -227,6 +229,7 @@ function getCompare(
   meta: MetaResult | 'error',
   level: LevelBuilds,
   bucket: CoachBucket,
+  autoRank: LadderRank | undefined,
   eapmFloor: number,
   scope: Omit<CoachScope, 'games'>,
   t: TFunction,
@@ -239,18 +242,21 @@ function getCompare(
   const others = played.find(b => b.family === levelFamily)
   const winners = others?.winners
   const user = entry.level?.user
+  const levelName = getLevelName(bucket, autoRank, eapmFloor, t)
 
   const sides: ShownSide[] = [
     {
       key: 'top',
       label: t('builds.topPlayers', 'Top players'),
+      players: t('builds.basisTop', 'top players'),
       side: top?.side,
       help: getTopPlayersHelp(meta, scope, t),
       muted: false,
     },
     {
       key: 'level',
-      label: t('builds.yourLevel', 'Your level'),
+      label: levelName.label,
+      players: levelName.players,
       side: others?.others,
       help: getLevelHelp(bucket, eapmFloor, t),
       muted: false,
@@ -258,11 +264,12 @@ function getCompare(
     {
       key: 'winners',
       label: t('builds.winners', 'Winners'),
+      players: t('builds.basisWinners', 'the winners'),
       side: winners,
       help: t(
         'builds.winnersHelp',
-        'Players at your level who won with this build and were still in at the end. Empty under {{empty}} such games, and faded under {{minimum}}.',
-        { empty: MIN_WINNER_GAMES, minimum: MIN_RATE_GAMES },
+        'Wins with this build by {{players}} who were still in at the end. Empty under {{empty}} such games, and faded under {{minimum}}.',
+        { players: levelName.players, empty: MIN_WINNER_GAMES, minimum: MIN_RATE_GAMES },
       ),
       muted: !!winners && winners.games < MIN_RATE_GAMES,
     },
@@ -289,7 +296,8 @@ function getCompare(
   }
   if (levelFamily && levelFamily !== entry.family) {
     standIns.push(
-      t('builds.levelAs', 'Your level as {{build}}, the closest build they play.', {
+      t('builds.levelAs', '{{side}} as {{build}}, the closest build they play.', {
+        side: levelName.label,
         build: getBuildFamilyName(levelFamily, t),
       }),
     )
@@ -336,7 +344,7 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
     entries.find(e => e.family === level.userBuild) ??
     entries[0]
   const detail = selected
-    ? getCompare(selected, meta, level, bucket, coach.eapmFloor, scope, t)
+    ? getCompare(selected, meta, level, bucket, coach.autoRank, coach.eapmFloor, scope, t)
     : undefined
 
   return (
@@ -347,6 +355,7 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
           meta={meta}
           scope={scope}
           bucket={bucket}
+          autoRank={coach.autoRank}
           eapmFloor={coach.eapmFloor}
           userBuild={level.userBuild}
           selected={selected?.family ?? ''}

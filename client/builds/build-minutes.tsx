@@ -26,7 +26,6 @@ import {
   ROW_ICON_SIZE,
   ShownSide,
   SIDE_COLUMNS,
-  SideKey,
   SMALL_ICON_SIZE,
 } from './build-shared'
 
@@ -533,20 +532,6 @@ function ArmyMakeup({ sides }: { sides: ReadonlyArray<ShownSide> }) {
 
 type View = 'table' | 'chart'
 
-/** Who the user's numbers are compared with, for the legends that say so. */
-export function getBasisName(basis: SideKey | undefined, t: TFunction) {
-  switch (basis) {
-    case 'top':
-      return t('builds.basisTop', 'top players')
-    case 'winners':
-      return t('builds.basisWinners', 'the winners')
-    case 'level':
-      return t('builds.basisLevel', 'players at your level')
-    default:
-      return undefined
-  }
-}
-
 /**
  * Workers and army at a few minutes into the game, for every side of the picked build, as a table
  * or as what each army is made of.
@@ -560,7 +545,7 @@ export function WorkersAndArmy({
 }) {
   const { t } = useTranslation()
   const [view, setView] = useState<View>('table')
-  const basis = getBasisName(compare.basis?.key, t)
+  const basis = compare.basis?.players
   const viewOptions: Array<SegmentOption<View>> = [
     { value: 'table', label: t('builds.viewTable', 'Table') },
     { value: 'chart', label: t('builds.viewMakeup', 'Army makeup') },

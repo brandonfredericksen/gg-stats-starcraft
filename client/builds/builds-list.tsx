@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { assertUnreachable } from '../../common/assert-unreachable'
+import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { CoachBuild } from '../../common/my-stats/builds'
 import { CoachBucket, CoachScope } from '../../common/my-stats/coach'
@@ -159,6 +160,36 @@ export function getTopPlayersHelp(
     )
   }
   return notes.join(' ')
+}
+
+/**
+ * What the players at the user's level are called, as a heading and within a sentence. Their
+ * level is only known from the rank of their latest ranked 1v1 game. Otherwise the players are
+ * named for the rank or the EAPM they were picked by.
+ */
+export function getLevelName(
+  bucket: CoachBucket,
+  autoRank: LadderRank | undefined,
+  eapmFloor: number,
+  t: TFunction,
+): { label: string; players: string } {
+  if (bucket.rank && bucket.rank === autoRank) {
+    return {
+      label: t('builds.yourLevel', 'Your level'),
+      players: t('builds.basisLevel', 'players at your level'),
+    }
+  }
+  if (bucket.rank) {
+    const rank = bucket.rank.toUpperCase()
+    return {
+      label: t('myStats.filters.rankOption', 'Rank {{rank}}', { rank }),
+      players: t('builds.basisRank', 'rank {{rank}} players', { rank }),
+    }
+  }
+  return {
+    label: t('myStats.filters.floorOption', '{{floor}}+ EAPM', { floor: eapmFloor }),
+    players: t('builds.basisFloor', 'players over {{floor}} EAPM', { floor: eapmFloor }),
+  }
 }
 
 /** Who the players at the user's level are here. */
@@ -351,6 +382,7 @@ export function BuildsList({
   meta,
   scope,
   bucket,
+  autoRank,
   eapmFloor,
   userBuild,
   selected,
@@ -361,6 +393,7 @@ export function BuildsList({
   meta: MetaResult | 'error'
   scope: Omit<CoachScope, 'games'>
   bucket: CoachBucket
+  autoRank: LadderRank | undefined
   eapmFloor: number
   userBuild: string | undefined
   selected: string
@@ -404,7 +437,7 @@ export function BuildsList({
           </SpanHead>
           <SpanHead style={{ gridColumn: 'span 3' }}>
             <HelpLabel
-              label={t('builds.yourLevel', 'Your level')}
+              label={getLevelName(bucket, autoRank, eapmFloor, t).label}
               help={getLevelHelp(bucket, eapmFloor, t)}
             />
           </SpanHead>

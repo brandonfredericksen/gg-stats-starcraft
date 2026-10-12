@@ -290,14 +290,16 @@ const teamBucket: CoachBucket = {
 
 const cases: Array<[string, CoachResult]> = [
   [
-    'PvZ on every map',
+    'PvZ on every map, against players of your rank',
     {
       status: 'ready',
       scopes,
       eapmFloor: 150,
+      rank: 'a',
+      autoRank: 'a',
       scope: pvzScope,
       ...recentWindow,
-      buckets: [bucket],
+      buckets: [{ ...bucket, rank: 'a' }],
     },
   ],
   [
@@ -305,7 +307,7 @@ const cases: Array<[string, CoachResult]> = [
     {
       status: 'ready',
       scopes: [{ shape: '2v2', race: 'p', allyRace: 'z', games: 40 }, ...scopes],
-      eapmFloor: 120,
+      eapmFloor: 100,
       scope: { shape: '2v2', race: 'p', allyRace: 'z' },
       ...recentWindow,
       buckets: [teamBucket],
