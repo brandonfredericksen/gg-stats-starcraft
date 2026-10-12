@@ -1451,6 +1451,7 @@ function Unlock({
         {bucket.rank
           ? ` ${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: bucket.rank.toUpperCase() })}`
           : null}
+        {bucket.poolScripted ? ` ${getScriptedNote(bucket.poolScripted, t)}` : null}
       </Text>
       <Progress>
         <span>{t('myStats.coach.yourGames', 'Your games')}</span>
