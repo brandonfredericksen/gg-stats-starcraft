@@ -433,7 +433,7 @@ function getGoalText(goal: CoachGoal, t: TFunction): [label: string, help: strin
       t('myStats.coach.metric.buildTiming', '{{build}} timing', {
         build: getBuildName(goal.buildKey ?? '', t),
       }),
-      t('myStats.coach.help.buildTiming', 'When you usually start it, against other players.'),
+      t('myStats.coach.help.buildTiming', 'When you usually start it, compared to other players.'),
     ]
   }
   return getMetricText(goal.key, t)

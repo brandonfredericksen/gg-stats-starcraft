@@ -1347,7 +1347,7 @@ function Unlock({
           <Trans
             t={t}
             i18nKey='myStats.coach.unlockFiltersAll'
-            defaults='With these filters: all your {{race}} games here, against {{race}} players over <b>{{floor}} EAPM</b>.'
+            defaults='With these filters: all your {{race}} games here, compared to {{race}} players over <b>{{floor}} EAPM</b>.'
             values={{ race, floor: eapmFloor }}
             components={{ b: <Key /> }}
           />
@@ -1355,7 +1355,7 @@ function Unlock({
           <Trans
             t={t}
             i18nKey='myStats.coach.unlockFiltersSince'
-            defaults='With these filters: your games here since <b>{{date}}</b>, against {{race}} players over <b>{{floor}} EAPM</b> from the same dates.'
+            defaults='With these filters: your games here since <b>{{date}}</b>, compared to {{race}} players over <b>{{floor}} EAPM</b> from the same dates.'
             values={{ race, floor: eapmFloor, date: formatDate(sinceMs) }}
             components={{ b: <Key /> }}
           />
@@ -1503,12 +1503,12 @@ export function Comparison({
     sameDates
       ? t(
           'myStats.coach.othersFloor',
-          'Against {{race}} players over {{floor}} EAPM {{source}}, from the same dates. Speed rows count every EAPM.',
+          'Compared to {{race}} players over {{floor}} EAPM {{source}}, from the same dates. Speed rows count every EAPM.',
           { race, floor: eapmFloor, source: poolSource },
         )
       : t(
           'myStats.coach.othersFloorAll',
-          'Against {{race}} players over {{floor}} EAPM {{source}}. Speed rows count every EAPM.',
+          'Compared to {{race}} players over {{floor}} EAPM {{source}}. Speed rows count every EAPM.',
           { race, floor: eapmFloor, source: poolSource },
         ),
   ]
@@ -1659,7 +1659,7 @@ export function Comparison({
         options={[
           {
             value: 'all',
-            label: t('myStats.coach.tabOthers', 'Against other {{race}} players', { race }),
+            label: t('myStats.coach.tabOthers', 'Compared to other {{race}} players', { race }),
           },
           { value: 'losses', label: t('myStats.coach.tabLosses', 'Wins against losses') },
           { value: 'timings', label: t('myStats.coach.tabTimings', 'Timings') },
