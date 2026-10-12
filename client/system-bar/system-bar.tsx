@@ -141,6 +141,17 @@ const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   }
 `
 
+/** Settings, as just its gear at the end of the bar. */
+const SettingsButton = styled(NavItem)`
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+
+  & > :first-child {
+    transform: none;
+  }
+`
+
 const Spacer = styled.div`
   flex: 1;
 `
@@ -478,18 +489,6 @@ export function SystemBar() {
             {t('lastGame.label', 'Last game')}
           </NavItem>
         </Tooltip>
-        <Tooltip text={t('settings.activity.title', 'Settings (Alt + S)')} position='bottom'>
-          <NavItem
-            ref={setSettingsButton}
-            type='button'
-            $tab='settings'
-            $active={isSettingsOpen}
-            data-testid='settings-button'
-            onClick={() => dispatch(isSettingsOpen ? closeSettings() : openSettings())}>
-            <MaterialIcon icon='settings' size={20} />
-            {t('settings.activity.label', 'Settings')}
-          </NavItem>
-        </Tooltip>
       </Nav>
       <Spacer />
       <RestartToUpdateButton />
@@ -499,6 +498,18 @@ export function SystemBar() {
           DEV
         </DevIndicator>
       ) : null}
+      <Tooltip text={t('settings.activity.title', 'Settings (Alt + S)')} position='bottom'>
+        <SettingsButton
+          ref={setSettingsButton}
+          type='button'
+          $tab='settings'
+          $active={isSettingsOpen}
+          aria-label={t('settings.activity.label', 'Settings')}
+          data-testid='settings-button'
+          onClick={() => dispatch(isSettingsOpen ? closeSettings() : openSettings())}>
+          <MaterialIcon icon='settings' size={20} />
+        </SettingsButton>
+      </Tooltip>
     </Container>
   )
 }
