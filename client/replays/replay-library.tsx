@@ -44,7 +44,7 @@ import { push, replace } from '../navigation/routing'
 import { createViewStateStore } from '../navigation/view-state-store'
 import { useVirtuosoScrollMemory } from '../navigation/virtuoso-scroll-memory'
 import { useRefreshToken } from '../network/refresh-token'
-import { LoadingIndicatorArea } from '../progress/loading-indicator'
+import { LoadingIndicatorArea, PageLoadingIndicator } from '../progress/loading-indicator'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useUserLocalStorageValue } from '../react/state-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -1127,13 +1127,13 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     )
   }
 
-  // The list's first load in a visit is part of the page opening, so its loader shows right away. A
-  // reload after the filters change waits, so a quick one doesn't flash it.
-  const listLoading = <LoadingIndicatorArea showImmediately={!snapshotInvalidated} />
+  // The list's first load in a visit is part of the page opening, so it gets the page's loader. A
+  // reload after the filters change loads in the list, and waits so a quick one doesn't flash it.
+  const listLoading = snapshotInvalidated ? <LoadingIndicatorArea /> : <PageLoadingIndicator />
   let listContent: React.ReactNode = null
   if (entries === undefined) {
-    // The backfill's own progress rides in the bar above the list; here we just need a light loader
-    // until the first page resolves.
+    // The backfill's own progress rides in the bar above the list; here we just need a loader until
+    // the first page resolves.
     listContent = listLoading
   } else if (entries.length === 0) {
     if (hasActiveFilters) {

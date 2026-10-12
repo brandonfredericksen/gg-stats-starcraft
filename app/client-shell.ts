@@ -1,6 +1,13 @@
 import { net } from 'electron'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  LOADING_LINE_GAP,
+  LOADING_LOGO_SHADOW,
+  LOADING_LOGO_SIZE,
+  LOADING_LOGO_URL,
+} from '../common/loading-logo'
+import { CONTENT_PANEL_INSET, SYSTEM_BAR_HEIGHT } from '../common/window-layout'
 
 /** Slots in the shell HTML that the main process fills before serving it. */
 const NONCE_SCRIPT_SLOT = '<!--ggstats:csp-nonce-script-->'
@@ -40,14 +47,14 @@ export interface ClientShellData {
   backgroundColor: string
 }
 
-/** How big the logo on the splash is, in CSS pixels. Its image is twice that, for sharp HiDPI. */
-const SPLASH_LOGO_SIZE = 128
-
 /**
  * What the window shows while the app loads: the logo, with the app's loading indicator rendered
  * under it once the client runs. It's part of the page rather than the client, so it's in the very
  * first frame, and the client fades it out once it has a page to show (see `client/splash.tsx`).
  * The window has no frame, so it can be dragged by the splash.
+ *
+ * The logo sits in the middle of where the panel pages show in will be, rather than of the window,
+ * so a page still loading when the splash fades out has its loader right where the splash's was.
  */
 function renderSplash(nonceAttr: string, backgroundColor: string): string {
   const style = `
@@ -59,20 +66,26 @@ function renderSplash(nonceAttr: string, backgroundColor: string): string {
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: ${SYSTEM_BAR_HEIGHT}px ${CONTENT_PANEL_INSET}px ${CONTENT_PANEL_INSET}px;
       background-color: ${backgroundColor};
       -webkit-app-region: drag;
       user-select: none;
     }
 
+    #splash-mark {
+      position: relative;
+    }
+
     #splash-logo {
-      width: ${SPLASH_LOGO_SIZE}px;
-      height: ${SPLASH_LOGO_SIZE}px;
-      filter: drop-shadow(0 12px 24px rgb(0 0 0 / 0.5));
+      display: block;
+      width: ${LOADING_LOGO_SIZE}px;
+      height: ${LOADING_LOGO_SIZE}px;
+      filter: ${LOADING_LOGO_SHADOW};
     }
 
     #splash-indicator {
       position: absolute;
-      top: calc(50% + ${SPLASH_LOGO_SIZE / 2 + 32}px);
+      top: calc(100% + ${LOADING_LINE_GAP}px);
       inset-inline: 0;
       display: flex;
       justify-content: center;
@@ -91,8 +104,10 @@ function renderSplash(nonceAttr: string, backgroundColor: string): string {
   return (
     `<style${nonceAttr}>${style}</style>` +
     '<div id="splash" aria-hidden="true">' +
-    `<img id="splash-logo" src="/assets/splash-logo.webp" alt="" draggable="false">` +
+    '<div id="splash-mark">' +
+    `<img id="splash-logo" src="${LOADING_LOGO_URL}" alt="" draggable="false">` +
     '<div id="splash-indicator"></div>' +
+    '</div>' +
     '</div>'
   )
 }

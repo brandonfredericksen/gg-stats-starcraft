@@ -8,7 +8,7 @@ import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
 import { Comparison } from '../coach/coach-page'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
-import { PageLoadingIndicator } from '../progress/loading-indicator'
+import { LoadingIndicatorArea, PageLoadingIndicator } from '../progress/loading-indicator'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
@@ -182,7 +182,8 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
     )
   }
   if (oneKind && coach === undefined) {
-    return <PageLoadingIndicator />
+    // The rest of the page is up, so this loads in its own spot rather than as the page's loader.
+    return <LoadingIndicatorArea showImmediately={true} />
   }
   return (
     <MacroAveragesPanel

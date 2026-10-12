@@ -7,6 +7,7 @@ import styled from 'styled-components'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { DEV_INDICATOR } from '../../common/flags'
 import { TypedIpcRenderer } from '../../common/ipc'
+import { SYSTEM_BAR_HEIGHT } from '../../common/window-layout'
 import { useFitLevel } from '../dom/use-fit-level'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
@@ -33,8 +34,6 @@ import { bahnschrift, labelLarge, labelMedium, titleMedium } from '../styles/typ
 import { RestartToUpdateButton } from '../updates/update-status'
 import { openLastGame } from './last-game'
 import { SizeLeft, SizeRight, SizeTop, WINDOW_CONTROLS_WIDTH } from './window-controls'
-
-export const SYSTEM_BAR_HEIGHT = 60
 
 const ipcRenderer = new TypedIpcRenderer()
 
