@@ -1,20 +1,8 @@
 import { MapFamily } from '../games/map-family'
-import {
-  ARMY_MIX_MINUTES,
-  BuildStepMetric,
-  PlayerMetrics,
-  STARTING_WORKERS,
-  WORKER_IDS,
-} from '../games/player-metrics'
+import { BuildStepMetric, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
-import {
-  BuildSample,
-  BuildStepSummary,
-  quantile,
-  summarizeBuildSide,
-  WORKER_MINUTES,
-} from './builds'
+import { BuildSample, BuildSide, BuildStepSummary, quantile, summarizeBuildSide } from './builds'
 import { capPerPlayer, isComparable, nameOf, Sample, toSample, wentOutFirst } from './coach'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { getSidesOf, isTeamGame, splitsByMap } from './player-games'
@@ -49,30 +37,18 @@ const STANDARD_PLAYERS = 5
  * like everyone else's, so a few lucky games can't make it stand out.
  */
 const PRIOR_GAMES = 20
-/** How far a build order goes before what's left is listed by when most games take it. */
-export const ORDER_END_MS = 7 * 60_000
-/** Steps after {@link ORDER_END_MS} listed, the earliest first. */
-const MAX_LATER_STEPS = 8
+/** How far into the game a build order goes when picking the game closest to it. */
+const ORDER_END_MS = 7 * 60_000
 /** A step at least this share of games take is part of the build, and fewer an option. */
-export const CORE_STEP_SHARE = 0.8
+const CORE_STEP_SHARE = 0.8
 /** A step most players take within this window of each other is one everyone does the same. */
-export const TIGHT_STEP_MS = 15_000
-/** A step the middle half of games take further apart than this depends on the game. */
-export const VARIED_STEP_MS = 90_000
+const TIGHT_STEP_MS = 15_000
 /** How far off a typical step can be before a game is judged as missing it. */
 const MISSING_STEP_COST = 3
 /** The fewest games of a split, like against one opening, for it to be offered. */
 const MIN_SPLIT_GAMES = 25
 /** In 2v2, the fewest top games with the teammate's race to show them apart from any teammate. */
 const MIN_ALLY_GAMES = 30
-/** Army units this many a game on average, at a minute, are part of the army then. */
-const MIN_ARMY_COUNT = 0.5
-/** The minutes the army is shown at. */
-const ARMY_MINUTES: ReadonlyArray<number> = [6, 8]
-/** Static defense counted by this, see {@link MetaBuild.defense}. */
-const DEFENSE_BY_MS = 6 * 60_000
-/** Photon Cannons, Bunkers, Missile Turrets, and Sunken and Spore Colonies. */
-const DEFENSE_KEYS: ReadonlyArray<string> = ['u162', 'u125', 'u124', 'u146', 'u144']
 
 /** The kind of game to show the meta of, like the coach's scope. */
 export interface MetaQuery {
@@ -93,24 +69,6 @@ export interface MetaQuery {
   opponentOpening?: string
 }
 
-/** One step of a build order, as the typical game took it, with how all of the games did. */
-export interface MetaStep {
-  /** The build key, see `buildKey`. */
-  key: string
-  /** Which of these it is, like the second Gateway. */
-  nth: number
-  /** When the typical game took it, and the supply then. */
-  timeMs: number
-  supply?: number
-  /** Workers the typical game had made by then, counting the ones it started with. */
-  workers?: number
-  /** The middle half of all the games take it between these. */
-  earlyMs: number
-  lateMs: number
-  /** The share of all the games that take it. */
-  share: number
-}
-
 /** A build top players use, how it does, and how they play it. */
 export interface MetaBuild {
   /** See `getBuildFamily`. */
@@ -123,9 +81,6 @@ export interface MetaBuild {
    * over too soon to name one are left out, see {@link MetaResult.shortShare}.
    */
   share: number
-  /** Wins and losses, each team's counted once. */
-  wins: number
-  losses: number
   /**
    * How it wins against everyone else's builds here: 0.5 is like the rest. In 1v1, judged against
    * what the players' MMRs expected. Pulled toward 0.5 when it has few games.
@@ -135,21 +90,10 @@ export interface MetaBuild {
   winGames: number
   /** Whether it's the build top players play here, more than any other. */
   standard: boolean
-  /**
-   * The steps to {@link ORDER_END_MS} of the game closest to how top players play it, the ones at
-   * least half of the games take, in that game's order.
-   */
-  order: MetaStep[]
-  /** Steps after the order, by when most games take them. */
-  later: BuildStepSummary[]
-  /** The game the order is from. */
+  /** How top players play it, summed up the way every other side of a build is. */
+  side: BuildSide
+  /** The game closest to how top players play it, see `typicalOf`. */
   typical: { gameId: string; fromLibrary: boolean }
-  /** Workers at each of {@link WORKER_MINUTES}, when most of the games got that far. */
-  workersAt: Array<number | null>
-  /** The army units most games have at each of {@link ARMY_MINUTES}, on average. */
-  armyAt: Array<{ minute: number; units: Array<{ unitId: number; count: number }> }>
-  /** Static defense of each kind most games build by {@link DEFENSE_BY_MS}, and how many. */
-  defense: Array<{ key: string; count: number }>
 }
 
 /** A way to split the games, like against one opening, and how many top games it has. */
@@ -341,68 +285,9 @@ function toBuildSample(s: TopSample): BuildSample {
 function describeBuild(samples: ReadonlyArray<TopSample>) {
   const side = summarizeBuildSide(samples.map(toBuildSample))
   const typical = typicalOf(samples, side.steps)
-  const byId = new Map(side.steps.map(step => [idOf(step), step]))
-  const workerTimes = Object.entries(typical.player.unitTimes ?? {})
-    .filter(([unitId]) => WORKER_IDS.has(Number(unitId)))
-    .flatMap(([, times]) => times)
-  const order: MetaStep[] = Array.from(stepsById(typical.player).values()).flatMap(step => {
-    const all = byId.get(idOf(step))
-    if (!all || step.timeMs > ORDER_END_MS) {
-      return []
-    }
-    return [
-      {
-        key: step.key,
-        nth: step.nth,
-        timeMs: step.timeMs,
-        supply: step.supply,
-        workers: typical.player.unitTimes
-          ? STARTING_WORKERS + workerTimes.filter(ms => ms < step.timeMs).length
-          : undefined,
-        earlyMs: all.earlyMs,
-        lateMs: all.lateMs,
-        share: all.share,
-      },
-    ]
-  })
-  const inOrder = new Set(order.map(idOf))
-  const later = side.steps
-    .filter(step => step.timeMs > ORDER_END_MS && !inOrder.has(idOf(step)))
-    .slice(0, MAX_LATER_STEPS)
-
-  const reached = (minute: number) =>
-    samples.filter(s => s.playedMs >= minute * 60_000).length * 2 >= samples.length
-  const workersAt = WORKER_MINUTES.map((minute, i) => (reached(minute) ? side.workersAt[i] : null))
-  const armyAt = ARMY_MINUTES.filter(reached).map(minute => {
-    const index = ARMY_MIX_MINUTES.indexOf(minute)
-    return {
-      minute,
-      units: side.armyMix
-        .map(entry => ({ unitId: entry.unitId, count: entry.counts[index] ?? 0 }))
-        .filter(unit => unit.count >= MIN_ARMY_COUNT)
-        .sort((a, b) => b.count - a.count),
-    }
-  })
-  const defense = DEFENSE_KEYS.flatMap(key => {
-    const count = median(
-      samples.map(
-        s =>
-          (s.player.buildSteps ?? []).filter(
-            step => step.key === key && step.timeMs <= DEFENSE_BY_MS,
-          ).length,
-      ),
-    )
-    return count >= 1 ? [{ key, count: Math.round(count) }] : []
-  })
-
   return {
     side,
-    order,
-    later,
     typical: { gameId: typical.game.gameId, fromLibrary: !typical.game.ladderBaseline },
-    workersAt,
-    armyAt,
-    defense,
   }
 }
 
@@ -604,14 +489,11 @@ export function computeMetaBuilds(
       const games = decidedOf(f.samples)
       const winScore =
         0.5 + (surplusOf(games) - games.length * averageSurplus) / (games.length + PRIOR_GAMES)
-      const { side, ...described } = describeBuild(f.samples)
       return {
         family: f.family,
         games: f.samples.length,
         players: f.players,
         share: f.share,
-        wins: side.wins,
-        losses: side.losses,
         winScore,
         winGames: games.length,
         standard:
@@ -619,7 +501,7 @@ export function computeMetaBuilds(
           f.share >= STANDARD_SHARE &&
           f.samples.length >= STANDARD_GAMES &&
           f.players >= STANDARD_PLAYERS,
-        ...described,
+        ...describeBuild(f.samples),
       }
     })
 

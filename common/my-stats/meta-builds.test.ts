@@ -257,12 +257,10 @@ describe('common/my-stats/meta-builds', () => {
     expect(many.builds.map(b => b.standard)).toEqual([true, false])
   })
 
-  test('takes the build order from the game closest to how most games play it', () => {
+  test('sums up how all the games play a build, and finds the game closest to it', () => {
     const later: Array<[string, number]> = [['u155', 8]]
     const games = [
-      ...times(12, () =>
-        pvt({ rank: 'a', steps: [...GATE_EXPAND, ...later], probes: [0.2, 0.5, 0.8, 1.1, 2.5] }),
-      ),
+      ...times(12, () => pvt({ rank: 'a', steps: [...GATE_EXPAND, ...later] })),
       ...times(4, () =>
         pvt({
           rank: 'a',
@@ -271,14 +269,16 @@ describe('common/my-stats/meta-builds', () => {
       ),
     ]
     const [build] = computeMetaBuilds(games, PVT).builds
-    expect(build.order.map(s => [s.key, s.timeMs / 60_000, s.workers])).toEqual([
-      ['u160', 1.2, 8],
-      ['u164', 2, 8],
-      ['u154', 3, 9],
+    expect(build.side.steps.map(s => [s.key, s.timeMs / 60_000])).toEqual([
+      ['u160', 1.2],
+      ['u164', 2],
+      ['u154', 3],
+      ['u155', 8],
     ])
-    expect(build.order[2]).toMatchObject({ earlyMs: 3 * 60_000, lateMs: 3.25 * 60_000 })
-    expect(build.later.map(s => [s.key, s.timeMs / 60_000])).toEqual([['u155', 8]])
-    expect(build.workersAt).toEqual([30, 30, 30, 30])
+    expect(build.side.steps[2]).toMatchObject({ earlyMs: 3 * 60_000, lateMs: 3.25 * 60_000 })
+    expect(build.side.workersAt).toEqual([30, 30, 30, 30])
+    // The first 12 games take the steps when most games do.
+    expect(Number(build.typical.gameId)).toBeLessThan(12)
   })
 
   test('leaves games over too soon to name a build out of the shares', () => {

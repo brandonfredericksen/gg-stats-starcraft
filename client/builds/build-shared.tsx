@@ -1,23 +1,32 @@
 import { TFunction } from 'i18next'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { BuildStepSummary } from '../../common/my-stats/builds'
-import { Cell, formatGameTime, getBuildName, Table } from '../coach/coach-shared'
+import { BuildSide, BuildStepSummary } from '../../common/my-stats/builds'
+import { Cell, formatGameTime, getBuildName, HeadCell, Table, Tone } from '../coach/coach-shared'
 import { buttonReset } from '../material/button-reset'
+import { Tooltip } from '../material/tooltip'
+import { formatPercent, HelpLabel } from '../my-stats/my-stats-panels'
 import { labelMedium } from '../styles/typography'
 
-/** A table of builds, its highlight reaching a little past the text on each side. */
-export const BuildsGrid = styled(Table)<{ $lastColumn: number }>`
+/**
+ * A table of the Builds page. Every row is a `Row` or a `BuildRow`, and their lines and highlights
+ * reach a little past the text on each side, the same in every table on the page.
+ */
+export const BuildsTable = styled(Table)`
   margin-inline: calc(-1 * var(--space-3));
 
-  & > :first-child,
-  & > button > :first-child {
+  & > * > :first-child {
     padding-left: var(--space-3);
   }
 
-  & > :nth-child(${props => props.$lastColumn}),
-  & > button > :last-child {
+  & > * > :last-child {
     padding-right: var(--space-3);
   }
+`
+
+/** A row of a `BuildsTable`. */
+export const Row = styled.div`
+  display: contents;
 `
 
 /** A row of a table of builds, which picks the build shown below it. */
@@ -46,8 +55,23 @@ export const BuildRow = styled.button<{ $selected: boolean }>`
   }
 `
 
-/** A short tag after a build's name, like the one the user plays most. */
-export const BuildTag = styled.span`
+/** A heading over a group of columns, with a line under it spanning them. */
+export const SpanHead = styled.span`
+  ${labelMedium};
+  margin-left: var(--space-5);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--theme-outline-variant);
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+  text-align: center;
+`
+
+/**
+ * A short tag after a build's name. Pink, the page's color for the user, only for what's about
+ * them; outlined for what's about the build.
+ */
+export const BuildTag = styled.span<{ $you?: boolean }>`
   ${labelMedium};
   height: 20px;
   margin-block: -2px;
@@ -59,15 +83,10 @@ export const BuildTag = styled.span`
   vertical-align: middle;
 
   border-radius: var(--radius-full);
-  background: var(--theme-tab-builds-tint);
-  color: var(--theme-tab-builds);
+  background: ${props => (props.$you ? 'var(--theme-tab-builds-tint)' : 'transparent')};
+  box-shadow: ${props => (props.$you ? 'none' : 'inset 0 0 0 1px var(--theme-outline-strong)')};
+  color: ${props => (props.$you ? 'var(--theme-tab-builds)' : 'var(--theme-on-surface-variant)')};
   font-weight: 600;
-`
-
-/** How many players a build's games are from, after the games. */
-export const PlayersCount = styled.span`
-  margin-left: var(--space-2);
-  color: var(--theme-on-surface-variant);
 `
 
 /** A name with the game's icon for it in front, when the icons have been saved. */
@@ -79,10 +98,94 @@ export const IconName = styled.span`
   vertical-align: middle;
 `
 
-/** A cell set apart from the cell before it. */
-export const GroupStartCell = styled(Cell)`
-  padding-left: var(--space-8);
-`
+/** The size of a game icon in front of a row's name, in every table on the page. */
+export const ROW_ICON_SIZE = 26
+/** The size of a game icon in a legend or a tooltip. */
+export const SMALL_ICON_SIZE = 20
+
+/** Who a build's numbers are from, in the order every table and chart on the page shows them. */
+export type SideKey = 'top' | 'level' | 'winners' | 'you'
+
+export interface ShownSide {
+  key: SideKey
+  label: string
+  /** Missing when this side has no games of the build. */
+  side: BuildSide | undefined
+  /** What the side's column heading explains when hovered. */
+  help: string
+  /** Too few games to go by, so drawn faded. */
+  muted: boolean
+}
+
+/**
+ * A build picked to look at, with every side that plays it. A side that doesn't play the build
+ * itself can stand in with the build it's a variant of, see `asFamily`.
+ */
+export interface BuildCompare {
+  family: string
+  sides: ReadonlyArray<ShownSide>
+  /** The side the user's numbers are compared with, when there's one besides theirs. */
+  basis: ShownSide | undefined
+}
+
+/** The columns of a table with a row per step or number and a column per side. */
+export const SIDE_COLUMNS = 'minmax(0, 1fr) repeat(4, 136px)'
+
+/** A table's column headings for each side, explained when hovered. */
+export function SideHeads({ sides }: { sides: ReadonlyArray<ShownSide> }) {
+  return sides.map(side => (
+    <HeadCell key={side.key} $end={true}>
+      <HelpLabel label={side.label} help={side.help} />
+    </HeadCell>
+  ))
+}
+
+/** A win rate under this, in whole percent, is colored as bad, and over `GOOD_WIN_PERCENT` good. */
+const BAD_WIN_PERCENT = 40
+const GOOD_WIN_PERCENT = 60
+
+/** A win rate's color, by the rate as it's shown: green well over even, red well under. */
+function winRateTone(rate: number): Tone | undefined {
+  const percent = Math.round(rate * 100)
+  if (percent > GOOD_WIN_PERCENT) {
+    return 'good'
+  }
+  return percent < BAD_WIN_PERCENT ? 'bad' : undefined
+}
+
+/**
+ * A win rate, colored by how it goes, or faded when too few games decide it. The record shows when
+ * hovered.
+ */
+export function WinRateCell({
+  rate,
+  wins,
+  losses,
+  faded,
+}: {
+  rate: number | undefined
+  wins: number
+  losses: number
+  faded: boolean
+}) {
+  const { t } = useTranslation()
+  if (rate === undefined) {
+    return (
+      <Cell $end={true} $tone='muted'>
+        -
+      </Cell>
+    )
+  }
+  return (
+    <Cell $end={true} $tone={faded ? 'muted' : winRateTone(rate)}>
+      <Tooltip
+        position='top'
+        text={t('builds.record', '{{wins}} wins, {{losses}} losses', { wins, losses })}>
+        {formatPercent(rate)}
+      </Tooltip>
+    </Cell>
+  )
+}
 
 const OPENER_NAMES: Record<string, (t: TFunction) => string> = {
   nexusFirst: t => t('builds.family.nexusFirst', 'Nexus first'),
@@ -167,6 +270,22 @@ export function getBuildFamilyName(family: string, t: TFunction) {
 /** Whether a build is an all-in, see `getBuildFamily`. */
 export function isAllInFamily(family: string) {
   return family.split(' ').includes('allIn')
+}
+
+/**
+ * The closest of some builds to a build: the build itself, or else the build it's a variant of,
+ * like "9 pool" for "9 pool, 2 hatch spire into Hydra", down to its opening.
+ */
+export function closestFamily(family: string, has: (family: string) => boolean) {
+  const parts = family.split(' ')
+  // The race and the opening name the shortest build.
+  for (let length = parts.length; length >= 2; length--) {
+    const candidate = parts.slice(0, length).join(' ')
+    if (has(candidate)) {
+      return candidate
+    }
+  }
+  return undefined
 }
 
 /** Hatcheries, Nexuses and Command Centers, which players number counting the one they start with. */

@@ -10,7 +10,7 @@ import {
 /** The fewest games a build needs to be listed, so one odd game doesn't make a build of its own. */
 const MIN_BUILD_GAMES = 3
 /** The fewest won games the winners' way of playing a build is shown from. */
-const MIN_WINNER_GAMES = 5
+export const MIN_WINNER_GAMES = 5
 /** The most builds listed, the most played first. The user's own is listed as well. */
 const MAX_BUILDS = 8
 /** A step most games of a build take, rather than one some players add. */
