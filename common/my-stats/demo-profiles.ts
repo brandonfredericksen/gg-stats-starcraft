@@ -14,7 +14,7 @@ export interface DemoProfile {
   eapm: number
   supplyBlockedShare: number
   hotkeysPerMin: readonly [number, number, number]
-  productionPerMin: readonly [number, number, number]
+  armyMadePerMin: readonly [number, number, number]
   groupsUsed: number
   firstArmyMinute: number
   /** When the second and third town halls go down, and how often they do at all. */
@@ -42,7 +42,7 @@ export const DEMO_SPREAD = {
   eapm: 0.14,
   supplyBlockedShare: 0.7,
   hotkeys: 0.6,
-  productionPerMin: 0.25,
+  armyMadePerMin: 0.25,
   timing: 0.1,
 }
 
@@ -61,7 +61,7 @@ const BGH: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 134,
     supplyBlockedShare: 0.06,
     hotkeysPerMin: [54, 19.5, 11],
-    productionPerMin: [20.5, 14.2, 18],
+    armyMadePerMin: [20.5, 14.2, 18],
     groupsUsed: 4,
     firstArmyMinute: 2.07,
     townHalls: [
@@ -120,7 +120,7 @@ const BGH: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 136,
     supplyBlockedShare: 0.08,
     hotkeysPerMin: [58, 24, 14],
-    productionPerMin: [20.3, 15.5, 15.8],
+    armyMadePerMin: [20.3, 15.5, 15.8],
     groupsUsed: 5,
     firstArmyMinute: 2.42,
     townHalls: [
@@ -175,7 +175,7 @@ const BGH: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 129,
     supplyBlockedShare: 0.06,
     hotkeysPerMin: [45, 28, 13],
-    productionPerMin: [8.9, 9.8, 10.5],
+    armyMadePerMin: [8.9, 9.8, 10.5],
     groupsUsed: 4,
     firstArmyMinute: 2.11,
     townHalls: [
@@ -269,7 +269,7 @@ const ONE_V_ONE: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 190,
     supplyBlockedShare: 0.06,
     hotkeysPerMin: [100, 90, 80],
-    productionPerMin: [22, 16, 18],
+    armyMadePerMin: [22, 16, 18],
     groupsUsed: 7,
     firstArmyMinute: 1.95,
     townHalls: [
@@ -324,7 +324,7 @@ const ONE_V_ONE: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 200,
     supplyBlockedShare: 0.07,
     hotkeysPerMin: [105, 95, 85],
-    productionPerMin: [22, 16, 16],
+    armyMadePerMin: [22, 16, 16],
     groupsUsed: 7,
     firstArmyMinute: 2.3,
     townHalls: [
@@ -377,7 +377,7 @@ const ONE_V_ONE: Record<AssignedRaceChar, DemoProfile> = {
     eapm: 180,
     supplyBlockedShare: 0.07,
     hotkeysPerMin: [95, 85, 75],
-    productionPerMin: [9, 10, 10.5],
+    armyMadePerMin: [9, 10, 10.5],
     groupsUsed: 7,
     firstArmyMinute: 2.6,
     townHalls: [

@@ -194,11 +194,13 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
     t('myStats.coach.metric.hotkeys', 'Hotkey use, {{phase}}', { phase: phases[phase] }),
     `${t('myStats.coach.help.hotkeys', 'Times a minute you selected a hotkeyed group, from the replay.')} ${phaseHelp}`,
   ]
-  const productionCommands = (phase: keyof typeof phases): [string, string] => [
-    t('myStats.coach.metric.unitsPerBuilding', 'Units queued per production building, {{phase}}', {
-      phase: phases[phase],
-    }),
-    `${t('myStats.coach.help.productionPerBuilding', "Times a minute you ordered an army unit, for each production building you had, which shows how often they sat idle. Workers and Overlords don't count.")} ${phaseHelp}`,
+  const unitsPerProduction = (phase: keyof typeof phases): [string, string] => [
+    t(
+      'myStats.coach.metric.unitsPerProduction',
+      'Army units made per production building, {{phase}}',
+      { phase: phases[phase] },
+    ),
+    `${t('myStats.coach.help.unitsPerProduction', "Army units you started each minute, for each production building you had, which shows how often they sat idle. Zerg count each larva once, so a pair of Zerglings is one. Units morphed from others, like Lurkers and Archons, don't count.")} ${phaseHelp}`,
   ]
   switch (key) {
     case 'workers4':
@@ -399,10 +401,10 @@ export function getMetricText(key: CoachMetricKey, t: TFunction): [label: string
           'Production buildings you had, against how many your mining at 10 minutes could keep busy making units nonstop. 100% means enough to spend it all.',
         ),
       ]
-    case 'productionCommandsMid':
-      return productionCommands('mid')
-    case 'productionCommandsLate':
-      return productionCommands('late')
+    case 'unitsPerProductionMid':
+      return unitsPerProduction('mid')
+    case 'unitsPerProductionLate':
+      return unitsPerProduction('late')
   }
   return [key, '']
 }
@@ -547,7 +549,7 @@ export function getMetricGroup(key: CoachMetricKey): MetricGroup {
   if (key.startsWith('income')) {
     return 'economy'
   }
-  if (key.startsWith('production') && !key.startsWith('productionCommands')) {
+  if (key.startsWith('production')) {
     return 'growth'
   }
   if (
@@ -563,7 +565,7 @@ export function getMetricGroup(key: CoachMetricKey): MetricGroup {
     key.startsWith('bank') ||
     key === 'supplyBlocked' ||
     key === 'larvaeFull10' ||
-    key.startsWith('productionCommands')
+    key.startsWith('unitsPerProduction')
   ) {
     return 'spending'
   }
@@ -777,10 +779,10 @@ export function getTipHeadline(
         'You play slower than {{players}} on average, by {{gap}}.',
         words,
       )
-    case 'productionCommands':
+    case 'unitsPerProduction':
       return t(
-        'myStats.coach.headline.productionCommands',
-        'Your production buildings get fewer orders than those of {{players}} on average.',
+        'myStats.coach.headline.unitsPerProduction',
+        'Your production buildings make fewer army units than those of {{players}} on average.',
         words,
       )
     default:
@@ -932,10 +934,10 @@ export function getTip(
         'On average, {{race}} players here are at {{target}}. You are usually at {{user}}.',
         words,
       )
-    case 'productionCommands':
+    case 'unitsPerProduction':
       return t(
-        'myStats.coach.fact.productionCommands',
-        'On average, {{race}} players here give each production building orders at {{target}}. You usually give them at {{user}}.',
+        'myStats.coach.fact.unitsPerProduction',
+        'On average, {{race}} players here make army units at {{target}} for each production building. You usually make them at {{user}}.',
         words,
       )
     default:

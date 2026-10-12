@@ -13,30 +13,6 @@ const HOTKEY_ASSIGN = 0
 const HOTKEY_RECALL = 1
 const HOTKEY_ADD = 2
 
-/**
- * Units that aren't made by production buildings, or that are made but don't fight: workers,
- * Overlords, Nukes, and the Zerg units morphed from other units rather than from larvae.
- */
-const NOT_PRODUCED_UNIT_IDS: ReadonlySet<number> = new Set([
-  7, // SCV
-  41, // Drone
-  64, // Probe
-  42, // Overlord
-  14, // Nuclear Missile
-  103, // Lurker
-  44, // Guardian
-  62, // Devourer
-])
-
-/** Commands that start making something. */
-const PRODUCTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
-  'train',
-  'unitMorph',
-  'buildingMorph',
-  'build',
-  'trainFighter',
-])
-
 /** Commands that pick units. */
 const SELECTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
   'select',
@@ -83,8 +59,6 @@ export interface PhaseCommands {
   hotkeyRecalls: number
   hotkeyAdds: number
   selections: number
-  /** Orders for army units from production buildings and larvae. */
-  production: number
 }
 
 export interface PlayerCommandStats {
@@ -111,7 +85,6 @@ function emptyPhase(minutes: number): PhaseCommands {
     hotkeyRecalls: 0,
     hotkeyAdds: 0,
     selections: 0,
-    production: 0,
   }
 }
 
@@ -169,14 +142,6 @@ export function summarizeCommands(
     } else if (SELECTION_KINDS.has(kind)) {
       phase.actions += 1
       phase.selections += 1
-    } else if (PRODUCTION_KINDS.has(kind)) {
-      phase.actions += 1
-      if (
-        (command.type === 'train' || command.type === 'unitMorph') &&
-        !NOT_PRODUCED_UNIT_IDS.has(command.unitType)
-      ) {
-        phase.production += 1
-      }
     } else if (command.type === 'targetedOrder') {
       phase.actions += 1
       const spell = SPELL_ORDERS.get(command.order)

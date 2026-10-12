@@ -356,7 +356,7 @@ function makeMetrics(
     overlordsLost: race === 'z' ? random.int(0, 3) : undefined,
     spamShare: Math.max(0, (apm - eapm) / apm),
     hotkeyRecallsPerMin: inPhases(profile.hotkeysPerMin, DEMO_SPREAD.hotkeys),
-    productionPerMin: inPhases(profile.productionPerMin, DEMO_SPREAD.productionPerMin),
+    armyMadePerMin: inPhases(profile.armyMadePerMin, DEMO_SPREAD.armyMadePerMin),
     apmByPhase: inPhases([apm * 0.8, apm * 1.05, apm * 1.1], 0.05),
     eapmByPhase: inPhases([eapm * 0.8, eapm * 1.05, eapm * 1.08], 0.05),
     groupsUsed: Math.max(1, Math.round(profile.groupsUsed + skill * 1.5 + random.normal())),

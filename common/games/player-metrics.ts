@@ -8,7 +8,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 13
+export const GAME_METRICS_VERSION = 14
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -235,12 +235,13 @@ export interface PlayerMetrics {
   overlordsLost?: number
   /** The share of the player's actions that weren't effective, like repeated orders. */
   spamShare?: number
-  /**
-   * From the replay's commands, once they've been read: hotkey recalls, and commands that start
-   * making something, per minute in each of {@link PHASE_MINUTES}.
-   */
+  /** Hotkey recalls per minute in each of {@link PHASE_MINUTES}, from the replay's commands. */
   hotkeyRecallsPerMin?: Array<number | null>
-  productionPerMin?: Array<number | null>
+  /**
+   * Army units the player started per minute in each of {@link PHASE_MINUTES}, from the build
+   * order, see {@link getArmyMadePerMin}.
+   */
+  armyMadePerMin?: Array<number | null>
   /** Actions per minute in each phase, from the replay's commands. */
   apmByPhase?: Array<number | null>
   /** Effective actions per minute in each of {@link PHASE_MINUTES}, from the game's timeline. */
@@ -553,6 +554,35 @@ function isArmyUnit(id: number) {
   )
 }
 
+/** Zerglings and Scourge, which hatch two from one larva. */
+const PAIRED_UNIT_IDS: ReadonlySet<number> = new Set([37, 47])
+
+/**
+ * Army units started per minute in each phase, for as long as the player played in it: one for
+ * each a production building made, or each larva for Zerg, so a pair of Zerglings counts once.
+ * Units morphed from other units, like Lurkers and Archons, don't count, since the units they came
+ * from already did.
+ */
+function getArmyMadePerMin(
+  playedMs: number,
+  unitSteps: ReadonlyArray<{ id: number; timeMs: number; count: number }>,
+): Array<number | null> {
+  const made = unitSteps.filter(step => isArmyUnit(step.id) && !MORPHED_FROM[step.id])
+  return PHASE_MINUTES.map(([start, end]) => {
+    const startMs = start * 60_000
+    const endMs = Math.min(end * 60_000, playedMs)
+    if (endMs - startMs < MIN_PHASE_MINUTES * 60_000) {
+      return null
+    }
+    const units = sum(
+      made
+        .filter(step => step.timeMs >= startMs && step.timeMs < endMs)
+        .map(step => (PAIRED_UNIT_IDS.has(step.id) ? step.count / 2 : step.count)),
+    )
+    return units / ((endMs - startMs) / 60_000)
+  })
+}
+
 /** A player's build order, as {@link PlayerMetrics.buildSteps} describes it. */
 function getBuildSteps(player: GamePlayerStats): BuildStepMetric[] {
   const steps = (player.buildOrder ?? [])
@@ -848,6 +878,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     firstScoutMs: player.firstScoutMs,
     larvaeFull10: getLarvaeFull(times, player),
     detectionMs: getDetection(player, unitSteps),
+    armyMadePerMin: player.buildOrder ? getArmyMadePerMin(times.playedMs, unitSteps) : undefined,
     ...getBuild(times, player, unitSteps),
   }
 }
@@ -859,7 +890,6 @@ function addCommandMetrics(metrics: PlayerMetrics, commands: PlayerCommandStats)
       phase.minutes >= MIN_PHASE_MINUTES ? pick(phase) / phase.minutes : null,
     )
   metrics.hotkeyRecallsPerMin = perMinute(phase => phase.hotkeyRecalls)
-  metrics.productionPerMin = perMinute(phase => phase.production)
   metrics.apmByPhase = perMinute(phase => phase.actions)
   metrics.groupsUsed = commands.groupsUsed
   metrics.casts = commands.casts

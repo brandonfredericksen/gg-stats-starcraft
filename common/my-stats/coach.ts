@@ -200,8 +200,8 @@ export type CoachMetricKey =
   | 'hotkeysEarly'
   | 'hotkeysMid'
   | 'hotkeysLate'
-  | 'productionCommandsMid'
-  | 'productionCommandsLate'
+  | 'unitsPerProductionMid'
+  | 'unitsPerProductionLate'
 
 /** The kind of game being coached, which decides what's compared and what can be pointed out. */
 interface CoachContext {
@@ -542,13 +542,14 @@ const METRICS: ReadonlyArray<CoachMetric> = [
     lateGame: i === 2,
     speed: true,
   })),
-  // Orders for each production building, which shows how often it sits idle, whatever the count.
-  ...(['productionCommandsMid', 'productionCommandsLate'] as const).map((key, i): CoachMetric => ({
+  // Army units for each production building, which shows how often it sits idle, whatever the
+  // count.
+  ...(['unitsPerProductionMid', 'unitsPerProductionLate'] as const).map((key, i): CoachMetric => ({
     key,
     value: s => {
-      const orders = s.player.productionPerMin?.[i + 1]
+      const units = s.player.armyMadePerMin?.[i + 1]
       const buildings = s.player.production[at(i === 0 ? 10 : 15)]
-      return orders !== null && orders !== undefined && buildings ? orders / buildings : undefined
+      return units !== null && units !== undefined && buildings ? units / buildings : undefined
     },
     higherIsBetter: true,
     minDiff: 0.2,

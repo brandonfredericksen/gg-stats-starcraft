@@ -16,7 +16,7 @@ const players = [
 ]
 
 describe('common/games/command-stats', () => {
-  test('counts hotkeys, selections, production and spells per phase', () => {
+  test('counts hotkeys, selections and spells per phase', () => {
     const stats = summarizeCommands(
       players,
       [
@@ -46,7 +46,6 @@ describe('common/games/command-stats', () => {
     expect(bisu.phases[0]).toMatchObject({
       hotkeyAssigns: 1,
       selections: 1,
-      production: 1,
       actions: 4,
     })
     expect(bisu.phases[2]).toMatchObject({ hotkeyAdds: 1, actions: 2 })
@@ -56,7 +55,7 @@ describe('common/games/command-stats', () => {
     expect(stork.phases[0].actions).toBe(0)
   })
 
-  test('counts only army unit orders as production', () => {
+  test('counts making things as actions', () => {
     const stats = summarizeCommands(
       players,
       [
@@ -71,7 +70,7 @@ describe('common/games/command-stats', () => {
       ],
       Math.round(20 * MINUTE),
     )
-    expect(stats.players[0].phases[0]).toMatchObject({ production: 2, actions: 8 })
+    expect(stats.players[0].phases[0].actions).toBe(8)
   })
 
   test('only counts the time a player was in the game', () => {

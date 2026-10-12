@@ -215,6 +215,30 @@ describe('common/games/player-metrics', () => {
     expect(p.overlordsLost).toBeUndefined()
   })
 
+  test('counts the army units made in each phase, a minute at a time', () => {
+    const toss = player('Bisu', 20 * 60_000, {
+      buildOrder: [
+        step(3, 65),
+        step(7, 66, { count: 3 }),
+        step(8, 65, { cancelled: true }),
+        // Two High Templar merged into an Archon were already counted as Templar.
+        step(9, 67, { count: 2 }),
+        step(10, 68),
+        step(13, 7),
+      ],
+    })
+    const [p] = computeGameMetrics('g', game([toss])).players
+    expect(p.armyMadePerMin).toEqual([1 / 6, 5 / 6, 0])
+
+    // A pair of Zerglings comes from one larva, and a Lurker from a Hydralisk already counted.
+    const zerg = player('Jaedong', 9 * 60_000, {
+      race: 'z',
+      buildOrder: [step(7, 37, { count: 4 }), step(7.5, 38), step(8, 103)],
+    })
+    const [z] = computeGameMetrics('g', game([zerg], 9 * 60_000)).players
+    expect(z.armyMadePerMin).toEqual([0, 3 / 3, null])
+  })
+
   test("counts a Zerg's first Hatchery as production", () => {
     const zerg = player('Jaedong', 20 * 60_000, { race: 'z', buildOrder: [step(2, 131)] })
     const [p] = computeGameMetrics('g', game([zerg])).players
