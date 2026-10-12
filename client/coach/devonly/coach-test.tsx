@@ -7,6 +7,7 @@ import {
   CoachRecentForm,
   CoachResult,
   CoachScope,
+  CoachShortfall,
 } from '../../../common/my-stats/coach'
 import { titleSmall } from '../../styles/typography'
 import { CoachView } from '../coach-page'
@@ -70,6 +71,13 @@ const everything: CoachFinding[] = [
   compared('apmMid', 'count', 240, 215, 0.66),
   compared('hotkeysMid', 'perMinute', 4.1, 6.4, 0.24),
   compared('productionCommandsMid', 'perMinute', 7.2, 7.9, 0.41),
+]
+
+/** One of each way a number can be short of games: the user's, other players', or both. */
+const uncompared: CoachShortfall[] = [
+  { key: 'supply150', userGames: 4, userNeeded: 10, poolGames: 40, poolNeeded: 30 },
+  { key: 'eapmLate', userGames: 14, userNeeded: 10, poolGames: 22, poolNeeded: 30 },
+  { key: 'productionCommandsLate', userGames: 8, userNeeded: 10, poolGames: 19, poolNeeded: 30 },
 ]
 
 const DAY_MS = 24 * 60 * 60_000
@@ -422,6 +430,7 @@ export const pvz: CoachBucket = {
     },
   ],
   compared: everything,
+  uncompared,
 }
 
 const empty = {
@@ -431,6 +440,7 @@ const empty = {
   timings: [],
   opening: [],
   compared: [],
+  uncompared: [],
   goals: [],
   notes: [],
 }

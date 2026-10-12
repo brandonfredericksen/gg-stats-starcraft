@@ -580,6 +580,17 @@ export interface CoachFinding {
   fewerProduction?: number
 }
 
+/** A number that means something here, but that too few games have to compare yet. */
+export interface CoachShortfall {
+  key: CoachMetricKey
+  /** The user's games that have it, and how many comparing it needs. */
+  userGames: number
+  userNeeded: number
+  /** Other players' games that have it, and how many comparing it needs. */
+  poolGames: number
+  poolNeeded: number
+}
+
 /** How a number differs between the user's wins and losses. */
 export interface CoachResultFinding {
   key: CoachMetricKey
@@ -793,6 +804,8 @@ export interface CoachBucket {
   teamBuilds?: CoachTeamBuild[]
   /** Every number with enough games on both sides to compare, flagged or not, in a fixed order. */
   compared: CoachFinding[]
+  /** The rest of the numbers that mean something here, in the same order. */
+  uncompared: CoachShortfall[]
   recentForm: CoachRecentForm
   /** In team games, how often the user went out first in their losses. */
   firstOut?: CoachFirstOut
@@ -1095,12 +1108,19 @@ function minPoolGames(sameOpening: boolean) {
   return sameOpening ? MIN_SAME_OPENING_GAMES : COACH_MIN_POOL_GAMES
 }
 
+/** The order numbers are compared and listed in. */
+export const COACH_METRIC_ORDER: ReadonlyArray<CoachMetricKey> = METRICS.map(m => m.key)
+
+function isFinding(result: CoachFinding | CoachShortfall): result is CoachFinding {
+  return 'beats' in result
+}
+
 function compare(
   metric: CoachMetric,
   user: ReadonlyArray<Sample>,
   pool: ReadonlyArray<Sample>,
   samePool: ReadonlyArray<Sample> | undefined,
-): CoachFinding | undefined {
+): CoachFinding | CoachShortfall {
   const userValues = numbersOf(user, metric)
   const sameOpening = !!(
     metric.openingDependent &&
@@ -1109,7 +1129,13 @@ function compare(
   )
   const poolValues = numbersOf(sameOpening ? samePool! : pool, metric)
   if (userValues.length < COACH_MIN_USER_GAMES || poolValues.length < minPoolGames(sameOpening)) {
-    return undefined
+    return {
+      key: metric.key,
+      userGames: userValues.length,
+      userNeeded: COACH_MIN_USER_GAMES,
+      poolGames: poolValues.length,
+      poolNeeded: minPoolGames(sameOpening),
+    }
   }
   const poolValue = median(poolValues)
   return {
@@ -2128,15 +2154,17 @@ export function computeCoach(
     const gaps: Array<CoachFinding & { metric: CoachMetric }> = []
     const strengths: Array<CoachFinding & { metric: CoachMetric }> = []
     const compared: CoachFinding[] = []
+    const uncompared: CoachShortfall[] = []
     for (const metric of shownMetrics) {
       const finding = metric.speed
         ? compare(metric, user, allPool, sameAllPool)
         : compare(metric, user, pool, samePool)
-      if (finding) {
-        compared.push(finding)
+      if (!isFinding(finding)) {
+        uncompared.push(finding)
+        continue
       }
+      compared.push(finding)
       if (
-        !finding ||
         !metrics.includes(metric) ||
         Math.abs(finding.userValue - finding.poolValue) < minDiffFor(metric, finding.poolValue)
       ) {
@@ -2156,7 +2184,8 @@ export function computeCoach(
     // A high bank with fewer production buildings than others is a production problem, not a
     // speed one, most of all for Zerg, whose larvae limit what they can spend.
     const production8 = METRICS.find(m => m.key === 'production8')!
-    const productionFinding = compare(production8, user, pool, samePool)
+    const productionResult = compare(production8, user, pool, samePool)
+    const productionFinding = isFinding(productionResult) ? productionResult : undefined
     for (const gap of gaps) {
       if (gap.key.startsWith('bank') && productionFinding) {
         const fewer = productionFinding.poolValue - productionFinding.userValue
@@ -2252,6 +2281,7 @@ export function computeCoach(
       userBuild,
       ...pairBuilds,
       compared,
+      uncompared,
       recentForm,
       firstOut,
       goals:

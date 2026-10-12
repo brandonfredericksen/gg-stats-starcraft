@@ -6,6 +6,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { MapFamily } from '../../common/games/map-family'
 import {
+  COACH_METRIC_ORDER,
   COACH_MIN_POOL_GAMES,
   COACH_MIN_RESULT_GAMES,
   COACH_MIN_USER_GAMES,
@@ -15,6 +16,7 @@ import {
   CoachResult,
   CoachResultFinding,
   CoachScope,
+  CoachShortfall,
   CoachTiming,
   CoachWindow,
   EAPM_FLOORS,
@@ -1018,13 +1020,13 @@ function getStandingTone(beats: number): Tone | undefined {
 
 function ComparedGroup({
   title,
-  findings,
+  rows,
   first,
   goalNumbers,
   compact = false,
 }: {
   title: string
-  findings: ReadonlyArray<CoachFinding>
+  rows: ReadonlyArray<CoachFinding | CoachShortfall>
   first: boolean
   /** Each goal's number, by the number it's about. */
   goalNumbers: ReadonlyMap<string, number>
@@ -1045,7 +1047,16 @@ function ComparedGroup({
       <GroupHead $first={first} $end={true}>
         {t('myStats.coach.betterThan', 'Better than')}
       </GroupHead>
-      {findings.map(finding => {
+      {rows.map(finding => {
+        if (!('beats' in finding)) {
+          return (
+            <ShortRow
+              key={finding.key}
+              shortfall={finding}
+              goalNumber={goalNumbers.get(finding.key)}
+            />
+          )
+        }
         const [label, help] = getMetricText(finding.key, t)
         const tone = getStandingTone(finding.beats)
         return [
@@ -1121,15 +1132,92 @@ const RowName = styled.span`
   gap: var(--space-2);
 `
 
-/** Every number the coach compared, pointed out or not, grouped by what it's about. */
+/** A row's empty values, as one spot to hover that says why they're empty. */
+const ShortValues = styled(Tooltip)`
+  grid-column: span 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  cursor: help;
+`
+
+/** A number that means something here, greyed out until enough games have it to compare. */
+function ShortRow({
+  shortfall,
+  goalNumber,
+}: {
+  shortfall: CoachShortfall
+  goalNumber: number | undefined
+}) {
+  const { t } = useTranslation()
+  const [label, help] = getMetricText(shortfall.key, t)
+  const values = {
+    userGames: shortfall.userGames,
+    userNeeded: shortfall.userNeeded,
+    poolGames: shortfall.poolGames,
+    poolNeeded: shortfall.poolNeeded,
+  }
+  const userShort = shortfall.userGames < shortfall.userNeeded
+  const poolShort = shortfall.poolGames < shortfall.poolNeeded
+  let why: string
+  if (userShort && poolShort) {
+    why = t(
+      'myStats.coach.shortBoth',
+      'Too few games to compare yet. {{userGames}} of yours and {{poolGames}} of theirs have this number, and it needs {{userNeeded}} and {{poolNeeded}}.',
+      values,
+    )
+  } else if (userShort) {
+    why = t(
+      'myStats.coach.shortUser',
+      'Too few of your games to compare yet. {{userGames}} have this number, and it needs {{userNeeded}}.',
+      values,
+    )
+  } else {
+    why = t(
+      'myStats.coach.shortPool',
+      'Too few of their games to compare yet. {{poolGames}} have this number, and it needs {{poolNeeded}}.',
+      values,
+    )
+  }
+  return (
+    <>
+      <Cell $tone='muted'>
+        <RowName>
+          <RowGoalMark number={goalNumber} />
+          <HelpLabel quiet={true} label={label} help={help} />
+        </RowName>
+      </Cell>
+      <ShortValues position='top' text={why}>
+        <Cell $end={true} $tone='muted'>
+          -
+        </Cell>
+        <Cell $end={true} $tone='muted'>
+          -
+        </Cell>
+        <Cell $end={true} $tone='muted'>
+          -
+        </Cell>
+      </ShortValues>
+    </>
+  )
+}
+
+/**
+ * Every number that means something here, grouped by what it's about: the ones the coach compared,
+ * pointed out or not, and in their places, the ones too few games have yet.
+ */
 function ComparedTable({
   findings,
+  uncompared,
   goalNumbers,
 }: {
   findings: ReadonlyArray<CoachFinding>
+  uncompared: ReadonlyArray<CoachShortfall>
   goalNumbers: ReadonlyMap<string, number>
 }) {
   const { t } = useTranslation()
+  const rows = [...findings, ...uncompared].sort(
+    (a, b) => COACH_METRIC_ORDER.indexOf(a.key) - COACH_METRIC_ORDER.indexOf(b.key),
+  )
   const titles: Record<MetricGroup, string> = {
     economy: t('myStats.coach.groupEconomy', 'Economy'),
     growth: t('myStats.coach.groupGrowth', 'Growth'),
@@ -1146,12 +1234,12 @@ function ComparedTable({
       {sides.map(groups => (
         <Table key={groups.join()} $columns={TABLE_COLUMNS}>
           {groups
-            .filter(group => findings.some(f => getMetricGroup(f.key) === group))
+            .filter(group => rows.some(row => getMetricGroup(row.key) === group))
             .map((group, i) => (
               <ComparedGroup
                 key={group}
                 title={titles[group]}
-                findings={findings.filter(f => getMetricGroup(f.key) === group)}
+                rows={rows.filter(row => getMetricGroup(row.key) === group)}
                 first={i === 0}
                 goalNumbers={goalNumbers}
               />
@@ -1466,7 +1554,7 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
       <Table $columns='minmax(0, 1fr) auto auto auto'>
         <ComparedGroup
           title={t('myStats.coach.number', 'Number')}
-          findings={bucket.strengths}
+          rows={bucket.strengths}
           first={true}
           goalNumbers={new Map()}
           compact={true}
@@ -1556,7 +1644,11 @@ export function Comparison({
     content = bucket.compared.length ? (
       <>
         {source.length ? <About>{source.join(' ')}</About> : null}
-        <ComparedTable findings={bucket.compared} goalNumbers={goalNumbers} />
+        <ComparedTable
+          findings={bucket.compared}
+          uncompared={bucket.uncompared}
+          goalNumbers={goalNumbers}
+        />
       </>
     ) : (
       <Text>

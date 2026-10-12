@@ -138,6 +138,24 @@ describe('common/my-stats/coach', () => {
     expect(fewTheirs.status === 'ready' && fewTheirs.buckets[0].gaps).toEqual([])
   })
 
+  test('says how many games a number has when too few do to compare it', () => {
+    const coach = computeCoach([...myGames(9, 14), ...poolGames(29, () => 18)], query)
+    if (coach.status !== 'ready') {
+      throw new Error('Expected a ready coach')
+    }
+    const [bucket] = coach.buckets
+    expect(bucket.compared).toEqual([])
+    expect(bucket.uncompared.find(s => s.key === 'workers6')).toEqual({
+      key: 'workers6',
+      userGames: 9,
+      userNeeded: 10,
+      poolGames: 29,
+      poolNeeded: 30,
+    })
+    // Numbers that don't mean anything here aren't listed at all.
+    expect(bucket.uncompared.map(s => s.key)).not.toContain('larvaeFull10')
+  })
+
   test('leaves out players under the EAPM floor', () => {
     const coach = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query)
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
