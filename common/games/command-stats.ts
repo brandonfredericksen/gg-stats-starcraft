@@ -6,7 +6,7 @@ import { MIN_PHASE_MINUTES, PHASE_MINUTES } from './player-metrics'
  * The version of {@link ReplayCommandStats} worked out now. Stats from an older version are worked
  * out again from the replay.
  */
-export const COMMAND_STATS_VERSION = 5
+export const COMMAND_STATS_VERSION = 6
 
 /**
  * How many commands that do something, from one player, per frame of a network turn, make a frame
@@ -22,6 +22,12 @@ const BURST_COMMANDS_PER_TURN_FRAME = 4
  * by hand stayed under 0.1 in the same replays, and most programs sent over half in bursts.
  */
 export const SCRIPTED_BURST_SHARE = 0.2
+
+/**
+ * Fewer commands that do something than this say too little to tell a program from a person, like
+ * a player leaving in the first minute. The shares above were worked out from players with more.
+ */
+const MIN_BURST_COMMANDS = 200
 
 /** Gaps between commands longer than this are players pausing, not the length of a turn. */
 const MAX_TURN_FRAMES = 12
@@ -103,9 +109,10 @@ export interface PlayerCommandStats {
   casts: Record<string, number>
   /**
    * The share of the player's commands that do something sent in bursts no hand could manage, the
-   * way a macro program or bot plays. See {@link SCRIPTED_BURST_SHARE}.
+   * way a macro program or bot plays, unless they sent too few to tell. See
+   * {@link SCRIPTED_BURST_SHARE}.
    */
-  burstShare: number
+  burstShare?: number
 }
 
 /** What a replay's commands say about how each player played, which the game's stats don't. */
@@ -151,7 +158,10 @@ function estimateTurnFrames(frames: Iterable<number>): number {
   return common.length ? Math.min(...common) : 1
 }
 
-/** The share of a player's commands sent in frames with a burst of them, from how many per frame. */
+/**
+ * The share of a player's commands sent in frames with a burst of them, from how many per frame,
+ * unless there are too few to tell.
+ */
 function burstShareOf(commandsByFrame: ReadonlyMap<number, number>, turnFrames: number) {
   let total = 0
   let inBursts = 0
@@ -161,7 +171,7 @@ function burstShareOf(commandsByFrame: ReadonlyMap<number, number>, turnFrames: 
       inBursts += sent
     }
   }
-  return total ? inBursts / total : 0
+  return total >= MIN_BURST_COMMANDS ? inBursts / total : undefined
 }
 
 /** How a player used hotkeys over the whole game, per minute they played. */
@@ -213,7 +223,6 @@ export function summarizeCommands(
             phases,
             groupsUsed: 0,
             casts: {},
-            burstShare: 0,
           } as PlayerCommandStats,
           groups: new Set<number>(),
           /** Commands that did something, by the frame they ran on. */

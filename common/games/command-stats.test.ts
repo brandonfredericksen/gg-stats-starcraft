@@ -194,6 +194,19 @@ describe('common/games/command-stats', () => {
     expect(stats.players.map(p => p.burstShare)).toEqual([0, 0])
   })
 
+  test('leaves bursts unmeasured for a player who sent too few commands to tell', () => {
+    const stats = summarizeCommands(
+      players,
+      Array.from({ length: 20 }, (_, i) => ({
+        frame: 10,
+        playerId: 0,
+        command: i % 2 ? train(65) : select(i),
+      })),
+      Math.round(20 * MINUTE),
+    )
+    expect(stats.players[0].burstShare).toBeUndefined()
+  })
+
   test("counts a program's bursts of commands on one frame", () => {
     const stats = turnsGame(1, turn =>
       turn % 4 === 0 ? [select(turn), train(65), select(turn + 1), train(66)] : undefined,
