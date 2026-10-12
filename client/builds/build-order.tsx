@@ -49,6 +49,14 @@ const HeadControls = styled.div`
   gap: var(--space-2);
 `
 
+/**
+ * Reaches past the head's padding like the controls at its end do, so a build with a game to open
+ * has a head as tall as one without.
+ */
+const OpenGameButton = styled(TextButton)`
+  margin-block: -10px;
+`
+
 /** How often a step comes up, after its name. */
 const StepShare = styled.span`
   margin-left: var(--space-2);
@@ -601,7 +609,7 @@ export function BuildOrder({
         </PanelTitle>
         {note ? <PanelHeadNote>{note}</PanelHeadNote> : null}
         {typicalGame ? (
-          <TextButton
+          <OpenGameButton
             label={t('builds.metaOpenGame', "Open a top player's game")}
             onClick={() => push(getGameStatsUrl(typicalGame))}
           />
