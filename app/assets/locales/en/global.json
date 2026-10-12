@@ -964,6 +964,7 @@
         "timing": "Worst lately: {{date}} on {{map}}, started at {{value}}.",
         "workerLoss": "Worst lately: {{date}} on {{map}}, {{amount}} {{workers}} lost from {{start}} to {{end}}."
       },
+      "rowGoal": "Your goal {{number}} comes from this number.",
       "sameAlly": "All of them had a {{ally}} ally, like you.",
       "sameTime": "Same",
       "scope1v1": "{{race}} against {{opponent}}",

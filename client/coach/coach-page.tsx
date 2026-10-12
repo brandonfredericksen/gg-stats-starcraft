@@ -28,6 +28,7 @@ import { OutlinedButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
+import { Tooltip } from '../material/tooltip'
 import { AnalyzeMine } from '../my-stats/analyze-mine'
 import { useDemoPlayer, useStatsPlayerNames } from '../my-stats/demo-player'
 import { MyStatsFilters, myStatsFiltersAtom } from '../my-stats/my-stats-data'
@@ -513,7 +514,6 @@ const MiniStanding = styled.span`
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  color: var(--theme-on-surface-variant);
 `
 
 const MiniTrack = styled(Standing)`
@@ -1044,12 +1044,21 @@ function LockedView({ locked }: { locked: ShapeCount }) {
   )
 }
 
-/** Where a number sits among other players, decided the way the coach decides what to point out. */
+/**
+ * A share of other players beaten under this, in whole percent, is colored as behind them, and
+ * over `AHEAD_PERCENT` as ahead. Wider than what the coach points out, so a number leaning either
+ * way already shows it.
+ */
+const BEHIND_PERCENT = 40
+const AHEAD_PERCENT = 60
+
+/** Where a number sits among other players, by the share as it's shown. */
 function getStandingTone(beats: number): Tone | undefined {
-  if (beats < 0.3) {
+  const percent = Math.round(beats * 100)
+  if (percent < BEHIND_PERCENT) {
     return 'bad'
   }
-  return beats > 0.7 ? 'good' : undefined
+  return percent > AHEAD_PERCENT ? 'good' : undefined
 }
 
 function ComparedGroup({
@@ -1087,9 +1096,7 @@ function ComparedGroup({
         return [
           <Cell key={`${finding.key}-label`}>
             <RowName>
-              {goalNumbers.has(finding.key) ? (
-                <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
-              ) : null}
+              <RowGoalMark number={goalNumbers.get(finding.key)} />
               <HelpLabel
                 quiet={true}
                 label={label}
@@ -1107,7 +1114,7 @@ function ComparedGroup({
           <Cell key={`${finding.key}-them`} $end={true} $tone='muted'>
             {formatValue(finding.poolValue, finding.unit)}
           </Cell>,
-          <Cell key={`${finding.key}-standing`} $end={true}>
+          <Cell key={`${finding.key}-standing`} $end={true} $tone={tone ?? 'muted'}>
             <MiniStanding>
               {compact ? null : (
                 <MiniTrack aria-hidden={true}>
@@ -1132,11 +1139,25 @@ const VALUE_COLUMN = '120px'
 const LAST_COLUMN = '128px'
 const TABLE_COLUMNS = `minmax(0, 1fr) ${VALUE_COLUMN} ${VALUE_COLUMN} ${LAST_COLUMN}`
 
-/** A goal's number in front of a table row, so the row a goal came from can be found. */
 const RowGoal = styled(GoalNumber)`
   width: 20px;
   height: 20px;
 `
+
+/** A goal's number in front of a table row, so the row a goal came from can be found. */
+function RowGoalMark({ number }: { number: number | undefined }) {
+  const { t } = useTranslation()
+  if (number === undefined) {
+    return null
+  }
+  return (
+    <Tooltip
+      position='top'
+      text={t('myStats.coach.rowGoal', 'Your goal {{number}} comes from this number.', { number })}>
+      <RowGoal>{number}</RowGoal>
+    </Tooltip>
+  )
+}
 
 /** A row's name with a goal's number in front of it, the name wrapping beside the number. */
 const RowName = styled.span`
@@ -1209,9 +1230,7 @@ function LossesTable({
         return [
           <Cell key={`${finding.key}-label`}>
             <RowName>
-              {goalNumbers.has(finding.key) ? (
-                <RowGoal>{goalNumbers.get(finding.key)}</RowGoal>
-              ) : null}
+              <RowGoalMark number={goalNumbers.get(finding.key)} />
               <HelpLabel quiet={true} label={label} help={help} />
             </RowName>
           </Cell>,
@@ -1265,9 +1284,7 @@ function TimingsTable({
         return [
           <Cell key={`${timing.buildKey}-name`}>
             <RowName>
-              {goalNumbers.has(timing.buildKey) ? (
-                <RowGoal>{goalNumbers.get(timing.buildKey)}</RowGoal>
-              ) : null}
+              <RowGoalMark number={goalNumbers.get(timing.buildKey)} />
               <GameIcon buildKey={timing.buildKey} size={26} />
               {getBuildName(timing.buildKey, t)}
             </RowName>
