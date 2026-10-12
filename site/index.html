@@ -6,12 +6,17 @@
     <title>GG Stats for StarCraft</title>
     <meta
       name="description"
-      content="Post game stats for StarCraft: Remastered. Army, economy, build orders and your own record, a minute after every game. Free and open source." />
+      content="StarCraft: Remastered and Brood War replay analyzer and personal stat tracking. Free and open source." />
     <meta property="og:title" content="GG Stats for StarCraft" />
     <meta
       property="og:description"
-      content="Post game stats for StarCraft: Remastered, a minute after every game." />
+      content="StarCraft: Remastered and Brood War replay analyzer and personal stat tracking." />
     <meta property="og:url" content="https://ggstats.app/" />
+    <meta property="og:image" content="https://ggstats.app/og.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0b0b" />
     <link rel="icon" href="logo.png" type="image/png" />
     <style>
       @font-face {
@@ -39,549 +44,693 @@
         src: url('fonts/Sofia_Sans-normal-700-latin.woff2') format('woff2');
       }
 
+      /* Values from the app's theme (client/styles/colors.ts). */
       :root {
         color-scheme: dark;
+        --page: #0b0b0b;
         --surface: #0f0f11;
-        --container-low: #17171a;
-        --container: #1c1c20;
         --container-high: #212125;
-        --outline-variant: #2c2c31;
+        --container-highest: #27272b;
+        --outline-variant: #2e2e33;
+        --outline: #6b6b74;
         --on-surface: #f4f4f5;
         --on-surface-variant: #a1a1aa;
+        --muted: #85858e;
         --positive: #4ade80;
-        --negative: #f87171;
-        --library: #38c6f4;
-        --stats: #a78bfa;
-        --last-game: #fbbf24;
-        --terran: #60a5fa;
-        --zerg: #c084fc;
-        --protoss: #facc15;
-        --body: 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, sans-serif;
-        --display: Bahnschrift, 'Sofia Sans', 'Segoe UI', system-ui, sans-serif;
+        --focus: #38c6f4;
+
+        --tab-library: #38c6f4;
+        --tab-library-tint: rgb(56 198 244 / 0.14);
+        --tab-library-ring: rgb(56 198 244 / 0.28);
+        --tab-stats: #a78bfa;
+        --tab-stats-tint: rgb(167 139 250 / 0.16);
+        --tab-stats-ring: rgb(167 139 250 / 0.3);
+        --tab-coach: #34d399;
+        --tab-coach-tint: rgb(52 211 153 / 0.14);
+        --tab-coach-ring: rgb(52 211 153 / 0.28);
+        --tab-builds: #f472b6;
+        --tab-builds-tint: rgb(244 114 182 / 0.14);
+        --tab-builds-ring: rgb(244 114 182 / 0.28);
+
+        /* The app's own faces ship with Windows; the bundled fonts stand in everywhere else. */
+        --body:
+          'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', Inter, system-ui, sans-serif;
+        --display: Bahnschrift, 'Segoe UI Variable Display', 'Sofia Sans', 'Segoe UI', sans-serif;
+        --mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html {
+        scrollbar-color: var(--outline-variant) var(--page);
+      }
+
       body {
         margin: 0;
-        background: var(--surface);
+        min-height: 100svh;
+        background: var(--page);
         color: var(--on-surface);
         font-family: var(--body);
         font-size: 17px;
-        line-height: 1.6;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* A game of StarCraft, barely there, under a dark wash that's heaviest at the top right. */
+      .backdrop,
+      .backdrop::before,
+      .backdrop::after {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+      }
+
+      .backdrop::before {
+        content: '';
+        background: url('background.webp') center / cover no-repeat;
+        opacity: 0.07;
+      }
+
+      .backdrop::after {
+        content: '';
+        background:
+          radial-gradient(ellipse at 50% 35%, transparent 40%, rgb(0 0 0 / 0.45) 100%),
+          linear-gradient(240deg, rgb(17 17 17 / 0.63) 20%, rgb(1 6 25 / 0) 85%);
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 36px 16px 32px;
+        text-align: center;
       }
 
       a {
         color: inherit;
       }
 
-      .wrap {
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: 0 24px;
+      button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        background: none;
+        padding: 0;
+        cursor: pointer;
       }
 
-      header {
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 2px;
+      }
+
+      .logo {
+        display: block;
+        width: 72px;
+        height: 72px;
+      }
+
+      /* The app's window, showing one screen at a time. */
+      .window {
+        display: grid;
+        width: min(100%, 1040px);
+        aspect-ratio: 1920 / 1350;
+        margin-top: 28px;
+        overflow: hidden;
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow:
+          0 0 0 1px rgb(255 255 255 / 0.09),
+          0 24px 72px -16px rgb(0 0 0 / 0.75);
+      }
+
+      .window img {
+        grid-area: 1 / 1;
+        display: block;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transition: opacity 400ms ease;
+      }
+
+      .window img.shown {
+        opacity: 1;
+      }
+
+      /* The screen picker and the coach and builds chips copy the app's top bar tabs. */
+      .tabs {
         display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 4px;
+        margin-top: 16px;
+      }
+
+      .tab,
+      .chip {
+        display: inline-flex;
         align-items: center;
-        gap: 12px;
-        padding: 24px 0;
+        gap: 7px;
+        height: 32px;
+        padding: 0 14px 2px 11px;
+        border-radius: 9999px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
       }
 
-      .wordmark {
-        font-family: var(--display);
-        font-stretch: semi-condensed;
-        font-weight: 700;
-        font-size: 20px;
-        letter-spacing: 0.04em;
+      .tab svg,
+      .chip svg {
+        width: 20px;
+        height: 20px;
+        fill: var(--tab);
+        transform: translateY(1px);
       }
 
-      header nav {
-        margin-left: auto;
-        display: flex;
-        gap: 20px;
-        font-size: 15px;
+      .tab {
         color: var(--on-surface-variant);
       }
 
-      header nav a {
-        text-decoration: none;
-      }
-
-      header nav a:hover {
+      .tab:hover {
+        background: var(--container-high);
         color: var(--on-surface);
       }
 
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-        gap: 48px;
-        align-items: center;
-        padding: 56px 0 80px;
+      .tab[aria-selected='true'],
+      .chip {
+        background: var(--tint);
+        box-shadow: inset 0 0 0 1px var(--ring);
+        color: var(--on-surface);
       }
 
-      h1,
-      h2,
-      h3 {
-        font-family: var(--display);
-        font-stretch: semi-condensed;
-        font-weight: 700;
-        line-height: 1.1;
-        margin: 0;
+      .library {
+        --tab: var(--tab-library);
+        --tint: var(--tab-library-tint);
+        --ring: var(--tab-library-ring);
+      }
+
+      .stats {
+        --tab: var(--tab-stats);
+        --tint: var(--tab-stats-tint);
+        --ring: var(--tab-stats-ring);
+      }
+
+      .coach {
+        --tab: var(--tab-coach);
+        --tint: var(--tab-coach-tint);
+        --ring: var(--tab-coach-ring);
+      }
+
+      .builds {
+        --tab: var(--tab-builds);
+        --tint: var(--tab-builds-tint);
+        --ring: var(--tab-builds-ring);
       }
 
       h1 {
-        font-size: clamp(40px, 6vw, 64px);
+        max-width: 880px;
+        margin: 44px 0 0;
+        font-family: var(--display);
+        font-stretch: semi-condensed;
+        font-weight: 700;
+        font-size: clamp(24px, 3vw, 30px);
+        line-height: 1.15;
+        text-wrap: balance;
       }
 
-      .lede {
-        margin: 20px 0 32px;
-        font-size: 19px;
+      .also {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin: 16px 0 0;
         color: var(--on-surface-variant);
       }
 
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
+      .chips {
+        display: inline-flex;
         align-items: center;
-        gap: 16px;
+        gap: 8px;
       }
 
-      .download {
+      .chip:hover {
+        filter: brightness(1.15);
+      }
+
+      .install {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 8px 12px;
+        margin-top: 24px;
+        color: var(--on-surface-variant);
+      }
+
+      .command {
         display: inline-flex;
         align-items: center;
         gap: 10px;
-        height: 48px;
-        padding: 0 22px;
-        border-radius: 999px;
-        background: var(--on-surface);
-        color: var(--surface);
-        font-weight: 600;
-        text-decoration: none;
+        height: 40px;
+        padding: 0 5px 0 16px;
+        border-radius: 10px;
+        background: var(--container-high);
+        box-shadow: inset 0 0 0 1px var(--outline-variant);
+        color: var(--on-surface);
+        font-family: var(--mono);
+        font-size: 15px;
       }
 
-      .download:hover {
-        background: #ffffff;
-      }
-
-      .small {
-        font-size: 14px;
+      .copy {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
         color: var(--on-surface-variant);
       }
 
-      /* A small picture of the stats page, drawn rather than screenshotted so it stays sharp. */
-      .mock {
-        border: 1px solid var(--outline-variant);
-        border-radius: 16px;
-        background: var(--container-low);
-        padding: 18px;
-        display: grid;
-        gap: 14px;
+      .copy:hover {
+        background: var(--container-highest);
+        color: var(--on-surface);
       }
 
-      .mock-title {
-        display: flex;
-        align-items: baseline;
-        gap: 10px;
+      .copy svg {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
       }
 
-      .mock-title strong {
-        font-family: var(--display);
-        font-stretch: semi-condensed;
-        font-size: 24px;
+      .copy .done,
+      .copy.copied .idle {
+        display: none;
       }
 
-      .teams {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-      }
-
-      .team {
-        border: 1px solid var(--outline-variant);
-        border-radius: 12px;
-        background: var(--container);
-        padding: 12px 14px;
-        display: grid;
-        gap: 6px;
-      }
-
-      .chip {
-        font-size: 13px;
-        font-weight: 700;
-      }
-
-      .chip::before {
-        content: '';
-        display: inline-block;
-        width: 7px;
-        height: 7px;
-        margin-right: 6px;
-        border-radius: 50%;
-        background: currentColor;
-        vertical-align: 1px;
-      }
-
-      .win {
+      .copy.copied .done {
+        display: block;
         color: var(--positive);
       }
 
-      .loss {
-        color: var(--negative);
+      .note {
+        margin: 12px 0 0;
+        font-size: 14px;
+        color: var(--muted);
       }
 
-      .player {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-family: var(--display);
-        font-stretch: semi-condensed;
-        font-weight: 700;
-      }
-
-      .race {
-        width: 20px;
-        height: 20px;
-        border-radius: 5px;
-        display: inline-grid;
-        place-items: center;
-        font-family: var(--body);
-        font-size: 11px;
-        font-weight: 700;
-        background: var(--container-high);
-      }
-
-      .race.t {
-        color: var(--terran);
-      }
-
-      .race.z {
-        color: var(--zerg);
-      }
-
-      .race.p {
-        color: var(--protoss);
-      }
-
-      .chart {
-        border: 1px solid var(--outline-variant);
-        border-radius: 12px;
-        background: var(--container);
-        padding: 12px 14px 6px;
-      }
-
-      .chart svg {
-        display: block;
-        width: 100%;
-        height: auto;
-      }
-
-      section {
-        padding: 64px 0;
-        border-top: 1px solid var(--outline-variant);
-      }
-
-      h2 {
-        font-size: 36px;
-        margin-bottom: 28px;
-      }
-
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 16px;
-      }
-
-      .card {
-        border: 1px solid var(--outline-variant);
-        border-radius: 14px;
-        background: var(--container-low);
-        padding: 20px;
-      }
-
-      .card h3 {
-        font-size: 21px;
-        margin-bottom: 8px;
-      }
-
-      .card p {
-        margin: 0;
-        color: var(--on-surface-variant);
-        font-size: 16px;
-      }
-
-      .dot {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 8px;
-      }
-
-      ol.steps {
-        list-style: none;
-        counter-reset: step;
-        padding: 0;
-        margin: 0;
-        display: grid;
-        gap: 16px;
-      }
-
-      ol.steps li {
-        counter-increment: step;
-        display: grid;
-        grid-template-columns: 40px 1fr;
-        gap: 16px;
-        color: var(--on-surface-variant);
-      }
-
-      ol.steps li::before {
-        content: counter(step);
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        background: var(--container-high);
+      .note a:hover {
         color: var(--on-surface);
-        font-family: var(--display);
-        font-weight: 700;
-      }
-
-      ol.steps strong {
-        color: var(--on-surface);
-      }
-
-      .faq details {
-        border-bottom: 1px solid var(--outline-variant);
-        padding: 16px 0;
-      }
-
-      .faq summary {
-        cursor: pointer;
-        font-weight: 600;
-      }
-
-      .faq p {
-        margin: 10px 0 0;
-        color: var(--on-surface-variant);
       }
 
       footer {
-        padding: 40px 0 56px;
-        border-top: 1px solid var(--outline-variant);
-        font-size: 14px;
-        color: var(--on-surface-variant);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        margin-top: 56px;
       }
 
-      footer p {
-        margin: 6px 0;
+      .github {
+        display: block;
+        opacity: 0.3;
+        transition: opacity 150ms ease;
       }
 
-      @media (max-width: 820px) {
-        .hero {
-          grid-template-columns: 1fr;
-          padding-top: 24px;
-        }
-
-        header nav {
-          display: none;
-        }
+      .github:hover,
+      .github:focus-visible {
+        opacity: 0.8;
       }
 
+      .github svg {
+        display: block;
+        width: 28px;
+        height: 28px;
+        fill: var(--on-surface);
+      }
+
+      .legal {
+        margin: 0;
+        max-width: 560px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: var(--outline);
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      /* Two rows of three tabs on a phone. */
       @media (max-width: 480px) {
-        .wrap {
-          padding: 0 16px;
+        .tab {
+          gap: 5px;
+          padding: 0 10px 2px 8px;
+          font-size: 13px;
+          letter-spacing: 0;
         }
 
-        .teams {
-          grid-template-columns: 1fr;
+        .tab svg {
+          width: 18px;
+          height: 18px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .window img {
+          transition: none;
         }
       }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <header>
-        <img src="logo.png" width="28" height="28" alt="" />
-        <span class="wordmark">GG Stats</span>
-        <nav>
-          <a href="#features">Features</a>
-          <a href="#how">How it works</a>
-          <a href="#faq">FAQ</a>
-          <a href="https://github.com/brandonfredericksen/gg-stats-starcraft">GitHub</a>
-        </nav>
-      </header>
+    <div class="backdrop" aria-hidden="true"></div>
+    <main>
+      <img class="logo" src="logo-256.webp" width="72" height="72" alt="GG Stats" />
 
-      <div class="hero">
-        <div>
-          <h1>Post game stats for StarCraft</h1>
-          <p class="lede">
-            Play a game. A minute later you have the numbers: army, economy, supply blocks and every
-            build order. Free, open source, and it all stays on your computer.
-          </p>
-          <div class="actions">
-            <a
-              class="download"
-              href="https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest">
-              Download for Windows
-            </a>
-            <span class="small">Needs StarCraft: Remastered</span>
-          </div>
-        </div>
+      <div class="window" id="screens" role="tabpanel" aria-labelledby="tab-game">
+        <img
+          class="shown"
+          src="shots/game.webp"
+          srcset="shots/game-960.webp 960w, shots/game.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="high"
+          alt="A 3v3 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
+        <img
+          src="shots/charts.webp"
+          srcset="shots/charts-960.webp 960w, shots/charts.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="Charts of army, workers, income, APM, supply and bases over the course of the game." />
+        <img
+          src="shots/units.webp"
+          srcset="shots/units-960.webp 960w, shots/units.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="The units two players made, side by side, above their build orders with times and supply." />
+        <img
+          src="shots/mystats.webp"
+          srcset="shots/mystats-960.webp 960w, shots/mystats.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="My stats: the last 20 results, overall record, win rate by matchup and APM over recent games." />
+        <img
+          src="shots/coach.webp"
+          srcset="shots/coach-960.webp 960w, shots/coach.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="Coach: goals for your next game from your recent games, next to other players of your race." />
+        <img
+          src="shots/builds.webp"
+          srcset="shots/builds-960.webp 960w, shots/builds.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="Builds: how often top players open with each build, and the steps of the most common one." />
+      </div>
 
-        <div class="mock" aria-hidden="true">
-          <div class="mock-title">
-            <strong>Fighting Spirit</strong>
-            <span class="small">14:32 · 1v1</span>
-          </div>
-          <div class="teams">
-            <div class="team">
-              <span class="chip win">Victory</span>
-              <span class="player"><span class="race p">P</span>Arbiter</span>
-            </div>
-            <div class="team">
-              <span class="chip loss">Defeat</span>
-              <span class="player"><span class="race z">Z</span>Hydralisk</span>
-            </div>
-          </div>
-          <div class="chart">
-            <span class="small">Army supply</span>
-            <svg viewBox="0 0 300 110" role="presentation">
-              <g stroke="#2c2c31" stroke-width="1">
-                <line x1="0" y1="20" x2="300" y2="20" />
-                <line x1="0" y1="55" x2="300" y2="55" />
-                <line x1="0" y1="90" x2="300" y2="90" />
-              </g>
-              <polyline
-                fill="none"
-                stroke="#facc15"
-                stroke-width="2.5"
-                stroke-linejoin="round"
-                points="0,100 30,98 60,92 90,84 120,70 150,62 180,48 210,40 240,30 270,22 300,14" />
-              <polyline
-                fill="none"
-                stroke="#c084fc"
-                stroke-width="2.5"
-                stroke-linejoin="round"
-                points="0,100 30,96 60,86 90,74 120,66 150,50 180,58 210,72 240,80 270,88 300,94" />
+      <div class="tabs" role="tablist" aria-label="Screens">
+        <button
+          class="tab library"
+          id="tab-game"
+          role="tab"
+          aria-selected="true"
+          aria-controls="screens"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path d="M80-120v-480h210v480H80Zm295 0v-720h210v720H375Zm295 0v-400h210v400H670Z" />
+          </svg>
+          Scoreboard
+        </button>
+        <button
+          class="tab library"
+          id="tab-charts"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path d="m126-220-46-46 300-300 160 161 298-335 42 41-340 384-160-159-254 254Z" />
+          </svg>
+          Over time
+        </button>
+        <button
+          class="tab library"
+          id="tab-units"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path
+              d="M120-80v-60h100v-30h-60v-60h60v-30H120v-60h120q17 0 28.5 11.5T280-280v40q0 17-11.5 28.5T240-200q17 0 28.5 11.5T280-160v40q0 17-11.5 28.5T240-80H120Zm0-280v-110q0-17 11.5-28.5T160-510h60v-30H120v-60h120q17 0 28.5 11.5T280-560v70q0 17-11.5 28.5T240-450h-60v30h100v60H120Zm60-280v-180h-60v-60h120v240h-60Zm189 431v-60h471v60H369Zm0-243v-60h471v60H369Zm0-243v-60h471v60H369Z" />
+          </svg>
+          Build orders
+        </button>
+        <button
+          class="tab stats"
+          id="tab-mystats"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path
+              d="M660-160v-280h140v280H660Zm-250 0v-640h140v640H410Zm-250 0v-440h140v440H160Z" />
+          </svg>
+          My stats
+        </button>
+        <button
+          class="tab coach"
+          id="tab-coach"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path
+              d="M440-200q-101 0-170.5-69.5T200-440q0-11 1-23t3-21q-5 2-12 3t-12 1q-44 0-72-28t-28-72q0-44 28-72t72-28q31 0 57 18.5t37 46.5q31-28 74.5-46.5T441-680h439v120H680v120q0 101-69.5 170.5T440-200ZM209-551q11-11 11-29t-11-29q-11-11-29-11t-29 11q-11 11-11 29t11 29q11 11 29 11t29-11Zm287.5 167.5Q520-407 520-440t-23.5-56.5Q473-520 440-520t-56.5 23.5Q360-473 360-440t23.5 56.5Q407-360 440-360t56.5-23.5Z" />
+          </svg>
+          Coach
+        </button>
+        <button
+          class="tab builds"
+          id="tab-builds"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path
+              d="M604-120v-125H450v-410h-93v130H80v-315h277v125h247v-125h276v315H604v-130h-94v350h94v-130h276v315H604Z" />
+          </svg>
+          Builds
+        </button>
+      </div>
+
+      <h1>StarCraft: Remastered and Brood War replay analyzer and personal stat tracking</h1>
+
+      <p class="also">
+        Also includes experimental
+        <span class="chips">
+          <button class="chip coach" data-tab="tab-coach" type="button">
+            <svg viewBox="0 -960 960 960" aria-hidden="true">
+              <path
+                d="M440-200q-101 0-170.5-69.5T200-440q0-11 1-23t3-21q-5 2-12 3t-12 1q-44 0-72-28t-28-72q0-44 28-72t72-28q31 0 57 18.5t37 46.5q31-28 74.5-46.5T441-680h439v120H680v120q0 101-69.5 170.5T440-200ZM209-551q11-11 11-29t-11-29q-11-11-29-11t-29 11q-11 11-11 29t11 29q11 11 29 11t29-11Zm287.5 167.5Q520-407 520-440t-23.5-56.5Q473-520 440-520t-56.5 23.5Q360-473 360-440t23.5 56.5Q407-360 440-360t56.5-23.5Z" />
             </svg>
-          </div>
-        </div>
-      </div>
-    </div>
+            coach
+          </button>
+          and
+          <button class="chip builds" data-tab="tab-builds" type="button">
+            <svg viewBox="0 -960 960 960" aria-hidden="true">
+              <path
+                d="M604-120v-125H450v-410h-93v130H80v-315h277v125h247v-125h276v315H604v-130h-94v350h94v-130h276v315H604Z" />
+            </svg>
+            builds
+          </button>
+        </span>
+      </p>
 
-    <section id="features">
-      <div class="wrap">
-        <h2>What you get</h2>
-        <div class="grid">
-          <div class="card">
-            <h3><span class="dot" style="background: var(--last-game)"></span>Every game, automatically</h3>
-            <p>
-              GG Stats notices when a Battle.net or ShieldBattery game ends and analyzes it on its
-              own. No buttons to press.
-            </p>
-          </div>
-          <div class="card">
-            <h3><span class="dot" style="background: var(--library)"></span>The whole game</h3>
-            <p>
-              Scoreboard, army and economy over time, supply blocks, bases, unit breakdowns, and
-              every player's build order with timings.
-            </p>
-          </div>
-          <div class="card">
-            <h3><span class="dot" style="background: var(--stats)"></span>Your own stats</h3>
-            <p>
-              Your record by matchup and map, your macro, who you play with and against, and how it
-              all moves over your last hundred games.
-            </p>
-          </div>
-          <div class="card">
-            <h3><span class="dot" style="background: var(--positive)"></span>Old replays too</h3>
-            <p>
-              Point it at your replay folders and it builds a library you can browse, filter and
-              analyze.
-            </p>
-          </div>
-        </div>
+      <div class="install">
+        <span>To install:</span>
+        <span class="command">
+          <code id="command">winget install ggstats</code>
+          <button class="copy" type="button" aria-label="Copy the command">
+            <svg class="idle" viewBox="0 -960 960 960" aria-hidden="true">
+              <path
+                d="M300-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h440q24 0 42 18t18 42v560q0 24-18 42t-42 18H300ZM180-80q-24 0-42-18t-18-42v-620h60v620h500v60H180Z" />
+            </svg>
+            <svg class="done" viewBox="0 -960 960 960" aria-hidden="true">
+              <path d="M378-246 154-470l43-43 181 181 384-384 43 43-427 427Z" />
+            </svg>
+          </button>
+        </span>
+        <span class="visually-hidden" role="status" id="copy-status"></span>
       </div>
-    </section>
+      <p class="note">
+        Or
+        <a href="https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest"
+          >download the installer</a
+        >. Needs StarCraft: Remastered on Windows.
+      </p>
 
-    <section id="how">
-      <div class="wrap">
-        <h2>How it works</h2>
-        <ol class="steps">
-          <li>
-            <span><strong>You finish a game.</strong> StarCraft saves the replay like it always does.</span>
-          </li>
-          <li>
-            <span>
-              <strong>GG Stats plays it back.</strong> A replay only holds each player's commands, so
-              GG Stats starts a second, invisible StarCraft from your install and fast forwards
-              through the game, reading its numbers as it goes. It runs at low priority, so it won't
-              lag your next game.
-            </span>
-          </li>
-          <li>
-            <span>
-              <strong>The stats are ready.</strong> Usually 10 to 30 seconds later. You get a
-              notification if the app is in the tray.
-            </span>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section id="faq" class="faq">
-      <div class="wrap">
-        <h2>Questions</h2>
-        <details>
-          <summary>Does it touch the game I'm playing?</summary>
-          <p>
-            No. It only ever loads replays, in a separate StarCraft it starts itself. It never
-            injects into a game you play, and it never joins online games.
-          </p>
-        </details>
-        <details>
-          <summary>Do I have to close StarCraft?</summary>
-          <p>No. The analysis runs next to it, and you don't need to be logged in to Battle.net.</p>
-        </details>
-        <details>
-          <summary>Windows says the installer isn't safe.</summary>
-          <p>
-            The installer isn't signed yet, so SmartScreen warns about it. Click More info, then Run
-            anyway. The code is all on
-            <a href="https://github.com/brandonfredericksen/gg-stats-starcraft">GitHub</a> if you
-            want to check it or build it yourself.
-          </p>
-        </details>
-        <details>
-          <summary>Does it send my data anywhere?</summary>
-          <p>
-            No. Replays and stats stay on your computer. The only thing it asks the internet is
-            whether there's a new version, and you can turn that off.
-          </p>
-        </details>
-        <details>
-          <summary>Does it work on Mac?</summary>
-          <p>Not yet. It needs Windows 10 or 11.</p>
-        </details>
-      </div>
-    </section>
-
-    <footer>
-      <div class="wrap">
-        <p>
-          Built on <a href="https://github.com/ShieldBattery/ShieldBattery">ShieldBattery</a>'s
-          open source code. MIT licensed.
+      <footer>
+        <a
+          class="github"
+          href="https://github.com/brandonfredericksen/gg-stats-starcraft"
+          aria-label="GG Stats on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12.5.75C6.146.75 1 5.896 1 12.25c0 5.089 3.292 9.387 7.863 10.91.575.101.79-.244.79-.546 0-.273-.014-1.178-.014-2.142-2.889.532-3.636-.704-3.866-1.35-.13-.331-.69-1.352-1.18-1.625-.402-.216-.977-.748-.014-.762.906-.014 1.553.834 1.769 1.179 1.035 1.74 2.688 1.25 3.349.948.1-.747.402-1.25.733-1.538-2.559-.287-5.232-1.279-5.232-5.678 0-1.25.445-2.285 1.178-3.09-.115-.288-.517-1.467.115-3.048 0 0 .963-.302 3.163 1.179.92-.259 1.897-.388 2.875-.388.977 0 1.955.13 2.875.388 2.2-1.495 3.162-1.179 3.162-1.179.633 1.581.23 2.76.115 3.048.733.805 1.179 1.825 1.179 3.09 0 4.413-2.688 5.39-5.247 5.678.417.36.776 1.05.776 2.128 0 1.538-.014 2.774-.014 3.162 0 .302.216.662.79.547C20.709 21.637 24 17.324 24 12.25 24 5.896 18.854.75 12.5.75Z" />
+          </svg>
+        </a>
+        <p class="legal">
+          Not affiliated with Blizzard Entertainment. StarCraft is a trademark of Blizzard
+          Entertainment, Inc.
         </p>
-        <p>
-          Not affiliated with or endorsed by ShieldBattery or Blizzard Entertainment. StarCraft is a
-          trademark of Blizzard Entertainment, Inc.
-        </p>
-      </div>
-    </footer>
+      </footer>
+    </main>
+
+    <script>
+      const SLIDE_MS = 6000
+      const tabs = [...document.querySelectorAll('[role="tab"]')]
+      const slides = [...document.querySelectorAll('.window img')]
+      const panel = document.getElementById('screens')
+      const showcase = [panel, document.querySelector('.tabs')]
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)')
+
+      let current = 0
+      let autoplay = !reduceMotion.matches
+      let hovering = false
+      let timer
+
+      function show(index) {
+        current = (index + slides.length) % slides.length
+        const slide = slides[current]
+        // Waits for the picture so a slow connection doesn't fade to an empty window.
+        slide
+          .decode()
+          .catch(() => {})
+          .then(() => {
+            if (slides[current] !== slide) return
+            slides.forEach((s, i) => {
+              s.classList.toggle('shown', i === current)
+              s.setAttribute('aria-hidden', String(i !== current))
+            })
+          })
+        tabs.forEach((tab, i) => {
+          tab.setAttribute('aria-selected', String(i === current))
+          tab.tabIndex = i === current ? 0 : -1
+        })
+        panel.setAttribute('aria-labelledby', tabs[current].id)
+        schedule()
+      }
+
+      function schedule() {
+        clearTimeout(timer)
+        if (autoplay && !hovering && !document.hidden) {
+          timer = setTimeout(() => show(current + 1), SLIDE_MS)
+        }
+      }
+
+      function pick(index) {
+        autoplay = false
+        show(index)
+      }
+
+      tabs.forEach((tab, i) => tab.addEventListener('click', () => pick(i)))
+
+      document.querySelector('[role="tablist"]').addEventListener('keydown', event => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
+        let next
+        if (step) next = current + step
+        else if (event.key === 'Home') next = 0
+        else if (event.key === 'End') next = tabs.length - 1
+        else return
+        event.preventDefault()
+        pick(next)
+        tabs[current].focus()
+      })
+
+      for (const chip of document.querySelectorAll('.chip')) {
+        chip.addEventListener('click', () => {
+          pick(tabs.findIndex(tab => tab.id === chip.dataset.tab))
+          const rect = panel.getBoundingClientRect()
+          if (rect.top < 0 || rect.bottom > innerHeight) {
+            panel.scrollIntoView({
+              behavior: reduceMotion.matches ? 'auto' : 'smooth',
+              block: 'center',
+            })
+          }
+        })
+      }
+
+      for (const elem of showcase) {
+        elem.addEventListener('pointerenter', () => {
+          hovering = true
+          schedule()
+        })
+        elem.addEventListener('pointerleave', () => {
+          hovering = false
+          schedule()
+        })
+      }
+      document.addEventListener('visibilitychange', schedule)
+
+      const copyButton = document.querySelector('.copy')
+      const copyStatus = document.getElementById('copy-status')
+      let copiedTimer
+      copyButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(document.getElementById('command').textContent)
+        } catch {
+          getSelection().selectAllChildren(document.getElementById('command'))
+          return
+        }
+        copyButton.classList.add('copied')
+        copyStatus.textContent = 'Copied'
+        clearTimeout(copiedTimer)
+        copiedTimer = setTimeout(() => {
+          copyButton.classList.remove('copied')
+          copyStatus.textContent = ''
+        }, 1600)
+      })
+
+      schedule()
+    </script>
   </body>
 </html>
