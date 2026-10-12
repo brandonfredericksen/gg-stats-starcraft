@@ -21,6 +21,7 @@ import {
 } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
+import { useObservedDimensions } from '../dom/dimension-hooks'
 import { GameIcon } from '../games/game-icon'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
 import { MaterialIcon } from '../icons/material/material-icon'
@@ -43,6 +44,7 @@ import {
 import { getPoolSource } from '../my-stats/pool-source'
 import { RankMenu } from '../my-stats/rank-menu'
 import { PageLoadingIndicator } from '../progress/page-loading'
+import { STUCK_EDGE_PX, stuckEdgeGradient, useStuckBarBottom } from '../stuck-bar-edge'
 import {
   bodyMedium,
   headlineMedium,
@@ -120,9 +122,6 @@ export const Badge = styled.span`
   font-weight: 700;
 `
 
-/** How far below the stuck bar its edge reaches: a 1px line, then a shadow fading out. */
-const STUCK_EDGE_PX = 12
-
 /**
  * The kind of game to coach, which games, and who to compare with. Stays in view while the page
  * scrolls, like My stats' filters.
@@ -142,18 +141,13 @@ const Toolbar = styled.div<{ $stuck: boolean }>`
 
   background-color: var(--theme-container-lowest);
   /*
-   * An edge once the page scrolls under it, so what passes beneath isn't cut off mid line: a line
-   * and a shadow below the bar. It's painted past the page's column, out to the panel's sides,
-   * which clip it, so it spans the panel however much wider than the column the window is.
+   * An edge once the page scrolls under it, painted past the page's column out to the panel's
+   * sides, which clip it, so it spans the panel however much wider than the column the window is.
+   * The panel draws the rest of it, across its scrollbar.
    */
   border-image: ${props =>
     props.$stuck
-      ? `linear-gradient(
-          transparent calc(100% - ${STUCK_EDGE_PX}px),
-          var(--theme-outline-variant) 0 calc(100% - ${STUCK_EDGE_PX - 1}px),
-          rgb(0 0 0 / 0.3) 0,
-          transparent
-        ) fill 0 / 0 / 0 100vw ${STUCK_EDGE_PX}px`
+      ? `${stuckEdgeGradient(`calc(100% - ${STUCK_EDGE_PX}px)`)} fill 0 / 0 / 0 100vw ${STUCK_EDGE_PX}px`
       : 'none'};
 `
 
@@ -1948,6 +1942,8 @@ export function CoachToolbar({
 }) {
   const { t } = useTranslation()
   const [sentinelRef, stuck] = useStuck()
+  const [toolbarRef, toolbarSize] = useObservedDimensions<HTMLDivElement>()
+  useStuckBarBottom(stuck ? toolbarSize?.height : undefined)
   const pickedShape = useAtomValue(coachLockedShapeAtom)
   const pickedLocked = coach.scopes.some(s => s.shape === pickedShape)
     ? undefined
@@ -1956,7 +1952,7 @@ export function CoachToolbar({
   return (
     <>
       <StuckSentinel ref={sentinelRef} />
-      <Toolbar $stuck={stuck}>
+      <Toolbar ref={toolbarRef} $stuck={stuck}>
         <ShapeMenu scopes={coach.scopes} picked={picked} counts={counts} />
         {picked && !pickedLocked ? (
           <>

@@ -1,10 +1,10 @@
-import { Provider as JotaiProvider } from 'jotai'
+import { Provider as JotaiProvider, useAtomValue } from 'jotai'
 import { LazyMotion, MotionConfig, Transition } from 'motion/react'
 import * as React from 'react'
 import { Suspense, useEffect, useLayoutEffect } from 'react'
 import { Provider as ReduxProvider } from 'react-redux'
 import { Store } from 'redux'
-import styled, { StyleSheetManager } from 'styled-components'
+import styled, { css, StyleSheetManager } from 'styled-components'
 import { Redirect, Route, Router, Switch } from 'wouter'
 import { CONTENT_PANEL_INSET } from '../common/window-layout'
 import { ConnectedDialogOverlay } from './dialogs/connected-dialog-overlay'
@@ -19,6 +19,7 @@ import { RootErrorBoundary } from './root-error-boundary'
 import { RootState } from './root-reducer'
 import { SnackbarOverlay } from './snackbars/snackbar-overlay'
 import { DismissSplash, SplashIndicator } from './splash'
+import { STUCK_EDGE_PX, stuckBarBottomAtom, stuckEdgeGradient } from './stuck-bar-edge'
 import GlobalStyle from './styles/global'
 import ResetStyle from './styles/reset'
 import { applyThemeMode } from './styles/theme-mode'
@@ -178,7 +179,7 @@ const LayoutRoot = styled.div`
   padding: 0 ${CONTENT_PANEL_INSET}px ${CONTENT_PANEL_INSET}px;
 `
 
-const ContentPanel = styled.div`
+const ContentPanel = styled.div<{ $stuckBarBottom?: number }>`
   width: 100%;
   height: 100%;
   overflow: auto;
@@ -188,6 +189,23 @@ const ContentPanel = styled.div`
   border-radius: var(--radius-lg);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
 
+  /*
+   * The edge of a bar stuck to the top, across the scrollbar, which the bar can't paint into. Placed
+   * from the border box, which takes in the scrollbar, inside the 1px border. What scrolls snaps
+   * down to whole device pixels while this rounds to the nearest, which at 150% puts it a pixel
+   * below the bar's edge. A quarter pixel up lands both on the same row from 100% to 200%.
+   */
+  ${props =>
+    props.$stuckBarBottom !== undefined
+      ? css`
+          background-image: ${stuckEdgeGradient('0px')};
+          background-repeat: no-repeat;
+          background-origin: border-box;
+          background-size: var(--scrollbar-width) ${STUCK_EDGE_PX}px;
+          background-position: right 1px top calc(${props.$stuckBarBottom + 1}px - 0.25px);
+        `
+      : ''}
+
   /* Keep the scrollbar clear of the rounded corners, so its ends aren't cut off by the curve */
   &::-webkit-scrollbar-track:vertical {
     margin-block: var(--radius-lg);
@@ -195,10 +213,11 @@ const ContentPanel = styled.div`
 `
 
 function Layout() {
+  const stuckBarBottom = useAtomValue(stuckBarBottomAtom)
   return (
     <LayoutRoot>
       <PageLoadingFrame>
-        <ContentPanel>
+        <ContentPanel $stuckBarBottom={stuckBarBottom}>
           <PageContent>
             <React.Suspense fallback={<PageLoadingIndicator />}>
               <Switch>
