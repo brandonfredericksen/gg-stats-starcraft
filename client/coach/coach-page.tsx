@@ -1816,7 +1816,7 @@ function FloorMenu({ floor }: { floor: number }) {
   }))
   return (
     <SegmentMenu
-      label={t('myStats.coach.them', 'Them')}
+      label={t('myStats.filters.floor', 'Compared with')}
       options={floors}
       value={floor}
       onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
@@ -2015,7 +2015,7 @@ export function CoachToolbar({
           <RankMenu
             autoRank={coach.autoRank}
             rankMmr={coach.rankMmr}
-            label={t('myStats.filters.rank', 'Their rank')}
+            label={t('myStats.filters.rank', 'At rank')}
           />
         ) : null}
       </Toolbar>

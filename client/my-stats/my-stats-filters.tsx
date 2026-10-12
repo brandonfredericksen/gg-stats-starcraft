@@ -177,7 +177,7 @@ export function FilterBar({
   const opponentLabel = t('myStats.filters.vs', 'Against')
   const rangeLabel = t('myStats.filters.range', 'Time')
   const floorLabel = t('myStats.filters.floor', 'Compared with')
-  const rankLabel = t('myStats.filters.rank', 'Their rank')
+  const rankLabel = t('myStats.filters.rank', 'At rank')
 
   return (
     <Root ref={rootRef}>
