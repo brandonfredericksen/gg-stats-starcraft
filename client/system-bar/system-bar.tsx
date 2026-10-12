@@ -467,7 +467,7 @@ export function SystemBar() {
           {t('myStats.label', 'My stats')}
         </NavItem>
         <NavItem type='button' $tab='coach' $active={isCoach} onClick={() => push('/coach')}>
-          <MaterialIcon icon='sports' size={20} />
+          <MaterialIcon icon='query_stats' size={20} />
           {t('myStats.coach.title', 'Coach')}
         </NavItem>
         <NavItem type='button' $tab='builds' $active={isBuilds} onClick={() => push('/builds')}>
