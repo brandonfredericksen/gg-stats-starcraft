@@ -113,6 +113,17 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     expect(tilesets()['Odd map.rep']).toBe('ice')
   })
 
+  test('lists the tileset of each map that has one', async () => {
+    const db = await open()
+    db.upsertReplay({ ...makeReplay('Old.rep', ['A', 'B'], 1), tileset: null })
+    db.upsertReplay({ ...makeReplay('Odd map.rep', ['A', 'B'], 2), mapName: 'Odd', tileset: null })
+    db.upsertReplay({ ...makeReplay('Ice.rep', ['A', 'B'], 3), mapName: ' Cold ', tileset: 6 })
+
+    expect(db.getMapTilesets()).toEqual({ cold: 'ice' })
+    db.upsertReplay(makeReplay('New.rep', ['A', 'B'], 4))
+    expect(db.getMapTilesets()).toEqual({ cold: 'ice', polypoid: 'jungle' })
+  })
+
   test('keeps the path key in step when a replay moves', async () => {
     const db = await open()
     addGames(db)

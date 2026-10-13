@@ -1,4 +1,5 @@
 import { ReplayCommandStats } from '../../../common/games/command-stats'
+import { TilesetId } from '../../../common/maps'
 import {
   ReplayBackfillProgress,
   ReplayLibraryFilters,
@@ -35,6 +36,7 @@ export interface ReplayDbCalls {
   setBookmarked: (replayIds: number[], bookmarked: boolean) => number[]
   suggestOwnNames: (knownNames: string[]) => SuggestedOwnName[]
   getFrequentMaps: (limit: number) => string[]
+  getMapTilesets: () => Record<string, TilesetId>
   /** When each of the given replays was played, for the ones indexed, by path key. */
   getGameTimes: (pathKeys: string[]) => Array<[pathKey: string, gameTime: number]>
   /** Reads what each player did from a replay's commands. */

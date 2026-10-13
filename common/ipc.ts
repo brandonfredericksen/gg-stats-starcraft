@@ -21,6 +21,7 @@ import {
 import { ReportedGameStatus } from './games/game-status'
 import { ReplayChatMessage } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
+import { TilesetId } from './maps'
 import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
@@ -144,6 +145,8 @@ interface IpcInvokeables {
   replayLibrarySuggestOwnNames: (knownNames: string[]) => Promise<SuggestedOwnName[]>
   /** The maps with the most replays, for picking one to filter by. */
   replayLibraryGetFrequentMaps: () => Promise<string[]>
+  /** The tileset of each map the library has a replay of, by `getMapKey`. */
+  replayLibraryGetMapTilesets: () => Promise<Record<string, TilesetId>>
   /**
    * Moves already-indexed replay files to the Recycle Bin, recoverable unlike
    * `replayLibraryRemoveSavedReplay`'s hard delete. A path that doesn't resolve inside one of the

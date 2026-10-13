@@ -5,7 +5,7 @@ import type { Database as SqliteDatabase, Statement } from 'better-sqlite3'
 // addon dynamically, so a build would silently drop it and the packaged app would fail to load.
 import Database from 'better-sqlite3/win32-x64'
 import path from 'node:path'
-import { tilesetFromEra } from '../../common/maps'
+import { getMapKey, tilesetFromEra, TilesetId } from '../../common/maps'
 import { RaceChar } from '../../common/races'
 import {
   ReplayLibraryEntry,
@@ -566,6 +566,25 @@ export class ReplayDb {
       )
       .all(limit) as Array<{ mapName: string }>
     return rows.map(r => r.mapName)
+  }
+
+  /** The tileset of each map with a replay that has one, by `getMapKey`. */
+  getMapTilesets(): Record<string, TilesetId> {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT map_name AS mapName, tileset
+        FROM replays
+        WHERE map_name IS NOT NULL AND tileset IS NOT NULL`,
+      )
+      .all() as Array<{ mapName: string; tileset: number }>
+    const tilesets: Record<string, TilesetId> = {}
+    for (const { mapName, tileset } of rows) {
+      const id = tilesetFromEra(tileset)
+      if (id) {
+        tilesets[getMapKey(mapName)] = id
+      }
+    }
+    return tilesets
   }
 
   /** When each of the given readable replays was played. Replays are given and keyed by path key. */

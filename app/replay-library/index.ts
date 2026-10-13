@@ -82,6 +82,7 @@ export class ReplayLibraryService {
       this.call('suggestOwnNames', knownNames),
     )
     ipcMain.handle('replayLibraryGetFrequentMaps', async () => this.call('getFrequentMaps', 12))
+    ipcMain.handle('replayLibraryGetMapTilesets', async () => this.call('getMapTilesets'))
     ipcMain.handle('replayLibraryTrashReplays', async (_event, filePaths) =>
       trashReplays(
         filePaths,

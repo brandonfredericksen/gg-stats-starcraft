@@ -1,5 +1,5 @@
 import { TFunction } from 'i18next'
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   CartesianGrid,
@@ -10,10 +10,13 @@ import {
   ResponsiveContainer,
   YAxis,
 } from 'recharts'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
+import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { LadderRank } from '../../common/games/ladder'
 import { GameShape } from '../../common/games/player-metrics'
+import { TypedIpcRenderer } from '../../common/ipc'
+import { getMapKey, TilesetId } from '../../common/maps'
 import {
   Average,
   MapRow,
@@ -27,6 +30,7 @@ import {
 import { AssignedRaceChar } from '../../common/races'
 import { TICK_FONT_SIZE } from '../games/game-stats-charts'
 import { RESULT_COLORS, StatsPanel, useStatFormat } from '../games/game-stats-shared'
+import { MapArt, useMapArt } from '../games/map-art'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { IconButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -104,6 +108,8 @@ export const PanelHeadNote = styled.span`
   ${bodyMedium};
   color: var(--theme-on-surface-variant);
 `
+
+const ipcRenderer = new TypedIpcRenderer()
 
 /** A note under a table, at the foot of its panel. */
 const TablePanelFooter = styled.div`
@@ -1576,9 +1582,77 @@ function getMapLabel(map: MapRow, t: TFunction) {
   }
 }
 
+const MapListRow = styled.div<{ $art?: MapArt }>`
+  position: relative;
+  isolation: isolate;
+  min-height: 48px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+
+  /* A faint picture of the map behind its name, fading out toward the record. */
+  ${props =>
+    props.$art
+      ? css`
+          &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: url('${props.$art.url}') center / cover;
+            opacity: 0.3;
+            mask-image: linear-gradient(to right, black, transparent 85%);
+          }
+        `
+      : ''}
+`
+
+const MapRecord = styled(RightAligned)`
+  min-width: 72px;
+  white-space: nowrap;
+`
+
+function MapListItem({
+  map,
+  tilesets,
+}: {
+  map: MapRow
+  tilesets: Readonly<Record<string, TilesetId>>
+}) {
+  const { t } = useTranslation()
+  const art = useMapArt(map.mapName, tilesets[getMapKey(map.mapName)])
+  return (
+    <MapListRow $art={art}>
+      <ListName>
+        <ListNameText>{getMapLabel(map, t)}</ListNameText>
+      </ListName>
+      <RightAligned>
+        <Muted>
+          <GameCount count={map.games} />
+        </Muted>
+      </RightAligned>
+      <MapRecord>
+        <RecordText record={map} />
+      </MapRecord>
+    </MapListRow>
+  )
+}
+
 export function Maps({ maps }: { maps: ReadonlyArray<MapRow> }) {
   const { t } = useTranslation()
   const { shown, pager } = usePaged(maps)
+  const [tilesets, setTilesets] = useState<Readonly<Record<string, TilesetId>>>({})
+  useEffect(() => {
+    ipcRenderer
+      .invoke('replayLibraryGetMapTilesets')
+      ?.then(result => setTilesets(result ?? {}))
+      .catch(swallowNonBuiltins)
+  }, [])
   return (
     <PaddedPanel>
       <PanelHead $spread={!!pager}>
@@ -1586,19 +1660,7 @@ export function Maps({ maps }: { maps: ReadonlyArray<MapRow> }) {
         {pager}
       </PanelHead>
       {shown.map(map => (
-        <ListRow key={`${map.family}${map.mapName}`}>
-          <ListName>
-            <ListNameText>{getMapLabel(map, t)}</ListNameText>
-          </ListName>
-          <RightAligned>
-            <Muted>
-              <GameCount count={map.games} />
-            </Muted>
-          </RightAligned>
-          <RightAligned>
-            <RecordText record={map} />
-          </RightAligned>
-        </ListRow>
+        <MapListItem key={`${map.family}${map.mapName}`} map={map} tilesets={tilesets} />
       ))}
     </PaddedPanel>
   )

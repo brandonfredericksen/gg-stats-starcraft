@@ -145,6 +145,7 @@ const calls: ReplayDbCalls = {
   setBookmarked: (replayIds, bookmarked) => db.setBookmarked(replayIds, bookmarked),
   suggestOwnNames: knownNames => db.suggestOwnNames(knownNames),
   getFrequentMaps: limit => db.getFrequentMaps(limit),
+  getMapTilesets: () => db.getMapTilesets(),
   getGameTimes: pathKeys => db.getGameTimes(pathKeys),
   readCommandStats: path => readReplayCommandStats(path),
   indexFile: path => indexFile(path),
