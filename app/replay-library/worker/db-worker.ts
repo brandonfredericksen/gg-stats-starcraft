@@ -7,6 +7,7 @@ import {
   hashReplayContents,
   IndexedReplay,
   makeParseErrorRecord,
+  parseReplayBuffer,
   parseReplayContents,
   readReplayCommandStats,
   ReplayFileInfo,
@@ -121,6 +122,22 @@ async function indexFile(path: string): Promise<number | undefined> {
   return db.getIdByPath(path)
 }
 
+/**
+ * Reads the tileset of an indexed replay that doesn't have one yet, like one indexed before
+ * tilesets were read. Resolves to whether one was saved.
+ */
+async function fillTileset(path: string): Promise<boolean> {
+  if (!db.lacksTileset(path)) {
+    return false
+  }
+  const { tileset } = parseReplayBuffer(await readFile(path))
+  if (tileset === null) {
+    return false
+  }
+  db.setTileset(path, tileset)
+  return true
+}
+
 /** Implementations of the operations the main process can request (see `ReplayDbCalls`). */
 const calls: ReplayDbCalls = {
   query: filters => db.query(filters),
@@ -131,6 +148,7 @@ const calls: ReplayDbCalls = {
   getGameTimes: pathKeys => db.getGameTimes(pathKeys),
   readCommandStats: path => readReplayCommandStats(path),
   indexFile: path => indexFile(path),
+  fillTileset: path => fillTileset(path),
   setWatchedFolders: folders => watcher.setWatchedFolders(folders),
 }
 

@@ -267,7 +267,11 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
 
   const where = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   const orderBy = buildOrderByClause(filters)
-  const sql = `SELECT r.* FROM replays r${where} ORDER BY ${orderBy}`
+  // A replay without a tileset of its own, like one indexed before tilesets were read, takes the
+  // one any other replay of its map has, since the tileset comes with the map.
+  const sql =
+    'SELECT r.*, (SELECT m.tileset FROM replays m WHERE m.map_name = r.map_name AND ' +
+    `m.tileset IS NOT NULL LIMIT 1) AS map_tileset FROM replays r${where} ORDER BY ${orderBy}`
   const countSql = `SELECT COUNT(*) AS count FROM replays r${where}`
 
   return { sql, countSql, params }

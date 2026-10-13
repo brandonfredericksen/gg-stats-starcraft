@@ -126,6 +126,16 @@ export class ReplayLibraryService {
     this.notifyChanged()
   }
 
+  /**
+   * Saves the tileset of an indexed replay that doesn't have one yet, like one indexed before
+   * tilesets were read, so it gets its map's art once it's analyzed.
+   */
+  async fillTileset(replayPath: string): Promise<void> {
+    if (await this.call('fillTileset', replayPath)) {
+      this.notifyChanged()
+    }
+  }
+
   /** Reads what each player did from a replay's commands, off the main thread. */
   readCommandStats(replayPath: string): Promise<ReplayCommandStats> {
     return this.call('readCommandStats', replayPath)

@@ -896,7 +896,14 @@ app.on('ready', () => {
       // New stats, and a played game's replay once it's saved, have commands to read.
       container
         .resolve(ActiveGameManager)
-        .on('gameStats', () => commandStatsBackfill.schedule(5000))
+        .on('gameStats', (_gameId, _stats, source) => {
+          commandStatsBackfill.schedule(5000)
+          if (source.kind === 'replay') {
+            replayLibrary?.fillTileset(source.path).catch(err => {
+              logger.error(`Error reading the tileset of ${source.path}: ${getErrorStack(err)}`)
+            })
+          }
+        })
         .on('replaySaved', () => commandStatsBackfill.schedule(5000))
 
       const autoCapture = new AutoCaptureService({

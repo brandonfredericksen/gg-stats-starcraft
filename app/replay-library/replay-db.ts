@@ -17,7 +17,7 @@ import {
 import { deriveTeamLayout, IndexedReplay } from './replay-parser'
 import { buildReplaySqlQuery, escapeLike } from './replay-queries'
 
-const SCHEMA_VERSION = 12
+const SCHEMA_VERSION = 13
 
 /** Max number of bind parameters per statement; keeps `IN (...)` lists within SQLite limits. */
 const MAX_IN_PARAMS = 900
@@ -39,6 +39,8 @@ interface DbReplayRow {
   matchup: string | null
   bookmarked_at: number | null
   tileset: number | null
+  /** The tileset another replay of the same map has, see `buildReplaySqlQuery`. */
+  map_tileset?: number | null
 }
 
 interface DbPlayerRow {
@@ -382,6 +384,11 @@ export class ReplayDb {
           this.db.exec('ALTER TABLE replays ADD COLUMN tileset INTEGER')
         }
 
+        if (version < 13) {
+          // For a replay without a tileset to find another replay of its map that has one.
+          this.db.exec('CREATE INDEX idx_replays_map_name_tileset ON replays (map_name, tileset)')
+        }
+
         if (version < SCHEMA_VERSION) {
           this.db.pragma(`user_version = ${SCHEMA_VERSION}`)
         }
@@ -589,6 +596,19 @@ export class ReplayDb {
     return this.setBookmarkedTxn(replayIds, bookmarked)
   }
 
+  /** Whether the replay at `path` is indexed and readable, but has no tileset yet. */
+  lacksTileset(path: string): boolean {
+    const row = this.db
+      .prepare('SELECT tileset, parse_error AS parseError FROM replays WHERE path = ?')
+      .get(path) as { tileset: number | null; parseError: number } | undefined
+    return !!row && !row.parseError && row.tileset === null
+  }
+
+  /** Saves the tileset of the replay at `path`, read from its map. */
+  setTileset(path: string, tileset: number): void {
+    this.db.prepare('UPDATE replays SET tileset = ? WHERE path = ?').run(tileset, path)
+  }
+
   /** The id of the indexed replay at `path`, if one has been indexed. */
   getIdByPath(path: string): number | undefined {
     const row = this.getIdByPathStmt.get(path) as { id: number } | undefined
@@ -708,6 +728,6 @@ function rowToEntry(row: DbReplayRow, playerRows: DbPlayerRow[]): ReplayLibraryE
     parseError: row.parse_error !== 0,
     players,
     bookmarkedAt: row.bookmarked_at ?? undefined,
-    tileset: tilesetFromEra(row.tileset),
+    tileset: tilesetFromEra(row.tileset ?? row.map_tileset),
   }
 }

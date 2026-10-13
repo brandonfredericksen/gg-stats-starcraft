@@ -20,11 +20,17 @@ describe('app/replay-library/replay-queries/escapeLike', () => {
   })
 })
 
+/** The query past its columns, leaving out the lookup of a map's tileset, which has its own. */
+function outerQuery(sql: string) {
+  return sql.slice(sql.indexOf(' AS map_tileset '))
+}
+
 describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
   test('no filters (default) applies the minimum-length floor', () => {
     const { sql, params } = buildReplaySqlQuery({})
     expect(sql).toBe(
-      'SELECT r.* FROM replays r ' +
+      'SELECT r.*, (SELECT m.tileset FROM replays m WHERE m.map_name = r.map_name AND ' +
+        'm.tileset IS NOT NULL LIMIT 1) AS map_tileset FROM replays r ' +
         'WHERE (r.parse_error != 0 OR r.duration_frames IS NULL OR r.duration_frames >= ?) ' +
         'ORDER BY r.parse_error ASC, r.game_time DESC, r.id ASC',
     )
@@ -34,9 +40,11 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
   test('includeShort skips the minimum-length floor, yielding a plain newest-first query', () => {
     const { sql, params } = buildReplaySqlQuery({ includeShort: true })
     expect(sql).toBe(
-      'SELECT r.* FROM replays r ORDER BY r.parse_error ASC, r.game_time DESC, r.id ASC',
+      'SELECT r.*, (SELECT m.tileset FROM replays m WHERE m.map_name = r.map_name AND ' +
+        'm.tileset IS NOT NULL LIMIT 1) AS map_tileset FROM replays r ' +
+        'ORDER BY r.parse_error ASC, r.game_time DESC, r.id ASC',
     )
-    expect(sql).not.toContain('WHERE')
+    expect(outerQuery(sql)).not.toContain('WHERE')
     expect(params).toEqual([])
   })
 
@@ -167,8 +175,8 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
 
   test('sql has no LIMIT/OFFSET applied', () => {
     const { sql } = buildReplaySqlQuery({ mapName: 'Fighting Spirit' })
-    expect(sql).not.toContain('LIMIT')
-    expect(sql).not.toContain('OFFSET')
+    expect(outerQuery(sql)).not.toContain('LIMIT')
+    expect(outerQuery(sql)).not.toContain('OFFSET')
   })
 
   test('gameType "others" becomes a NOT IN check against the featured game types', () => {

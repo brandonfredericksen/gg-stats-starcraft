@@ -92,6 +92,27 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     expect(db.suggestOwnNames(['ÄRGER'])).toEqual([])
   })
 
+  test("gives a replay without a tileset its map's, and saves its own once read", async () => {
+    const db = await open()
+    db.upsertReplay({ ...makeReplay('Old.rep', ['A', 'B'], 1), tileset: null })
+    db.upsertReplay({ ...makeReplay('Odd map.rep', ['A', 'B'], 2), mapName: 'Odd', tileset: null })
+    db.upsertReplay(makeReplay('New.rep', ['A', 'B'], 3))
+    const tilesets = () =>
+      Object.fromEntries(db.query({ includeShort: true }).entries.map(e => [e.fileName, e.tileset]))
+
+    expect(tilesets()).toEqual({
+      'New.rep': 'jungle',
+      'Old.rep': 'jungle',
+      'Odd map.rep': undefined,
+    })
+
+    const oddPath = path.win32.join(AUTOSAVE, 'Odd map.rep')
+    expect(db.lacksTileset(oddPath)).toBe(true)
+    db.setTileset(oddPath, 6)
+    expect(db.lacksTileset(oddPath)).toBe(false)
+    expect(tilesets()['Odd map.rep']).toBe('ice')
+  })
+
   test('keeps the path key in step when a replay moves', async () => {
     const db = await open()
     addGames(db)
@@ -117,6 +138,7 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     raw.exec(`
       ALTER TABLE replays DROP COLUMN path_key;
       ALTER TABLE replay_players DROP COLUMN name_key;
+      DROP INDEX idx_replays_map_name_tileset;
       ALTER TABLE replays DROP COLUMN tileset;
     `)
     raw.pragma('user_version = 10')

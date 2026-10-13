@@ -29,6 +29,8 @@ export type WorkerLibraryStatus = Omit<ReplayLibraryStatus, 'missingFolders'>
 export interface ReplayDbCalls {
   query: (filters: ReplayLibraryFilters) => ReplayQueryResult
   status: () => WorkerLibraryStatus
+  /** Reads the tileset of an indexed replay that has none yet. Returns whether one was saved. */
+  fillTileset: (path: string) => Promise<boolean>
   /** Returns the ids whose bookmark state actually changed (not already in that state). */
   setBookmarked: (replayIds: number[], bookmarked: boolean) => number[]
   suggestOwnNames: (knownNames: string[]) => SuggestedOwnName[]
