@@ -153,7 +153,10 @@
 
       /* The app's window, showing one screen at a time. */
       .window {
+        position: relative;
         display: grid;
+        /* Leaves sideways swipes to the slideshow and vertical ones to the page. */
+        touch-action: pan-y;
         width: min(100%, 1040px);
         aspect-ratio: 1920 / 1350;
         margin-top: 28px;
@@ -176,6 +179,53 @@
 
       .window img.shown {
         opacity: 1;
+      }
+
+      /* Previous and next, shown while the pointer is over the window. Phones swipe instead. */
+      .arrow {
+        position: absolute;
+        top: 50%;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 9999px;
+        background: rgb(11 11 11 / 0.72);
+        box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12);
+        opacity: 0;
+        transform: translateY(-50%);
+        transition:
+          opacity 200ms ease,
+          background 200ms ease;
+      }
+
+      .arrow.previous {
+        left: 12px;
+      }
+
+      .arrow.next {
+        right: 12px;
+      }
+
+      .arrow svg {
+        width: 28px;
+        height: 28px;
+        fill: var(--on-surface);
+      }
+
+      .window:hover .arrow,
+      .arrow:focus-visible {
+        opacity: 1;
+      }
+
+      .arrow:hover {
+        background: var(--container-highest);
+      }
+
+      @media (hover: none) {
+        .arrow {
+          display: none;
+        }
       }
 
       /* One dot per screen. The current one stretches into a bar. */
@@ -339,7 +389,8 @@
 
       @media (prefers-reduced-motion: reduce) {
         .window img,
-        .tab::before {
+        .tab::before,
+        .arrow {
           transition: none;
         }
       }
@@ -460,6 +511,16 @@
           decoding="async"
           aria-hidden="true"
           alt="The same build as a timeline, with your steps against everyone else's." />
+        <button class="arrow previous" type="button" aria-label="Previous screen">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path d="M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z" />
+          </svg>
+        </button>
+        <button class="arrow next" type="button" aria-label="Next screen">
+          <svg viewBox="0 -960 960 960" aria-hidden="true">
+            <path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z" />
+          </svg>
+        </button>
       </div>
 
       <div class="tabs" role="tablist" aria-label="Screens">
@@ -657,6 +718,8 @@
       }
 
       tabs.forEach((tab, i) => tab.addEventListener('click', () => pick(i)))
+      document.querySelector('.arrow.previous').addEventListener('click', () => pick(current - 1))
+      document.querySelector('.arrow.next').addEventListener('click', () => pick(current + 1))
 
       document.querySelector('[role="tablist"]').addEventListener('keydown', event => {
         const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key]
@@ -681,6 +744,23 @@
         })
       }
       document.addEventListener('visibilitychange', schedule)
+
+      // A sideways swipe on the window moves to the next or previous screen.
+      const SWIPE_PX = 40
+      let swipeStart
+      panel.addEventListener('pointerdown', event => {
+        if (event.pointerType !== 'mouse') swipeStart = event
+      })
+      panel.addEventListener('pointercancel', () => {
+        swipeStart = undefined
+      })
+      panel.addEventListener('pointerup', event => {
+        if (!swipeStart) return
+        const dx = event.clientX - swipeStart.clientX
+        const dy = event.clientY - swipeStart.clientY
+        swipeStart = undefined
+        if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) pick(current - Math.sign(dx))
+      })
 
       const copyButton = document.querySelector('.copy')
       const copyStatus = document.getElementById('copy-status')

@@ -414,10 +414,18 @@ export function getResultWord(result: MyStatsGame['result'], t: TFunction) {
   }
 }
 
+/**
+ * What a chip in the recent games strip says under its result. Only 1v1 races fit a chip, so team
+ * games say their game type and leave the races to the tooltip.
+ */
+function getChipMatchupLabel(game: MyStatsGame, t: TFunction) {
+  return game.shape === '1v1' ? getMatchupLabel(game, t) : getShapeLabel(game.shape, t)
+}
+
 export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
   const { t } = useTranslation()
   // The same matchup on every chip is noise; it's shown once in the title instead.
-  const matchups = new Set(games.map(game => getMatchupLabel(game, t)))
+  const matchups = new Set(games.map(game => getChipMatchupLabel(game, t)))
   const matchupsVary = matchups.size > 1
   return (
     <PaddedPanel>
@@ -459,7 +467,7 @@ export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
               aria-label={`${getResultLetter(game.result, t)} ${getMatchupLabel(game, t)}`}
               onClick={() => push(getGameStatsUrl(game.gameId))}>
               <span>{getResultLetter(game.result, t)}</span>
-              {matchupsVary ? <RecentMatchup>{getMatchupLabel(game, t)}</RecentMatchup> : null}
+              {matchupsVary ? <RecentMatchup>{getChipMatchupLabel(game, t)}</RecentMatchup> : null}
             </RecentChip>
           </RecentTooltip>
         ))}
