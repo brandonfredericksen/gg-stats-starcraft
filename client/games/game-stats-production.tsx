@@ -5,6 +5,7 @@ import styled from 'styled-components'
 import { GamePlayerStats } from '../../common/games/game-stats'
 import { buildKey } from '../../common/games/player-metrics'
 import { Segmented } from '../material/segmented'
+import { Tooltip } from '../material/tooltip'
 import { bodyMedium, labelMedium, singleLine } from '../styles/typography'
 import { GameIcon } from './game-icon'
 import {
@@ -148,6 +149,11 @@ const ResourceRowName = styled.span`
   text-align: left;
 `
 
+/** The tooltip's wrapper copies its parent's display, which would make it a grid cell here. */
+const RateTooltip = styled(Tooltip)`
+  display: inline-block;
+`
+
 const ResourceRate = styled.span`
   ${labelMedium};
   white-space: nowrap;
@@ -206,7 +212,14 @@ function ResourceBar({
             <span>
               {number(r?.mined)}
               {r?.minedPerMinute !== undefined ? (
-                <ResourceRate>+{format.format(r.minedPerMinute)}</ResourceRate>
+                <RateTooltip
+                  position='top'
+                  text={t(
+                    'gameStats.resourceRateTooltip',
+                    'Minerals and gas mined per minute over the last minute',
+                  )}>
+                  <ResourceRate>+{format.format(r.minedPerMinute)}</ResourceRate>
+                </RateTooltip>
               ) : null}
             </span>
           </ResourceRow>

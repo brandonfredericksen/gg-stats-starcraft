@@ -682,6 +682,7 @@
     "resourceArmy": "Army",
     "resourceBases": "Bases",
     "resourceMined": "Mined",
+    "resourceRateTooltip": "Minerals and gas mined per minute over the last minute",
     "resourcesLostOverTime": "Resources lost",
     "resourceSupply": "Supply",
     "resourceUnspent": "Unspent",
