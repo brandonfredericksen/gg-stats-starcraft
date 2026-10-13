@@ -9,6 +9,7 @@ import { GamePlayerStats, GameStatsResult } from '../../common/games/game-stats'
 import { RaceChar } from '../../common/races'
 import { numberFormat, useFormat } from '../i18n/locale-formats'
 import logger from '../logging/logger'
+import { buttonReset } from '../material/button-reset'
 import { panelSurface } from '../material/panel'
 import { RaceTag } from '../material/race-tag'
 import { PlayerNameButton } from '../players/player-card'
@@ -304,4 +305,61 @@ export class SectionErrorBoundary extends React.Component<
   override render() {
     return this.state.failed ? <SectionFallbackMessage /> : this.props.children
   }
+}
+
+/** A row of buttons that each turn something on or off, like a player to show. */
+export const Picker = styled.div`
+  padding: 4px;
+
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+
+  border: 1px solid var(--theme-outline-variant);
+  border-radius: 10px;
+  background: var(--theme-container-low);
+`
+
+export const PickerButton = styled.button<{ $on: boolean }>`
+  ${buttonReset};
+  ${labelLarge};
+  height: 30px;
+  padding: 0 12px 0 10px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  border-radius: 6px;
+  background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
+  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
+  font-weight: 600;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`
+
+/**
+ * The background of the row at the moment picked on the minimap's timeline or a chart, like the
+ * build step a player had reached.
+ */
+export const CURRENT_ROW_BACKGROUND = 'rgb(from var(--theme-amber) r g b / 0.14)'
+
+/** Scrolls `list`, but not the page, to show `row` if it's out of view. */
+export function keepInView(list: HTMLElement, row: HTMLElement) {
+  const top = row.offsetTop - list.offsetTop
+  if (top < list.scrollTop || top + row.offsetHeight > list.scrollTop + list.clientHeight) {
+    list.scrollTop = top - (list.clientHeight - row.offsetHeight) / 2
+  }
+}
+
+/** The last of `items` at or before the moment picked, or -1 if none or nothing is picked. */
+export function findCurrentIndex(
+  items: ReadonlyArray<{ timeMs: number }>,
+  timeMs: number | undefined,
+) {
+  return timeMs === undefined ? -1 : items.findLastIndex(item => item.timeMs <= timeMs)
 }

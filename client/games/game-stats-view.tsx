@@ -10,6 +10,7 @@ import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat } from './game-stats-chat'
+import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { GameOtherStats } from './game-stats-other'
 import { Scoreboard } from './game-stats-scoreboard'
@@ -28,6 +29,33 @@ const Root = styled.div`
   display: flex;
   flex-direction: column;
   gap: 28px;
+`
+
+/**
+ * The minimap with the chat beside it. Each is a header, a panel and maybe a note, laid out on rows
+ * they share, so the two panels start and end on the same lines.
+ */
+const MapAndChat = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+  row-gap: 12px;
+
+  & > * {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+  }
+
+  & > * > :first-child {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+  }
+
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `
 
 const TopSection = styled.section`
@@ -101,15 +129,20 @@ function getStatsKey(stats: GameStats) {
  * orders, and the chat when there's a replay to read it from. The header goes above who played who.
  */
 export function GameStatsView({
+  gameId,
   stats,
   source,
   replayPath,
   header,
+  onAnalyzeAgain,
 }: {
+  gameId: string
   stats: GameStats
   source: GameStatsSource
   replayPath?: string
   header?: React.ReactNode
+  /** Analyzes the game's replay again, if there's one to analyze. */
+  onAnalyzeAgain?: () => void
 }) {
   const { t } = useTranslation()
   const myNames = useMyPlayerNames()
@@ -170,6 +203,20 @@ export function GameStatsView({
         />
       </SectionErrorBoundary>
 
+      <MapAndChat>
+        <GameMinimap
+          gameId={gameId}
+          minimap={stats.minimap}
+          durationMs={stats.durationMs}
+          players={sides.flatMap(side => side.players)}
+          playerColors={playerColors}
+          onAnalyzeAgain={onAnalyzeAgain}
+        />
+        {replayPath ? (
+          <GameChat replayPath={replayPath} players={players} playerColors={playerColors} fill />
+        ) : null}
+      </MapAndChat>
+
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
 
       <GameOtherStats
@@ -179,10 +226,6 @@ export function GameStatsView({
         teamsByPlayer={teamsByPlayer}
         durationMs={stats.durationMs}
       />
-
-      {replayPath ? (
-        <GameChat replayPath={replayPath} players={players} playerColors={playerColors} />
-      ) : null}
     </Root>
   )
 }

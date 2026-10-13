@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useAtomValue } from 'jotai'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { getErrorStack } from '../../common/errors'
@@ -10,7 +11,11 @@ import logger from '../logging/logger'
 import { RaceTag } from '../material/race-tag'
 import { selectableTextContainer } from '../styles/text-selection'
 import { bodyMedium, labelLarge, singleLine } from '../styles/typography'
+import { gameScrubAtom } from './game-stats-scrub'
 import {
+  CURRENT_ROW_BACKGROUND,
+  findCurrentIndex,
+  keepInView,
   PlayerSwatch,
   Section,
   SectionErrorBoundary,
@@ -21,18 +26,33 @@ import {
 
 const ipcRenderer = new TypedIpcRenderer()
 
+/**
+ * Beside something taller, the chat takes up the same height, however much was said, and scrolls
+ * inside it.
+ */
+const FillingPanel = styled(StatsPanel)<{ $fill: boolean }>`
+  ${props =>
+    props.$fill
+      ? `
+        min-height: 240px;
+        contain: size;
+      `
+      : ''}
+`
+
 /** Long chats scroll rather than stretch the page, and can be selected to copy. */
-const MessageList = styled.ol`
+const MessageList = styled.ol<{ $fill: boolean }>`
   ${selectableTextContainer};
-  max-height: 560px;
+  max-height: ${props => (props.$fill ? '100%' : '560px')};
   margin: 0;
   padding: 6px 0;
   overflow-y: auto;
   list-style: none;
 `
 
-const MessageRow = styled.li`
+const MessageRow = styled.li<{ $current: boolean }>`
   ${bodyMedium};
+  background: ${props => (props.$current ? CURRENT_ROW_BACKGROUND : 'transparent')};
   display: grid;
   grid-template-columns: 64px minmax(0, 200px) minmax(0, 1fr);
   column-gap: 12px;
@@ -93,16 +113,25 @@ function ChatMessageRow({
   message,
   players,
   playerColors,
+  current,
 }: {
   message: ReplayChatMessage
   players: ReadonlyArray<GamePlayerStats>
   playerColors: ReadonlyMap<number, string>
+  /** Whether it's the last message said by the moment picked. */
+  current: boolean
 }) {
   const { t } = useTranslation()
+  const ref = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (current && ref.current?.parentElement) {
+      keepInView(ref.current.parentElement, ref.current)
+    }
+  }, [current])
   const player = findPlayer(players, message.name)
   const name = message.name || t('gameStats.chatUnknownSender', 'Unknown')
   return (
-    <MessageRow>
+    <MessageRow ref={ref} $current={current}>
       <Time>{getGameDurationString(message.timeMs)}</Time>
       <Sender title={name}>
         {player ? (
@@ -156,13 +185,17 @@ export function GameChat({
   replayPath,
   players,
   playerColors,
+  fill = false,
 }: {
   replayPath: string
   players: ReadonlyArray<GamePlayerStats>
   playerColors: ReadonlyMap<number, string>
+  /** Whether to take up the height it's given, like beside the minimap, rather than its own. */
+  fill?: boolean
 }) {
   const { t } = useTranslation()
   const [chat, setChat] = useState<{ path: string; messages?: ReplayChatMessage[] }>()
+  const scrubMs = useAtomValue(gameScrubAtom)?.timeMs
 
   useEffect(() => {
     let cancelled = false
@@ -197,26 +230,28 @@ export function GameChat({
     )
   }
 
+  const currentIndex = findCurrentIndex(chat.messages, scrubMs)
   return (
     <Section>
       <SectionTitle>{t('gameStats.chat', 'Chat')}</SectionTitle>
       <SectionErrorBoundary>
-        <StatsPanel>
+        <FillingPanel $fill={fill}>
           {chat.messages.length ? (
-            <MessageList onCopy={event => copyMessages(event, chat.messages!)}>
+            <MessageList $fill={fill} onCopy={event => copyMessages(event, chat.messages!)}>
               {chat.messages.map((message, i) => (
                 <ChatMessageRow
                   key={i}
                   message={message}
                   players={players}
                   playerColors={playerColors}
+                  current={i === currentIndex}
                 />
               ))}
             </MessageList>
           ) : (
             <NoMessages>{t('gameStats.noChat', 'No one said anything in this game.')}</NoMessages>
           )}
-        </StatsPanel>
+        </FillingPanel>
       </SectionErrorBoundary>
     </Section>
   )

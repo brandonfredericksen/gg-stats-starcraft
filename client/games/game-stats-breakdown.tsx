@@ -5,11 +5,13 @@ import { GamePlayerStats } from '../../common/games/game-stats'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { PlayerNameButton } from '../players/player-card'
-import { bodyMedium, labelLarge, labelMedium, singleLine } from '../styles/typography'
+import { bodyMedium, labelMedium, singleLine } from '../styles/typography'
 import { GameIcon } from './game-icon'
 import { PlayerBuildOrder } from './game-stats-build-orders'
 import { Side, toUnitEntries, UnitEntry } from './game-stats-model'
 import {
+  Picker,
+  PickerButton,
   PlayerSwatch,
   raceColor,
   Section,
@@ -28,40 +30,6 @@ const Header = styled.div`
 
   & > ${SectionTitle} {
     flex: 1 1 auto;
-  }
-`
-
-const Picker = styled.div`
-  padding: 4px;
-
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px;
-
-  border: 1px solid var(--theme-outline-variant);
-  border-radius: 10px;
-  background: var(--theme-container-low);
-`
-
-const PickerButton = styled.button<{ $on: boolean }>`
-  ${buttonReset};
-  ${labelLarge};
-  height: 30px;
-  padding: 0 12px 0 10px;
-
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  border-radius: 6px;
-  background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
-  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
-  font-weight: 600;
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
   }
 `
 

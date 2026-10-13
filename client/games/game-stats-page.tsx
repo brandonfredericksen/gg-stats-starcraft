@@ -504,15 +504,21 @@ function StatsView({
   playedAtMs?: number
   tileset?: TilesetId
 }) {
+  const dispatch = useAppDispatch()
   const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
   const replayPath =
     source.kind === 'replay' ? source.path : (source.replayPath ?? recentReplayPath)
+  const replay = useAnalyzableReplay(gameId, source)
   return (
     <GameStatsView
       key={gameId}
+      gameId={gameId}
       stats={stats}
       source={source}
       replayPath={replayPath}
+      onAnalyzeAgain={
+        replay ? () => dispatch(analyzeReplay({ ...replay, reanalyze: true })) : undefined
+      }
       header={
         <StatsHeader
           gameId={gameId}
@@ -528,6 +534,19 @@ function StatsView({
 
 function getFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() || filePath
+}
+
+/** The replay a game's stats can be analyzed again from, and watched with, if there is one. */
+function useAnalyzableReplay(gameId: string, source: GameStatsSource) {
+  const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
+  const playedReplayPath =
+    source.kind === 'game' ? (source.replayPath ?? recentReplayPath) : undefined
+  if (source.kind === 'replay') {
+    return source
+  }
+  return playedReplayPath
+    ? { name: getFileName(playedReplayPath), path: playedReplayPath, linkedGameId: gameId }
+    : undefined
 }
 
 /**
@@ -562,17 +581,7 @@ function StatsHeader({
   const locale = useFormatLocale()
   const nowMs = useCurrentMinuteMs()
   const myNames = useMyPlayerNames()
-  const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
-  const playedReplayPath =
-    source.kind === 'game' ? (source.replayPath ?? recentReplayPath) : undefined
-  const replay =
-    source.kind === 'replay'
-      ? source
-      : playedReplayPath && {
-          name: getFileName(playedReplayPath),
-          path: playedReplayPath,
-          linkedGameId: gameId,
-        }
+  const replay = useAnalyzableReplay(gameId, source)
   const sides = groupSides(withAssumedResults(stats.players, stats.complete, myNames))
   const mapName =
     stats.mapName ||

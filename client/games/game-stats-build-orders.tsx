@@ -1,3 +1,5 @@
+import { useAtomValue } from 'jotai'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
@@ -6,7 +8,15 @@ import { buildKey } from '../../common/games/player-metrics'
 import { bodyMedium, labelMedium, singleLine } from '../styles/typography'
 import { GameIcon } from './game-icon'
 import { BuildOrderRow, toBuildOrderRows } from './game-stats-model'
-import { raceColor, StatsPanel, VisuallyHidden } from './game-stats-shared'
+import { gameScrubAtom } from './game-stats-scrub'
+import {
+  CURRENT_ROW_BACKGROUND,
+  findCurrentIndex,
+  keepInView,
+  raceColor,
+  StatsPanel,
+  VisuallyHidden,
+} from './game-stats-shared'
 
 const stepColumns = css`
   display: grid;
@@ -32,13 +42,14 @@ const StepList = styled.ol`
   list-style: none;
 `
 
-const StepRow = styled.li`
+const StepRow = styled.li<{ $current: boolean }>`
   ${bodyMedium};
   ${stepColumns};
   height: 34px;
   padding: 0 18px;
   align-items: center;
   border-top: 1px solid var(--theme-outline-variant);
+  background: ${props => (props.$current ? CURRENT_ROW_BACKGROUND : 'transparent')};
 `
 
 const StepNumber = styled.span`
@@ -75,14 +86,29 @@ const NoSteps = styled.div`
   color: var(--theme-on-surface-variant);
 `
 
-function BuildStepRow({ row, buildingColor }: { row: BuildOrderRow; buildingColor: string }) {
+function BuildStepRow({
+  row,
+  buildingColor,
+  current,
+}: {
+  row: BuildOrderRow
+  buildingColor: string
+  /** Whether it's the step the player had reached at the moment picked. */
+  current: boolean
+}) {
   const { t } = useTranslation()
+  const ref = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (current && ref.current?.parentElement) {
+      keepInView(ref.current.parentElement, ref.current)
+    }
+  }, [current])
   const name =
     row.count > 1
       ? t('gameStats.buildStepCount', '{{name}} ×{{count}}', { name: row.name, count: row.count })
       : row.name
   return (
-    <StepRow>
+    <StepRow ref={ref} $current={current} aria-current={current ? 'step' : undefined}>
       <StepNumber>{getGameDurationString(row.timeMs)}</StepNumber>
       <StepNumber>{row.supply ?? '-'}</StepNumber>
       <StepNameCell>
@@ -131,6 +157,7 @@ export function PlayerBuildOrder({
 }) {
   const { t } = useTranslation()
   const rows = player.buildOrder ? toBuildOrderRows(player.buildOrder, t) : undefined
+  const currentIndex = findCurrentIndex(rows ?? [], useAtomValue(gameScrubAtom)?.timeMs)
 
   let content: React.ReactNode
   if (!rows) {
@@ -155,7 +182,12 @@ export function PlayerBuildOrder({
           }
         }}>
         {rows.map((row, i) => (
-          <BuildStepRow key={i} row={row} buildingColor={raceColor(player.race)} />
+          <BuildStepRow
+            key={i}
+            row={row}
+            buildingColor={raceColor(player.race)}
+            current={i === currentIndex}
+          />
         ))}
       </StepList>
     )

@@ -1,3 +1,4 @@
+import { useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -26,6 +27,7 @@ import {
   playerDataKey,
   toTimelineRows,
 } from './game-stats-model'
+import { gameScrubAtom } from './game-stats-scrub'
 import {
   Section,
   SectionErrorBoundary,
@@ -105,9 +107,44 @@ const ChartTitle = styled.h3`
 `
 
 const ChartArea = styled.div`
+  position: relative;
   width: 100%;
   height: 144px;
 `
+
+/** Where the y axis's labels go, left of what's charted. */
+const Y_AXIS_WIDTH = 40
+/** The room recharts leaves above what's charted, and the x axis takes below it. */
+const PLOT_TOP = 5
+const X_AXIS_HEIGHT = 30
+
+/**
+ * A line over the chart at the moment picked. It's drawn over the chart rather than in it, so
+ * following the minimap's playback doesn't redraw every chart.
+ */
+const ScrubLine = styled.div`
+  position: absolute;
+  top: ${PLOT_TOP}px;
+  bottom: ${X_AXIS_HEIGHT}px;
+  width: 1.5px;
+  background: var(--theme-amber);
+  pointer-events: none;
+`
+
+function ChartScrubLine({ timesMs }: { timesMs: ReadonlyArray<number> }) {
+  const scrub = useAtomValue(gameScrubAtom)
+  const start = timesMs[0] ?? 0
+  const end = timesMs.at(-1) ?? 0
+  if (!scrub || end <= start) {
+    return null
+  }
+  const fraction = Math.max(0, Math.min(1, (scrub.timeMs - start) / (end - start)))
+  return (
+    <ScrubLine
+      style={{ left: `calc(${Y_AXIS_WIDTH}px + (100% - ${Y_AXIS_WIDTH}px) * ${fraction})` }}
+    />
+  )
+}
 
 export const chartTooltipStyle = {
   padding: '8px 10px',
@@ -190,6 +227,7 @@ function TimelineChart({
 }) {
   const format = useStatFormat()
   const compactFormat = useCompactStatFormat()
+  const setScrub = useSetAtom(gameScrubAtom)
   // Players the game didn't report this for are left out, rather than drawn as zero. Focused
   // players are drawn last, so their lines are on top.
   const shown = players
@@ -197,7 +235,16 @@ function TimelineChart({
     .toSorted((a, b) => Number(focused.has(a.id)) - Number(focused.has(b.id)))
   const isDimmed = (player: GamePlayerStats) => focused.size > 0 && !focused.has(player.id)
   return (
-    <LineChart data={toTimelineRows(timesMs, shown, getValues)} margin={{ left: 0, right: 0 }}>
+    <LineChart
+      data={toTimelineRows(timesMs, shown, getValues)}
+      margin={{ left: 0, right: 0 }}
+      // Picks the moment for the minimap, and the build orders and chat, to show.
+      onClick={state => {
+        if (state.activeLabel !== undefined) {
+          setScrub({ timeMs: Number(state.activeLabel), fromMinimap: false })
+        }
+      }}
+      style={{ cursor: 'pointer' }}>
       <CartesianGrid stroke='var(--theme-outline-variant)' vertical={false} />
       <XAxis
         dataKey='timeMs'
@@ -210,7 +257,7 @@ function TimelineChart({
         tickLine={false}
       />
       <YAxis
-        width={40}
+        width={Y_AXIS_WIDTH}
         tickCount={3}
         allowDecimals={false}
         axisLine={false}
@@ -365,6 +412,7 @@ export function GameStatsTimelines({
                       formatValue={chart.formatValue}
                     />
                   </ResponsiveContainer>
+                  <ChartScrubLine timesMs={timesMs} />
                 </ChartArea>
               </SectionErrorBoundary>
             </ChartCard>
