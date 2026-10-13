@@ -15,14 +15,14 @@ import { TypedIpcRenderer } from '../../common/ipc'
 import { MaterialIcon } from '../icons/material/material-icon'
 import logger from '../logging/logger'
 import { IconButton, TextButton } from '../material/button'
+import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { Segmented } from '../material/segmented'
+import { Tooltip } from '../material/tooltip'
 import { bodyMedium, labelMedium } from '../styles/typography'
 import { gameScrubAtom } from './game-stats-scrub'
 import {
   LegendButton,
-  Picker,
-  PickerButton,
   PlayerSwatch,
   Section,
   SectionErrorBoundary,
@@ -76,23 +76,53 @@ const Header = styled.div`
   }
 `
 
-/** Who's which color, and what's shown on the map, above it. */
+/** Who's which color, and what's shown on the map, in one row above it. */
 const Toolbar = styled.div`
-  padding: 10px 12px;
+  padding: 4px 6px 4px 10px;
 
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
+  gap: 8px;
 
   border-bottom: 1px solid var(--theme-outline-variant);
 `
 
+const Layers = styled.div`
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+`
+
+const LayerToggle = styled.button<{ $on: boolean }>`
+  ${buttonReset};
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--radius-sm);
+  background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
+  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
+  opacity: ${props => (props.$on ? 1 : 0.6)};
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`
+
 const Legend = styled.div`
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  column-gap: 6px;
 `
 
 const MapPanel = styled(StatsPanel)`
@@ -708,18 +738,21 @@ export function GameMinimap({
       ? [
           {
             key: 'workers',
+            icon: 'engineering',
             label: t('gameStats.minimapWorkers', 'Workers'),
             on: showWorkers,
             toggle: () => setShowWorkers(!showWorkers),
           },
           {
             key: 'buildings',
+            icon: 'domain',
             label: t('gameStats.minimapBuildings', 'Buildings'),
             on: showBuildings,
             toggle: () => setShowBuildings(!showBuildings),
           },
           {
             key: 'support',
+            icon: 'visibility',
             label: t('gameStats.minimapSupport', 'Overlords and Observers'),
             on: showSupport,
             toggle: () => setShowSupport(!showSupport),
@@ -728,6 +761,7 @@ export function GameMinimap({
       : [
           {
             key: 'deaths',
+            icon: 'close',
             label: t('gameStats.minimapDeaths', 'Deaths'),
             on: showDeaths,
             toggle: () => setShowDeaths(!showDeaths),
@@ -765,18 +799,20 @@ export function GameMinimap({
                 </LegendButton>
               ))}
             </Legend>
-            <Picker role='group' aria-label={t('gameStats.minimapLayers', 'Shown on the map')}>
+            <Layers role='group' aria-label={t('gameStats.minimapLayers', 'Shown on the map')}>
               {layers.map(layer => (
-                <PickerButton
-                  key={layer.key}
-                  type='button'
-                  $on={layer.on}
-                  aria-pressed={layer.on}
-                  onClick={layer.toggle}>
-                  {layer.label}
-                </PickerButton>
+                <Tooltip key={layer.key} text={layer.label} position='top' tabIndex={-1}>
+                  <LayerToggle
+                    type='button'
+                    $on={layer.on}
+                    aria-pressed={layer.on}
+                    aria-label={layer.label}
+                    onClick={layer.toggle}>
+                    <MaterialIcon icon={layer.icon} size={20} />
+                  </LayerToggle>
+                </Tooltip>
               ))}
-            </Picker>
+            </Layers>
           </Toolbar>
           <MapArea $aspect={positions.mapWidth / positions.mapHeight}>
             <MapCanvas
