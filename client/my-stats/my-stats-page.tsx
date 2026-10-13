@@ -126,6 +126,20 @@ const Message = styled(StatsPanel)`
   ${bodyMedium};
   padding: 24px;
   color: var(--theme-on-surface-variant);
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+`
+
+/** Stats for filters picked before the current ones stay up, faded, until the new ones arrive. */
+const Content = styled.div<{ $stale: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  opacity: ${props => (props.$stale ? 0.5 : 1)};
+  transition: opacity 150ms linear;
 `
 
 /**
@@ -194,21 +208,19 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
       noOthersNote={
         filters.shape
           ? undefined
-          : t(
-              'myStats.macro.pickTypeToCompare',
-              'Pick a game type to compare your numbers with other players.',
-            )
+          : t('myStats.macro.pickTypeToCompare', 'Pick a game type to compare with other players.')
       }
       othersFromBaseline={stats.othersFromBaseline}
       othersScripted={stats.othersScripted}
       eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
       rank={stats.rank}
+      // Without a game type, the note above already says what to pick first.
       extraNote={
-        oneKind || (filters.race && filters.opponentPair)
+        !filters.shape || oneKind || (filters.race && filters.opponentPair)
           ? undefined
           : t(
               'myStats.macro.pickForAll',
-              'Pick a game type and your race, and in 1v1 the race you played against, to see every number.',
+              "Pick your race, and in 1v1 your opponent's, to see every number.",
             )
       }
     />
@@ -221,10 +233,18 @@ export function MyStatsView() {
   const dispatch = useAppDispatch()
   const names = useStatsPlayerNames() ?? []
   const filters = useAtomValue(myStatsFiltersAtom)
-  const data = useMyStats()
+  const load = useMyStats()
+  const { data } = load
 
   let content: React.ReactNode
-  if (!data) {
+  if (load.failed && !data) {
+    content = (
+      <Message role='alert'>
+        {t('myStats.loadFailed', "Your stats couldn't be loaded.")}
+        <TextButton label={t('myStats.tryAgain', 'Try again')} onClick={load.retry} />
+      </Message>
+    )
+  } else if (!data) {
     content = <PageLoadingIndicator />
   } else if (!data.analyzedGames) {
     content = (
@@ -321,7 +341,9 @@ export function MyStatsView() {
           <AnalyzeMine names={names} filters={filters} compact={true} />
         </Coverage>
       ) : null}
-      {content}
+      <Content $stale={!!data && !load.current} aria-busy={!!data && !load.current}>
+        {content}
+      </Content>
     </Root>
   )
 }

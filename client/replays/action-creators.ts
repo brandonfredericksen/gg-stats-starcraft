@@ -140,7 +140,7 @@ export function analyzeReplay({
    */
   reanalyze?: boolean
 }): ThunkAction {
-  return healthChecked((dispatch, getState) => {
+  return (dispatch, getState) => {
     const running = findRunningAnalysis(path)
     if (running) {
       push(getGameStatsUrl(running))
@@ -168,12 +168,15 @@ export function analyzeReplay({
         } else if (isInActiveGame(getState().gameClient)) {
           dispatch(openStarcraftInUseDialog())
         } else {
-          launchReplayAnalysis(dispatch, getState, { path, name, linkedGameId }, reanalyze)
+          // Only an analysis needs StarCraft, so saved stats show even while it can't be found.
+          healthChecked(() =>
+            launchReplayAnalysis(dispatch, getState, { path, name, linkedGameId }, reanalyze),
+          )()
         }
       })
       .catch(swallowNonBuiltins)
       .finally(() => startingAnalyses.delete(path))
-  })
+  }
 }
 
 function openStarcraftInUseDialog() {

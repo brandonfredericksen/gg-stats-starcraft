@@ -46,6 +46,36 @@ export interface MyStatsQuery {
   rank?: LadderRank | 'any'
 }
 
+/**
+ * How many games each side of a comparison needs before a number is marked better or worse, or a
+ * win rate good or bad. Fewer can't tell a difference from a couple of lucky games.
+ */
+export const MIN_COLORED_GAMES = 5
+
+/** What My stats shows, worked out from one read of the user's games. */
+export interface MyStatsSummary {
+  /** The user's analyzed games that match the query, summed up. */
+  stats: MyStatsResult
+  /** How many of the user's games are analyzed, whatever the query. */
+  analyzedGames: number
+  /** How many analyzed games of the query's game type and time range the user has, any race. */
+  scopedGames: number
+}
+
+/** Sums up the user's games for My stats, along with the counts it shows next to them. */
+export function computeMyStatsSummary(
+  games: ReadonlyArray<DatedGameMetrics>,
+  query: MyStatsQuery,
+  nowMs: number,
+): MyStatsSummary {
+  const { names, range, shape } = query
+  return {
+    stats: computeMyStats(games, query, nowMs),
+    analyzedGames: computeMyStats(games, { names, range: 'all' }, nowMs).games,
+    scopedGames: computeMyStats(games, { names, range, shape }, nowMs).games,
+  }
+}
+
 /** A game's metrics along with when it was played. */
 export interface DatedGameMetrics extends GameMetrics {
   gameTimeMs: number

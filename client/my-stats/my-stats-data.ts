@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { getErrorStack } from '../../common/errors'
 import { TypedIpcRenderer } from '../../common/ipc'
 import {
-  computeMyStats,
+  computeMyStatsSummary,
   MyStatsQuery,
   MyStatsResult,
+  MyStatsSummary,
   RANGE_MS,
 } from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
@@ -64,45 +65,55 @@ export interface MyStatsData {
 }
 
 async function fetchMyStats(names: string[], filters: MyStatsFilters): Promise<MyStatsData> {
-  const [stats, all, scoped, library] = await Promise.all([
+  const [summary, library] = await Promise.all([
     ipcRenderer.invoke('myStatsQuery', { names, ...filters }),
-    ipcRenderer.invoke('myStatsQuery', { names, range: 'all' }),
-    ipcRenderer.invoke('myStatsQuery', { names, range: filters.range, shape: filters.shape }),
     // Leaves out short games, the same as the analyzed count next to this one.
     ipcRenderer.invoke('replayLibraryQuery', { ...getLibraryFilters(names, filters), limit: 1 }),
   ])
-  if (!stats || !all || !scoped || !library) {
+  if (!summary || !library) {
     throw new Error("My stats couldn't be loaded")
   }
+  return toMyStatsData(summary, library.total)
+}
+
+function toMyStatsData(summary: MyStatsSummary, libraryTotal: number): MyStatsData {
   return {
-    stats,
-    analyzedGames: all.games,
-    scope: { analyzed: scoped.games, total: Math.max(library.total, scoped.games) },
+    stats: summary.stats,
+    analyzedGames: summary.analyzedGames,
+    scope: {
+      analyzed: summary.scopedGames,
+      total: Math.max(libraryTotal, summary.scopedGames),
+    },
   }
 }
 
 /** The made up player's stats, worked out here since the app doesn't have their games. */
 function computeDemoStats(names: string[], filters: MyStatsFilters): MyStatsData {
-  const games = getDemoGames()
-  const now = Date.now()
-  const stats = computeMyStats(games, { names, ...filters }, now)
-  const scoped = computeMyStats(games, { names, range: filters.range, shape: filters.shape }, now)
-  return {
-    stats,
-    analyzedGames: computeMyStats(games, { names, range: 'all' }, now).games,
-    scope: { analyzed: scoped.games, total: scoped.games },
-  }
+  const summary = computeMyStatsSummary(getDemoGames(), { names, ...filters }, Date.now())
+  return toMyStatsData(summary, summary.scopedGames)
+}
+
+export interface MyStatsLoad {
+  /** The latest stats, which may be for filters picked before the current ones. */
+  data?: MyStatsData
+  /** Whether `data` is for the filters picked now. */
+  current: boolean
+  /** Set when the latest try to load failed. */
+  failed: boolean
+  retry: () => void
 }
 
 /**
  * Sums up the user's games for the picked filters, again whenever games are analyzed or the
  * library changes.
  */
-export function useMyStats(): MyStatsData | undefined {
+export function useMyStats(): MyStatsLoad {
   const names = useStatsPlayerNames()
   const filters = useAtomValue(myStatsFiltersAtom)
   const demo = useDemoPlayer()
-  const [data, setData] = useState<MyStatsData>()
+  const [loaded, setLoaded] = useState<{ data: MyStatsData; filters: MyStatsFilters }>()
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!names?.length) {
@@ -116,11 +127,15 @@ export function useMyStats(): MyStatsData | undefined {
         )
         .then(result => {
           if (current) {
-            setData(result)
+            setLoaded({ data: result, filters })
+            setFailed(false)
           }
         })
         .catch(err => {
           logger.error(`Error loading My stats: ${getErrorStack(err)}`)
+          if (current) {
+            setFailed(true)
+          }
         })
     }
     load()
@@ -136,7 +151,15 @@ export function useMyStats(): MyStatsData | undefined {
       ipcRenderer.removeListener('replayLibraryChanged', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, filters, demo])
+  }, [names, filters, demo, attempt])
 
-  return data
+  return {
+    data: loaded?.data,
+    current: loaded?.filters === filters,
+    failed,
+    retry: () => {
+      setFailed(false)
+      setAttempt(a => a + 1)
+    },
+  }
 }

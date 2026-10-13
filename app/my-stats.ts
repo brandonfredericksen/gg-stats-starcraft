@@ -4,7 +4,7 @@ import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
 import { computeMetaBuilds } from '../common/my-stats/meta-builds'
-import { computeMyStats, DatedGameMetrics } from '../common/my-stats/my-stats'
+import { computeMyStatsSummary, DatedGameMetrics } from '../common/my-stats/my-stats'
 import { GameStatsStore } from './game/game-stats-store'
 import { loadLadderBaseline, withoutLibraryCopies } from './ladder-baseline/load-baseline'
 import log from './logger'
@@ -60,7 +60,7 @@ export function setupMyStats(
 
   const ipcMain = new TypedIpcMain()
   ipcMain.handle('myStatsQuery', async (_event, query) =>
-    computeMyStats(await loadGames(), query, Date.now()),
+    computeMyStatsSummary(await loadGames(), query, Date.now()),
   )
   ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
   ipcMain.handle('metaBuildsQuery', async (_event, query) =>

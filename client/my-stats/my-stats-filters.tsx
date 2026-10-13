@@ -249,15 +249,18 @@ export function FilterBar({
           onChange={range => setFilters(f => ({ ...f, range }))}
         />
       </Field>
-      <Field caption={floorLabel}>
-        <SegmentMenu
-          label={floorLabel}
-          showLabel={false}
-          options={floors}
-          value={floor}
-          onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
-        />
-      </Field>
+      {/* Other players are only compared within one game type. */}
+      {filters.shape ? (
+        <Field caption={floorLabel}>
+          <SegmentMenu
+            label={floorLabel}
+            showLabel={false}
+            options={floors}
+            value={floor}
+            onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
+          />
+        </Field>
+      ) : null}
       {filters.shape === '1v1' ? (
         <Field caption={rankLabel}>
           <RankMenu autoRank={autoRank} rankMmr={rankMmr} label={rankLabel} showLabel={false} />

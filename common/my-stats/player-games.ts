@@ -54,9 +54,15 @@ export function makeScriptedCheck(
   return player => isScriptedGame(player) || scripted.has(nameOf(player))
 }
 
-/** The user's player in a game, if they were in it. */
+/**
+ * The user's player in a game, if they were in it. Games with a computer in them don't count: a
+ * game against computers is practice, not one the user's record or numbers are about.
+ */
 export function findMe(game: GameMetrics, names: ReadonlyArray<string>) {
-  return game.players.find(p => p.human && p.names.some(n => isMyPlayerName(n, names)))
+  if (game.players.some(p => !p.human)) {
+    return undefined
+  }
+  return game.players.find(p => p.names.some(n => isMyPlayerName(n, names)))
 }
 
 /**

@@ -55,7 +55,7 @@ import {
   titleMedium,
   titleSmall,
 } from '../styles/typography'
-import { OwnGamesNeeded, useOwnGamesState } from '../system-bar/own-games-needed'
+import { OwnGamesNeeded, useNewestOwnGame } from '../system-bar/own-games-needed'
 import {
   coachLockedShapeAtom,
   coachMapAtom,
@@ -2200,15 +2200,15 @@ export function CoachView({
 
 /** The Coach page, which needs the user's names to tell which games are theirs. */
 export function CoachPage() {
-  const state = useOwnGamesState()
+  const newest = useNewestOwnGame()
   const { coach, retry } = useCoach()
   const demo = useDemoPlayer()
 
-  if (!demo && !state) {
+  if (!demo && !newest) {
     return <PageLoadingIndicator />
   }
-  if (!demo && state && state !== 'found') {
-    return <OwnGamesNeeded state={state} />
+  if (!demo && newest && newest.state !== 'found') {
+    return <OwnGamesNeeded state={newest.state} onRetry={newest.retry} />
   }
   return <CoachView coach={coach} onRetry={retry} />
 }

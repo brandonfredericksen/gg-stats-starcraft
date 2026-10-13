@@ -458,19 +458,35 @@ export function SystemBar() {
           type='button'
           $tab='library'
           $active={isReplays && !isSettingsOpen}
+          aria-current={isReplays && !isSettingsOpen ? 'page' : undefined}
           onClick={() => push('/replays')}>
           <MaterialIcon icon='video_library' size={20} />
           {t('replays.activity.library', 'Library')}
         </NavItem>
-        <NavItem type='button' $tab='stats' $active={isMyStats} onClick={() => push('/my-stats')}>
+        <NavItem
+          type='button'
+          $tab='stats'
+          $active={isMyStats}
+          aria-current={isMyStats ? 'page' : undefined}
+          onClick={() => push('/my-stats')}>
           <MaterialIcon icon='bar_chart' size={20} />
           {t('myStats.label', 'My stats')}
         </NavItem>
-        <NavItem type='button' $tab='coach' $active={isCoach} onClick={() => push('/coach')}>
+        <NavItem
+          type='button'
+          $tab='coach'
+          $active={isCoach}
+          aria-current={isCoach ? 'page' : undefined}
+          onClick={() => push('/coach')}>
           <MaterialIcon icon='query_stats' size={20} />
           {t('myStats.coach.title', 'Coach')}
         </NavItem>
-        <NavItem type='button' $tab='builds' $active={isBuilds} onClick={() => push('/builds')}>
+        <NavItem
+          type='button'
+          $tab='builds'
+          $active={isBuilds}
+          aria-current={isBuilds ? 'page' : undefined}
+          onClick={() => push('/builds')}>
           <MaterialIcon icon='account_tree' size={20} />
           {t('builds.title', 'Builds')}
         </NavItem>
@@ -482,6 +498,7 @@ export function SystemBar() {
             type='button'
             $tab='last-game'
             $active={isLastGame}
+            aria-current={isLastGame ? 'page' : undefined}
             data-testid='last-game-button'
             onClick={() => dispatch(openLastGame())}>
             <MaterialIcon icon='history' size={20} />
@@ -503,6 +520,7 @@ export function SystemBar() {
           type='button'
           $tab='settings'
           $active={isSettingsOpen}
+          aria-current={isSettingsOpen ? 'page' : undefined}
           aria-label={t('settings.activity.label', 'Settings')}
           data-testid='settings-button'
           onClick={() => dispatch(isSettingsOpen ? closeSettings() : openSettings())}>

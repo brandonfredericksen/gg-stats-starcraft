@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { GameMetrics, PlayerMetrics } from '../games/player-metrics'
-import { makeScriptedCheck } from './player-games'
+import { findMe, makeScriptedCheck } from './player-games'
 
 /** A player with only what telling programs apart reads. */
 function player(name: string, burstShare?: number) {
@@ -33,5 +33,15 @@ describe('common/my-stats/player-games', () => {
     const isScripted = makeScriptedCheck(games(odd, usual, player('Stork', 0.02)))
     expect(isScripted(odd)).toBe(true)
     expect(isScripted(usual)).toBe(false)
+  })
+
+  test('finds the user in games against people, not in games with a computer', () => {
+    const me = { names: ['Flash'], human: true } as PlayerMetrics
+    const person = { names: ['Jaedong'], human: true } as PlayerMetrics
+    const computer = { names: ['Zerg'], human: false } as PlayerMetrics
+    const game = (...players: PlayerMetrics[]) => ({ players }) as unknown as GameMetrics
+    expect(findMe(game(me, person), ['flash'])).toBe(me)
+    expect(findMe(game(me, computer), ['flash'])).toBe(undefined)
+    expect(findMe(game(me, person), ['bisu'])).toBe(undefined)
   })
 })

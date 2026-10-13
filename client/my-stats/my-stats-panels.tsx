@@ -18,6 +18,7 @@ import {
   Average,
   MapRow,
   MatchupRow,
+  MIN_COLORED_GAMES,
   MyStatsGame,
   MyStatsResult,
   PersonRow,
@@ -416,16 +417,18 @@ export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
         <PanelTitle>
           {t('myStats.recent.title', {
             defaultValue: 'Last {{count}} games',
-            defaultValue_one: 'Last game',
+            defaultValue_one: 'Your only game',
             count: games.length,
           })}
         </PanelTitle>
         <PanelHeadNote>
-          {matchupsVary
-            ? t('myStats.recent.note', 'Newest first')
-            : t('myStats.recent.noteOne', '{{matchup}}, newest first', {
+          {games.length === 1 ? [...matchups][0] : null}
+          {games.length > 1 && matchupsVary ? t('myStats.recent.note', 'Newest first') : null}
+          {games.length > 1 && !matchupsVary
+            ? t('myStats.recent.noteOne', '{{matchup}}, newest first', {
                 matchup: [...matchups][0] ?? '',
-              })}
+              })
+            : null}
         </PanelHeadNote>
       </PanelHead>
       <RecentStrip>
@@ -557,6 +560,10 @@ function Matchup({ row }: { row: MatchupRow }) {
   return <MatchupCell>{getShapeLabel(row.shape, t)}</MatchupCell>
 }
 
+function sumGames(rows: ReadonlyArray<MatchupRow>) {
+  return rows.reduce((total, row) => total + row.games, 0)
+}
+
 export function ByMatchup({
   rows,
   apmGames,
@@ -621,15 +628,18 @@ export function ByMatchup({
           ))}
         </tbody>
       </Table>
-      <TablePanelFooter>
-        <PanelNote>
-          {t('myStats.byMatchup.note', {
-            defaultValue: 'APM comes from the {{count}} games it was tracked in.',
-            defaultValue_one: 'APM comes from the one game it was tracked in.',
-            count: apmGames,
-          })}
-        </PanelNote>
-      </TablePanelFooter>
+      {/* Only worth saying when some games didn't track APM, like ones against computers. */}
+      {apmGames < sumGames(rows) ? (
+        <TablePanelFooter>
+          <PanelNote>
+            {t('myStats.byMatchup.note', {
+              defaultValue: 'APM is from the {{count}} games that tracked it.',
+              defaultValue_one: 'APM is from the one game that tracked it.',
+              count: apmGames,
+            })}
+          </PanelNote>
+        </TablePanelFooter>
+      ) : null}
     </StatsPanel>
   )
 }
@@ -852,6 +862,8 @@ function TrendTooltip({
 }
 
 /** Picks a number the user can follow from game to game and draws it over their latest games. */
+const TREND_COUNTS: ReadonlyArray<TrendCount> = [20, 50, 100]
+
 export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
   const { t } = useTranslation()
   const format = useStatFormat()
@@ -929,7 +941,9 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
   const metricOptions: Array<SegmentOption<TrendMetric>> = (
     Object.keys(metrics) as TrendMetric[]
   ).map(key => ({ value: key, label: metrics[key].label, title: metrics[key].help }))
-  const countOptions: Array<SegmentOption<TrendCount>> = ([20, 50, 100] as const).map(n => ({
+  // A count past the first one that already takes in every game would show the same.
+  const counts = TREND_COUNTS.filter((n, i) => i === 0 || TREND_COUNTS[i - 1] < games.length)
+  const countOptions: Array<SegmentOption<TrendCount>> = counts.map(n => ({
     value: n,
     label: String(n),
     title: t('myStats.trends.lastGames', 'Last {{count}} games', { count: n }),
@@ -1146,14 +1160,23 @@ interface MacroRow {
   sources: string
 }
 
-/** Whether a number is clearly better or worse than another, past a difference worth noticing. */
+/**
+ * Whether a number is clearly better or worse than another, past a difference worth noticing and
+ * from enough games on each side to tell.
+ */
 function compareValues(
   mine: Average | undefined,
   theirs: Average | undefined,
   higherIsBetter: boolean,
   minDiff: number,
 ): Comparison {
-  if (!mine || !theirs || Math.abs(mine.value - theirs.value) < minDiff) {
+  if (
+    !mine ||
+    !theirs ||
+    mine.games < MIN_COLORED_GAMES ||
+    theirs.games < MIN_COLORED_GAMES ||
+    Math.abs(mine.value - theirs.value) < minDiff
+  ) {
     return 'same'
   }
   return mine.value > theirs.value === higherIsBetter ? 'better' : 'worse'
@@ -1362,9 +1385,9 @@ export function MacroAveragesPanel({
           ? null
           : t('myStats.macro.othersNote', {
               defaultValue:
-                "Others come from {{count}} games of other players {{source}}, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
+                "Others come from {{count}} games of other players {{source}}, at least {{floor}} EAPM. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
               defaultValue_one:
-                "Others come from {{count}} game of another player {{source}}, at least {{floor}} EAPM. Your number is green when it's clearly better, red when it's clearly worse.",
+                "Others come from {{count}} game of another player {{source}}, at least {{floor}} EAPM. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
               count: othersGames,
               floor: eapmFloor,
               source: getPoolSource(othersFromBaseline, othersGames, t),
@@ -1374,10 +1397,7 @@ export function MacroAveragesPanel({
         {rank
           ? `${t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', { rank: rank.toUpperCase() })} `
           : null}
-        {t(
-          'myStats.macro.note',
-          'Each number only counts games that lasted that long. Supply blocks in the first 3 minutes, often part of a build, are left out.',
-        )}
+        {t('myStats.macro.note', 'Each number only counts games that lasted that long.')}
         {extraNote ? ` ${extraNote}` : null}
       </MacroNote>
     </StatsPanel>
@@ -1679,7 +1699,7 @@ export function TeamGames({
               <MacroValue>{formatPercent(team.killShare?.value)}</MacroValue>
               <TileLabel>
                 <HelpLabel
-                  label={t('myStats.team.killShare', 'Kills share')}
+                  label={t('myStats.team.killShare', 'Kill share')}
                   help={t(
                     'myStats.help.killShare',
                     "Your part of the enemy army your team killed, by the game's score, on average.",

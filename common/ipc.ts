@@ -23,7 +23,7 @@ import { ReplayChatMessage } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
 import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
-import { MyStatsQuery, MyStatsResult } from './my-stats/my-stats'
+import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
 import {
   ReplayBackfillProgress,
   ReplayLibraryFilters,
@@ -164,7 +164,7 @@ interface IpcInvokeables {
   /** Summarizes the saved stats of each replay that has some, keyed by path. */
   gameStatsSummarizeReplays: (replayPaths: string[]) => Promise<Record<string, GameStatsSummary>>
   /** Sums up the user's analyzed games for My stats. */
-  myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsResult>
+  myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsSummary>
   /** Compares the user's games of one kind with other players', for the Coach page. */
   coachQuery: (query: CoachQuery) => Promise<CoachResult>
   /** The builds top players use in one kind of game, for the Builds page. */

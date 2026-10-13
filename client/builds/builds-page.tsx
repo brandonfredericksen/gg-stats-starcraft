@@ -20,7 +20,7 @@ import { PageLoadingIndicator } from '../progress/page-loading'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
-import { OwnGamesNeeded, useOwnGamesState } from '../system-bar/own-games-needed'
+import { OwnGamesNeeded, useNewestOwnGame } from '../system-bar/own-games-needed'
 import { WorkersAndArmy } from './build-minutes'
 import { BuildOrder } from './build-order'
 import {
@@ -451,14 +451,14 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
 
 /** The Builds page, which needs the user's names to tell which games are theirs. */
 export function BuildsPage() {
-  const state = useOwnGamesState()
+  const newest = useNewestOwnGame()
   const { coach } = useCoach()
   const demo = useDemoPlayer()
-  if (!demo && !state) {
+  if (!demo && !newest) {
     return <PageLoadingIndicator />
   }
-  if (!demo && state && state !== 'found') {
-    return <OwnGamesNeeded state={state} />
+  if (!demo && newest && newest.state !== 'found') {
+    return <OwnGamesNeeded state={newest.state} onRetry={newest.retry} />
   }
   return <BuildsView coach={coach} />
 }
