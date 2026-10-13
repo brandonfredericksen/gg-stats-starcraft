@@ -146,13 +146,33 @@ const MapCanvas = styled.canvas<{ $playable: boolean }>`
 `
 
 const Transport = styled.div`
-  padding: 8px 12px 8px 6px;
+  padding: 4px 8px 4px 6px;
 
   display: flex;
   align-items: center;
   gap: 10px;
 
   border-top: 1px solid var(--theme-outline-variant);
+`
+
+/** Smaller than a button usually is, so the controls don't make a tall bar under the map. */
+const PlayButton = styled(IconButton)`
+  width: 36px;
+  min-height: 36px;
+`
+
+/** The speeds, a size down from the segments elsewhere, to match. */
+const SpeedPicker = styled.div`
+  display: flex;
+
+  & > div {
+    padding: 2px;
+  }
+
+  & button {
+    height: 26px;
+    padding: 0 10px;
+  }
 `
 
 const Time = styled.span`
@@ -843,7 +863,7 @@ export function GameMinimap({
           </MapArea>
           {mode === 'playback' ? (
             <Transport>
-              <IconButton
+              <PlayButton
                 icon={<MaterialIcon icon={playing ? 'pause' : 'play_arrow'} />}
                 title={playing ? t('gameStats.pause', 'Pause') : t('gameStats.play', 'Play')}
                 onClick={togglePlaying}
@@ -862,15 +882,17 @@ export function GameMinimap({
                 onKeyUp={() => follow(timeMs, true)}
               />
               <Time>{getGameDurationString(durationMs)}</Time>
-              <Segmented
-                label={t('gameStats.playbackSpeed', 'Playback speed')}
-                options={SPEEDS.map(value => ({
-                  value,
-                  label: t('gameStats.playbackSpeedValue', '{{speed}}x', { speed: value }),
-                }))}
-                value={speed}
-                onChange={setSpeed}
-              />
+              <SpeedPicker>
+                <Segmented
+                  label={t('gameStats.playbackSpeed', 'Playback speed')}
+                  options={SPEEDS.map(value => ({
+                    value,
+                    label: t('gameStats.playbackSpeedValue', '{{speed}}x', { speed: value }),
+                  }))}
+                  value={speed}
+                  onChange={setSpeed}
+                />
+              </SpeedPicker>
             </Transport>
           ) : null}
         </MapPanel>
