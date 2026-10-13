@@ -6,10 +6,13 @@ import { Provider as ReduxProvider } from 'react-redux'
 import { Store } from 'redux'
 import styled, { css, StyleSheetManager } from 'styled-components'
 import { Redirect, Route, Router, Switch } from 'wouter'
+import swallowNonBuiltins from '../common/async/swallow-non-builtins'
+import { TypedIpcRenderer } from '../common/ipc'
 import { CONTENT_PANEL_INSET } from '../common/window-layout'
 import { ConnectedDialogOverlay } from './dialogs/connected-dialog-overlay'
 import './dom/window-focus'
 import { FileDropZoneProvider } from './file-browser/file-drop-zone'
+import { setFormatHourCycle } from './i18n/locale-formats'
 import { jotaiStore } from './jotai-store'
 import { KeyListenerBoundary } from './keyboard/key-listener'
 import { NavigationTrapProvider } from './navigation/navigation-trap'
@@ -26,6 +29,8 @@ import { applyThemeMode } from './styles/theme-mode'
 import { LastGamePage, MyStatsPage } from './system-bar/own-games-pages'
 import { SystemBar } from './system-bar/system-bar'
 import { WindowControls } from './system-bar/window-controls'
+
+const ipcRenderer = new TypedIpcRenderer()
 
 const JotaiDevTools = import.meta.env.PROD
   ? undefined
@@ -142,6 +147,25 @@ function AppContent() {
   useEffect(() => {
     applyThemeMode(themeMode)
   }, [themeMode])
+  const clockFormat = useAppSelector(s => s.settings.local.clockFormat) ?? 'system'
+  useEffect(() => {
+    if (clockFormat !== 'system') {
+      setFormatHourCycle(clockFormat === '24' ? 'h23' : 'h12')
+      return undefined
+    }
+    let cancelled = false
+    ipcRenderer
+      .invoke('systemHourCycle')
+      ?.then(hourCycle => {
+        if (!cancelled) {
+          setFormatHourCycle(hourCycle)
+        }
+      })
+      .catch(swallowNonBuiltins)
+    return () => {
+      cancelled = true
+    }
+  }, [clockFormat])
 
   return (
     <>

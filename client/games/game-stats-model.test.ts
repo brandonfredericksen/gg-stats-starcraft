@@ -140,17 +140,19 @@ describe('client/games/game-stats-model', () => {
         step(40, 'upgrade', 27, { level: 1 }), // Metabolic Boost
         step(50, 'upgrade', 10, { level: 2 }), // Zerg Melee Attacks
         step(60, 'tech', 11), // Burrowing
+        step(1500, 'unit', 37, { count: 2 }),
       ],
       t,
     )
     expect(rows.map(r => [r.timeMs, r.name, r.count, r.cancelled, r.isBuilding])).toEqual([
       [20, 'Spawning Pool', 1, false, true],
-      [30, 'Zergling', 2, false, false],
-      [31, 'Zergling', 2, false, false],
+      // Eggs started in the same second share a step.
+      [30, 'Zergling', 4, false, false],
       [32, 'Spawning Pool', 1, true, true],
       [40, 'Metabolic Boost', 1, false, false],
       [50, 'Zerg Melee Attacks 2', 1, false, false],
       [60, 'Burrowing', 1, false, false],
+      [1500, 'Zergling', 2, false, false],
     ])
   })
 

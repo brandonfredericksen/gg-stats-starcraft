@@ -2,11 +2,13 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getErrorStack } from '../../common/errors'
 import { isMyPlayerName } from '../../common/games/player-names'
 import { RaceChar } from '../../common/races'
 import { KnownPlayer } from '../../common/settings/local-settings'
 import { useMyPlayerNames } from '../games/my-player-names'
 import { MaterialIcon } from '../icons/material/material-icon'
+import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
 import { Popover, usePopoverController, useRefAnchorPosition } from '../material/popover'
 import { RaceTag } from '../material/race-tag'
@@ -262,8 +264,27 @@ const AddButton = styled.button`
   }
 `
 
-function formatTally(tally: Tally) {
-  return `${tally.wins}–${tally.losses}`
+const Wins = styled.span`
+  color: var(--theme-positive);
+`
+
+const Losses = styled.span`
+  color: var(--theme-negative);
+`
+
+const TallyDash = styled.span`
+  color: var(--theme-on-surface-variant);
+`
+
+/** Wins and losses, like a record is written everywhere in the app. */
+function TallyText({ tally }: { tally: Tally }) {
+  return (
+    <>
+      <Wins>{tally.wins}</Wins>
+      <TallyDash> – </TallyDash>
+      <Losses>{tally.losses}</Losses>
+    </>
+  )
 }
 
 /**
@@ -282,13 +303,13 @@ function RecordSummary({
       <Records>
         <RecordBox>
           <RecordValue>
-            {record ? formatTally(record.against) : <SkeletonText $width='56px' />}
+            {record ? <TallyText tally={record.against} /> : <SkeletonText $width='56px' />}
           </RecordValue>
           <Muted>{t('players.against', 'Against them')}</Muted>
         </RecordBox>
         <RecordBox>
           <RecordValue>
-            {record ? formatTally(record.with) : <SkeletonText $width='56px' />}
+            {record ? <TallyText tally={record.with} /> : <SkeletonText $width='56px' />}
           </RecordValue>
           <Muted>{t('players.with', 'On your team')}</Muted>
         </RecordBox>
@@ -349,6 +370,7 @@ export function PlayerCard({ account, race }: { account: string; race?: RaceChar
   const [note, setNote] = useState(player.note ?? '')
   const [newAccount, setNewAccount] = useState('')
   const [record, setRecord] = useState<PlayerRecord>()
+  const [recordFailed, setRecordFailed] = useState(false)
 
   const accountsKey = player.accounts.join('\n')
   const namesKey = myNames?.join('\n') ?? ''
@@ -363,7 +385,12 @@ export function PlayerCard({ account, race }: { account: string; race?: RaceChar
           setRecord(loaded)
         }
       })
-      .catch(() => {})
+      .catch(err => {
+        logger.error(`Error counting the games with ${accountsKey}: ${getErrorStack(err)}`)
+        if (!cancelled) {
+          setRecordFailed(true)
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -403,6 +430,10 @@ export function PlayerCard({ account, race }: { account: string; race?: RaceChar
           'Add your own names in Settings to see your record with them.',
         )}
       </Muted>
+    )
+  } else if (recordFailed) {
+    recordContent = (
+      <Muted>{t('players.recordFailed', "Couldn't count your games with them.")}</Muted>
     )
   } else {
     recordContent = <RecordSummary record={record} t={t} />

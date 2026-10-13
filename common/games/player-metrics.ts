@@ -1,6 +1,13 @@
 import { AssignedRaceChar } from '../races'
 import type { PlayerCommandStats, ReplayCommandStats } from './command-stats'
-import { BuildStep, GamePlayerStats, GameStats, GameStatsResult } from './game-stats'
+import {
+  BuildStep,
+  GamePlayerStats,
+  GameStats,
+  GameStatsResult,
+  MAXED_SUPPLY,
+  SUPPLY_BLOCK_GRACE_MS,
+} from './game-stats'
 import type { LadderRank } from './ladder'
 import { getMapFamily, MapFamily } from './map-family'
 
@@ -8,7 +15,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 14
+export const GAME_METRICS_VERSION = 15
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -32,11 +39,6 @@ export const PHASE_MINUTES: ReadonlyArray<readonly [start: number, end: number]>
 /** How a game's players were split up. */
 export type GameShape = '1v1' | '2v2' | '3v3' | '4v4' | 'ffa' | 'other'
 
-/**
- * Supply blocks this early are usually part of a build, like a 9 pool, rather than a mistake, so
- * they're left out of the share of time blocked.
- */
-const SUPPLY_BLOCK_GRACE_MS = 3 * 60_000
 /** Players who stopped before this haven't played enough for a share of time blocked to mean anything. */
 const MIN_SUPPLY_BLOCK_PLAYED_MS = 5 * 60_000
 /** How many samples, about 10 seconds apart, a phase needs for an average bank. */
@@ -45,11 +47,6 @@ const MIN_PHASE_SAMPLES = 3
 export const MIN_PHASE_MINUTES = 1
 /** How many buildings make up an opening. */
 const OPENING_LENGTH = 4
-/**
- * Supply in use from which money on hand is left out of the bank. A player who's maxed out, or
- * nearly, has nothing left to spend it on but more production, and often rightly saves it.
- */
-const MAXED_SUPPLY = 190
 /**
  * A player who left with at least this share of their most workers was still standing, so they
  * quit rather than being defeated. Defeat in a melee game means every building destroyed, which
@@ -213,7 +210,7 @@ export interface PlayerMetrics {
   bank: Array<number | null>
   /** The share of the game the player was out of supply, after the first few minutes. */
   supplyBlockedShare: number | null
-  /** How long the player was out of supply over the whole game. */
+  /** How long the player was out of supply, after the first few minutes. */
   supplyBlockedMs?: number
   /**
    * When the player started their second and third bases: town halls near minerals and away from

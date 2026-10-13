@@ -12,8 +12,13 @@ import {
 } from 'recharts'
 import styled from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
-import { GamePlayerStats, PlayerTimeline } from '../../common/games/game-stats'
+import {
+  GamePlayerStats,
+  getSupplyBlockedTimeline,
+  PlayerTimeline,
+} from '../../common/games/game-stats'
 import { buttonReset } from '../material/button-reset'
+import { RaceTag } from '../material/race-tag'
 import { bodyMedium, labelLarge } from '../styles/typography'
 import {
   getRatePerMinute,
@@ -26,6 +31,7 @@ import {
   SectionErrorBoundary,
   SectionTitle,
   StatsPanel,
+  useCompactStatFormat,
   useStatFormat,
 } from './game-stats-shared'
 
@@ -183,6 +189,7 @@ function TimelineChart({
   formatValue?: (value: number) => string
 }) {
   const format = useStatFormat()
+  const compactFormat = useCompactStatFormat()
   // Players the game didn't report this for are left out, rather than drawn as zero. Focused
   // players are drawn last, so their lines are on top.
   const shown = players
@@ -202,7 +209,15 @@ function TimelineChart({
         tick={props => <TimeTick {...props} />}
         tickLine={false}
       />
-      <YAxis hide={true} tickCount={3} allowDecimals={false} />
+      <YAxis
+        width={40}
+        tickCount={3}
+        allowDecimals={false}
+        axisLine={false}
+        tickLine={false}
+        tick={{ fontSize: TICK_FONT_SIZE, fill: 'var(--theme-on-surface-variant)' }}
+        tickFormatter={value => (formatValue ?? compactFormat.format)(Number(value))}
+      />
       <Tooltip
         contentStyle={chartTooltipStyle}
         labelStyle={chartTooltipLabelStyle}
@@ -295,8 +310,9 @@ export function GameStatsTimelines({
     {
       key: 'supplyBlocked',
       title: t('gameStats.supplyBlocked', 'Supply blocked'),
-      // The time spent blocked so far, which rises while blocked and stays flat otherwise.
-      getValues: tl => tl.supplyBlockedMs,
+      // The time spent blocked so far, which rises while blocked and stays flat otherwise. Like
+      // the scoreboard, it starts counting a few minutes in, after blocks a build plans for.
+      getValues: tl => getSupplyBlockedTimeline(tl.supplyBlockedMs, timesMs),
       formatValue: getGameDurationString,
     },
     {
@@ -324,6 +340,7 @@ export function GameStatsTimelines({
             $dimmed={focused.size > 0 && !focused.has(player.id)}
             onClick={() => toggleFocus(player.id)}>
             <LineSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
+            {player.race ? <RaceTag race={player.race} /> : null}
             {player.name}
           </LegendItem>
         ))}

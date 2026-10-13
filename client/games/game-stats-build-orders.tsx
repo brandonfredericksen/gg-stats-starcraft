@@ -93,10 +93,12 @@ function BuildStepRow({ row, buildingColor }: { row: BuildOrderRow; buildingColo
         />
         <StepName
           $cancelled={row.cancelled}
-          $buildingColor={row.isBuilding ? buildingColor : undefined}>
-          {row.cancelled
-            ? t('gameStats.buildStepCanceledName', '{{name}} (canceled)', { name })
-            : name}
+          $buildingColor={row.isBuilding ? buildingColor : undefined}
+          title={row.cancelled ? t('gameStats.buildStepCanceled', 'Canceled') : undefined}>
+          {name}
+          {row.cancelled ? (
+            <VisuallyHidden>{t('gameStats.buildStepCanceledNote', ' (canceled)')}</VisuallyHidden>
+          ) : null}
         </StepName>
       </StepNameCell>
     </StepRow>

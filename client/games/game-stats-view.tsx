@@ -136,7 +136,7 @@ export function GameStatsView({
       <TopSection>
         {header}
         <SectionErrorBoundary>
-          <Versus sides={sides} />
+          <Versus sides={sides} durationMs={stats.durationMs} />
         </SectionErrorBoundary>
       </TopSection>
 
@@ -146,13 +146,17 @@ export function GameStatsView({
           {stats.complete ? null : <IncompleteIcon stats={stats} source={source} />}
         </SectionTitleRow>
         <SectionErrorBoundary>
-          <Scoreboard players={ranked} teamsByPlayer={teamsByPlayer} />
+          <Scoreboard
+            players={ranked}
+            teamsByPlayer={teamsByPlayer}
+            durationMs={stats.durationMs}
+          />
         </SectionErrorBoundary>
         <SectionNote>
           {t(
             'gameStats.scoreboardHighlightNote',
-            'Ranked by total score. The best value in each column is highlighted. Army values ' +
-              'show the minerals / gas they took.',
+            'Ranked by total score. The best in each column is highlighted. Hover a column for ' +
+              'what it counts.',
           )}
         </SectionNote>
       </Section>
@@ -160,7 +164,8 @@ export function GameStatsView({
       <SectionErrorBoundary>
         <GameStatsTimelines
           timesMs={stats.snapshotTimesMs}
-          players={players}
+          // In the order of the teams above, so the legend reads the same way.
+          players={sides.flatMap(side => side.players)}
           playerColors={playerColors}
         />
       </SectionErrorBoundary>
@@ -168,7 +173,13 @@ export function GameStatsView({
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
 
       {replayPath ? (
-        <GameHotkeys replayPath={replayPath} players={ranked} teamsByPlayer={teamsByPlayer} />
+        <GameHotkeys
+          replayPath={replayPath}
+          // In the order of the teams, since there's no score to rank them by here.
+          players={sides.flatMap(side => side.players)}
+          teamsByPlayer={teamsByPlayer}
+          durationMs={stats.durationMs}
+        />
       ) : null}
 
       {replayPath ? (

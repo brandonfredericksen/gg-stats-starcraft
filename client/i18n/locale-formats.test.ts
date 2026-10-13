@@ -44,6 +44,18 @@ describe('getFormatLocale', () => {
     expect(getFormatLocale('ko', '')).toBe('ko')
   })
 
+  test('writes times on the clock picked, over the usual one for the region', () => {
+    const time = new Date(2026, 6, 21, 15, 30)
+    const format = (hourCycle?: Intl.LocaleHourCycleKey) =>
+      new Intl.DateTimeFormat(getFormatLocale('en', 'en-US', hourCycle), {
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(time)
+    expect(format('h23')).toBe('15:30')
+    expect(getFormatLocale('en', 'en-GB', 'h12')).toBe('en-GB-u-hc-h12')
+    expect(format()).toMatch(/PM/)
+  })
+
   test('ignores a system locale it cannot parse', () => {
     expect(getFormatLocale('es', 'not a locale')).toBe('es')
   })

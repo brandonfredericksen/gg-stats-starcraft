@@ -207,7 +207,7 @@ export interface BuildOrderRow {
 /**
  * Names each step of a build order, at the time it actually started. Workers are left out, since
  * the supply each step was started at already counts them. Units started together, like two
- * Zerglings from one egg, share a step.
+ * Zerglings from one egg, or eggs from the same Hatchery in the same second, share a step.
  */
 export function toBuildOrderRows(steps: ReadonlyArray<BuildStep>, t: TFunction): BuildOrderRow[] {
   const rows: BuildOrderRow[] = []
@@ -228,6 +228,20 @@ export function toBuildOrderRows(steps: ReadonlyArray<BuildStep>, t: TFunction):
       }
     } else {
       name = getTechName(step.id, t)
+    }
+
+    const last = rows.at(-1)
+    if (
+      last &&
+      !last.cancelled &&
+      !step.cancelled &&
+      last.kind === step.kind &&
+      last.id === step.id &&
+      last.supply === step.supply &&
+      Math.floor(last.timeMs / 1000) === Math.floor(step.timeMs / 1000)
+    ) {
+      last.count += step.count
+      continue
     }
 
     rows.push({

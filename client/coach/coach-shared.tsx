@@ -1,6 +1,7 @@
 import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
+import { getGameDurationString } from '../../common/games/game-duration'
 import { MapFamily } from '../../common/games/map-family'
 import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
@@ -491,10 +492,12 @@ export function getBuildName(buildKey: string, t: TFunction) {
   }
 }
 
-/** A time in the game as minutes and seconds, like 4:05. */
+/**
+ * A time in the game, like 04:05, written the same as everywhere else in the app: in whole seconds
+ * like the game's clock.
+ */
 export function formatGameTime(ms: number) {
-  const seconds = Math.round(ms / 1000)
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+  return getGameDurationString(ms)
 }
 
 /** How far apart two times are: seconds under a minute, like 40s, then 1:05. */

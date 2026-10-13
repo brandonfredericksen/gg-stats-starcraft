@@ -382,8 +382,7 @@ export function UnitsAndBuildOrders({
       <SectionNote>
         {t(
           'gameStats.buildOrderStepsNote',
-          'Each step shows when it started. Workers are left out, since the supply counts them. ' +
-            "Buildings are in the player's race color, and canceled steps are struck through.",
+          'Times are when each step started. Workers are left out, since the supply counts them.',
         )}
       </SectionNote>
     </Section>

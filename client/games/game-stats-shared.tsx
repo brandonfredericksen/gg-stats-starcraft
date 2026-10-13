@@ -84,6 +84,13 @@ export function useStatFormat() {
   return useFormat(wholeNumber)
 }
 
+const compactNumber = numberFormat({ notation: 'compact', maximumFractionDigits: 1 })
+
+/** Formats stat values in as few characters as reads right, like 12K, for a chart's axis. */
+export function useCompactStatFormat() {
+  return useFormat(compactNumber)
+}
+
 export const Section = styled.section`
   display: flex;
   flex-direction: column;
@@ -146,22 +153,48 @@ export const PlayerNameText = styled.span`
   ${singleLine};
 `
 
-/** A player's race and name. When they left before the game ended shows on hover. */
-export function PlayerName({ player }: { player: GamePlayerStats }) {
+const LeftNoteText = styled.span`
+  ${bodySmall};
+  flex-shrink: 0;
+  color: var(--theme-on-surface-variant);
+  white-space: nowrap;
+`
+
+/**
+ * Whether a player left before the game ended. Players on the side that loses leave as it ends,
+ * which isn't leaving early.
+ */
+export function leftEarly(player: GamePlayerStats, durationMs: number) {
+  return player.leftAtMs !== undefined && player.leftAtMs < durationMs
+}
+
+/** When a player left the game, for players who left before it ended. */
+export function LeftNote({ player, durationMs }: { player: GamePlayerStats; durationMs: number }) {
   const { t } = useTranslation()
-  const leftNote =
-    player.leftAtMs !== undefined
-      ? t('gameStats.leftAt', 'Out at {{time}}', { time: getGameDurationString(player.leftAtMs) })
-      : undefined
+  return player.leftAtMs !== undefined && leftEarly(player, durationMs) ? (
+    <LeftNoteText>
+      {t('gameStats.leftAt', 'Left at {{time}}', { time: getGameDurationString(player.leftAtMs) })}
+    </LeftNoteText>
+  ) : null
+}
+
+/** A player's race and name, and when they left if they left before the game ended. */
+export function PlayerName({
+  player,
+  durationMs,
+}: {
+  player: GamePlayerStats
+  durationMs: number
+}) {
   return (
-    <PlayerNameRoot title={leftNote ? `${player.name} · ${leftNote}` : player.name}>
+    <PlayerNameRoot title={player.name}>
       {player.race ? <RaceTag race={player.race} /> : null}
       <PlayerNameText>
         <PlayerNameButton name={player.name} race={player.race}>
           {player.name}
         </PlayerNameButton>
       </PlayerNameText>
-      {leftNote ? <VisuallyHidden>{leftNote}</VisuallyHidden> : null}
+      <LeftNote player={player} durationMs={durationMs} />
     </PlayerNameRoot>
   )
 }

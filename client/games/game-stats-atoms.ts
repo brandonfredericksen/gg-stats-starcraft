@@ -12,6 +12,7 @@ import {
   SavedGameStats,
 } from '../../common/games/game-stats'
 import { TypedIpcRenderer } from '../../common/ipc'
+import { tilesetFromEra, TilesetId } from '../../common/maps'
 import { jotaiStore } from '../jotai-store'
 import logger from '../logging/logger'
 
@@ -40,9 +41,13 @@ export type GameStatsState =
       stats: GameStats
       /** When the game was played, as near as is known. */
       playedAtMs?: number
+      /** The map's tileset, read from the replay once it's been looked up. */
+      tileset?: TilesetId
     }
   | { status: 'failed'; source: ReplayStatsSource; reason: ReplayAnalysisFailure }
   | { status: 'missing' }
+  /** The saved stats couldn't be read, which trying again may fix. */
+  | { status: 'loadFailed' }
 
 /**
  * How many games' stats are kept around once they've been looked at. Analyses still running and
@@ -133,14 +138,15 @@ export const showGameStatsAtom = atom(
       setGameStats(draft, gameId, done)
     })
     if (replayPath) {
-      getReplayGameTime(replayPath)
-        .then(gameTime => {
+      readReplayDetails(replayPath)
+        .then(({ gameTime, tileset }) => {
           // Only fill in the stats this looked up, not newer ones that replaced them.
           if (get(gameStatsByIdAtom).get(gameId) === done) {
             set(gameStatsByIdAtom, draft => {
               draft.set(gameId, {
                 ...done,
                 playedAtMs: gameTime ?? replayFile?.modifiedMs ?? savedAt ?? Date.now(),
+                tileset,
               })
             })
           }
@@ -211,28 +217,34 @@ function getReplayPath(source: GameStatsSource) {
 }
 
 /**
- * When the game in the replay at `replayPath` started, from the replay's header. This is the time
- * the replay library shows for it. The replay file's own modified time can't stand in for it, since
- * moving or archiving the file can change that long after the game.
+ * When the game in the replay at `replayPath` started, from the replay's header, and its map's
+ * tileset. The start is the time the replay library shows for it. The replay file's own modified
+ * time can't stand in for it, since moving or archiving the file can change that long after the
+ * game.
  */
-async function getReplayGameTime(replayPath: string): Promise<number | undefined> {
+async function readReplayDetails(
+  replayPath: string,
+): Promise<{ gameTime?: number; tileset?: TilesetId }> {
   try {
-    const startTime = (await ipcRenderer.invoke('replayParseMetadata', replayPath))?.headerData
-      .startTime
-    return startTime ? startTime * 1000 : undefined
+    const metadata = await ipcRenderer.invoke('replayParseMetadata', replayPath)
+    const startTime = metadata?.headerData.startTime
+    return {
+      gameTime: startTime ? startTime * 1000 : undefined,
+      tileset: tilesetFromEra(metadata?.tileset),
+    }
   } catch (err) {
-    logger.error(`Error reading when the game in ${replayPath} was played: ${getErrorStack(err)}`)
-    return undefined
+    logger.error(`Error reading the game in ${replayPath}: ${getErrorStack(err)}`)
+    return {}
   }
 }
 
 /**
  * Shows a game's saved stats, unless they're already showing, loading or being analyzed. Stats
- * that were missing are looked for again, since they may have been saved since.
+ * that were missing or couldn't be read are looked for again, since they may be there now.
  */
 export async function loadSavedGameStats(gameId: string) {
   const current = jotaiStore.get(gameStatsByIdAtom).get(gameId)
-  if (current && current.status !== 'missing') {
+  if (current && current.status !== 'missing' && current.status !== 'loadFailed') {
     return
   }
   jotaiStore.set(gameStatsByIdAtom, draft => {
@@ -244,10 +256,16 @@ export async function loadSavedGameStats(gameId: string) {
     saved = (await ipcRenderer.invoke('gameStatsGet', gameId)) ?? null
   } catch (err) {
     logger.error(`Error loading the saved stats for game ${gameId}: ${getErrorStack(err)}`)
+    if (jotaiStore.get(gameStatsByIdAtom).get(gameId)?.status === 'loading') {
+      jotaiStore.set(gameStatsByIdAtom, draft => {
+        setGameStats(draft, gameId, { status: 'loadFailed' })
+      })
+    }
+    return
   }
 
   const replayPath = saved && getReplayPath(saved.source)
-  const gameTime = replayPath ? await getReplayGameTime(replayPath) : undefined
+  const { gameTime, tileset } = replayPath ? await readReplayDetails(replayPath) : {}
 
   if (jotaiStore.get(gameStatsByIdAtom).get(gameId)?.status !== 'loading') {
     // Newer stats arrived while these were loading.
@@ -265,6 +283,7 @@ export async function loadSavedGameStats(gameId: string) {
             // A replay that's gone or can't be read is dated by when its file was last written,
             // which is as the game ended unless something moved or archived it since.
             playedAtMs: gameTime ?? saved.replayFile?.modifiedMs ?? saved.savedAt,
+            tileset,
           }
         : { status: 'missing' },
     )

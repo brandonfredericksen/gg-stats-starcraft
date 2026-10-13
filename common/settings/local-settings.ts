@@ -19,6 +19,11 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 
 export const ALL_THEME_MODES: ReadonlyArray<ThemeMode> = ['system', 'light', 'dark']
 
+/** How times of day are written: as Windows writes them, or on a 12 or 24 hour clock. */
+export type ClockFormat = 'system' | '12' | '24'
+
+export const ALL_CLOCK_FORMATS: ReadonlyArray<ClockFormat> = ['system', '12', '24']
+
 export enum StartingFog {
   ShowTerrainAndResources = 'transparent',
   ShowResources = 'showResources',
@@ -169,6 +174,8 @@ export interface LocalSettings extends GgStatsAppSettings {
   runAppAtSystemStartMinimized: boolean
   /** Missing in settings saved before it could be picked, which means `system`. */
   themeMode?: ThemeMode
+  /** Missing means `system`. */
+  clockFormat?: ClockFormat
   /**
    * Whether each game's replay is picked up and analyzed as soon as the game ends. Missing in
    * settings saved before it could be turned off, which means on.

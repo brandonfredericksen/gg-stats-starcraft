@@ -8,6 +8,7 @@ import { bodyMedium, bodySmall, labelMedium } from '../styles/typography'
 import { Side } from './game-stats-model'
 import {
   GAS_COLOR,
+  leftEarly,
   MINERALS_COLOR,
   PlayerName,
   raceColor,
@@ -48,13 +49,15 @@ const ScoreboardPanel = styled(StatsPanel)`
  * Stat columns share the room left over equally, but never get narrower than their widest value or
  * title, so every column's numbers line up and none of the titles wrap.
  */
-const ScoreGrid = styled.div<{ $columns: number; $minWidth?: number }>`
+const ScoreGrid = styled.div<{ $columns: number; $showRank: boolean; $minWidth?: number }>`
   min-width: ${props => (props.$minWidth ? `${props.$minWidth}px` : 'auto')};
   display: grid;
-  grid-template-columns: 40px minmax(160px, max-content) repeat(
-      ${props => props.$columns},
-      minmax(max-content, 1fr)
-    );
+  grid-template-columns: ${props =>
+    [
+      props.$showRank ? '40px' : '',
+      'minmax(160px, max-content)',
+      `repeat(${props.$columns}, minmax(max-content, 1fr))`,
+    ].join(' ')};
 `
 
 const GridRow = styled.div`
@@ -202,16 +205,13 @@ function ResourceSplit({ column, resources }: { column: ScoreColumn; resources?:
 export function Scoreboard({
   players,
   teamsByPlayer,
+  durationMs,
 }: {
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
+  durationMs: number
 }) {
   const { t } = useTranslation()
-  const armyDescription = t(
-    'gameStats.armyScoreDescription',
-    "StarCraft's own score for the army, which weighs gas and tech more than minerals. The " +
-      'minerals and gas it took are below.',
-  )
   // Grouped by what they measure: the score, then units, the economy and speed.
   const columns: ScoreColumn[] = [
     {
@@ -219,6 +219,10 @@ export function Scoreboard({
       label: t('gameStats.totalScore', 'Total score'),
       get: p => p.totalScore,
       primary: true,
+      description: t(
+        'gameStats.totalScoreDescription',
+        "The score screen's units, buildings, kills and razings, plus resources mined.",
+      ),
     },
     {
       id: 'armyProduced',
@@ -227,8 +231,8 @@ export function Scoreboard({
       split: p => p.armyProduced,
       description: t(
         'gameStats.armyProducedDescription',
-        "StarCraft's score for every army unit made over the whole game. It weighs gas and tech " +
-          'more than minerals. The minerals and gas it took are below.',
+        "StarCraft's score for the army units made, which counts gas and tech for more than " +
+          'minerals. Below it, the minerals / gas they cost.',
       ),
       startsGroup: true,
     },
@@ -237,14 +241,20 @@ export function Scoreboard({
       label: t('gameStats.armyKilled', 'Army killed'),
       get: p => p.armyKilled?.score,
       split: p => p.armyKilled,
-      description: armyDescription,
+      description: t(
+        'gameStats.armyKilledDescription',
+        "The same score for the enemy army units this player killed, and what they'd cost.",
+      ),
     },
     {
       id: 'armyLost',
       label: t('gameStats.armyLost', 'Army lost'),
       get: p => p.armyLost?.score,
       split: p => p.armyLost,
-      description: armyDescription,
+      description: t(
+        'gameStats.armyLostDescription',
+        "The same score for this player's army units that died, and what they'd cost.",
+      ),
       lowerIsBetter: true,
     },
     {
@@ -261,6 +271,10 @@ export function Scoreboard({
       get: p => p.averageUnspent,
       color: 'var(--theme-data-unspent)',
       lowerIsBetter: true,
+      description: t(
+        'gameStats.averageUnspentDescription',
+        'Minerals and gas on hand, on average, while under 190 supply.',
+      ),
     },
     {
       id: 'supplyBlocked',
@@ -269,15 +283,35 @@ export function Scoreboard({
       color: 'var(--theme-data-supply-blocked)',
       lowerIsBetter: true,
       format: getGameDurationString,
+      description: t(
+        'gameStats.supplyBlockedDescription',
+        'Time spent unable to make units for lack of supply, after the first 3 minutes.',
+      ),
     },
-    { id: 'apm', label: t('gameStats.apm', 'APM'), get: p => p.apm, startsGroup: true },
-    { id: 'eapm', label: t('gameStats.eapm', 'EAPM'), get: p => p.eapm },
+    {
+      id: 'apm',
+      label: t('gameStats.apm', 'APM'),
+      get: p => p.apm,
+      startsGroup: true,
+      description: t('gameStats.apmDescription', 'Actions per minute, every click and key.'),
+    },
+    {
+      id: 'eapm',
+      label: t('gameStats.eapm', 'EAPM'),
+      get: p => p.eapm,
+      description: t(
+        'gameStats.eapmDescription',
+        'Actions per minute that did something. Spam like repeated clicks, orders past a full ' +
+          'queue and instant cancels is left out.',
+      ),
+    },
   ]
   return (
     <PlayerStatsGrid
       players={players}
       teamsByPlayer={teamsByPlayer}
       columns={columns}
+      durationMs={durationMs}
       minWidth={1040}
     />
   )
@@ -291,11 +325,16 @@ export function PlayerStatsGrid({
   players,
   teamsByPlayer,
   columns,
+  durationMs,
+  showRank = true,
   minWidth,
 }: {
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
   columns: ReadonlyArray<ScoreColumn>
+  durationMs: number
+  /** Whether to number the rows, for players given in ranked order. */
+  showRank?: boolean
   /** How narrow the grid can get before it scrolls instead, if not to fit its columns. */
   minWidth?: number
 }) {
@@ -305,7 +344,7 @@ export function PlayerStatsGrid({
   // A player who left early had less time to lose units or get supply blocked, so for the numbers
   // where less is better only the players who stayed until the end can be the best, unless nobody
   // did.
-  const stayed = players.filter(p => p.leftAtMs === undefined)
+  const stayed = players.filter(p => !leftEarly(p, durationMs))
   const lowestFrom = stayed.length ? stayed : players
   const canBeBest = (column: ScoreColumn, player: GamePlayerStats) =>
     !column.lowerIsBetter || lowestFrom.includes(player)
@@ -325,12 +364,14 @@ export function PlayerStatsGrid({
 
   return (
     <ScoreboardPanel>
-      <ScoreGrid role='table' $columns={columns.length} $minWidth={minWidth}>
+      <ScoreGrid role='table' $columns={columns.length} $showRank={showRank} $minWidth={minWidth}>
         <GridRow role='row'>
-          <HeaderCell role='columnheader' $alignStart={true}>
-            <span aria-hidden={true}>#</span>
-            <VisuallyHidden>{t('gameStats.rank', 'Rank')}</VisuallyHidden>
-          </HeaderCell>
+          {showRank ? (
+            <HeaderCell role='columnheader' $alignStart={true}>
+              <span aria-hidden={true}>#</span>
+              <VisuallyHidden>{t('gameStats.rank', 'Rank')}</VisuallyHidden>
+            </HeaderCell>
+          ) : null}
           <HeaderCell role='columnheader' $alignStart={true}>
             {t('gameStats.player', 'Player')}
           </HeaderCell>
@@ -355,11 +396,13 @@ export function PlayerStatsGrid({
           const first = i === 0
           return (
             <GridRow key={player.id} role='row'>
-              <RankCell role='cell' $first={first} $rank={i + 1}>
-                {i + 1}
-              </RankCell>
+              {showRank ? (
+                <RankCell role='cell' $first={first} $rank={i + 1}>
+                  {i + 1}
+                </RankCell>
+              ) : null}
               <PlayerCell role='rowheader' $first={first}>
-                <PlayerName player={player} />
+                <PlayerName player={player} durationMs={durationMs} />
                 {team ? <TeamChip team={team} /> : null}
               </PlayerCell>
               {columns.map((column, j) => {

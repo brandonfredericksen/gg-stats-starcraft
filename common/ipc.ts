@@ -112,9 +112,13 @@ interface IpcInvokeables {
   /** Reveals `path` in the OS file manager (opens its containing folder and selects it). */
   pathsShowItemInFolder: (path: string) => Promise<void>
 
+  /** Whether Windows writes times on a 12 or 24 hour clock, if that can be read. */
+  systemHourCycle: () => Promise<'h12' | 'h23' | undefined>
   replayParseMetadata: (replayPath: string) => Promise<{
     headerData: ReplayHeader
     players: Player[]
+    /** The map's `ERA ` value, which names its tileset, or `null` if the map doesn't have one. */
+    tileset: number | null
   }>
 
   /** The chat in the replay at `replayPath`, in the order it was sent. */

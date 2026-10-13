@@ -10,6 +10,7 @@ import { getGameDurationString } from '../../common/games/game-duration'
 import { GameStats, GameStatsSource, ReplayStatsSource } from '../../common/games/game-stats'
 import { GameStatusString } from '../../common/games/game-status'
 import { TypedIpcRenderer } from '../../common/ipc'
+import { TilesetId } from '../../common/maps'
 import { useFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { jotaiStore } from '../jotai-store'
@@ -86,11 +87,15 @@ export function GameStatsPage({ params }: { params: { gameId: string } }) {
           stats={gameStats.stats}
           source={gameStats.source}
           playedAtMs={gameStats.playedAtMs}
+          tileset={gameStats.tileset}
         />
       )
       break
     case 'failed':
       content = <FailedView replay={gameStats.source} reason={gameStats.reason} />
+      break
+    case 'loadFailed':
+      content = <LoadFailedView gameId={gameId} />
       break
     default:
       content = assertUnreachable(gameStats)
@@ -358,6 +363,27 @@ function FailedView({
   )
 }
 
+function LoadFailedView({ gameId }: { gameId: string }) {
+  const { t } = useTranslation()
+  return (
+    <StatusPanel role='alert'>
+      <StatusIcon icon='error' $error={true} />
+      <StatusTitle>
+        {t('gameStats.loadFailedTitle', "This game's stats couldn't be read")}
+      </StatusTitle>
+      <StatusActions>
+        <BackButton />
+        <FilledButton
+          label={t('gameStats.tryAgain', 'Try again')}
+          onClick={() => {
+            loadSavedGameStats(gameId).catch(swallowNonBuiltins)
+          }}
+        />
+      </StatusActions>
+    </StatusPanel>
+  )
+}
+
 function MissingView() {
   const { t } = useTranslation()
   return (
@@ -375,9 +401,32 @@ function MissingView() {
 }
 
 const Header = styled.div`
+  position: relative;
+  /* Keeps the map's terrain art above the page's background. */
+  isolation: isolate;
+
   display: flex;
   flex-direction: column;
   gap: 16px;
+`
+
+/**
+ * A faint stretch of the map's terrain across the top of the page, behind the title, fading out
+ * before what's under it.
+ */
+const MapArt = styled.div<{ $tileset: TilesetId }>`
+  position: absolute;
+  inset: -22px -32px -24px;
+  z-index: -1;
+  pointer-events: none;
+
+  background: url('ggstats://app/assets/minimaps/${props => props.$tileset}.webp') center 40% /
+    720px;
+  opacity: 0.2;
+  mask-image:
+    linear-gradient(to bottom, black 30%, transparent),
+    linear-gradient(to right, transparent, black 30%, black 70%, transparent);
+  mask-composite: intersect;
 `
 
 const headerButton = css`
@@ -447,11 +496,13 @@ function StatsView({
   stats,
   source,
   playedAtMs,
+  tileset,
 }: {
   gameId: string
   stats: GameStats
   source: GameStatsSource
   playedAtMs?: number
+  tileset?: TilesetId
 }) {
   const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
   const replayPath =
@@ -462,7 +513,15 @@ function StatsView({
       stats={stats}
       source={source}
       replayPath={replayPath}
-      header={<StatsHeader gameId={gameId} stats={stats} source={source} playedAtMs={playedAtMs} />}
+      header={
+        <StatsHeader
+          gameId={gameId}
+          stats={stats}
+          source={source}
+          playedAtMs={playedAtMs}
+          tileset={tileset}
+        />
+      }
     />
   )
 }
@@ -471,15 +530,18 @@ function getFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() || filePath
 }
 
-/** What kind of game it was: the matchup for a 1v1, "2v2" for teams, or a free for all. */
-function getGameKind(sides: ReadonlyArray<Side>, t: TFunction) {
+/**
+ * What kind of game it was: the matchup for a 1v1, the team size and the races on each team for
+ * teams, like "3v3 · PPT vs PZZ", or a free for all.
+ */
+function getGameKind(sides: ReadonlyArray<Side>, t: TFunction): string[] {
   if (sides.length > 2 && !sides.some(side => side.isTeam)) {
-    return t('gameStats.freeForAllKind', 'FFA, {{count}} players', { count: sides.length })
+    return [t('gameStats.freeForAllKind', 'FFA, {{count}} players', { count: sides.length })]
   }
   if (sides.every(side => side.players.length === 1)) {
-    return getMatchup(sides, t)
+    return [getMatchup(sides, t)]
   }
-  return sides.map(side => side.players.length).join('v')
+  return [sides.map(side => side.players.length).join('v'), getMatchup(sides, t)]
 }
 
 function StatsHeader({
@@ -487,11 +549,13 @@ function StatsHeader({
   stats,
   source,
   playedAtMs,
+  tileset,
 }: {
   gameId: string
   stats: GameStats
   source: GameStatsSource
   playedAtMs?: number
+  tileset?: TilesetId
 }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -515,7 +579,7 @@ function StatsHeader({
     (source.kind === 'replay' ? source.name : t('gameStats.unknownMap', 'Unknown map'))
   const meta = [getGameDurationString(stats.durationMs)]
   if (stats.players.length > 1) {
-    meta.push(getGameKind(sides, t))
+    meta.push(...getGameKind(sides, t))
   }
   if (playedAtMs !== undefined) {
     const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
@@ -531,6 +595,7 @@ function StatsHeader({
 
   return (
     <Header>
+      {tileset ? <MapArt $tileset={tileset} aria-hidden={true} /> : null}
       <PageNav
         crumbs={[
           { label: t('gameStats.libraryCrumb', 'Library'), href: '/replays' },

@@ -48,6 +48,7 @@ import { ReplayLibraryService, setupReplayLibrary } from './replay-library'
 import { parseReplayMetadata, readReplayChat } from './replay-library/replay-parser'
 import { LocalSettingsManager, ScrSettingsManager } from './settings'
 import type { NewInstanceNotification } from './single-instance'
+import { readSystemHourCycle } from './system-hour-cycle'
 import SystemTray from './system-tray'
 import { Updater } from './updater'
 import { getUserDataPath } from './user-data-path'
@@ -451,6 +452,8 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
     'gameStatsFindByReplay',
     async (event, replayPath) => (await gameStatsStore.findByReplayPath(replayPath)) ?? null,
   )
+
+  ipcMain.handle('systemHourCycle', () => readSystemHourCycle())
 
   ipcMain.handle('replayParseMetadata', async (event, replayPath) => {
     return parseReplayMetadata(replayPath)

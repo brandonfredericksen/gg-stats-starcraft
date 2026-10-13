@@ -4,6 +4,17 @@ import type { ReplayCommandStats } from './command-stats'
 /** BW's game speed on Fastest, which online games are played at. */
 export const FASTEST_MS_PER_FRAME = 42
 
+/**
+ * Supply blocks this early are usually part of a build, like a 9 pool, rather than a mistake, so
+ * time blocked only counts after it.
+ */
+export const SUPPLY_BLOCK_GRACE_MS = 3 * 60_000
+/**
+ * Supply in use from which money on hand is left out of the bank. A player who's maxed out, or
+ * nearly, has nothing left to spend it on but more production, and often rightly saves it.
+ */
+export const MAXED_SUPPLY = 190
+
 type UnitCounts = Array<[unitId: number, count: number]>
 
 /** One player's stats, as the game reports them when it ends. */
@@ -231,10 +242,14 @@ export interface GamePlayerStats {
   armyLost?: ArmyWorth
   resourcesDestroyed?: number
   resourcesLost?: number
+  /** How long the player was out of supply, after the first {@link SUPPLY_BLOCK_GRACE_MS}. */
   supplyBlockedMs?: number
   /** When the player first had a unit near an enemy's starting base. */
   firstScoutMs?: number
-  /** The minerals and gas the player had on hand, on average over the game. */
+  /**
+   * The minerals and gas the player had on hand, on average over the game, while under
+   * {@link MAXED_SUPPLY} supply.
+   */
   averageUnspent?: number
   /**
    * The player's progress, with one value per time in {@link GameStats.snapshotTimesMs} for as long
@@ -447,6 +462,38 @@ function toBuildOrder(value: unknown): BuildStep[] | undefined {
   })
 }
 
+/**
+ * How long a player was out of supply after {@link SUPPLY_BLOCK_GRACE_MS}: all of it, less what
+ * their timeline had by then.
+ */
+function getSupplyBlockedMs(
+  totalMs: number | undefined,
+  blockedMs: ReadonlyArray<number> | undefined,
+  snapshotTimesMs: ReadonlyArray<number>,
+): number | undefined {
+  if (totalMs === undefined) {
+    return undefined
+  }
+  const graceIndex = snapshotTimesMs.findLastIndex(ms => ms <= SUPPLY_BLOCK_GRACE_MS)
+  return Math.max(0, totalMs - (blockedMs?.[graceIndex] ?? 0))
+}
+
+/**
+ * A player's time out of supply so far at each recorded time, counted from
+ * {@link SUPPLY_BLOCK_GRACE_MS} like {@link GamePlayerStats.supplyBlockedMs}.
+ */
+export function getSupplyBlockedTimeline(
+  blockedMs: ReadonlyArray<number> | undefined,
+  snapshotTimesMs: ReadonlyArray<number>,
+): number[] | undefined {
+  if (!blockedMs) {
+    return undefined
+  }
+  const graceIndex = snapshotTimesMs.findLastIndex(ms => ms <= SUPPLY_BLOCK_GRACE_MS)
+  const atGrace = blockedMs[graceIndex] ?? 0
+  return blockedMs.map((ms, i) => (i <= graceIndex ? 0 : Math.max(0, ms - atGrace)))
+}
+
 function average(values: ReadonlyArray<number> | undefined) {
   return values?.length
     ? Math.round(values.reduce((total, value) => total + value, 0) / values.length)
@@ -519,9 +566,15 @@ function toPlayerStats(
     armyLost: toArmyWorth(player.armyLost),
     resourcesDestroyed: optionalCount(player.resourcesDestroyed),
     resourcesLost: optionalCount(player.resourcesLost),
-    supplyBlockedMs: framesToMs(optionalCount(player.supplyBlockedFrames)),
+    supplyBlockedMs: getSupplyBlockedMs(
+      framesToMs(optionalCount(player.supplyBlockedFrames)),
+      timeline?.supplyBlockedMs,
+      snapshotTimesMs,
+    ),
     firstScoutMs: framesToMs(optionalCount(player.firstScoutFrame)),
-    averageUnspent: average(timeline?.unspent),
+    averageUnspent: average(
+      timeline?.unspent?.filter((_, i) => (timeline.supplyUsed?.[i] ?? 0) < MAXED_SUPPLY),
+    ),
     timeline,
     buildOrder:
       buildOrder && buildOrderVersion < 2

@@ -24,10 +24,12 @@ export function GameHotkeys({
   replayPath,
   players,
   teamsByPlayer,
+  durationMs,
 }: {
   replayPath: string
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
+  durationMs: number
 }) {
   const { t } = useTranslation()
   const rate = useFormat(rateFormat)
@@ -52,10 +54,16 @@ export function GameHotkeys({
     }
   }, [replayPath])
 
-  if (!read || read.path !== replayPath) {
-    return null
-  }
   const title = <SectionTitle>{t('gameStats.hotkeys', 'Hotkeys')}</SectionTitle>
+  if (!read || read.path !== replayPath) {
+    // The title holds the section's place, so the page doesn't jump when the replay's been read.
+    return (
+      <Section>
+        {title}
+        <SectionNote>{t('gameStats.readingReplay', 'Reading the replay…')}</SectionNote>
+      </Section>
+    )
+  }
   if (!read.commands) {
     return (
       <Section>
@@ -82,19 +90,20 @@ export function GameHotkeys({
   const columns: ScoreColumn[] = [
     {
       id: 'hotkeyUse',
-      label: t('gameStats.hotkeyUse', 'Hotkey use'),
+      label: t('gameStats.hotkeysPerMinute', 'Hotkeys per min'),
       get: p => rates(p)?.recallsPerMin,
-      // A player with a recall or two in a long game would show 0 uses next to a group used.
+      // One decimal, or a player with a recall or two in a long game would show 0 next to a group
+      // used.
       format: value => rate.format(value),
       neutral: true,
       description: t(
         'gameStats.hotkeyUseDescription',
-        'Times a minute the player selected a hotkeyed group.',
+        'How many times a minute the player called up one of their hotkey groups.',
       ),
     },
     {
       id: 'hotkeyJumps',
-      label: t('gameStats.hotkeyJumps', 'Hotkey jumps'),
+      label: t('gameStats.hotkeyJumpsPerMinute', 'Jumps per min'),
       get: p => rates(p)?.jumpsPerMin,
       format: value => rate.format(value),
       neutral: true,
@@ -119,13 +128,18 @@ export function GameHotkeys({
     <Section>
       {title}
       <SectionErrorBoundary>
-        <PlayerStatsGrid players={players} teamsByPlayer={teamsByPlayer} columns={columns} />
+        <PlayerStatsGrid
+          players={players}
+          teamsByPlayer={teamsByPlayer}
+          columns={columns}
+          durationMs={durationMs}
+          showRank={false}
+        />
       </SectionErrorBoundary>
       <SectionNote>
         {t(
           'gameStats.hotkeysNote',
-          'From the replay. A hotkey jump is the only way of moving the screen a replay shows. ' +
-            "Spacebar, F2 to F4, the minimap and scrolling don't reach it.",
+          "Replays don't record where the screen is, so jumps are the only screen moves counted.",
         )}
       </SectionNote>
     </Section>

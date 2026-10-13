@@ -6,12 +6,14 @@ import { RelativeTimeFormatter } from './relative-time'
  * Returns the locale that values should be formatted in: the app's language, combined with the
  * region of the system's locale when it has one (e.g. an app language of `es` on an `en-US` system
  * gives `es-US`). This keeps formatted words in the same language as the rest of the UI while
- * keeping the regional conventions (clock format, date order) the user picked in their OS, wherever
- * `Intl` has data for the combination. Combinations it doesn't know fall back to the language.
+ * keeping the regional conventions (date order) the user picked in their OS, wherever `Intl` has
+ * data for the combination. Combinations it doesn't know fall back to the language. `hourCycle`,
+ * when given, picks a 12 or 24 hour clock over the region's usual one.
  */
 export function getFormatLocale(
   appLanguage: string,
   systemLocale: string | undefined = navigator.language,
+  hourCycle?: Intl.LocaleHourCycleKey,
 ): string {
   let region: string | undefined
   try {
@@ -21,14 +23,30 @@ export function getFormatLocale(
   }
 
   try {
-    const locale = new Intl.Locale(appLanguage, region ? { region } : undefined)
+    const locale = new Intl.Locale(appLanguage, { region, hourCycle })
     return locale.toString()
   } catch {
     return appLanguage
   }
 }
 
-let lastAppLanguage: string | undefined
+let hourCycle: Intl.LocaleHourCycleKey | undefined
+const hourCycleListeners = new Set<() => void>()
+
+/**
+ * Sets the clock times are written on, from the user's setting or Windows', or `undefined` for the
+ * region's usual one.
+ */
+export function setFormatHourCycle(next: Intl.LocaleHourCycleKey | undefined) {
+  if (next !== hourCycle) {
+    hourCycle = next
+    for (const listener of hourCycleListeners) {
+      listener()
+    }
+  }
+}
+
+let lastKey: string | undefined
 let lastFormatLocale = getFormatLocale('en')
 
 /**
@@ -37,17 +55,20 @@ let lastFormatLocale = getFormatLocale('en')
  */
 export function currentFormatLocale(): string {
   const appLanguage = i18n.resolvedLanguage ?? i18n.language ?? 'en'
-  if (appLanguage !== lastAppLanguage) {
-    lastAppLanguage = appLanguage
-    lastFormatLocale = getFormatLocale(appLanguage)
+  const key = `${appLanguage}|${hourCycle}`
+  if (key !== lastKey) {
+    lastKey = key
+    lastFormatLocale = getFormatLocale(appLanguage, undefined, hourCycle)
   }
   return lastFormatLocale
 }
 
 function subscribeToLanguage(onChange: () => void) {
   i18n.on('languageChanged', onChange)
+  hourCycleListeners.add(onChange)
   return () => {
     i18n.off('languageChanged', onChange)
+    hourCycleListeners.delete(onChange)
   }
 }
 
