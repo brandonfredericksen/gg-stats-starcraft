@@ -12,6 +12,7 @@ import {
   MIN_META_BUILD_GAMES,
   MIN_META_BUILD_PLAYERS,
 } from '../../common/my-stats/meta-builds'
+import { MIN_COLORED_GAMES } from '../../common/my-stats/my-stats'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
 import { getPoolPlace } from '../coach/coach-page'
 import { Cell, getMapFamilyShortName, HeadCell } from '../coach/coach-shared'
@@ -29,7 +30,6 @@ import {
   BuildsTable,
   BuildTag,
   getBuildFamilyName,
-  isAllInFamily,
   Row,
   SpanHead,
   WinRateCell,
@@ -37,9 +37,9 @@ import {
 
 /**
  * A win rate from fewer games than this, as the Games column counts them, is shown faded, since
- * it's mostly chance.
+ * it's mostly chance. The same floor as everywhere else in the app.
  */
-export const MIN_RATE_GAMES = 10
+export const MIN_RATE_GAMES = MIN_COLORED_GAMES
 /** A top players' win number from fewer games than this is shown faded, the same way. */
 const MIN_WIN_GAMES = 30
 
@@ -85,7 +85,7 @@ function getTopPlayersNote(meta: MetaResult, values: Record<string, unknown>, t:
     case 'rank':
       return t(
         'builds.metaFieldRank',
-        'From {{games}} games of {{players}} {{race}} players over the last 6 months: S and A rank, S counting twice, and unranked players as fast as them, over {{eapm}} early game EAPM.',
+        '{{games}} games of {{players}} {{race}} players from the last 6 months: S and A rank, with S counting twice, and unranked players over {{eapm}} early game EAPM.',
         values,
       )
     case 'eapm':
@@ -212,7 +212,7 @@ export function getLevelHelp(bucket: CoachBucket, eapmFloor: number, t: TFunctio
     notes.push(
       t(
         'builds.anyAllyNote',
-        'Theirs are with any teammate, since too few had a {{ally}} one. Yours are all with a {{ally}} teammate.',
+        'Theirs are with any teammate, since too few had a {{ally}} one. Yours are with a {{ally}} teammate.',
         { ally: raceCharToLabel(bucket.allyRace, t) },
       ),
     )
@@ -403,19 +403,16 @@ export function BuildsList({
   const { t } = useTranslation()
   // Only 1v1 wins go by MMR, see `computeMetaBuilds`.
   const byMmr = scope.shape === '1v1'
-  const topWinLabel = byMmr
-    ? t('builds.metaWinVsMmr', 'Win vs MMR')
-    : t('builds.metaWinRate', 'Win rate')
+  // Not a plain win rate, so it's named apart from the win rates next to it.
+  const topWinLabel = t('builds.metaWinScore', 'Win score')
   const topWinHelp = byMmr
     ? t(
-        'builds.metaWinVsMmrHelp',
-        "How it wins against the other builds here, once the players' MMRs are taken into account: 50% is like the rest. Pulled toward 50% when it has few games, and faded under {{minimum}}.",
-        { minimum: MIN_WIN_GAMES },
+        'builds.metaWinScoreMmrHelp',
+        'How it does against the other builds here, with MMR taken into account. 50% is even. Few games pull it toward 50%, so it can differ from the record on hover.',
       )
     : t(
-        'builds.metaWinRateHelp',
-        'How it wins against the other builds here: 50% is like the rest. Each team counts once, leaving out players who went out first. Pulled toward 50% when it has few games, and faded under {{minimum}}.',
-        { minimum: MIN_WIN_GAMES },
+        'builds.metaWinScoreHelp',
+        'How it does against the other builds here. 50% is even. Few games pull it toward 50%, so it can differ from the record on hover.',
       )
   const otherShare = meta !== 'error' && meta.builds.length ? meta.otherShare : 0
 
@@ -461,7 +458,7 @@ export function BuildsList({
               label={t('builds.games', 'Games')}
               help={t(
                 'builds.playedHelp',
-                'How many games had this build, counting each player in a game, and how many different players those were. One player can play it many times.',
+                'Games with this build, counting each player, and how many players played it.',
               )}
             />
           </HeadCell>
@@ -492,9 +489,6 @@ export function BuildsList({
               <Cell>
                 {getBuildFamilyName(family, t)}
                 {top?.standard ? <BuildTag>{t('builds.metaStandard', 'Standard')}</BuildTag> : null}
-                {isAllInFamily(family) ? (
-                  <BuildTag>{t('builds.metaAllIn', 'All in')}</BuildTag>
-                ) : null}
                 {family === userBuild ? (
                   <BuildTag $you={true}>{t('builds.yours', 'You play most')}</BuildTag>
                 ) : null}
@@ -528,6 +522,13 @@ export function BuildsList({
             </BuildRow>
           )
         })}
+        {entries.length ? null : (
+          <Row>
+            <Cell $tone='muted' style={{ gridColumn: '1 / -1' }}>
+              {t('builds.noneAgainst', 'No builds against this yet.')}
+            </Cell>
+          </Row>
+        )}
         {otherShare >= 0.005 ? (
           <Row>
             <OtherCell>{t('builds.metaOther', 'Other builds')}</OtherCell>

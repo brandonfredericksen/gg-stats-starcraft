@@ -599,7 +599,7 @@ export function BuildOrder({
             help={[
               t(
                 'builds.stepsHelp',
-                'Supply and time of each step, by when most games of each side take it. A side shows a step when most of its games take it: buildings and tech to 10 minutes, workers and army units to 15.',
+                'The usual supply and time of each step. A side shows a step when most of its games take it, up to 10 minutes for buildings and tech and 15 for units.',
               ),
               fewWinners
                 ? t('builds.fewWinners', 'Too few won games to show how winners play it.')

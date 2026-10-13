@@ -124,6 +124,17 @@ describe('common/my-stats/build-family', () => {
         ['u171', 4.6],
       ]),
     ).toBe('p gates1 expand u155 reaver')
+    // Gateways made after the Nexus come with the expansion, not the opening.
+    expect(
+      family('p', [
+        ['u160', 1.2],
+        ['u164', 2],
+        ['u154', 3.4],
+        ['u160', 3.8],
+        ['u160', 4.1],
+        ['u155', 4.5],
+      ]),
+    ).toBe('p gates1 expand u155')
     expect(
       family('p', [
         ['u160', 1.2],
@@ -282,6 +293,9 @@ describe('common/my-stats/build-family', () => {
       ]),
     ).toBe('z overpool')
     expect(family('z', [['u142', 0.4, 4]])).toBe('z pool4')
+    expect(family('z', [['u142', 0.5, 8]])).toBe('z pool8')
+    expect(family('z', [['u142', 1.1, 11]])).toBe('z pool11')
+    expect(family('z', [['u142', 1.2, 12]])).toBe('z pool12')
   })
 
   test('tags an all-in, and leaves games over too soon to tell unnamed', () => {

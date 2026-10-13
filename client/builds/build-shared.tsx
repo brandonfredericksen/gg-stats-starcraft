@@ -195,7 +195,7 @@ export function WinRateCell({
 const OPENER_NAMES: Record<string, (t: TFunction) => string> = {
   nexusFirst: t => t('builds.family.nexusFirst', 'Nexus first'),
   forgeExpand: t => t('builds.family.forgeExpand', 'Forge expand'),
-  forgeCannons: t => t('builds.family.forgeCannons', 'Forge, cannons'),
+  forgeCannons: t => t('builds.family.forgeCannons', 'Forge, Cannons'),
   forge: t => t('builds.family.forge', 'Forge first'),
   gates1: t => t('builds.family.gates1', '1 Gate'),
   gates2: t => t('builds.family.gates2', '2 Gate'),
@@ -215,12 +215,14 @@ const OPENER_NAMES: Record<string, (t: TFunction) => string> = {
   siegeExpand: t => t('builds.family.siegeExpand', 'Siege expand'),
   factExpand: t => t('builds.family.factExpand', 'Factory expand'),
   factory: t => t('builds.family.factory', 'Factory'),
-  pool4: t => t('builds.family.earlyPool', 'Early pool'),
-  pool9: t => t('builds.family.pool9', '9 pool'),
+  pool4: t => t('builds.family.pool4', '4/5 Pool'),
+  pool8: t => t('builds.family.pool8', '8 Pool'),
+  pool9: t => t('builds.family.pool9', '9 Pool'),
   overpool: t => t('builds.family.overpool', 'Overpool'),
-  pool12: t => t('builds.family.pool12', '12 pool'),
+  pool11: t => t('builds.family.pool11', '11 Pool'),
+  pool12: t => t('builds.family.pool12', '12 Pool'),
   hatch: t => t('builds.family.hatchFirst', 'Hatch first'),
-  hatch3: t => t('builds.family.hatch3', '3 hatch before pool'),
+  hatch3: t => t('builds.family.hatch3', '3 Hatch before Pool'),
 }
 
 const FOLLOW_UP_NAMES: Record<string, (t: TFunction) => string> = {
@@ -239,9 +241,9 @@ const FOLLOW_UP_NAMES: Record<string, (t: TFunction) => string> = {
   bioTanks: t => t('builds.family.bioTanks', 'bio and tanks'),
   wraith: t => t('builds.family.wraith', 'Wraith'),
   valkyrie: t => t('builds.family.valkyrie', 'Valkyrie'),
-  muta1: t => t('builds.family.muta1', '1 hatch spire'),
-  muta2: t => t('builds.family.muta2', '2 hatch muta'),
-  muta3: t => t('builds.family.muta3', '3 hatch muta'),
+  muta1: t => t('builds.family.muta1', '1 Hatch Muta'),
+  muta2: t => t('builds.family.muta2', '2 Hatch Muta'),
+  muta3: t => t('builds.family.muta3', '3 Hatch Muta'),
   lurker: t => t('builds.family.lurker', 'Lurker'),
   hydra: t => t('builds.family.hydra', 'Hydra'),
   speed: t => t('builds.family.speed', 'speed'),
@@ -250,14 +252,14 @@ const FOLLOW_UP_NAMES: Record<string, (t: TFunction) => string> = {
 
 /** A Spire build's name when Hydras became its army, see `intoHydra` in `getBuildFamily`. */
 const SPIRE_NAMES: Record<string, (t: TFunction) => string> = {
-  muta1: t => t('builds.family.spire1', '1 hatch spire into Hydra'),
-  muta2: t => t('builds.family.spire2', '2 hatch spire into Hydra'),
-  muta3: t => t('builds.family.spire3', '3 hatch spire into Hydra'),
+  muta1: t => t('builds.family.spire1', '1 Hatch Spire into Hydra'),
+  muta2: t => t('builds.family.spire2', '2 Hatch Spire into Hydra'),
+  muta3: t => t('builds.family.spire3', '3 Hatch Spire into Hydra'),
 }
 
 /**
- * A build's name from its family, like "1 Gate expand, Robo, Reaver" or "Hatch first, 2 hatch
- * muta". See `getBuildFamily`.
+ * A build's name from its family, like "1 Gate expand, Robo, Reaver" or "Hatch first, 2 Hatch
+ * Muta". Unit and building names are capitalized and the rest is lowercase. See `getBuildFamily`.
  */
 export function getBuildFamilyName(family: string, t: TFunction) {
   const [, opener = '', ...rest] = family.split(' ')
@@ -279,7 +281,7 @@ export function isAllInFamily(family: string) {
 
 /**
  * The closest of some builds to a build: the build itself, or else the build it's a variant of,
- * like "9 pool" for "9 pool, 2 hatch spire into Hydra", down to its opening.
+ * like "9 Pool" for "9 Pool, 2 Hatch Spire into Hydra", down to its opening.
  */
 export function closestFamily(family: string, has: (family: string) => boolean) {
   const parts = family.split(' ')
@@ -297,13 +299,31 @@ export function closestFamily(family: string, has: (family: string) => boolean) 
 const TOWN_HALL_KEYS: ReadonlySet<string> = new Set(['u131', 'u154', 'u106'])
 
 /**
- * A step's name, numbered when it's not the first of its kind, like "Gateway 2". Town halls count
- * the one the player started with, so the first one built is "Hatchery 2".
+ * A step's name, numbered when it's not the first of its kind, like "Gateway 2". Town halls are
+ * said the way players say them, counting the one the player started with, so the first one built
+ * is the "2nd Hatch".
  */
 export function getStepName(step: Pick<BuildStepSummary, 'key' | 'nth'>, t: TFunction) {
   const name = getBuildName(step.key, t)
-  const nth = TOWN_HALL_KEYS.has(step.key) ? step.nth + 1 : step.nth
-  return nth > 1 ? `${name} ${nth}` : name
+  if (TOWN_HALL_KEYS.has(step.key)) {
+    return t('builds.townHallStep', {
+      defaultValue_ordinal_one: '{{count}}st {{name}}',
+      defaultValue_ordinal_two: '{{count}}nd {{name}}',
+      defaultValue_ordinal_few: '{{count}}rd {{name}}',
+      defaultValue_ordinal_other: '{{count}}th {{name}}',
+      count: step.nth + 1,
+      ordinal: true,
+      name: TOWN_HALL_SHORT_NAMES[step.key]?.(t) ?? name,
+    })
+  }
+  return step.nth > 1 ? `${name} ${step.nth}` : name
+}
+
+/** What players call a town hall when they count them, like the "3rd Hatch". */
+const TOWN_HALL_SHORT_NAMES: Record<string, (t: TFunction) => string> = {
+  u131: t => t('builds.townHall.hatch', 'Hatch'),
+  u154: t => t('builds.townHall.nexus', 'Nexus'),
+  u106: t => t('builds.townHall.cc', 'CC'),
 }
 
 /** A step's supply and time, like "21 · 4:13", or a dash for a side that doesn't usually take it. */

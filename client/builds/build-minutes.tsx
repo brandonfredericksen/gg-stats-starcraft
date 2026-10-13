@@ -204,7 +204,7 @@ function MinutesTable({ compare, race }: { compare: BuildCompare; race: Assigned
         return [
           <GroupHeads
             key={`army-${minute}-head`}
-            title={t('builds.armyAt', 'Army at {{minute}} min', { minute })}
+            title={t('builds.madeBy', 'Made by {{minute}} min', { minute })}
             sides={sides}
           />,
           ...(shown.length

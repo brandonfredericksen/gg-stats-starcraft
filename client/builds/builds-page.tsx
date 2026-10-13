@@ -112,7 +112,7 @@ function TeamBuilds({
         </Row>
         <Row>
           <HeadCell>{t('builds.build', 'Build')}</HeadCell>
-          <HeadCell>{t('builds.teammateBuild', 'Teammate')}</HeadCell>
+          <HeadCell>{t('builds.partnerBuild', "Partner's build")}</HeadCell>
           <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
           <HeadCell $end={true}>{t('builds.winRate', 'Win rate')}</HeadCell>
           <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
@@ -181,7 +181,7 @@ function NoBuilds({ bucket }: { bucket: CoachBucket | undefined }) {
       <Text>
         {t(
           'builds.noneOffMirror',
-          "Your opponents here play {{opponent}}, so their builds count toward {{opponent}} vs {{race}}. Other {{race}} players' builds against {{opponent}} only come from games you weren't in, like a replay pack. Add a folder of them to your library and analyze them.",
+          "Other {{race}} players' builds against {{opponent}} come from games you weren't in, like a replay pack. Add one to your library and analyze it.",
           { race, opponent },
         )}
       </Text>

@@ -105,6 +105,7 @@ const TELLING_OPENERS: ReadonlySet<string> = new Set([
   'forgeCannons',
   'bbs',
   'pool4',
+  'pool8',
   'hatch3',
   'twoPort',
   'twoFact',
@@ -175,8 +176,10 @@ function protossFamily(steps: Steps, context: FamilyContext): string[] | undefin
       // Zealots first, the Core after them.
       opener = 'gates2'
     } else {
-      // A Core first, then however many Gateways before the first tech.
-      const gates = steps.countBefore(GATEWAY, Math.min(techMs, TECH_BY_MS))
+      // A Core first, then however many Gateways before the first tech, or before the Nexus in a
+      // build that expands first: Gateways made after the Nexus come with the expansion, so a 1
+      // Gate Core expand that adds two more Gateways is still a 1 Gate expand.
+      const gates = steps.countBefore(GATEWAY, Math.min(techMs, TECH_BY_MS, nexus))
       opener = gates >= 3 ? `gates${Math.min(gates, 4)}` : 'gates1'
     }
   } else {
@@ -334,10 +337,14 @@ function zergFamily(
   } else if (poolStep) {
     const overlordFirst = steps.at(OVERLORD) < pool
     if (poolStep.supply !== undefined) {
-      if (poolStep.supply <= 8) {
+      if (poolStep.supply <= 5) {
         opener = 'pool4'
+      } else if (poolStep.supply <= 8) {
+        opener = 'pool8'
       } else if (poolStep.supply <= 10) {
         opener = overlordFirst ? 'overpool' : 'pool9'
+      } else if (poolStep.supply === 11) {
+        opener = 'pool11'
       } else {
         opener = 'pool12'
       }
