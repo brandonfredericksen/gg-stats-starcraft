@@ -701,9 +701,22 @@ impl<'e> Analysis<'e> {
         self.0.kill_unit()
     }
 
-    /// The megatile of each of the map's tiles, a u16 each, the map's width to a row.
-    pub fn vx4_map_tiles(&mut self) -> Option<Operand<'e>> {
-        self.0.vx4_map_tiles()
+    /// Each of the map's tiles as the map made them, a u16 each, the map's width to a row: the
+    /// tile group in the high 12 bits and the tile in the group in the low 4.
+    pub fn tileset_indexed_map_tiles(&mut self) -> Option<Operand<'e>> {
+        self.0.tileset_indexed_map_tiles()
+    }
+
+    /// What each of the map's tiles was before creep covered it, laid out like
+    /// [`tileset_indexed_map_tiles`](Self::tileset_indexed_map_tiles), or 0 for tiles without
+    /// creep.
+    pub fn creep_original_tiles(&mut self) -> Option<Operand<'e>> {
+        self.0.creep_original_tiles()
+    }
+
+    /// The tileset's tile groups (its .cv5), each with the megatile of each of its 16 tiles.
+    pub fn tileset_cv5(&mut self) -> Option<Operand<'e>> {
+        self.0.tileset_cv5()
     }
 
     /// The tileset's megatiles, 16 u32 minitile references each: the minitile's index shifted

@@ -1,7 +1,7 @@
 //! Saves a picture of the map being played, for the minimap on the game's stats page.
 //!
-//! It's made from the terrain the game has loaded: each tile's megatile, the megatile's 16
-//! minitiles, and the palette. Each minitile becomes one pixel, the average of its colors, so a
+//! It's made from the terrain the game has loaded: each tile as the map made it, before any creep
+//! covered it, the tile's megatile, the megatile's 16 minitiles, and the palette. Each minitile becomes one pixel, the average of its colors, so a
 //! 128 by 128 map makes a 512 by 512 picture. Mineral fields and geysers are drawn over it as
 //! they stand when the game starts. Each map is saved once, as `minimaps/<id>.png`, named
 //! for a hash of the picture, so two versions of a map with the same name don't share one.
@@ -21,8 +21,10 @@ use crate::bw::{self, Bw, get_bw};
 const MINIMAP_VERSION: &[u8] = b"1";
 /// Minitiles across, and down, each megatile.
 const MINITILES_PER_TILE: usize = 4;
-/// The high bit of a tile's megatile is a flag of the game's own.
-const MEGATILE_MASK: u16 = 0x7fff;
+/// The size of each of the tileset's tile groups, and where in one the megatiles of its 16 tiles
+/// are, a u16 each.
+const CV5_GROUP_SIZE: usize = 52;
+const CV5_MEGATILES_OFFSET: usize = 20;
 /// Pixels of the map to each pixel of the picture.
 const PIXELS_PER_POINT: i32 = 32 / MINITILES_PER_TILE as i32;
 /// The colors mineral fields and geysers are drawn in: blues, which no player's color on the stats
@@ -34,8 +36,12 @@ const MAX_MAP_SIZE: usize = 256;
 
 /// Where the loaded map's terrain is kept in the game's memory.
 pub struct Terrain {
-    /// The megatile of each of the map's tiles, the map's width to a row.
-    pub megatiles: *mut u16,
+    /// See `scr_analysis::Analysis::tileset_indexed_map_tiles`.
+    pub tiles: *mut u16,
+    /// See `scr_analysis::Analysis::creep_original_tiles`.
+    pub original_tiles: *mut u16,
+    /// See `scr_analysis::Analysis::tileset_cv5`.
+    pub cv5: *mut u8,
     /// The tileset's megatiles, see `scr_analysis::Analysis::tileset_vx4ex`.
     pub vx4ex: *mut u32,
     /// The tileset's minitiles, 8x8 palette indexes each.
@@ -103,15 +109,26 @@ pub unsafe fn save(game: *mut bw::Game) -> Option<String> {
 /// Draws the map, one pixel per minitile.
 unsafe fn draw(terrain: &Terrain, width: usize, height: usize) -> RgbImage {
     let palette = unsafe { std::slice::from_raw_parts(terrain.palette, 256 * 4) };
-    let megatiles = unsafe { std::slice::from_raw_parts(terrain.megatiles, width * height) };
+    let tiles = unsafe { std::slice::from_raw_parts(terrain.tiles, width * height) };
+    // Creep that's on the map when it starts depends on where Zerg players started, so it's left
+    // off, and every game on a map gets the same picture.
+    let original_tiles =
+        unsafe { std::slice::from_raw_parts(terrain.original_tiles, width * height) };
     // Most maps use a few thousand of the tileset's minitiles over and over.
     let mut colors: HashMap<u32, [u8; 3]> = HashMap::new();
     let mut picture = RgbImage::new(
         (width * MINITILES_PER_TILE) as u32,
         (height * MINITILES_PER_TILE) as u32,
     );
-    for (i, &tile) in megatiles.iter().enumerate() {
-        let megatile = tile & MEGATILE_MASK;
+    for (i, (&tile, &original)) in tiles.iter().zip(original_tiles).enumerate() {
+        let tile = if original != 0 { original } else { tile };
+        let (group, index) = (usize::from(tile >> 4), usize::from(tile & 0xf));
+        let megatile = unsafe {
+            *(terrain
+                .cv5
+                .add(group * CV5_GROUP_SIZE + CV5_MEGATILES_OFFSET + index * 2)
+                as *const u16)
+        };
         let (tile_x, tile_y) = (i % width, i / width);
         for m in 0..MINITILES_PER_TILE * MINITILES_PER_TILE {
             let reference = unsafe {

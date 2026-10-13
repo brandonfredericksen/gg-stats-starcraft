@@ -374,7 +374,9 @@ struct TeamColorRuntime {
 /// restored, until the next input moves it.
 /// The globals [`Terrain`] is read from.
 struct TerrainValues {
-    vx4_map_tiles: Value<*mut u16>,
+    map_tiles: Value<*mut u16>,
+    creep_original_tiles: Value<*mut u16>,
+    tileset_cv5: Value<*mut u8>,
     tileset_vx4ex: Value<*mut u32>,
     minitile_graphics: Value<*mut u8>,
 }
@@ -1015,17 +1017,25 @@ impl BwScr {
             warn!("Could not find kill_unit");
         }
         let terrain = match (
-            analysis.vx4_map_tiles(),
+            analysis.tileset_indexed_map_tiles(),
+            analysis.creep_original_tiles(),
+            analysis.tileset_cv5(),
             analysis.tileset_vx4ex(),
             analysis.minitile_graphics(),
         ) {
-            (Some(vx4_map_tiles), Some(tileset_vx4ex), Some(minitile_graphics)) => {
-                Some(TerrainValues {
-                    vx4_map_tiles: Value::new(ctx, vx4_map_tiles),
-                    tileset_vx4ex: Value::new(ctx, tileset_vx4ex),
-                    minitile_graphics: Value::new(ctx, minitile_graphics),
-                })
-            }
+            (
+                Some(map_tiles),
+                Some(creep_original_tiles),
+                Some(tileset_cv5),
+                Some(tileset_vx4ex),
+                Some(minitile_graphics),
+            ) => Some(TerrainValues {
+                map_tiles: Value::new(ctx, map_tiles),
+                creep_original_tiles: Value::new(ctx, creep_original_tiles),
+                tileset_cv5: Value::new(ctx, tileset_cv5),
+                tileset_vx4ex: Value::new(ctx, tileset_vx4ex),
+                minitile_graphics: Value::new(ctx, minitile_graphics),
+            }),
             _ => {
                 warn!("Could not find the terrain globals");
                 None
@@ -3324,12 +3334,16 @@ impl BwScr {
         let values = self.terrain.as_ref()?;
         unsafe {
             let terrain = Terrain {
-                megatiles: values.vx4_map_tiles.resolve(),
+                tiles: values.map_tiles.resolve(),
+                original_tiles: values.creep_original_tiles.resolve(),
+                cv5: values.tileset_cv5.resolve(),
                 vx4ex: values.tileset_vx4ex.resolve(),
                 minitiles: values.minitile_graphics.resolve(),
                 palette: self.main_palette.resolve(),
             };
-            let found = !terrain.megatiles.is_null()
+            let found = !terrain.tiles.is_null()
+                && !terrain.original_tiles.is_null()
+                && !terrain.cv5.is_null()
                 && !terrain.vx4ex.is_null()
                 && !terrain.minitiles.is_null()
                 && !terrain.palette.is_null();
