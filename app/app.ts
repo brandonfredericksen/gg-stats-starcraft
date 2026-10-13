@@ -402,10 +402,10 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
         logger.error(`Error saving the replay path for game ${gameId}: ${getErrorStack(err)}`)
       })
     })
-    .on('gameStats', (gameId, stats, source) => {
+    .on('gameStats', (gameId, { unitPositions, ...stats }, source) => {
       TypedIpcSender.from(mainWindow?.webContents).send('activeGameStats', gameId, stats, source)
       // Showing the stats doesn't wait on saving them; if saving fails they're still shown now.
-      gameStatsStore.save(gameId, source, stats).catch(err => {
+      gameStatsStore.save(gameId, source, stats, unitPositions).catch(err => {
         logger.error(`Error saving the stats for game ${gameId}: ${getErrorStack(err)}`)
       })
     })
@@ -440,6 +440,10 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
   ipcMain.handle(
     'gameStatsGet',
     async (event, gameId) => (await gameStatsStore.get(gameId)) ?? null,
+  )
+  ipcMain.handle(
+    'gameStatsGetUnitPositions',
+    async (event, gameId) => (await gameStatsStore.getUnitPositions(gameId)) ?? null,
   )
   ipcMain.handle('gameStatsSummarizeReplays', (event, replayPaths) =>
     gameStatsStore.summarizeReplays(replayPaths),
@@ -494,6 +498,8 @@ const CONTENT_TYPES = new Map([
  * `game/src/game_icons.rs`.
  */
 const GAME_ICONS_DIR = path.join(getUserDataPath(), 'game-icons')
+/** Where the game DLL saves its pictures of maps, see `game/src/minimap.rs`. */
+const MINIMAPS_DIR = path.join(getUserDataPath(), 'minimaps')
 
 function contentTypeFor(pathname: string): string {
   return CONTENT_TYPES.get(path.posix.extname(pathname).toLowerCase()) ?? 'application/octet-stream'
@@ -515,6 +521,11 @@ function setupCspProtocol(curSession: Session) {
         const contents = await readFile(path.join(GAME_ICONS_DIR, 'cmdicons.png'))
         return new Response(new Uint8Array(contents), {
           headers: { 'content-type': 'image/png' },
+        })
+      } else if (/^\/minimaps\/[0-9a-f]{24}\.png$/.test(pathname)) {
+        const contents = await readFile(path.join(MINIMAPS_DIR, path.posix.basename(pathname)))
+        return new Response(new Uint8Array(contents), {
+          headers: { 'content-type': 'image/png', 'cache-control': 'max-age=31536000, immutable' },
         })
       } else if (pathname.match(/^\/(assets|dist)\/.+$/)) {
         const contents = await readFile(path.join(APP_ROOT, pathname))

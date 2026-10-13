@@ -1,5 +1,7 @@
 import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
+import { gunzip, gzip } from 'node:zlib'
 import { getErrorStack } from '../../common/errors'
 import { COMMAND_STATS_VERSION, ReplayCommandStats } from '../../common/games/command-stats'
 import {
@@ -48,6 +50,14 @@ const INDEX_CACHE_FILE_NAME = 'index.cache'
 const GAME_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 const SAVED_EXTENSION = '.json'
+/**
+ * Where units were over a game, kept apart from its stats since it's many times their size and
+ * only the minimap reads it.
+ */
+const UNIT_POSITIONS_EXTENSION = '.positions'
+
+const gzipAsync = promisify(gzip)
+const gunzipAsync = promisify(gunzip)
 const TEMP_EXTENSION = '.tmp'
 /** Temporary files older than this were left behind by a write that never finished. */
 const ABANDONED_TEMP_FILE_MS = 60 * 60 * 1000
@@ -230,6 +240,16 @@ export class GameStatsStore {
     return path.join(this.basePath, gameId + SAVED_EXTENSION)
   }
 
+  private getUnitPositionsPath(gameId: string) {
+    return this.getPath(gameId).slice(0, -SAVED_EXTENSION.length) + UNIT_POSITIONS_EXTENSION
+  }
+
+  /** Removes a game's saved stats and everything kept with them. */
+  private async removeSaved(gameId: string) {
+    await rm(this.getUnitPositionsPath(gameId), { force: true })
+    await rm(this.getPath(gameId), { force: true })
+  }
+
   private enqueue<T>(write: () => Promise<T>): Promise<T> {
     const result = this.writes.then(write)
     this.writes = result.catch(() => {})
@@ -372,7 +392,7 @@ export class GameStatsStore {
         const saved = await this.readSavedFile(gameId)
         if (saved === 'unusable') {
           // Nothing can read these, so they'd only take up space and be read again every time.
-          await rm(this.getPath(gameId), { force: true }).catch((err: unknown) => {
+          await this.removeSaved(gameId).catch((err: unknown) => {
             log.warning(`Couldn't remove the stats for game ${gameId}: ${getErrorStack(err)}`)
           })
         }
@@ -411,7 +431,7 @@ export class GameStatsStore {
       .slice(0, index.size - this.maxSavedGames)
     for (const [gameId] of oldest) {
       try {
-        await rm(this.getPath(gameId), { force: true })
+        await this.removeSaved(gameId)
         index.delete(gameId)
       } catch (err) {
         log.warning(`Couldn't remove the saved stats for game ${gameId}: ${getErrorStack(err)}`)
@@ -419,8 +439,24 @@ export class GameStatsStore {
     }
   }
 
-  save(gameId: string, source: GameStatsSource, stats: GameStatsPayload): Promise<SavedGameStats> {
+  /**
+   * Saves a game's stats, and where its units were if the game recorded them (`unitPositions`, in
+   * base64).
+   */
+  save(
+    gameId: string,
+    source: GameStatsSource,
+    stats: GameStatsPayload,
+    unitPositions?: string,
+  ): Promise<SavedGameStats> {
     return this.enqueue(async () => {
+      if (unitPositions) {
+        await mkdir(this.basePath, { recursive: true })
+        await writeAtomically(
+          this.getUnitPositionsPath(gameId),
+          await gzipAsync(Buffer.from(unitPositions, 'base64')),
+        )
+      }
       const replayPath = replayPathOf(source)
       const saved: SavedGameStats = {
         version: SAVED_GAME_STATS_VERSION,
@@ -505,6 +541,19 @@ export class GameStatsStore {
    * latest analysis of a replay linked to the game with this id. Stats covering the whole
    * game are preferred, like an analysis of a game the player left early.
    */
+  /** Where a game's units were, as the game encoded them, if it recorded them. */
+  async getUnitPositions(gameId: string): Promise<Uint8Array | undefined> {
+    await this.writes
+    try {
+      return await gunzipAsync(await readFile(this.getUnitPositionsPath(gameId)))
+    } catch (err) {
+      if (!isMissingFileError(err)) {
+        log.warning(`Couldn't read the unit positions for game ${gameId}: ${getErrorStack(err)}`)
+      }
+      return undefined
+    }
+  }
+
   async get(gameId: string): Promise<SavedGameStats | undefined> {
     if (!GAME_ID_PATTERN.test(gameId)) {
       return undefined
@@ -556,7 +605,7 @@ export class GameStatsStore {
           continue
         }
         try {
-          await rm(this.getPath(gameId), { force: true })
+          await this.removeSaved(gameId)
           index.delete(gameId)
           removed += 1
         } catch (err) {
@@ -656,11 +705,11 @@ export class GameStatsStore {
 }
 
 /** Writes through a temporary file so an interrupted write can't leave a broken file behind. */
-async function writeAtomically(filePath: string, contents: string) {
+async function writeAtomically(filePath: string, contents: string | Uint8Array) {
   // Unique so two writes of the same file, even from two copies of the app, can't collide.
   const tempPath = `${filePath}.${process.pid}-${Date.now()}${TEMP_EXTENSION}`
   try {
-    await writeFile(tempPath, contents, 'utf8')
+    await writeFile(tempPath, contents)
     await rename(tempPath, filePath)
   } catch (err) {
     await rm(tempPath, { force: true }).catch(() => {})

@@ -57,6 +57,29 @@ describe('app/game/game-stats-store', () => {
     expect(await readdir(dir)).toEqual(['game-1.json'])
   })
 
+  test("keeps where a game's units were apart from its stats", async () => {
+    const positions = Uint8Array.from([1, 3, 128, 1, 64])
+    await new GameStatsStore(dir).save(
+      'game-1',
+      { kind: 'game' },
+      STATS,
+      Buffer.from(positions).toString('base64'),
+    )
+
+    const store = new GameStatsStore(dir)
+    expect(await store.getUnitPositions('game-1')).toEqual(Buffer.from(positions))
+    expect((await store.get('game-1'))?.stats).toEqual(STATS)
+    expect((await readdir(dir)).toSorted()).toEqual(['game-1.json', 'game-1.positions'])
+    expect(await store.getUnitPositions('game-2')).toBeUndefined()
+  })
+
+  test('reads unit positions saved right before without waiting for the save', async () => {
+    const store = new GameStatsStore(dir)
+    const saving = store.save('game-1', { kind: 'game' }, STATS, 'AQM=')
+    expect(await store.getUnitPositions('game-1')).toEqual(Buffer.from([1, 3]))
+    await saving
+  })
+
   test('treats missing, unreadable and outdated files as no stats', async () => {
     const store = new GameStatsStore(dir)
     await writeFile(path.join(dir, 'broken.json'), '{ not json')
@@ -220,13 +243,17 @@ describe('app/game/game-stats-store', () => {
 
   test('keeps only the most recently saved games, including ones saved before a restart', async () => {
     for (const gameId of ['oldest', 'middle']) {
-      await new GameStatsStore(dir, 2).save(gameId, { kind: 'game' }, STATS)
+      await new GameStatsStore(dir, 2).save(gameId, { kind: 'game' }, STATS, 'AQM=')
       // Make sure each save gets its own timestamp.
       await new Promise(resolve => setTimeout(resolve, 2))
     }
     await new GameStatsStore(dir, 2).save('newest', { kind: 'game' }, STATS)
 
-    expect((await readdir(dir)).toSorted()).toEqual(['middle.json', 'newest.json'])
+    expect((await readdir(dir)).toSorted()).toEqual([
+      'middle.json',
+      'middle.positions',
+      'newest.json',
+    ])
   })
 
   test("adds a played game's replay once it has been saved", async () => {

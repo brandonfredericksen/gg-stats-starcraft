@@ -158,6 +158,21 @@ export interface GameStatsPayload {
    */
   complete: boolean
   players: GamePlayerStatsPayload[]
+  /**
+   * Where units were over the game, see `decodeUnitPositions`, in base64. Only in what the game
+   * reports: the app saves it apart from the stats.
+   */
+  unitPositions?: string
+  /** The id of the picture of the map the game saved, see {@link getMinimapUrl}. */
+  minimap?: string
+}
+
+/** The ids the game names its pictures of maps with. */
+const MINIMAP_ID_PATTERN = /^[0-9a-f]{24}$/
+
+/** Where the app serves a picture of a map the game saved. */
+export function getMinimapUrl(minimap: string) {
+  return `ggstats://app/minimaps/${minimap}.png`
 }
 
 /** Stats from a replay analyzed in the background. */
@@ -305,6 +320,8 @@ export interface GameStats {
   /** When each player's progress was recorded. */
   snapshotTimesMs: number[]
   players: GamePlayerStats[]
+  /** The picture of the map, missing in stats from before it was saved. */
+  minimap?: string
 }
 
 const BW_RACES: ReadonlyArray<AssignedRaceChar> = ['z', 't', 'p']
@@ -602,6 +619,10 @@ export function fromGameStatsPayload(payload: GameStatsPayload): GameStats {
     players: players
       .filter(player => player && typeof player === 'object')
       .map(player => toPlayerStats(player, frames, snapshotTimesMs, buildOrderVersion)),
+    minimap:
+      typeof payload?.minimap === 'string' && MINIMAP_ID_PATTERN.test(payload.minimap)
+        ? payload.minimap
+        : undefined,
   }
 }
 
