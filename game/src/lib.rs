@@ -58,6 +58,7 @@ mod game_icons;
 mod game_state;
 mod game_stats;
 mod game_thread;
+mod minimap;
 mod offline_cookie;
 mod recurse_checked_mutex;
 mod replay;

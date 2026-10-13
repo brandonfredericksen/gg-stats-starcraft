@@ -695,4 +695,25 @@ impl<'e> Analysis<'e> {
     pub fn sc_main(&mut self) -> Option<VirtualAddress> {
         self.0.sc_main()
     }
+
+    /// Kills a unit, with the unit as `this`.
+    pub fn kill_unit(&mut self) -> Option<VirtualAddress> {
+        self.0.kill_unit()
+    }
+
+    /// The megatile of each of the map's tiles, a u16 each, the map's width to a row.
+    pub fn vx4_map_tiles(&mut self) -> Option<Operand<'e>> {
+        self.0.vx4_map_tiles()
+    }
+
+    /// The tileset's megatiles, 16 u32 minitile references each: the minitile's index shifted
+    /// left by 1, with the low bit set when it's flipped.
+    pub fn tileset_vx4ex(&mut self) -> Option<Operand<'e>> {
+        self.0.tileset_vx4ex()
+    }
+
+    /// The tileset's minitiles (its .vr4), 8x8 palette indexes each.
+    pub fn minitile_graphics(&mut self) -> Option<Operand<'e>> {
+        self.0.minitile_graphics()
+    }
 }

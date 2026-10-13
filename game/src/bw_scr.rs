@@ -40,8 +40,9 @@ use crate::bw_scr::draw_inject::warn_once;
 use crate::bw_scr::scr::SafeBwString;
 use crate::forge::window_client_center;
 use crate::game_state::JoinedPlayer;
-use crate::game_stats::GameStatsTracker;
+use crate::game_stats::{self, GameStatsTracker};
 use crate::game_thread::{self, send_game_msg_to_async};
+use crate::minimap::Terrain;
 use crate::offline_cookie;
 use crate::recurse_checked_mutex::Mutex as RecurseCheckedMutex;
 use crate::snp;
@@ -146,6 +147,11 @@ pub struct BwScr {
     /// and hooked, so that mode drives the dots from `rgb_colors`; `None` keeps it on BW's own
     /// diplomacy dots.
     draw_minimap_units: Option<VirtualAddress>,
+    /// Hooked to see where units die. `None` if unlocated, which leaves deaths off the minimap.
+    kill_unit: Option<VirtualAddress>,
+    /// What the minimap's picture of the map is made from. `None` if any of it is unlocated,
+    /// which leaves the minimap without one.
+    terrain: Option<TerrainValues>,
     statres_icons: Value<*mut scr::DdsGrpSet>,
     cmdicons: Value<*mut scr::DdsGrpSet>,
     replay_bfix: Option<Value<*mut scr::ReplayBfix>>,
@@ -366,6 +372,13 @@ struct TeamColorRuntime {
 /// table), so the swapped-in callback keeps no resources needing teardown: it simply stops being
 /// called. The only cost of a middle-up we miss is the cursor staying at center instead of being
 /// restored, until the next input moves it.
+/// The globals [`Terrain`] is read from.
+struct TerrainValues {
+    vx4_map_tiles: Value<*mut u16>,
+    tileset_vx4ex: Value<*mut u32>,
+    minitile_graphics: Value<*mut u8>,
+}
+
 struct GrabPan {
     middle_down_handler: VirtualAddress,
     middle_up_handler: VirtualAddress,
@@ -996,6 +1009,28 @@ impl BwScr {
                 "Could not find draw_minimap_units; minimap-only team colors will use BW diplomacy dots"
             );
         }
+        // Non-fatal, like the terrain below: both only add to the minimap on the stats page.
+        let kill_unit = analysis.kill_unit();
+        if kill_unit.is_none() {
+            warn!("Could not find kill_unit");
+        }
+        let terrain = match (
+            analysis.vx4_map_tiles(),
+            analysis.tileset_vx4ex(),
+            analysis.minitile_graphics(),
+        ) {
+            (Some(vx4_map_tiles), Some(tileset_vx4ex), Some(minitile_graphics)) => {
+                Some(TerrainValues {
+                    vx4_map_tiles: Value::new(ctx, vx4_map_tiles),
+                    tileset_vx4ex: Value::new(ctx, tileset_vx4ex),
+                    minitile_graphics: Value::new(ctx, minitile_graphics),
+                })
+            }
+            _ => {
+                warn!("Could not find the terrain globals");
+                None
+            }
+        };
         let statres_icons = analysis.statres_icons().ok_or("statres_icons")?;
         let cmdicons = analysis.cmdicons().ok_or("cmdicons")?;
         let screen_x = analysis.screen_x().ok_or("screen_x")?;
@@ -1128,6 +1163,8 @@ impl BwScr {
             use_rgb_colors: Value::new(ctx, use_rgb_colors),
             minimap_color_mode: minimap_color_mode.map(|op| Value::new(ctx, op)),
             draw_minimap_units,
+            kill_unit,
+            terrain,
             statres_icons: Value::new(ctx, statres_icons),
             cmdicons: Value::new(ctx, cmdicons),
             screen_x: Value::new(ctx, screen_x),
@@ -1703,6 +1740,19 @@ impl BwScr {
                 },
                 address,
             );
+            if let Some(kill_unit) = self.kill_unit {
+                let address = kill_unit.0 as usize - base;
+                exe.hook_closure_address(
+                    KillUnit,
+                    |unit, orig| {
+                        if let Some(unit) = Unit::from_ptr(unit) {
+                            game_stats::unit_killed(unit);
+                        }
+                        orig(unit);
+                    },
+                    address,
+                );
+            }
 
             if let Some(ref patch) = self.replay_minimap_patch {
                 let address = patch.address.0 as usize - base;
@@ -3269,6 +3319,24 @@ impl BwScr {
         unsafe { self.pathing.resolve() }
     }
 
+    /// What the loaded map's terrain looks like, if it could be found.
+    pub fn terrain(&self) -> Option<Terrain> {
+        let values = self.terrain.as_ref()?;
+        unsafe {
+            let terrain = Terrain {
+                megatiles: values.vx4_map_tiles.resolve(),
+                vx4ex: values.tileset_vx4ex.resolve(),
+                minitiles: values.minitile_graphics.resolve(),
+                palette: self.main_palette.resolve(),
+            };
+            let found = !terrain.megatiles.is_null()
+                && !terrain.vx4ex.is_null()
+                && !terrain.minitiles.is_null()
+                && !terrain.palette.is_null();
+            found.then_some(terrain)
+        }
+    }
+
     pub fn rng_seed(&self) -> u32 {
         unsafe {
             // TODO(tec27): add analysis for this instead
@@ -4784,6 +4852,7 @@ mod hooks {
         ) -> usize;
         !0 => Console_HitTest(*mut scr::UiConsole, i32, i32) -> u8;
         !0 => OrderFn(*mut bw::Unit);
+        !0 => KillUnit(*mut bw::Unit);
     );
 
     #[cfg(target_arch = "x86")]

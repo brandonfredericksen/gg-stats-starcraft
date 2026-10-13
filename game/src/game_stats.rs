@@ -8,12 +8,18 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 use bw_dat::{TechId, UnitId, UpgradeId, order, tech, unit, upgrade};
 use serde::Serialize;
 
 use crate::bw::commands::{self, id};
 use crate::bw::{self, Bw, get_bw, player_name};
 use crate::game_thread::{self, GameThreadMessage, send_game_msg_to_async};
+use crate::minimap;
+
+mod positions;
+
+use positions::{MapUnits, UnitPositions};
 
 /// Indexes into `Game::scores`.
 mod score {
@@ -178,6 +184,9 @@ pub struct GameStatsTracker {
     /// through.
     list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
     scouting: Box<Scouting>,
+    positions: Box<UnitPositions>,
+    /// The id of the picture of the map saved for the minimap, if it could be made.
+    minimap: Option<String>,
     /// The frames each slot's progress was recorded on.
     snapshot_frames: Vec<u32>,
     /// Each slot's recorded progress, one per frame in `snapshot_frames` for as long as the slot
@@ -198,11 +207,15 @@ pub struct GameStatsTracker {
 /// One of the game's units, as much as larvae and scouting need.
 #[derive(Copy, Clone, Debug)]
 struct SeenUnit {
+    /// The game's unit, which stays the same for as long as the unit lives.
+    key: usize,
     slot: usize,
     id: UnitId,
     position: bw::Point,
     /// A building, finished or not, which can't scout.
     building: bool,
+    /// A building on the ground, rather than lifted off.
+    landed: bool,
     /// Finished, or a Hatchery or Lair morphing into the next, which still makes larvae.
     working: bool,
 }
@@ -612,6 +625,11 @@ pub struct GameStats {
     /// The frames each player's progress was recorded on, see `PlayerStats::timeline`.
     snapshot_frames: Vec<u32>,
     players: Vec<PlayerStats>,
+    /// Where units were over the game, see [`UnitPositions::encode`], in base64.
+    unit_positions: String,
+    /// The id of the picture of the map saved for the minimap, see [`minimap`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    minimap: Option<String>,
 }
 
 /// A player's progress over the game, with one value per frame in `GameStats::snapshot_frames` for
@@ -838,18 +856,65 @@ pub unsafe fn record_command(player: u8, command: &[u8]) {
     }
 }
 
+/// Records a unit dying, for the minimap. Runs as the game kills it, while the unit is still where
+/// it died.
+pub unsafe fn unit_killed(unit: bw_dat::Unit) {
+    // A unit already dying can be killed again, like one in a transport as it's destroyed.
+    if !is_tracking()
+        || REPORTED.load(Ordering::Relaxed)
+        || unit.is_hallucination()
+        || unit.order() == order::DIE
+    {
+        return;
+    }
+    let Some(game) = game() else {
+        return;
+    };
+    let frame = unsafe { (*game).frame_count };
+    if let Some(mut tracker) = get_bw().game_stats().lock()
+        && let Some(tracker) = tracker.as_mut()
+    {
+        // The game also kills units it takes away without them dying, like templar merging
+        // into an Archon, a Drone becoming an Extractor or a canceled building, which all still
+        // have hit points. Scourge and Infested Terrans use themselves up in an attack, and units
+        // inside a transport die with it, wherever it is.
+        let in_transport = unit.in_transport();
+        let died = unit.hitpoints() <= 0
+            || in_transport
+            || unit.id() == unit::SCOURGE
+            || unit.id() == unit::INFESTED_TERRAN;
+        let at = match unit.related() {
+            Some(transport) if in_transport => transport,
+            _ => unit,
+        };
+        tracker.positions.record_death(
+            *unit as usize,
+            usize::from(unit.player()),
+            unit.id(),
+            &at.position(),
+            frame,
+            died,
+        );
+    }
+}
+
 impl GameStatsTracker {
     unsafe fn start(game: *mut bw::Game, players: *mut bw::Player) -> GameStatsTracker {
         unsafe {
-            GameStatsTracker::new(
+            let mut tracker = GameStatsTracker::new(
                 game,
                 players,
                 game_thread::is_team_game(),
                 UnitCatalog::from_game_data(),
+                MapUnits::from_game_data(),
                 count_bases_in_game,
                 count_worker_eggs_in_game,
                 list_units_in_game,
-            )
+            );
+            if game_thread::is_replay_analysis() {
+                tracker.minimap = minimap::save(game);
+            }
+            tracker
         }
     }
 
@@ -858,6 +923,7 @@ impl GameStatsTracker {
         players: *mut bw::Player,
         is_team_game: bool,
         units: UnitCatalog,
+        map_units: MapUnits,
         count_bases: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
         count_worker_eggs: unsafe fn() -> Option<[u32; PLAYER_COUNT]>,
         list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
@@ -897,6 +963,8 @@ impl GameStatsTracker {
                 count_worker_eggs,
                 list_units,
                 scouting: Default::default(),
+                positions: Box::new(UnitPositions::new(map_units)),
+                minimap: None,
                 snapshot_frames: Vec::new(),
                 snapshots: Default::default(),
                 supply_blocked_frames: [0; PLAYER_COUNT],
@@ -996,6 +1064,7 @@ impl GameStatsTracker {
                 .is_none_or(|last| frame >= last.saturating_add(SCAN_FRAMES));
             if scan_due && let Some(units) = (self.list_units)() {
                 self.record_scan(&units, frame);
+                self.positions.record_sample(&units, frame);
             }
 
             let due = self
@@ -1174,6 +1243,29 @@ impl GameStatsTracker {
         // since.
         steps.sort_by_key(|step| step.frame);
         steps
+    }
+
+    /// Logs where the deaths seen for the minimap don't add up to what the game counted, since a
+    /// unit taken away some other way than being killed would be missed.
+    unsafe fn check_deaths(&self, game: *mut bw::Game) {
+        let seen = self.positions.deaths_by_type();
+        let counted = unsafe { &(*game).deaths };
+        let mut matched = true;
+        for (id, (seen, counted)) in seen.iter().zip(counted).enumerate() {
+            let id = UnitId(id as u16);
+            if !self.positions.is_on_map(id) {
+                continue;
+            }
+            for (slot, (&seen, &counted)) in seen.iter().zip(counted).enumerate() {
+                if seen != counted {
+                    debug!("Saw {seen} of slot {slot}'s {id:?} die, the game counted {counted}");
+                    matched = false;
+                }
+            }
+        }
+        if matched {
+            debug!("Saw every death the game counted");
+        }
     }
 
     /// Records each followed slot's progress as of `frame`, unless it already was.
@@ -1492,10 +1584,12 @@ unsafe fn list_units_in_game() -> Option<Vec<SeenUnit>> {
     let units = unsafe { get_bw().active_units() }
         .filter(|unit| !unit.is_hallucination() && usize::from(unit.player()) < PLAYER_COUNT)
         .map(|unit| SeenUnit {
+            key: *unit as usize,
             slot: usize::from(unit.player()),
             id: unit.id(),
             position: unit.position(),
             building: unit.is_landed_building() || unit.id().is_building(),
+            landed: unit.is_landed_building(),
             working: unit.is_completed_or_morphing_to_higher_tier(),
         })
         .collect();
@@ -1724,6 +1818,12 @@ unsafe fn collect() -> Option<GameStats> {
                 .filter(|&frame| frame.saturating_add(LEFT_EARLY_FRAMES) < frames);
         }
 
+        tracker.check_deaths(game);
+        let unit_positions = BASE64_STANDARD.encode(
+            tracker
+                .positions
+                .encode((*game).map_width_tiles, (*game).map_height_tiles),
+        );
         Some(GameStats {
             build_order_version: BUILD_ORDER_VERSION,
             map_name: map_name(&(*game).map_title),
@@ -1731,6 +1831,8 @@ unsafe fn collect() -> Option<GameStats> {
             complete,
             snapshot_frames: tracker.snapshot_frames.clone(),
             players: stats,
+            unit_positions,
+            minimap: tracker.minimap.clone(),
         })
     }
 }
@@ -2535,6 +2637,7 @@ mod test {
                     self.players.as_mut_ptr(),
                     is_team_game,
                     test_catalog(),
+                    positions::test_units(),
                     no_units,
                     no_units,
                     no_seen_units,
@@ -3265,10 +3368,12 @@ mod test {
     fn seen(slot: usize, id: UnitId, x: i16, y: i16) -> SeenUnit {
         let building = is_larva_maker(id) || id == unit::COMMAND_CENTER;
         SeenUnit {
+            key: 0,
             slot,
             id,
             position: point(x, y),
             building,
+            landed: building,
             working: true,
         }
     }
