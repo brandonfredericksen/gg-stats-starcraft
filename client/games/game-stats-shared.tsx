@@ -348,6 +348,12 @@ export const PickerButton = styled.button<{ $on: boolean }>`
  */
 export const CURRENT_ROW_BACKGROUND = 'rgb(from var(--theme-amber) r g b / 0.14)'
 
+/**
+ * How visible rows are that come after the moment picked, like what nobody had said yet, so the
+ * list reads as it was at that moment.
+ */
+export const FUTURE_ROW_OPACITY = 0.4
+
 /** Scrolls `list`, but not the page, to show `row` if it's out of view. */
 export function keepInView(list: HTMLElement, row: HTMLElement) {
   const top = row.offsetTop - list.offsetTop
@@ -363,3 +369,30 @@ export function findCurrentIndex(
 ) {
   return timeMs === undefined ? -1 : items.findLastIndex(item => item.timeMs <= timeMs)
 }
+
+/**
+ * A player in a legend, which picks them out to make them easier to follow, like their lines in
+ * every chart.
+ */
+export const LegendButton = styled.button<{ $dimmed: boolean }>`
+  ${buttonReset};
+  ${labelLarge};
+  height: 28px;
+  padding: 0 4px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  border-radius: var(--radius-sm);
+  color: var(--theme-on-surface);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: ${props => (props.$dimmed ? 0.45 : 1)};
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`

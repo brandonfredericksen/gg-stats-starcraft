@@ -15,6 +15,7 @@ import { gameScrubAtom } from './game-stats-scrub'
 import {
   CURRENT_ROW_BACKGROUND,
   findCurrentIndex,
+  FUTURE_ROW_OPACITY,
   keepInView,
   PlayerSwatch,
   Section,
@@ -50,9 +51,10 @@ const MessageList = styled.ol<{ $fill: boolean }>`
   list-style: none;
 `
 
-const MessageRow = styled.li<{ $current: boolean }>`
+const MessageRow = styled.li<{ $current: boolean; $future: boolean }>`
   ${bodyMedium};
   background: ${props => (props.$current ? CURRENT_ROW_BACKGROUND : 'transparent')};
+  opacity: ${props => (props.$future ? FUTURE_ROW_OPACITY : 1)};
   display: grid;
   grid-template-columns: 64px minmax(0, 200px) minmax(0, 1fr);
   column-gap: 12px;
@@ -114,12 +116,15 @@ function ChatMessageRow({
   players,
   playerColors,
   current,
+  future,
 }: {
   message: ReplayChatMessage
   players: ReadonlyArray<GamePlayerStats>
   playerColors: ReadonlyMap<number, string>
   /** Whether it's the last message said by the moment picked. */
   current: boolean
+  /** Whether it was said after the moment picked. */
+  future: boolean
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLLIElement>(null)
@@ -131,7 +136,7 @@ function ChatMessageRow({
   const player = findPlayer(players, message.name)
   const name = message.name || t('gameStats.chatUnknownSender', 'Unknown')
   return (
-    <MessageRow ref={ref} $current={current}>
+    <MessageRow ref={ref} $current={current} $future={future}>
       <Time>{getGameDurationString(message.timeMs)}</Time>
       <Sender title={name}>
         {player ? (
@@ -245,6 +250,7 @@ export function GameChat({
                   players={players}
                   playerColors={playerColors}
                   current={i === currentIndex}
+                  future={scrubMs !== undefined && message.timeMs > scrubMs}
                 />
               ))}
             </MessageList>

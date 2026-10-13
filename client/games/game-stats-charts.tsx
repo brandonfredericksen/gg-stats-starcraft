@@ -18,9 +18,8 @@ import {
   getSupplyBlockedTimeline,
   PlayerTimeline,
 } from '../../common/games/game-stats'
-import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
-import { bodyMedium, labelLarge } from '../styles/typography'
+import { bodyMedium } from '../styles/typography'
 import {
   getRatePerMinute,
   getTimelineTicks,
@@ -29,6 +28,7 @@ import {
 } from './game-stats-model'
 import { gameScrubAtom } from './game-stats-scrub'
 import {
+  LegendButton,
   Section,
   SectionErrorBoundary,
   SectionTitle,
@@ -45,30 +45,6 @@ const Header = styled.div`
 
   & > ${SectionTitle} {
     flex: 1 1 auto;
-  }
-`
-
-/** Picks out players to make their lines easier to follow in every chart. */
-const LegendItem = styled.button<{ $dimmed: boolean }>`
-  ${buttonReset};
-  ${labelLarge};
-  height: 28px;
-  padding: 0 4px;
-
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  border-radius: var(--radius-sm);
-  color: var(--theme-on-surface);
-  font-size: 13px;
-  font-weight: 600;
-  opacity: ${props => (props.$dimmed ? 0.45 : 1)};
-  cursor: pointer;
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
   }
 `
 
@@ -381,7 +357,7 @@ export function GameStatsTimelines({
       <Header>
         <SectionTitle>{t('gameStats.overTime', 'Over time')}</SectionTitle>
         {tracked.map(player => (
-          <LegendItem
+          <LegendButton
             key={player.id}
             type='button'
             aria-pressed={focused.has(player.id)}
@@ -390,7 +366,7 @@ export function GameStatsTimelines({
             <LineSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
             {player.race ? <RaceTag race={player.race} /> : null}
             {player.name}
-          </LegendItem>
+          </LegendButton>
         ))}
       </Header>
       <ChartGrid>

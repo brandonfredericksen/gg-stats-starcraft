@@ -12,6 +12,7 @@ import { gameScrubAtom } from './game-stats-scrub'
 import {
   CURRENT_ROW_BACKGROUND,
   findCurrentIndex,
+  FUTURE_ROW_OPACITY,
   keepInView,
   raceColor,
   StatsPanel,
@@ -42,7 +43,7 @@ const StepList = styled.ol`
   list-style: none;
 `
 
-const StepRow = styled.li<{ $current: boolean }>`
+const StepRow = styled.li<{ $current: boolean; $future: boolean }>`
   ${bodyMedium};
   ${stepColumns};
   height: 34px;
@@ -50,6 +51,7 @@ const StepRow = styled.li<{ $current: boolean }>`
   align-items: center;
   border-top: 1px solid var(--theme-outline-variant);
   background: ${props => (props.$current ? CURRENT_ROW_BACKGROUND : 'transparent')};
+  opacity: ${props => (props.$future ? FUTURE_ROW_OPACITY : 1)};
 `
 
 const StepNumber = styled.span`
@@ -90,11 +92,14 @@ function BuildStepRow({
   row,
   buildingColor,
   current,
+  future,
 }: {
   row: BuildOrderRow
   buildingColor: string
   /** Whether it's the step the player had reached at the moment picked. */
   current: boolean
+  /** Whether it was started after the moment picked. */
+  future: boolean
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLLIElement>(null)
@@ -108,7 +113,11 @@ function BuildStepRow({
       ? t('gameStats.buildStepCount', '{{name}} ×{{count}}', { name: row.name, count: row.count })
       : row.name
   return (
-    <StepRow ref={ref} $current={current} aria-current={current ? 'step' : undefined}>
+    <StepRow
+      ref={ref}
+      $current={current}
+      $future={future}
+      aria-current={current ? 'step' : undefined}>
       <StepNumber>{getGameDurationString(row.timeMs)}</StepNumber>
       <StepNumber>{row.supply ?? '-'}</StepNumber>
       <StepNameCell>
@@ -157,7 +166,8 @@ export function PlayerBuildOrder({
 }) {
   const { t } = useTranslation()
   const rows = player.buildOrder ? toBuildOrderRows(player.buildOrder, t) : undefined
-  const currentIndex = findCurrentIndex(rows ?? [], useAtomValue(gameScrubAtom)?.timeMs)
+  const scrubMs = useAtomValue(gameScrubAtom)?.timeMs
+  const currentIndex = findCurrentIndex(rows ?? [], scrubMs)
 
   let content: React.ReactNode
   if (!rows) {
@@ -187,6 +197,7 @@ export function PlayerBuildOrder({
             row={row}
             buildingColor={raceColor(player.race)}
             current={i === currentIndex}
+            future={scrubMs !== undefined && row.timeMs > scrubMs}
           />
         ))}
       </StepList>

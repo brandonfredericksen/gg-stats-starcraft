@@ -20,6 +20,7 @@ import { Segmented } from '../material/segmented'
 import { bodyMedium, labelMedium } from '../styles/typography'
 import { gameScrubAtom } from './game-stats-scrub'
 import {
+  LegendButton,
   Picker,
   PickerButton,
   PlayerSwatch,
@@ -33,10 +34,17 @@ import {
 const ipcRenderer = new TypedIpcRenderer()
 
 type Mode = 'playback' | 'heatmap'
-type HeatRange = 'game' | 'untilNow'
 
 const SPEEDS = [4, 8, 16] as const
 type Speed = (typeof SPEEDS)[number]
+
+/** How visible the units of players who aren't followed are, while any are. */
+const UNFOCUSED_ALPHA = 0.2
+
+/** How visible a player's units are: dimmed when others are being followed. */
+function visibility(focused: ReadonlySet<number>, player: number) {
+  return focused.size > 0 && !focused.has(player) ? UNFOCUSED_ALPHA : 1
+}
 
 /** Pixels of the map to a tile. */
 const TILE_SIZE = 32
@@ -68,15 +76,23 @@ const Header = styled.div`
   }
 `
 
-/** What's shown on the map, above it. */
+/** Who's which color, and what's shown on the map, above it. */
 const Toolbar = styled.div`
   padding: 10px 12px;
 
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
 
   border-bottom: 1px solid var(--theme-outline-variant);
+`
+
+const Legend = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
 `
 
 const MapPanel = styled(StatsPanel)`
@@ -91,12 +107,12 @@ const MapArea = styled.div<{ $aspect: number }>`
   background: var(--theme-container-lowest);
 `
 
-const MapCanvas = styled.canvas`
+const MapCanvas = styled.canvas<{ $playable: boolean }>`
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  cursor: pointer;
+  cursor: ${props => (props.$playable ? 'pointer' : 'auto')};
 `
 
 const Transport = styled.div`
@@ -214,14 +230,14 @@ interface DrawOptions {
   positions: UnitPositions
   mapImage?: HTMLImageElement
   colors: ReadonlyMap<number, [number, number, number]>
-  shownPlayers: ReadonlySet<number>
+  /** Players picked out to follow, or none to show everyone the same. */
+  focused: ReadonlySet<number>
   mode: Mode
   timeMs: number
   showWorkers: boolean
   showBuildings: boolean
   showSupport: boolean
   showDeaths: boolean
-  heatRange: HeatRange
 }
 
 const backdrops = new WeakMap<HTMLImageElement, Map<string, HTMLCanvasElement>>()
@@ -276,7 +292,7 @@ function drawUnits(
   scale: number,
   dot: number,
 ) {
-  const { positions, colors, shownPlayers, timeMs } = options
+  const { positions, colors, focused, timeMs } = options
   const frame = timeMs / FASTEST_MS_PER_FRAME
 
   if (options.showBuildings) {
@@ -285,9 +301,10 @@ function drawUnits(
       const standing =
         building.startFrame <= frame &&
         (building.endFrame === undefined || frame < building.endFrame)
-      if (!color || !standing || !shownPlayers.has(building.player)) {
+      if (!color || !standing) {
         continue
       }
+      context.globalAlpha = visibility(focused, building.player)
       const w = building.width * TILE_SIZE * scale
       const h = building.height * TILE_SIZE * scale
       context.fillStyle = rgba(color, 0.5)
@@ -310,7 +327,7 @@ function drawUnits(
       }
       for (const track of positions.tracks) {
         const color = colors.get(track.player)
-        if (track.kind !== kind || !color || !shownPlayers.has(track.player)) {
+        if (track.kind !== kind || !color) {
           continue
         }
         const at = trackPosition(track, scan, fraction)
@@ -319,6 +336,7 @@ function drawUnits(
         }
         const x = at[0] * scale
         const y = at[1] * scale
+        context.globalAlpha = visibility(focused, track.player)
         context.beginPath()
         if (kind === MapUnitKind.Worker) {
           context.fillStyle = rgba(color, 0.7)
@@ -355,19 +373,21 @@ function drawUnits(
   for (const death of positions.deaths) {
     const age = frame - death.frame
     const color = colors.get(death.player)
-    if (age < 0 || age > markFrames || !color || !shownPlayers.has(death.player)) {
+    if (age < 0 || age > markFrames || !color) {
       continue
     }
     if (death.kind === MapUnitKind.Worker && !options.showWorkers) {
       continue
     }
     const progress = age / markFrames
+    context.globalAlpha = visibility(focused, death.player)
     context.beginPath()
     context.strokeStyle = rgba(color, (1 - progress) * 0.9)
     context.lineWidth = dot * 1.2
     context.arc(death.x * scale, death.y * scale, dot * (2 + progress * 7), 0, Math.PI * 2)
     context.stroke()
   }
+  context.globalAlpha = 1
 }
 
 function drawHeat(
@@ -376,19 +396,16 @@ function drawHeat(
   scale: number,
   dot: number,
 ) {
-  const { positions, colors, shownPlayers } = options
+  const { positions, colors, focused } = options
+  // Only the players being followed, if any are, since dimmed heat would only muddy theirs.
+  const shown = (player: number) => focused.size === 0 || focused.has(player)
   const { mapWidth, mapHeight } = positions
-  const untilFrame =
-    options.heatRange === 'untilNow' ? options.timeMs / FASTEST_MS_PER_FRAME : Infinity
-  const [lastScan] =
-    untilFrame === Infinity
-      ? [positions.scanFrames.length - 1]
-      : findScan(positions.scanFrames, untilFrame)
+  const lastScan = positions.scanFrames.length - 1
 
   // Army supply on each tile, added up over every scan: where each army spent its time.
   const heat = new Map<number, Float32Array>()
   for (const track of positions.tracks) {
-    if (track.kind !== MapUnitKind.Army || !shownPlayers.has(track.player)) {
+    if (track.kind !== MapUnitKind.Army || !shown(track.player)) {
       continue
     }
     let grid = heat.get(track.player)
@@ -442,7 +459,7 @@ function drawHeat(
     context.lineWidth = dot * 1.1
     for (const death of positions.deaths) {
       const color = colors.get(death.player)
-      if (death.frame > untilFrame || !color || !shownPlayers.has(death.player)) {
+      if (!color || !shown(death.player)) {
         continue
       }
       const x = death.x * scale
@@ -527,11 +544,10 @@ export function GameMinimap({
   const mapImage = useMapImage(minimap)
   const [scrub, setScrub] = useAtom(gameScrubAtom)
   const [mode, setMode] = useState<Mode>('playback')
-  const [heatRange, setHeatRange] = useState<HeatRange>('game')
   const [speed, setSpeed] = useState<Speed>(8)
   const [playing, setPlaying] = useState(false)
   const [timeMs, setTimeMs] = useState(0)
-  const [hidden, setHidden] = useState<ReadonlySet<number>>(() => new Set())
+  const [focused, setFocused] = useState<ReadonlySet<number>>(() => new Set())
   const [showWorkers, setShowWorkers] = useState(true)
   const [showBuildings, setShowBuildings] = useState(true)
   const [showSupport, setShowSupport] = useState(true)
@@ -612,16 +628,15 @@ export function GameMinimap({
     }
     drawMap(context, {
       positions,
+      focused,
       mapImage,
       colors,
-      shownPlayers: new Set(players.map(p => p.id).filter(id => !hidden.has(id))),
       mode,
       timeMs,
       showWorkers,
       showBuildings,
       showSupport,
       showDeaths,
-      heatRange,
     })
   })
 
@@ -679,8 +694,8 @@ export function GameMinimap({
       setPlaying(true)
     }
   }
-  const togglePlayer = (playerId: number) => {
-    setHidden(current => {
+  const toggleFocus = (playerId: number) => {
+    setFocused(current => {
       const next = new Set(current)
       if (!next.delete(playerId)) {
         next.add(playerId)
@@ -736,20 +751,20 @@ export function GameMinimap({
       <SectionErrorBoundary>
         <MapPanel>
           <Toolbar>
-            <Picker role='group' aria-label={t('gameStats.shownPlayers', 'Players shown')}>
+            <Legend role='group' aria-label={t('gameStats.minimapLegend', 'Players to follow')}>
               {players.map(player => (
-                <PickerButton
+                <LegendButton
                   key={player.id}
                   type='button'
-                  $on={!hidden.has(player.id)}
-                  aria-pressed={!hidden.has(player.id)}
-                  onClick={() => togglePlayer(player.id)}>
+                  aria-pressed={focused.has(player.id)}
+                  $dimmed={focused.size > 0 && !focused.has(player.id)}
+                  onClick={() => toggleFocus(player.id)}>
                   <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
                   {player.race ? <RaceTag race={player.race} /> : null}
                   {player.name}
-                </PickerButton>
+                </LegendButton>
               ))}
-            </Picker>
+            </Legend>
             <Picker role='group' aria-label={t('gameStats.minimapLayers', 'Shown on the map')}>
               {layers.map(layer => (
                 <PickerButton
@@ -762,22 +777,6 @@ export function GameMinimap({
                 </PickerButton>
               ))}
             </Picker>
-            {mode === 'heatmap' ? (
-              <Segmented
-                label={t('gameStats.minimapHeatRange', 'Heatmap covers')}
-                options={[
-                  { value: 'game' as const, label: t('gameStats.minimapWholeGame', 'Whole game') },
-                  {
-                    value: 'untilNow' as const,
-                    label: t('gameStats.minimapUntilNow', 'Until {{time}}', {
-                      time: getGameDurationString(timeMs),
-                    }),
-                  },
-                ]}
-                value={heatRange}
-                onChange={setHeatRange}
-              />
-            ) : null}
           </Toolbar>
           <MapArea $aspect={positions.mapWidth / positions.mapHeight}>
             <MapCanvas
@@ -786,39 +785,42 @@ export function GameMinimap({
               aria-label={t('gameStats.minimapImage', 'The game on its minimap at {{time}}', {
                 time: getGameDurationString(timeMs),
               })}
-              onClick={togglePlaying}
+              onClick={mode === 'playback' ? togglePlaying : undefined}
+              $playable={mode === 'playback'}
             />
           </MapArea>
-          <Transport>
-            <IconButton
-              icon={<MaterialIcon icon={playing ? 'pause' : 'play_arrow'} />}
-              title={playing ? t('gameStats.pause', 'Pause') : t('gameStats.play', 'Play')}
-              onClick={togglePlaying}
-            />
-            <Time>{getGameDurationString(timeMs)}</Time>
-            <Scrubber
-              type='range'
-              min={0}
-              max={durationMs}
-              step={FASTEST_MS_PER_FRAME}
-              value={timeMs}
-              aria-label={t('gameStats.minimapTime', 'Time in the game')}
-              onChange={event => seek(Number(event.target.value))}
-              // Wherever a drag ends is followed right away.
-              onPointerUp={() => follow(timeMs, true)}
-              onKeyUp={() => follow(timeMs, true)}
-            />
-            <Time>{getGameDurationString(durationMs)}</Time>
-            <Segmented
-              label={t('gameStats.playbackSpeed', 'Playback speed')}
-              options={SPEEDS.map(value => ({
-                value,
-                label: t('gameStats.playbackSpeedValue', '{{speed}}x', { speed: value }),
-              }))}
-              value={speed}
-              onChange={setSpeed}
-            />
-          </Transport>
+          {mode === 'playback' ? (
+            <Transport>
+              <IconButton
+                icon={<MaterialIcon icon={playing ? 'pause' : 'play_arrow'} />}
+                title={playing ? t('gameStats.pause', 'Pause') : t('gameStats.play', 'Play')}
+                onClick={togglePlaying}
+              />
+              <Time>{getGameDurationString(timeMs)}</Time>
+              <Scrubber
+                type='range'
+                min={0}
+                max={durationMs}
+                step={FASTEST_MS_PER_FRAME}
+                value={timeMs}
+                aria-label={t('gameStats.minimapTime', 'Time in the game')}
+                onChange={event => seek(Number(event.target.value))}
+                // Wherever a drag ends is followed right away.
+                onPointerUp={() => follow(timeMs, true)}
+                onKeyUp={() => follow(timeMs, true)}
+              />
+              <Time>{getGameDurationString(durationMs)}</Time>
+              <Segmented
+                label={t('gameStats.playbackSpeed', 'Playback speed')}
+                options={SPEEDS.map(value => ({
+                  value,
+                  label: t('gameStats.playbackSpeedValue', '{{speed}}x', { speed: value }),
+                }))}
+                value={speed}
+                onChange={setSpeed}
+              />
+            </Transport>
+          ) : null}
         </MapPanel>
       </SectionErrorBoundary>
       <SectionNote>
