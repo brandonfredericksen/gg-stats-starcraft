@@ -25,9 +25,10 @@ const MINITILES_PER_TILE: usize = 4;
 const MEGATILE_MASK: u16 = 0x7fff;
 /// Pixels of the map to each pixel of the picture.
 const PIXELS_PER_POINT: i32 = 32 / MINITILES_PER_TILE as i32;
-/// The colors mineral fields and geysers are drawn in, close to the game's own minimap.
+/// The colors mineral fields and geysers are drawn in: blues, which no player's color on the stats
+/// page is, so nobody's units can be taken for them.
 const MINERALS_COLOR: Rgb<u8> = Rgb([92, 164, 252]);
-const GEYSER_COLOR: Rgb<u8> = Rgb([64, 196, 112]);
+const GEYSER_COLOR: Rgb<u8> = Rgb([150, 150, 236]);
 /// The largest map, in tiles.
 const MAX_MAP_SIZE: usize = 256;
 
