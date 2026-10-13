@@ -469,11 +469,7 @@ function drawHeat(
     }
   }
 
-  const hot = Array.from(heat.values(), grid => Array.from(grid).filter(v => v > 0))
-    .flat()
-    .sort((a, b) => a - b)
-  const scaleTo = hot[Math.floor((hot.length - 1) * HEAT_SCALE_PERCENTILE)] ?? 0
-  if (scaleTo > 0) {
+  if (heat.size > 0) {
     const layer = document.createElement('canvas')
     layer.width = mapWidth
     layer.height = mapHeight
@@ -482,6 +478,13 @@ function drawHeat(
     context.imageSmoothingEnabled = true
     context.filter = `blur(${Math.max(2, dot * 5)}px)`
     for (const [player, grid] of heat) {
+      // Each player is scaled to their own heat, so how bright one army looks never depends on
+      // which other players are shown beside it.
+      const hot = grid.filter(v => v > 0).sort()
+      const scaleTo = hot[Math.floor((hot.length - 1) * HEAT_SCALE_PERCENTILE)] ?? 0
+      if (scaleTo <= 0) {
+        continue
+      }
       const [r, g, b] = colors.get(player) ?? [255, 255, 255]
       for (let i = 0; i < grid.length; i++) {
         // The square root keeps where an army only passed through visible next to where it sat.
