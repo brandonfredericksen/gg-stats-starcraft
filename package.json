@@ -1,6 +1,6 @@
 {
   "name": "gg-stats",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "private": true,
   "description": "Post game stats for StarCraft, from your replays.",
   "keywords": [
