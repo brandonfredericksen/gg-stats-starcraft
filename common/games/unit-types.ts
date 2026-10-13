@@ -299,3 +299,55 @@ const ARMY_UNIT_SUPPLY: Partial<Record<number, number>> = {
 export function getUnitSupply(unitId: number): number {
   return ARMY_UNIT_SUPPLY[unitId] ?? 1
 }
+
+/**
+ * How long each unit takes to make, in game frames, by unit id: from when it starts being trained,
+ * hatched or morphed until it's done. Units missing from here, like heroes, can't be made.
+ */
+const UNIT_BUILD_FRAMES: Partial<Record<number, number>> = {
+  0: 360, // Marine
+  1: 750, // Ghost
+  2: 450, // Vulture
+  3: 600, // Goliath
+  5: 750, // Siege Tank
+  7: 300, // SCV
+  8: 900, // Wraith
+  9: 1200, // Science Vessel
+  11: 750, // Dropship
+  12: 1500, // Battlecruiser
+  30: 750, // Siege Tank, sieged
+  32: 360, // Firebat
+  34: 450, // Medic
+  37: 420, // Zergling
+  38: 420, // Hydralisk
+  39: 600, // Ultralisk
+  41: 300, // Drone
+  43: 600, // Mutalisk
+  44: 600, // Guardian
+  45: 750, // Queen
+  46: 750, // Defiler
+  47: 450, // Scourge
+  50: 600, // Infested Terran
+  58: 750, // Valkyrie
+  60: 600, // Corsair
+  61: 750, // Dark Templar
+  62: 600, // Devourer
+  63: 300, // Dark Archon
+  64: 300, // Probe
+  65: 600, // Zealot
+  66: 600, // Dragoon
+  67: 750, // High Templar
+  68: 300, // Archon
+  69: 900, // Shuttle
+  70: 1200, // Scout
+  71: 2400, // Arbiter
+  72: 1800, // Carrier
+  83: 1050, // Reaver
+  84: 600, // Observer
+  103: 600, // Lurker
+}
+
+/** How many game frames a unit takes to make, or undefined if it can't be made. */
+export function getUnitBuildFrames(unitId: number): number | undefined {
+  return UNIT_BUILD_FRAMES[unitId]
+}

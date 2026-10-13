@@ -35,6 +35,7 @@ const FillingPanel = styled(StatsPanel)<{ $fill: boolean }>`
   ${props =>
     props.$fill
       ? `
+        flex: 1 1 0;
         min-height: 240px;
         contain: size;
       `

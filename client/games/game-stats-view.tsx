@@ -13,6 +13,7 @@ import { GameChat } from './game-stats-chat'
 import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { GameOtherStats } from './game-stats-other'
+import { GameProduction } from './game-stats-production'
 import { Scoreboard } from './game-stats-scoreboard'
 import {
   getPlayerColors,
@@ -55,6 +56,24 @@ const MapAndChat = styled.div`
 
   @media (max-width: 960px) {
     grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+/** The production box above the chat, which takes the height the minimap leaves it. */
+const ChatColumn = styled.div`
+  && {
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: auto minmax(0, 1fr);
+    row-gap: 20px;
+  }
+
+  /* Undoes the header row rule above, which is for the sections themselves. */
+  && > :first-child {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
 `
 
@@ -212,9 +231,18 @@ export function GameStatsView({
           playerColors={playerColors}
           onAnalyzeAgain={onAnalyzeAgain}
         />
-        {replayPath ? (
-          <GameChat replayPath={replayPath} players={players} playerColors={playerColors} fill />
-        ) : null}
+        <ChatColumn>
+          <SectionErrorBoundary>
+            <GameProduction
+              players={sides.flatMap(side => side.players)}
+              playerColors={playerColors}
+              snapshotTimesMs={stats.snapshotTimesMs}
+            />
+          </SectionErrorBoundary>
+          {replayPath ? (
+            <GameChat replayPath={replayPath} players={players} playerColors={playerColors} fill />
+          ) : null}
+        </ChatColumn>
       </MapAndChat>
 
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />

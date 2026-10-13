@@ -191,7 +191,7 @@ export function getTimelineTicks(endMs: number, maxTicks = 5): number[] {
 }
 
 /** Upgrades below this id have levels, like armor and weapons, so their level is shown. */
-const LEVELED_UPGRADES_END = 16
+export const LEVELED_UPGRADES_END = 16
 
 export interface BuildOrderRow {
   timeMs: number
