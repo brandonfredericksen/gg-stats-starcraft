@@ -73,6 +73,20 @@ describe('app/game/game-stats-store', () => {
     expect(await store.getUnitPositions('game-2')).toBeUndefined()
   })
 
+  test("lists each map's newest picture, matching names however they're written", async () => {
+    const store = new GameStatsStore(dir)
+    await store.save('old', { kind: 'game' }, { ...STATS, minimap: 'a'.repeat(24) })
+    await new Promise(resolve => setTimeout(resolve, 2))
+    await store.save(
+      'new',
+      { kind: 'game' },
+      { ...STATS, mapName: ' FIGHTING Spirit', minimap: 'b'.repeat(24) },
+    )
+    await store.save('none', { kind: 'game' }, { ...STATS, mapName: 'Python' })
+
+    expect(await store.listMinimapsByMap()).toEqual({ 'fighting spirit': 'b'.repeat(24) })
+  })
+
   test('reads unit positions saved right before without waiting for the save', async () => {
     const store = new GameStatsStore(dir)
     const saving = store.save('game-1', { kind: 'game' }, STATS, 'AQM=')

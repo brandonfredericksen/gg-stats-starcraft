@@ -158,6 +158,8 @@ interface IpcInvokeables {
   gameStatsGet: (gameId: string) => Promise<SavedGameStats | null>
   /** Where a game's units were, see `decodeUnitPositions`, or null if it has none saved. */
   gameStatsGetUnitPositions: (gameId: string) => Promise<Uint8Array | null>
+  /** The newest picture the game saved of each map, by `getMapKey`. */
+  gameStatsMinimapsByMap: () => Promise<Record<string, string>>
   /**
    * Returns the most recently saved stats for a replay file, or null if that file hasn't been
    * analyzed before (or has changed since).

@@ -52,6 +52,14 @@ export const TILESET_PLACEHOLDER_COLORS: Readonly<Record<TilesetId, string>> = {
 }
 
 /**
+ * What a map is told apart by when matching its games: its name, without color codes, case or the
+ * spaces around it, since replays and the game spell it a little differently.
+ */
+export function getMapKey(mapName: string): string {
+  return filterColorCodes(mapName).trim().toLowerCase()
+}
+
+/**
  * Filters out unprintable characters used for color codes in BW (we don't utilize these in our
  * client, and they just show up as tofu).
  */

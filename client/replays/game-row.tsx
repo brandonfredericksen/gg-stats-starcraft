@@ -5,8 +5,9 @@ import { withAssumedResults } from '../../common/games/assumed-results'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { FASTEST_MS_PER_FRAME } from '../../common/games/game-stats'
 import { isMyPlayerName } from '../../common/games/player-names'
-import { filterColorCodes, TilesetId } from '../../common/maps'
+import { filterColorCodes } from '../../common/maps'
 import { ReplayLibraryEntry } from '../../common/replays-library'
+import { MapArt, useMapArt } from '../games/map-art'
 import { ReplayStatsStatus, useReplayStatsStatus } from '../games/replay-stats-status'
 import { useFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
@@ -133,7 +134,7 @@ const Lines = styled.div`
   gap: 2px;
 `
 
-const MapAndTime = styled.div<{ $tileset?: TilesetId }>`
+const MapAndTime = styled.div<{ $art?: MapArt }>`
   position: relative;
   min-width: 0;
   /* As tall as the row, so the art below reaches its edges however tall the players make it. */
@@ -143,19 +144,19 @@ const MapAndTime = styled.div<{ $tileset?: TilesetId }>`
   justify-content: center;
 
   /*
-   * A faint piece of the map's terrain behind the map name, out to the row's edges above and
-   * below, fading out toward the players.
+   * A faint picture of the map behind its name, out to the row's edges above and below, fading
+   * out toward the players: the map itself, scaled to cover, or a piece of its tileset's terrain.
    */
   ${props =>
-    props.$tileset
+    props.$art
       ? css`
           &::before {
             content: '';
             position: absolute;
             inset: -13px -9px -12px -40px;
             z-index: -1;
-            background: url('ggstats://app/assets/minimaps/${props.$tileset}.webp') var(--art-x)
-              var(--art-y) / 560px;
+            background: url('${props.$art.url}')
+              ${props.$art.isMap ? 'center / cover' : 'var(--art-x) var(--art-y) / 560px'};
             opacity: 0.28;
             mask-image: linear-gradient(to right, transparent, black 40%, black 70%, transparent);
           }
@@ -203,7 +204,7 @@ const ErrorLine = styled.div`
 `
 
 /**
- * Where a row's terrain art is cut from, so rows of the same tileset don't all show the same patch.
+ * Where a row's tileset art is cut from, so rows of the same tileset don't all show the same patch.
  * Steady for a replay, from its id.
  */
 function getArtPosition(id: number): React.CSSProperties {
@@ -280,6 +281,7 @@ export function GameRow({
   const { t } = useTranslation()
   const locale = useFormatLocale()
   const status = useReplayStatsStatus(entry.path)
+  const art = useMapArt(entry.mapName, entry.tileset)
 
   // The stats button opens stats the game already has, and otherwise queues an analysis so the
   // library stays put. A click on the row itself always opens the game.
@@ -418,7 +420,7 @@ export function GameRow({
             />
           ))}
         </Lines>
-        <MapAndTime $tileset={entry.tileset} style={getArtPosition(entry.id)}>
+        <MapAndTime $art={art} style={art?.isMap ? undefined : getArtPosition(entry.id)}>
           <MapName title={filterColorCodes(entry.mapName)}>
             {filterColorCodes(entry.mapName)}
           </MapName>

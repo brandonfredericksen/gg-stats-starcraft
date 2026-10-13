@@ -445,6 +445,7 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
     'gameStatsGetUnitPositions',
     async (event, gameId) => (await gameStatsStore.getUnitPositions(gameId)) ?? null,
   )
+  ipcMain.handle('gameStatsMinimapsByMap', () => gameStatsStore.listMinimapsByMap())
   ipcMain.handle('gameStatsSummarizeReplays', (event, replayPaths) =>
     gameStatsStore.summarizeReplays(replayPaths),
   )

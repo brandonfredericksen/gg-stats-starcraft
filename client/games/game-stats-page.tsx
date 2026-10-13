@@ -7,7 +7,12 @@ import { assertUnreachable } from '../../common/assert-unreachable'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { withAssumedResults } from '../../common/games/assumed-results'
 import { getGameDurationString } from '../../common/games/game-duration'
-import { GameStats, GameStatsSource, ReplayStatsSource } from '../../common/games/game-stats'
+import {
+  GameStats,
+  GameStatsSource,
+  getMinimapUrl,
+  ReplayStatsSource,
+} from '../../common/games/game-stats'
 import { GameStatusString } from '../../common/games/game-status'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { TilesetId } from '../../common/maps'
@@ -34,6 +39,7 @@ import {
 } from './game-stats-atoms'
 import { getMatchup, groupSides, Side } from './game-stats-model'
 import { GameStatsView } from './game-stats-view'
+import { MapArt, useMapArt } from './map-art'
 import { useMyPlayerNames } from './my-player-names'
 
 const ipcRenderer = new TypedIpcRenderer()
@@ -414,14 +420,14 @@ const Header = styled.div`
  * A faint stretch of the map's terrain across the top of the page, behind the title, fading out
  * before what's under it.
  */
-const MapArt = styled.div<{ $tileset: TilesetId }>`
+const MapArtBackdrop = styled.div<{ $art: MapArt }>`
   position: absolute;
   inset: -22px -32px -24px;
   z-index: -1;
   pointer-events: none;
 
-  background: url('ggstats://app/assets/minimaps/${props => props.$tileset}.webp') center 40% /
-    720px;
+  background: url('${props => props.$art.url}')
+    ${props => (props.$art.isMap ? 'center 40% / cover' : 'center 40% / 720px')};
   opacity: 0.2;
   mask-image:
     linear-gradient(to bottom, black 30%, transparent),
@@ -583,6 +589,9 @@ function StatsHeader({
   const myNames = useMyPlayerNames()
   const replay = useAnalyzableReplay(gameId, source)
   const sides = groupSides(withAssumedResults(stats.players, stats.complete, myNames))
+  const mapArt = useMapArt(stats.mapName, tileset)
+  // The game's own picture of the map, in case another version of the map has the same name.
+  const art = stats.minimap ? { url: getMinimapUrl(stats.minimap), isMap: true } : mapArt
   const mapName =
     stats.mapName ||
     (source.kind === 'replay' ? source.name : t('gameStats.unknownMap', 'Unknown map'))
@@ -604,7 +613,7 @@ function StatsHeader({
 
   return (
     <Header>
-      {tileset ? <MapArt $tileset={tileset} aria-hidden={true} /> : null}
+      {art ? <MapArtBackdrop $art={art} aria-hidden={true} /> : null}
       <PageNav
         crumbs={[
           { label: t('gameStats.libraryCrumb', 'Library'), href: '/replays' },

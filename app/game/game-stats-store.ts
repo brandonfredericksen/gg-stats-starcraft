@@ -19,6 +19,7 @@ import {
   GAME_METRICS_VERSION,
   GameMetrics,
 } from '../../common/games/player-metrics'
+import { getMapKey } from '../../common/maps'
 import log from '../logger'
 
 /**
@@ -28,7 +29,7 @@ import log from '../logger'
 const MAX_SAVED_GAMES = 5000
 
 /** The version of what an index entry holds, apart from the saved stats and metrics it's built from. */
-const INDEX_ENTRY_VERSION = 3
+const INDEX_ENTRY_VERSION = 4
 /**
  * The version of the index cache. Changes with what an index entry holds, so a cache from an older
  * version is built again from the saved files instead of being misread. That includes the command
@@ -85,6 +86,10 @@ interface IndexEntry {
   savedFile: ReplayFileInfo
   summary: GameStatsSummary
   metrics: GameMetrics
+  /** See {@link getMapKey}. */
+  mapKey: string
+  /** The picture of the map the game saved, if it did. */
+  minimap?: string
 }
 
 /** The index as it's kept on disk, so it doesn't have to be built from every saved file each start. */
@@ -182,6 +187,8 @@ async function toIndexEntry(saved: SavedGameStats, savedFile: ReplayFileInfo): P
     replayFile: saved.replayFile,
     savedFile,
     summary: summarizeGameStats(saved.gameId, stats),
+    mapKey: getMapKey(stats.mapName),
+    minimap: stats.minimap,
     metrics: computeGameMetrics(
       saved.gameId,
       stats,
@@ -541,6 +548,22 @@ export class GameStatsStore {
    * latest analysis of a replay linked to the game with this id. Stats covering the whole
    * game are preferred, like an analysis of a game the player left early.
    */
+  /**
+   * The picture of each map a game has been saved with one for, the newest for each, by
+   * {@link getMapKey}.
+   */
+  async listMinimapsByMap(): Promise<Record<string, string>> {
+    await this.writes
+    const newest = new Map<string, { savedAt: number; minimap: string }>()
+    for (const { mapKey, minimap, savedAt } of (await this.getIndex()).values()) {
+      const current = newest.get(mapKey)
+      if (minimap && mapKey && (!current || current.savedAt < savedAt)) {
+        newest.set(mapKey, { savedAt, minimap })
+      }
+    }
+    return Object.fromEntries(Array.from(newest, ([mapKey, { minimap }]) => [mapKey, minimap]))
+  }
+
   /** Where a game's units were, as the game encoded them, if it recorded them. */
   async getUnitPositions(gameId: string): Promise<Uint8Array | undefined> {
     await this.writes
