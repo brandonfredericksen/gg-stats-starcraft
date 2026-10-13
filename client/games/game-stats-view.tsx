@@ -10,8 +10,8 @@ import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat } from './game-stats-chat'
-import { GameHotkeys } from './game-stats-hotkeys'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
+import { GameOtherStats } from './game-stats-other'
 import { Scoreboard } from './game-stats-scoreboard'
 import {
   getPlayerColors,
@@ -172,15 +172,13 @@ export function GameStatsView({
 
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
 
-      {replayPath ? (
-        <GameHotkeys
-          replayPath={replayPath}
-          // In the order of the teams, since there's no score to rank them by here.
-          players={sides.flatMap(side => side.players)}
-          teamsByPlayer={teamsByPlayer}
-          durationMs={stats.durationMs}
-        />
-      ) : null}
+      <GameOtherStats
+        replayPath={replayPath}
+        // In the order of the teams, since there's no score to rank them by here.
+        players={sides.flatMap(side => side.players)}
+        teamsByPlayer={teamsByPlayer}
+        durationMs={stats.durationMs}
+      />
 
       {replayPath ? (
         <GameChat replayPath={replayPath} players={players} playerColors={playerColors} />
