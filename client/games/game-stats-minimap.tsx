@@ -297,6 +297,13 @@ function getBackdrop(image: HTMLImageElement, filter: string, width: number, hei
   return backdrop
 }
 
+/**
+ * The colors mineral fields and geysers are drawn in: blues, which no player's color is, so
+ * nobody's units can be taken for them.
+ */
+const MINERALS_COLOR = 'rgba(92, 164, 252, 0.75)'
+const GEYSER_COLOR = 'rgba(150, 150, 236, 0.75)'
+
 function drawMap(context: CanvasRenderingContext2D, options: DrawOptions) {
   const { positions, mapImage, mode } = options
   const { width, height } = context.canvas
@@ -307,6 +314,12 @@ function drawMap(context: CanvasRenderingContext2D, options: DrawOptions) {
   }
   // Canvas pixels to each pixel of the map.
   const scale = width / (positions.mapWidth * TILE_SIZE)
+  for (const resource of positions.resources) {
+    const w = resource.width * TILE_SIZE * scale
+    const h = resource.height * TILE_SIZE * scale
+    context.fillStyle = resource.geyser ? GEYSER_COLOR : MINERALS_COLOR
+    context.fillRect(resource.x * scale - w / 2, resource.y * scale - h / 2, w, h)
+  }
   // Dots are sized for the screen rather than the map, so they read the same on any map.
   const dot = Math.max(1, width / 520)
   if (mode === 'heatmap') {

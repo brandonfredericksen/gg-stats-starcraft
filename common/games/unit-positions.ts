@@ -1,6 +1,7 @@
 /**
  * Where each player's units were over a game, as the game DLL records them for the minimap: a
- * position for every unit each scan, where each building stood, and where units died. See
+ * position for every unit each scan, where each building stood, where units died, and where the
+ * mineral fields and geysers were when it started. See
  * `UnitPositions::encode` in `game/src/game_stats/positions.rs` for the format.
  */
 
@@ -56,6 +57,17 @@ export interface MapDeath {
   y: number
 }
 
+/** A mineral field or geyser, as the game started. */
+export interface MapResource {
+  geyser: boolean
+  /** The center, in pixels. */
+  x: number
+  y: number
+  /** The ground it covers, in tiles. */
+  width: number
+  height: number
+}
+
 export interface UnitPositions {
   /** The map's size, in tiles. */
   mapWidth: number
@@ -65,6 +77,7 @@ export interface UnitPositions {
   tracks: UnitTrack[]
   buildings: MapBuilding[]
   deaths: MapDeath[]
+  resources: MapResource[]
 }
 
 const ENCODING_VERSION = 1
@@ -188,8 +201,18 @@ export function decodeUnitPositions(bytes: Uint8Array): UnitPositions {
     deaths.push({ frame, player, unitId, kind, x, y })
   }
 
+  const resources: MapResource[] = []
+  for (let count = r.varint(); count > 0; count--) {
+    const geyser = r.byte() === 1
+    const x = r.varint() * scale
+    const y = r.varint() * scale
+    const width = r.byte()
+    const height = r.byte()
+    resources.push({ geyser, x, y, width, height })
+  }
+
   if (!r.done) {
     throw new Error('Unit positions have more after their end')
   }
-  return { mapWidth, mapHeight, scanFrames, tracks, buildings, deaths }
+  return { mapWidth, mapHeight, scanFrames, tracks, buildings, deaths, resources }
 }

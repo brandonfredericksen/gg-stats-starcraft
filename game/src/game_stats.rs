@@ -914,6 +914,11 @@ impl GameStatsTracker {
             if game_thread::is_replay_analysis() {
                 tracker.minimap = minimap::save(game);
             }
+            for unit in get_bw().active_units() {
+                tracker
+                    .positions
+                    .record_resource(unit.id(), &unit.position());
+            }
             tracker
         }
     }

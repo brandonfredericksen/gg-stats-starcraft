@@ -1,36 +1,30 @@
 //! Saves a picture of the map being played, for the minimap on the game's stats page.
 //!
 //! It's made from the terrain the game has loaded: each tile as the map made it, before any creep
-//! covered it, the tile's megatile, the megatile's 16 minitiles, and the palette. Each minitile becomes one pixel, the average of its colors, so a
-//! 128 by 128 map makes a 512 by 512 picture. Mineral fields and geysers are drawn over it as
-//! they stand when the game starts. Each map is saved once, as `minimaps/<id>.png`, named
-//! for a hash of the picture, so two versions of a map with the same name don't share one.
+//! covered it, the tile's megatile, the megatile's 16 minitiles, and the palette. Each minitile
+//! becomes one pixel, the average of its colors, so a 128 by 128 map makes a 512 by 512 picture.
+//! It's only the terrain: the stats page draws mineral fields and geysers over it where it wants
+//! them, and shows it bare behind a map's name elsewhere. Each map is saved once, as
+//! `minimaps/<id>.png`, named for a hash of the picture.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::fs;
 use std::path::PathBuf;
 
-use bw_dat::unit;
 use image::{ImageFormat, Rgb, RgbImage};
 use ring::digest;
 
-use crate::bw::{self, Bw, get_bw};
+use crate::bw::{self, get_bw};
 
 /// Bumped when the pictures change, so a map's picture is made again.
-const MINIMAP_VERSION: &[u8] = b"1";
+const MINIMAP_VERSION: &[u8] = b"2";
 /// Minitiles across, and down, each megatile.
 const MINITILES_PER_TILE: usize = 4;
 /// The size of each of the tileset's tile groups, and where in one the megatiles of its 16 tiles
 /// are, a u16 each.
 const CV5_GROUP_SIZE: usize = 52;
 const CV5_MEGATILES_OFFSET: usize = 20;
-/// Pixels of the map to each pixel of the picture.
-const PIXELS_PER_POINT: i32 = 32 / MINITILES_PER_TILE as i32;
-/// The colors mineral fields and geysers are drawn in: blues, which no player's color on the stats
-/// page is, so nobody's units can be taken for them.
-const MINERALS_COLOR: Rgb<u8> = Rgb([92, 164, 252]);
-const GEYSER_COLOR: Rgb<u8> = Rgb([150, 150, 236]);
 /// The largest map, in tiles.
 const MAX_MAP_SIZE: usize = 256;
 
@@ -72,8 +66,7 @@ pub unsafe fn save(game: *mut bw::Game) -> Option<String> {
         warn!("Can't make a minimap of a {width}x{height} map");
         return None;
     }
-    let mut picture = unsafe { draw(&terrain, width, height) };
-    unsafe { draw_resources(&mut picture) };
+    let picture = unsafe { draw(&terrain, width, height) };
 
     let mut hash = digest::Context::new(&digest::SHA256);
     hash.update(MINIMAP_VERSION);
@@ -156,37 +149,6 @@ unsafe fn draw(terrain: &Terrain, width: usize, height: usize) -> RgbImage {
         }
     }
     picture
-}
-
-/// Draws each mineral field and geyser over the map, as a block the size of the ground it covers.
-unsafe fn draw_resources(picture: &mut RgbImage) {
-    for unit in unsafe { get_bw().active_units() } {
-        let color = match unit.id() {
-            unit::MINERAL_FIELD_1 | unit::MINERAL_FIELD_2 | unit::MINERAL_FIELD_3 => MINERALS_COLOR,
-            unit::VESPENE_GEYSER => GEYSER_COLOR,
-            _ => continue,
-        };
-        let position = unit.position();
-        let placement = unit.id().placement();
-        let (half_width, half_height) = (
-            i32::from(placement.width) / 2,
-            i32::from(placement.height) / 2,
-        );
-        let to_picture = |pixels: i32| (pixels / PIXELS_PER_POINT).max(0) as u32;
-        let (left, right) = (
-            to_picture(i32::from(position.x) - half_width),
-            to_picture(i32::from(position.x) + half_width),
-        );
-        let (top, bottom) = (
-            to_picture(i32::from(position.y) - half_height),
-            to_picture(i32::from(position.y) + half_height),
-        );
-        for y in top..bottom.min(picture.height()) {
-            for x in left..right.min(picture.width()) {
-                picture.put_pixel(x, y, color);
-            }
-        }
-    }
 }
 
 /// The average color of a minitile's pixels.

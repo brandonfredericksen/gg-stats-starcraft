@@ -68,6 +68,18 @@ describe('common/games/unit-positions', () => {
       MapUnitKind.Worker,
       ...varint(300),
       ...varint(301),
+      // A mineral field and a geyser
+      ...varint(2),
+      0,
+      ...varint(10),
+      ...varint(5),
+      2,
+      1,
+      1,
+      ...varint(20),
+      ...varint(10),
+      4,
+      2,
     ])
 
     const positions = decodeUnitPositions(bytes)
@@ -94,6 +106,10 @@ describe('common/games/unit-positions', () => {
     expect(positions.deaths).toEqual([
       { frame: 500, player: 0, unitId: 0, kind: MapUnitKind.Army, x: 160, y: 64 },
       { frame: 530, player: 1, unitId: 7, kind: MapUnitKind.Worker, x: 2400, y: 2408 },
+    ])
+    expect(positions.resources).toEqual([
+      { geyser: false, x: 80, y: 40, width: 2, height: 1 },
+      { geyser: true, x: 160, y: 80, width: 4, height: 2 },
     ])
   })
 

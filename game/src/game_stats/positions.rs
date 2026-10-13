@@ -1,5 +1,6 @@
 //! Where each player's units were over the game, for the minimap on the game's stats page: a
-//! position for each unit every scan, where each building stood, and where each unit died.
+//! position for each unit every scan, where each building stood, where each unit died, and where
+//! the mineral fields and geysers were when it started.
 //!
 //! Everything is packed into a small binary format (see [`UnitPositions::encode`]), since a long
 //! team game has hundreds of thousands of positions.
@@ -109,6 +110,13 @@ struct Building {
     end_frame: Option<u32>,
 }
 
+/// A mineral field or geyser, as the game started.
+struct Resource {
+    geyser: bool,
+    id: UnitId,
+    position: (u16, u16),
+}
+
 struct Death {
     frame: u32,
     slot: u8,
@@ -129,6 +137,7 @@ pub struct UnitPositions {
     tracks: Vec<Track>,
     buildings: Vec<Building>,
     deaths: Vec<Death>,
+    resources: Vec<Resource>,
     /// The units and buildings seen in the last scan, by the game's unit they are.
     followed: HashMap<usize, Followed>,
 }
@@ -146,6 +155,7 @@ impl UnitPositions {
             tracks: Vec::new(),
             buildings: Vec::new(),
             deaths: Vec::new(),
+            resources: Vec::new(),
             followed: HashMap::new(),
         }
     }
@@ -260,6 +270,20 @@ impl UnitPositions {
         });
     }
 
+    /// Records a mineral field or geyser as the game starts. Anything else is left out.
+    pub fn record_resource(&mut self, id: UnitId, position: &bw::Point) {
+        let geyser = match id {
+            unit::MINERAL_FIELD_1 | unit::MINERAL_FIELD_2 | unit::MINERAL_FIELD_3 => false,
+            unit::VESPENE_GEYSER => true,
+            _ => return,
+        };
+        self.resources.push(Resource {
+            geyser,
+            id,
+            position: quantize(position),
+        });
+    }
+
     /// How many units of each type each slot was seen losing, to check against the game's own
     /// counts.
     pub fn deaths_by_type(&self) -> Box<[[u32; PLAYER_COUNT]; UNIT_TYPE_COUNT]> {
@@ -288,6 +312,8 @@ impl UnitPositions {
     ///   never was
     /// - death count, then for each: the frame as the difference from the death before, slot
     ///   (byte), unit type, kind (byte), x, y
+    /// - mineral field and geyser count, then for each: 1 for a geyser or 0 (byte), x, y, width and
+    ///   height in tiles (bytes)
     pub fn encode(&self, map_width: u16, map_height: u16) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.tracks.len() * 64);
         out.push(ENCODING_VERSION);
@@ -347,6 +373,15 @@ impl UnitPositions {
             out.push(self.kind(death.id).map_or(0, |kind| kind as u8));
             write_varint(&mut out, u32::from(death.position.0));
             write_varint(&mut out, u32::from(death.position.1));
+        }
+
+        write_varint(&mut out, self.resources.len() as u32);
+        for resource in &self.resources {
+            let (width, height) = self.units.footprint[resource.id.0 as usize];
+            out.push(u8::from(resource.geyser));
+            write_varint(&mut out, u32::from(resource.position.0));
+            write_varint(&mut out, u32::from(resource.position.1));
+            out.extend([width, height]);
         }
         out
     }
@@ -475,6 +510,7 @@ mod test {
         assert_eq!((r.signed(), r.signed()), (10, 0));
         assert_eq!(r.varint(), 0, "no buildings");
         assert_eq!(r.varint(), 0, "no deaths");
+        assert_eq!(r.varint(), 0, "no resources");
         assert!(r.0.is_empty());
     }
 
@@ -514,6 +550,29 @@ mod test {
             "stopped following it all the same"
         );
         assert!(positions.deaths.is_empty());
+    }
+
+    #[test]
+    fn mineral_fields_and_geysers_are_kept_and_nothing_else() {
+        let mut units = test_units();
+        units.footprint[unit::MINERAL_FIELD_1.0 as usize] = (2, 1);
+        units.footprint[unit::VESPENE_GEYSER.0 as usize] = (4, 2);
+        let mut positions = UnitPositions::new(units);
+        positions.record_resource(unit::MINERAL_FIELD_1, &bw::Point { x: 80, y: 40 });
+        positions.record_resource(unit::VESPENE_GEYSER, &bw::Point { x: 160, y: 80 });
+        positions.record_resource(unit::MARINE, &bw::Point { x: 0, y: 0 });
+
+        let encoded = positions.encode(64, 64);
+        // Version and shift, map size, then no scans, tracks, buildings or deaths.
+        let mut r = Reader(&encoded[2..]);
+        assert_eq!((r.varint(), r.varint()), (64, 64));
+        assert_eq!([r.varint(), r.varint(), r.varint(), r.varint()], [0; 4]);
+        assert_eq!(r.varint(), 2);
+        assert_eq!((r.byte(), r.varint(), r.varint()), (0, 10, 5));
+        assert_eq!((r.byte(), r.byte()), (2, 1));
+        assert_eq!((r.byte(), r.varint(), r.varint()), (1, 20, 10));
+        assert_eq!((r.byte(), r.byte()), (4, 2));
+        assert!(r.0.is_empty());
     }
 
     #[test]
