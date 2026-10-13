@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import {
+  COACH_SURE_RESULT_GAMES,
   CoachBucket,
   CoachGoal,
   CoachNote,
@@ -348,10 +349,10 @@ function getBasisText(goal: CoachGoal, bucket: CoachBucket, t: TFunction) {
   switch (goal.basis) {
     case 'others':
       return goal.unit === 'time'
-        ? t('myStats.coach.basisOthersTime', 'when {{race}} players here start it on average', {
+        ? t('myStats.coach.basisOthersTime', 'when {{race}} players here usually start it', {
             race: raceCharToLabel(bucket.race, t),
           })
-        : t('myStats.coach.basisOthers', 'where {{race}} players here are on average', {
+        : t('myStats.coach.basisOthers', 'where {{race}} players here usually are', {
             race: raceCharToLabel(bucket.race, t),
           })
     case 'wins':
@@ -644,7 +645,7 @@ export function NextGame({
         <Text>
           {t(
             'myStats.coach.noGoalsNow',
-            'No goals right now. You play your wins and losses alike, and keep up with other players on the basics. The tables below show where you are closest to slipping.',
+            'No goals right now. You play your wins and losses alike, and keep up with other players on the basics.',
           )}
         </Text>
       )}
@@ -686,7 +687,7 @@ function getFormContent(
     return {
       icon: 'trending_down',
       tone: 'bad',
-      title: t('myStats.coach.note.formDownTitle', 'A rough patch'),
+      title: t('myStats.coach.note.formDownTitle', 'Losing more lately'),
       body: t(
         'myStats.coach.note.formDownBefore',
         '{{wins}} wins and {{losses}} losses in your last {{count}}, {{rate}}, against {{earlierRate}} in the {{earlierCount}} before.',
@@ -730,22 +731,40 @@ function getNoteContent(
         metric: getMetricText(finding.key, t)[0],
         win: formatValue(finding.winValue, finding.unit),
         loss: formatValue(finding.lossValue, finding.unit),
+        wins: finding.wins,
+        losses: finding.losses,
       }
+      const body = isTeamGame(bucket.shape)
+        ? t(
+            'myStats.coach.note.inLossesTeamShort',
+            '{{metric}}: {{win}} in your wins, {{loss}} in your losses.',
+            values,
+          )
+        : t(
+            'myStats.coach.note.inLosses',
+            '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss.',
+            values,
+          )
+      // With only a few of each, a difference this size can still be chance, so it says how many
+      // games it's from and that it's not sure yet.
+      const few = finding.wins < COACH_SURE_RESULT_GAMES || finding.losses < COACH_SURE_RESULT_GAMES
       return {
         icon: 'flag',
         tone: 'bad',
         title: t('myStats.coach.note.lossesWrongTitle', 'Different in your losses'),
-        body: isTeamGame(bucket.shape)
-          ? t(
-              'myStats.coach.note.inLossesTeamShort',
-              '{{metric}}: {{win}} in your wins, {{loss}} in your losses.',
-              values,
-            )
-          : t(
-              'myStats.coach.note.inLosses',
-              '{{metric}}: {{win}} in your typical win, {{loss}} in your typical loss.',
-              values,
-            ),
+        body: `${body} ${
+          few
+            ? t(
+                'myStats.coach.note.inLossesFew',
+                'From {{wins}} wins and {{losses}} losses, too few to be sure yet.',
+                values,
+              )
+            : t(
+                'myStats.coach.note.inLossesFrom',
+                'From {{wins}} wins and {{losses}} losses.',
+                values,
+              )
+        }`,
       }
     }
     case 'firstOut': {
@@ -774,6 +793,7 @@ function getNoteContent(
         recent: formatValue(change.recentValue, change.unit),
         earlier: formatValue(change.earlierValue, change.unit),
         count: change.recentGames,
+        earlierCount: change.earlierGames,
       }
       return note.kind === 'improving'
         ? {
@@ -782,7 +802,7 @@ function getNoteContent(
             title: t('myStats.coach.note.improvingTitle', 'Getting better'),
             body: t(
               'myStats.coach.note.improving',
-              '{{metric}}: {{recent}} lately, from {{earlier}} before.',
+              '{{metric}}: {{recent}} in your last {{count}} games, from {{earlier}} in the {{earlierCount}} before.',
               values,
             ),
           }
@@ -792,7 +812,7 @@ function getNoteContent(
             title: t('myStats.coach.note.slippingTitle', 'Slipping lately'),
             body: t(
               'myStats.coach.note.slipping',
-              '{{metric}}: {{recent}} lately, from {{earlier}} before.',
+              '{{metric}}: {{recent}} in your last {{count}} games, from {{earlier}} in the {{earlierCount}} before.',
               values,
             ),
           }
@@ -828,12 +848,12 @@ function getNoteContent(
           userMs > poolMs
             ? t(
                 'myStats.coach.note.timingLate',
-                'You start {{build}} {{time}} later than other players on average.',
+                'You start {{build}} {{time}} later than other players usually do.',
                 values,
               )
             : t(
                 'myStats.coach.note.timingEarly',
-                'You start {{build}} {{time}} earlier than other players on average.',
+                'You start {{build}} {{time}} earlier than other players usually do.',
                 values,
               ),
       }

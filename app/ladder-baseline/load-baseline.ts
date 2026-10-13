@@ -18,15 +18,27 @@ export function getBaselineGameId(replayPathKey: string) {
 }
 
 /**
- * The baseline's games, leaving out the ones made from a replay in the library. The library's copy
- * keeps the real names, so the user is still told apart from the players they played.
+ * What tells one game apart: when it started, which every replay of it shares to the second since
+ * it comes from the game's seed, and its map.
+ */
+function getGameKey(game: Pick<DatedGameMetrics, 'gameTimeMs' | 'mapName'>) {
+  return `${game.gameTimeMs}|${game.mapName}`
+}
+
+/**
+ * The baseline's games, leaving out the ones the user has their own copy of: made from a replay in
+ * the library, or the same game in another replay, like a top player's own replay of a ladder game
+ * that's in the baseline. The user's copy keeps the real names, so the user is still told apart
+ * from the players they played.
  */
 export function withoutLibraryCopies(
   baseline: ReadonlyArray<DatedGameMetrics>,
   replayPathKeys: ReadonlyArray<string>,
+  ownGames: ReadonlyArray<DatedGameMetrics>,
 ): DatedGameMetrics[] {
   const inLibrary = new Set(replayPathKeys.map(getBaselineGameId))
-  return baseline.filter(game => !inLibrary.has(game.gameId))
+  const owned = new Set(ownGames.map(getGameKey))
+  return baseline.filter(game => !inLibrary.has(game.gameId) && !owned.has(getGameKey(game)))
 }
 
 /**

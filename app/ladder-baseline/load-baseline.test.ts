@@ -69,6 +69,13 @@ describe('app/ladder-baseline/load-baseline', () => {
     const other = { ...GAME, gameId: 'ladder-def' } as DatedGameMetrics
     const games = [GAME as DatedGameMetrics, other]
     const keys = [path.join('c:', 'replays', 'ladder', 'abc.rep')]
-    expect(withoutLibraryCopies(games, keys)).toEqual([other])
+    expect(withoutLibraryCopies(games, keys, [])).toEqual([other])
+  })
+
+  test('leaves out the games the user has their own replay of, under any name', () => {
+    const other = { ...GAME, gameId: 'ladder-def', gameTimeMs: 1_790_000_100_000 }
+    const games = [GAME, other] as DatedGameMetrics[]
+    const own = { ...GAME, gameId: 'own-replay' } as DatedGameMetrics
+    expect(withoutLibraryCopies(games, [], [own])).toEqual([other])
   })
 })

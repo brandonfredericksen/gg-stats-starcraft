@@ -53,7 +53,7 @@ export function setupMyStats(
         (replayPathKey !== undefined ? gameTimes.get(replayPathKey) : undefined) ??
         savedAt - metrics.durationMs,
     }))
-    return [...ownGames, ...withoutLibraryCopies(baselineGames, replayPathKeys)].filter(
+    return [...ownGames, ...withoutLibraryCopies(baselineGames, replayPathKeys, ownGames)].filter(
       game => game.durationMs >= MIN_GAME_LENGTH_MS,
     )
   }

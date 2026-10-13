@@ -266,7 +266,6 @@ export const pvz: CoachBucket = {
       userGames: 42,
       poolGames: 186,
       sameOpening: false,
-      fewerProduction: 2,
     },
     {
       key: 'hotkeysMid',

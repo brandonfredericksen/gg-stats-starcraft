@@ -862,22 +862,14 @@ function ScopeLine({
   if (sinceMs === undefined) {
     reach = t('myStats.coach.scopeReachAll', 'Every one you have analyzed.')
   } else if (window === 'auto' && autoMonths) {
-    reach = t(
-      'myStats.coach.scopeReachMonths',
-      'Back to {{date}}: your last 3 months, from the You filter.',
-      {
-        date: formatDate(sinceMs),
-      },
-    )
+    reach = t('myStats.coach.scopeReachMonths', 'Back to {{date}}, your last 3 months.', {
+      date: formatDate(sinceMs),
+    })
   } else {
-    reach = t(
-      'myStats.coach.scopeReachGames',
-      'Back to {{date}}: your last {{count}}, from the You filter.',
-      {
-        date: formatDate(sinceMs),
-        count: window === 'auto' || window === 'all' ? autoGames : window,
-      },
-    )
+    reach = t('myStats.coach.scopeReachGames', 'Back to {{date}}, your last {{count}} games.', {
+      date: formatDate(sinceMs),
+      count: window === 'auto' || window === 'all' ? autoGames : window,
+    })
   }
   const skipped = bucket.skippedGames
     ? t('myStats.coach.scopeSkipped', {
@@ -896,7 +888,7 @@ function ScopeLine({
         )
       : t(
           'myStats.coach.scopeTheirsHelp',
-          '{{players}} players over {{floor}} EAPM {{source}}, from the same dates, up to 5 games each.',
+          '{{players}} players over {{floor}} EAPM {{source}}, since the same date, up to 5 games each.',
           { players: bucket.poolPlayers, floor: eapmFloor, source: poolSource },
         )
   const rankOnly = bucket.rank
@@ -1443,7 +1435,7 @@ function Unlock({
           <Trans
             t={t}
             i18nKey='myStats.coach.unlockFiltersSince'
-            defaults='With these filters: your games here since <b>{{date}}</b>, compared to {{race}} players over <b>{{floor}} EAPM</b> from the same dates.'
+            defaults='With these filters: your games here since <b>{{date}}</b>, compared to {{race}} players over <b>{{floor}} EAPM</b> since then.'
             values={{ race, floor: eapmFloor, date: formatDate(sinceMs) }}
             components={{ b: <Key /> }}
           />
@@ -1477,13 +1469,13 @@ function Unlock({
         {poolShort && sinceMs === undefined
           ? t(
               'myStats.coach.unlockPoolHowAll',
-              'Other players come from your own replays. To count more of them: analyze more replays or lower the EAPM floor under Them.',
+              'To count more players, analyze more replays or pick a lower EAPM under Compared with.',
             )
           : null}
         {poolShort && sinceMs !== undefined
           ? t(
               'myStats.coach.unlockPoolHow',
-              'Other players come from your own replays, from the same dates as your games. To count more of them: analyze more replays, pick more of your games under You, or lower the EAPM floor under Them.',
+              'To count more players, analyze more replays, pick more of your games under You, or pick a lower EAPM under Compared with.',
             )
           : null}
         {poolShort
@@ -1592,7 +1584,7 @@ export function Comparison({
     sameDates
       ? t(
           'myStats.coach.othersFloor',
-          'Compared to {{race}} players over {{floor}} EAPM {{source}}, from the same dates. Speed rows count every EAPM.',
+          'Compared to {{race}} players over {{floor}} EAPM {{source}}, since the same date. Speed rows count every EAPM.',
           { race, floor: eapmFloor, source: poolSource },
         )
       : t(
@@ -1893,11 +1885,9 @@ function WindowMenu({ autoGames, autoMonths }: { autoGames: number; autoMonths: 
       : {
           value: 'auto',
           label: t('myStats.coach.windowGames', 'Last {{count}} games', { count: autoGames }),
-          menuLabel: t(
-            'myStats.coach.windowFewMonths',
-            'Last {{count}} games, since 3 months have fewer',
-            { count: autoGames },
-          ),
+          menuLabel: t('myStats.coach.windowFewMonths', 'Last {{count}} games', {
+            count: autoGames,
+          }),
         },
     ...COACH_WINDOW_GAMES.filter(count => count !== autoGames).map(count => ({
       value: count,
@@ -2158,7 +2148,7 @@ export function CoachView({
               <CalloutStepText>
                 {t(
                   'myStats.coach.stepCompare',
-                  'Your recent games of one kind, next to other players of your race from your own replays and the same dates.',
+                  'Your recent games of one kind, next to other players of your race in the same kind of games.',
                 )}
               </CalloutStepText>
             </CalloutStep>

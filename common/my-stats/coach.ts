@@ -51,6 +51,11 @@ const AUTO_WINDOW_MIN_GAMES = 30
 const MIN_SCOPE_GAMES = 3
 /** How many wins and how many losses comparing them needs. */
 export const COACH_MIN_RESULT_GAMES = 5
+/**
+ * How many wins and how many losses a difference between them needs to be more than likely real
+ * (see `MIN_RESULT_SIZE`). Differences from fewer are still shown, said as not sure yet.
+ */
+export const COACH_SURE_RESULT_GAMES = 12
 /** How many games one opponent can add, so someone met often doesn't become the benchmark. */
 const MAX_GAMES_PER_PLAYER = 5
 /**
@@ -598,11 +603,6 @@ export interface CoachFinding {
   poolGames: number
   /** Whether the benchmark is players who opened the same way as the user. */
   sameOpening: boolean
-  /**
-   * For a bank that's too high: how many fewer production buildings the user had at 8 minutes
-   * than other players, which is often why.
-   */
-  fewerProduction?: number
 }
 
 /** A number that means something here, but that too few games have to compare yet. */
@@ -816,11 +816,6 @@ export interface CoachBucket {
   /** The opening the user plays most here, as build keys. */
   opening: string[]
   gaps: CoachFinding[]
-  /**
-   * With no gaps, the number the user is furthest behind other players on, if they're behind
-   * most of them, so an empty list can still say what's closest.
-   */
-  closestGap?: CoachFinding
   strengths: CoachFinding[]
   inLosses: CoachResultFinding[]
   timings: CoachTiming[]
@@ -1141,19 +1136,25 @@ function isFinding(result: CoachFinding | CoachShortfall): result is CoachFindin
   return 'beats' in result
 }
 
+/**
+ * Compares the user's games with other players'. For a number that depends on the opening, the
+ * players who opened the way the user usually does are compared with the user's games with that
+ * opening, when both sides have enough of them, so each side's other openings don't skew it.
+ */
 function compare(
   metric: CoachMetric,
   user: ReadonlyArray<Sample>,
   pool: ReadonlyArray<Sample>,
-  samePool: ReadonlyArray<Sample> | undefined,
+  same: SameOpening | undefined,
 ): CoachFinding | CoachShortfall {
-  const userValues = numbersOf(user, metric)
   const sameOpening = !!(
     metric.openingDependent &&
-    samePool &&
-    numbersOf(samePool, metric).length >= MIN_SAME_OPENING_GAMES
+    same &&
+    numbersOf(same.pool, metric).length >= MIN_SAME_OPENING_GAMES &&
+    numbersOf(same.user, metric).length >= COACH_MIN_USER_GAMES
   )
-  const poolValues = numbersOf(sameOpening ? samePool! : pool, metric)
+  const userValues = numbersOf(sameOpening ? same!.user : user, metric)
+  const poolValues = numbersOf(sameOpening ? same!.pool : pool, metric)
   if (userValues.length < COACH_MIN_USER_GAMES || poolValues.length < minPoolGames(sameOpening)) {
     return {
       key: metric.key,
@@ -1175,6 +1176,12 @@ function compare(
     poolGames: poolValues.length,
     sameOpening,
   }
+}
+
+/** The user's games and other players' with the opening the user plays most. */
+interface SameOpening {
+  user: ReadonlyArray<Sample>
+  pool: ReadonlyArray<Sample>
 }
 
 function isBetter(metric: Pick<CoachMetric, 'higherIsBetter'>, value: number, than: number) {
@@ -1246,12 +1253,14 @@ function timesOf(samples: ReadonlyArray<Sample>, buildKey: string) {
 }
 
 function getTimings(
-  user: ReadonlyArray<Sample>,
+  allUser: ReadonlyArray<Sample>,
   pool: ReadonlyArray<Sample>,
-  samePool: ReadonlyArray<Sample> | undefined,
+  same: SameOpening | undefined,
 ): CoachTiming[] {
-  const sameOpening = !!samePool && samePool.length >= MIN_SAME_OPENING_GAMES
-  const comparePool = sameOpening ? samePool! : pool
+  const sameOpening =
+    !!same && same.pool.length >= MIN_SAME_OPENING_GAMES && same.user.length >= COACH_MIN_USER_GAMES
+  const user = sameOpening ? same!.user : allUser
+  const comparePool = sameOpening ? same!.pool : pool
   if (user.length < COACH_MIN_USER_GAMES || comparePool.length < minPoolGames(sameOpening)) {
     return []
   }
@@ -1554,7 +1563,7 @@ export function getMetricFamily(key: CoachMetricKey | 'buildTiming') {
   if (key === 'baseLead10') {
     return 'base'
   }
-  if (/^(eapm|apm|hotkeys)/.test(key)) {
+  if (/^(eapm|apm|hotkey)/.test(key)) {
     return 'speed'
   }
   return key.replace(/(\d+|Early|Mid|Late)$/, '')
@@ -2181,10 +2190,17 @@ export function computeCoach(
 
     const opening = mostCommon(user.map(s => s.player.opening.join(',')).filter(Boolean))
     const family = mostCommon(user.flatMap(s => openingFamily(s.player) ?? []))
-    const sameOpening = (samples: ReadonlyArray<Sample>) =>
-      family ? samples.filter(s => openingFamily(s.player) === family) : undefined
-    const samePool = sameOpening(pool)
-    const sameAllPool = sameOpening(allPool)
+    const withOpening = (samples: ReadonlyArray<Sample>) =>
+      samples.filter(s => openingFamily(s.player) === family)
+    const sameUser = family ? withOpening(user) : undefined
+    const samePool: SameOpening | undefined = sameUser && {
+      user: sameUser,
+      pool: withOpening(pool),
+    }
+    const sameAllPool: SameOpening | undefined = sameUser && {
+      user: sameUser,
+      pool: withOpening(allPool),
+    }
     const openingKeys = opening ? opening.split(',') : []
 
     const gaps: Array<CoachFinding & { metric: CoachMetric }> = []
@@ -2206,28 +2222,15 @@ export function computeCoach(
       ) {
         continue
       }
+      const userGames = finding.sameOpening && sameUser ? sameUser : user
       if (
-        (finding.beats < GAP_SCORE && isConsistent(metric, user, finding, false)) ||
+        (finding.beats < GAP_SCORE && isConsistent(metric, userGames, finding, false)) ||
         (metric.gapWhen?.(finding.userValue, finding.poolValue) &&
           isBetter(metric, finding.poolValue, finding.userValue))
       ) {
         gaps.push({ ...finding, metric })
-      } else if (finding.beats > STRENGTH_SCORE && isConsistent(metric, user, finding, true)) {
+      } else if (finding.beats > STRENGTH_SCORE && isConsistent(metric, userGames, finding, true)) {
         strengths.push({ ...finding, metric })
-      }
-    }
-
-    // A high bank with fewer production buildings than others is a production problem, not a
-    // speed one, most of all for Zerg, whose larvae limit what they can spend.
-    const production8 = METRICS.find(m => m.key === 'production8')!
-    const productionResult = compare(production8, user, pool, samePool)
-    const productionFinding = isFinding(productionResult) ? productionResult : undefined
-    for (const gap of gaps) {
-      if (gap.key.startsWith('bank') && productionFinding) {
-        const fewer = productionFinding.poolValue - productionFinding.userValue
-        if (fewer >= 1) {
-          gap.fewerProduction = fewer
-        }
       }
     }
 
@@ -2238,11 +2241,6 @@ export function computeCoach(
     const topGaps = gaps
       .sort((a, b) => urgent(a) - urgent(b) || a.beats - b.beats)
       .slice(0, MAX_GAPS)
-    const closestGap = gaps.length
-      ? undefined
-      : compared
-          .filter(f => f.beats < 0.5 && metrics.some(m => m.key === f.key && !m.speed))
-          .sort((a, b) => a.beats - b.beats)[0]
     const topStrengths = strengths
       .sort((a, b) => b.beats - a.beats)
       .slice(0, MAX_STRENGTHS)
@@ -2284,7 +2282,7 @@ export function computeCoach(
             familyOf,
           )
         : {}
-    // What changed lately is pointed out as a note or a goal, so only numbers that can be count.
+    // What changed lately is pointed out as a note or a goal, so only numbers that can be counted.
     const recentForm = getRecentForm(userGames, metrics)
     const firstOut = teamGame ? getFirstOut(userGames, pool) : undefined
     const withoutNotes = {
@@ -2310,7 +2308,6 @@ export function computeCoach(
       poolScripted,
       opening: openingKeys,
       gaps: topGaps.map(strip),
-      closestGap,
       strengths: topStrengths,
       inLosses,
       timings,

@@ -7,7 +7,7 @@ import {
   PlayerMetrics,
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { CoachQuery, computeCoach, roundTarget } from './coach'
+import { CoachQuery, computeCoach, getMetricFamily, roundTarget } from './coach'
 import { DatedGameMetrics } from './my-stats'
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
@@ -956,5 +956,12 @@ describe('common/my-stats/coach', () => {
       )
       expect(coach.rank).toBeUndefined()
     })
+  })
+
+  test('groups every speed number, hotkey jumps too, as one', () => {
+    expect(getMetricFamily('eapmEarly')).toBe('speed')
+    expect(getMetricFamily('hotkeysMid')).toBe('speed')
+    expect(getMetricFamily('hotkeyJumpsLate')).toBe('speed')
+    expect(getMetricFamily('workers6')).toBe('workers')
   })
 })

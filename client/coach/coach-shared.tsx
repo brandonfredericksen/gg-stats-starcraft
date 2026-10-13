@@ -599,30 +599,18 @@ export function getRaceWords(race: AssignedRaceChar, t: TFunction) {
         workers: t('myStats.coach.words.scvs', 'SCVs'),
         townHalls: t('myStats.coach.words.commandCenters', 'Command Centers'),
         townHall: t('myStats.coach.words.commandCenter', 'Command Center'),
-        supply: t('myStats.coach.words.depots', 'Supply Depots'),
-        production: t('myStats.coach.words.barracksFactories', 'Barracks and Factories'),
-        defense: t('myStats.coach.words.bunkersTurrets', 'a Bunker or Turrets'),
-        detector: t('myStats.coach.words.turretComsat', 'a Turret or a Comsat'),
       }
     case 'p':
       return {
         workers: t('myStats.coach.words.probes', 'Probes'),
         townHalls: t('myStats.coach.words.nexuses', 'Nexuses'),
         townHall: t('myStats.coach.words.nexus', 'Nexus'),
-        supply: t('myStats.coach.words.pylons', 'Pylons'),
-        production: t('myStats.coach.words.gateways', 'Gateways'),
-        defense: t('myStats.coach.words.cannons', 'a few Cannons'),
-        detector: t('myStats.coach.words.observerCannon', 'an Observer or a Cannon'),
       }
     case 'z':
       return {
         workers: t('myStats.coach.words.drones', 'Drones'),
         townHalls: t('myStats.coach.words.hatcheries', 'Hatcheries'),
         townHall: t('myStats.coach.words.hatchery', 'Hatchery'),
-        supply: t('myStats.coach.words.overlords', 'Overlords'),
-        production: t('myStats.coach.words.macroHatcheries', 'macro Hatcheries'),
-        defense: t('myStats.coach.words.sunkens', 'a Sunken or Spores'),
-        detector: t('myStats.coach.words.sporeOverlord', 'a Spore Colony'),
       }
     default:
       return race satisfies never
@@ -675,127 +663,141 @@ export function getTipHeadline(
     case 'buildTiming':
       return t(
         'myStats.coach.headline.timing',
-        'You start {{build}} {{gap}} later than {{players}} on average.',
+        'You start {{build}} {{gap}} later than is typical for {{players}}.',
         words,
       )
     case 'workers':
       return key === 'workerLead8'
         ? t(
             'myStats.coach.headline.workerLead',
-            "Against your opponent's {{workers}}, you're {{gap}} further behind than {{players}} on average.",
+            "Against your opponent's {{workers}}, you're {{gap}} further behind than is typical for {{players}}.",
             words,
           )
         : t(
             'myStats.coach.headline.workers',
-            'You have {{gap}} fewer {{workers}} than {{players}} on average at this point.',
+            'You have fewer {{workers}} at this point than is typical for {{players}}, by {{gap}}.',
             words,
           )
     case 'workerProduction':
       return t(
         'myStats.coach.headline.workerProduction',
-        'Your {{townHalls}} spend more time not making {{workers}} than those of {{players}} on average.',
+        'Your {{townHalls}} spend more time not making {{workers}} than is typical for {{players}}.',
         words,
       )
     case 'larvaeFull':
       return t(
         'myStats.coach.headline.larvaeFull',
-        'Your Hatcheries sit on three larvae more of the time than those of {{players}} on average.',
+        'Your Hatcheries sit on three larvae more of the time than is typical for {{players}}.',
         words,
       )
     case 'scoutTime':
       return t(
         'myStats.coach.headline.scoutTime',
-        'You scout {{gap}} later than {{players}} on average.',
+        'You scout {{gap}} later than is typical for {{players}}.',
         words,
       )
     case 'detection':
       return t(
         'myStats.coach.headline.detection',
-        'You get detection {{gap}} later than {{players}} on average.',
+        'You get detection {{gap}} later than is typical for {{players}}.',
         words,
       )
     case 'income':
       return t(
         'myStats.coach.headline.income',
-        'You mine {{gap}} less than {{players}} on average at this point.',
+        'You mine {{gap}} less than is typical for {{players}} at this point.',
         words,
       )
     case 'production':
       return t(
         'myStats.coach.headline.production',
-        'You have {{gap}} fewer production buildings than {{players}} on average at this point.',
+        'You have fewer production buildings at this point than is typical for {{players}}, by {{gap}}.',
         words,
       )
     case 'productionForIncome':
       return t(
         'myStats.coach.headline.productionForIncome',
-        'For what you mine, you have fewer production buildings than {{players}} on average.',
+        'For what you mine, you have fewer production buildings than is typical for {{players}}.',
         words,
       )
     case 'base':
       return key === 'baseLead10'
         ? t(
             'myStats.coach.headline.baseLead',
-            "Against your opponent's bases, you're {{gap}} further behind than {{players}} on average.",
+            "Against your opponent's bases, you're {{gap}} further behind than is typical for {{players}}.",
             words,
           )
         : t(
             'myStats.coach.headline.base',
-            'You take this {{townHall}} {{gap}} later than {{players}} on average.',
+            'You take this {{townHall}} {{gap}} later than is typical for {{players}}.',
             words,
           )
     case 'supply':
       return t(
         'myStats.coach.headline.supply',
-        'You reach this supply {{gap}} later than {{players}} on average.',
+        'You reach this supply {{gap}} later than is typical for {{players}}.',
         words,
       )
     case 'bank':
       return t(
         'myStats.coach.headline.bank',
-        'You have {{gap}} more in the bank than {{players}} on average at this point.',
+        'You have {{gap}} more in the bank than is typical for {{players}} at this point.',
         words,
       )
     case 'supplyBlocked':
       return t(
         'myStats.coach.headline.supplyBlocked',
-        "You're supply blocked {{gap}} longer than {{players}} on average.",
+        "You're supply blocked {{gap}} longer than is typical for {{players}}.",
         words,
       )
     case 'army':
       return t(
         'myStats.coach.headline.army',
-        'Your army is worth {{gap}} less at this point than the army of {{players}} on average.',
+        'Your army is worth {{gap}} less at this point than is typical for {{players}}.',
         words,
       )
     case 'armyTrade':
       return t(
         'myStats.coach.headline.armyTrade',
-        'You trade armies worse than {{players}} on average.',
+        'You trade armies worse than is typical for {{players}}.',
         words,
       )
     case 'workersLost':
       return t(
         'myStats.coach.headline.workersLost',
-        'You lose more {{workers}} than {{players}} on average.',
+        'You lose more {{workers}} than is typical for {{players}}.',
         words,
       )
     case 'overlordsLost':
       return t(
         'myStats.coach.headline.overlordsLost',
-        'You lose more Overlords than {{players}} on average.',
+        'You lose more Overlords than is typical for {{players}}.',
         words,
       )
     case 'speed':
+      if (key.startsWith('hotkeyJumps')) {
+        return t(
+          'myStats.coach.headline.hotkeyJumps',
+          'You jump to your hotkey groups less often than is typical for {{players}}, by {{gap}}.',
+          words,
+        )
+      }
+      if (key.startsWith('hotkeys')) {
+        return t(
+          'myStats.coach.headline.hotkeys',
+          'You use hotkeys less often than is typical for {{players}}, by {{gap}}.',
+          words,
+        )
+      }
       return t(
         'myStats.coach.headline.speed',
-        'You play slower than {{players}} on average, by {{gap}}.',
+        'Your EAPM is lower than is typical for {{players}}, by {{gap}}.',
         words,
       )
     case 'unitsPerProduction':
       return t(
         'myStats.coach.headline.unitsPerProduction',
-        'Your production buildings make fewer army units than those of {{players}} on average.',
+        'Your production buildings make fewer army units than is typical for {{players}}.',
         words,
       )
     default:
@@ -835,122 +837,122 @@ export function getTip(
       if (key === 'workerLead8') {
         return t(
           'myStats.coach.fact.workerLead',
-          "This is your {{workers}} minus your opponent's at 8 minutes. On average, {{race}} players here are at {{target}}. You're usually at {{user}}.",
+          "This is your {{workers}} minus your opponent's at 8 minutes. {{race}} players here are usually at {{target}}. You're usually at {{user}}.",
           words,
         )
       }
       return t(
         'myStats.coach.fact.workers',
-        'On average, {{race}} players here have {{target}} {{workers}} at this point. You usually have {{user}}.',
+        '{{race}} players here usually have {{target}} {{workers}} at this point. You usually have {{user}}.',
         words,
       )
     case 'workerProduction':
       return t(
         'myStats.coach.fact.workerProduction',
-        'Up to 8 minutes, {{race}} players here on average have their {{townHalls}} making {{workers}} {{target}} of the time. Yours are making them {{user}} of the time.',
+        'Up to 8 minutes, {{race}} players here usually have their {{townHalls}} making {{workers}} {{target}} of the time. Yours are making them {{user}} of the time.',
         words,
       )
     case 'larvaeFull':
       return t(
         'myStats.coach.fact.larvaeFull',
-        'Up to 10 minutes, Zerg players here on average have Hatcheries sitting on three larvae {{target}} of the time. Yours sit on three {{user}} of the time.',
+        'Up to 10 minutes, Zerg players here usually have Hatcheries sitting on three larvae {{target}} of the time. Yours sit on three {{user}} of the time.',
         words,
       )
     case 'scoutTime':
       return t(
         'myStats.coach.fact.scoutTime',
-        'On average, {{race}} players here send their first scout at {{target}}. You usually send yours at {{user}}.',
+        '{{race}} players here usually send their first scout at {{target}}. You usually send yours at {{user}}.',
         words,
       )
     case 'detection':
       return t(
         'myStats.coach.fact.detection',
-        'On average, {{race}} players here have detection at {{target}}. You usually have it at {{user}}.',
+        '{{race}} players here usually have detection at {{target}}. You usually have it at {{user}}.',
         words,
       )
     case 'income':
       return t(
         'myStats.coach.fact.income',
-        'On average, {{race}} players here mine {{target}} at this point. You usually mine {{user}}.',
+        '{{race}} players here usually mine {{target}} at this point. You usually mine {{user}}.',
         words,
       )
     case 'production':
       return t(
         'myStats.coach.fact.production',
-        'On average, {{race}} players here have {{target}} production buildings at this point. You usually have {{user}}.',
+        '{{race}} players here usually have {{target}} production buildings at this point. You usually have {{user}}.',
         words,
       )
     case 'productionForIncome':
       return t(
         'myStats.coach.fact.productionForIncome',
-        'On average, {{race}} players here have enough production buildings to spend {{target}} of what they mine. Yours can spend {{user}}.',
+        '{{race}} players here usually have enough production buildings to spend {{target}} of what they mine. Yours can spend {{user}}.',
         words,
       )
     case 'base':
       if (key === 'baseLead10') {
         return t(
           'myStats.coach.fact.baseLead',
-          "This is your bases minus your opponent's at 10 minutes. On average, {{race}} players here are at {{target}}. You're usually at {{user}}.",
+          "This is your bases minus your opponent's at 10 minutes. {{race}} players here are usually at {{target}}. You're usually at {{user}}.",
           words,
         )
       }
       return t(
         'myStats.coach.fact.base',
-        'On average, {{race}} players here start this {{townHall}} at {{target}}. You usually start it at {{user}}.',
+        '{{race}} players here usually start this {{townHall}} at {{target}}. You usually start it at {{user}}.',
         words,
       )
     case 'supply':
       return t(
         'myStats.coach.fact.supply',
-        'On average, {{race}} players here reach this supply at {{target}}. You usually reach it at {{user}}.',
+        '{{race}} players here usually reach this supply at {{target}}. You usually reach it at {{user}}.',
         words,
       )
     case 'bank':
       return t(
         'myStats.coach.fact.bank',
-        'On average, {{race}} players here have {{target}} in the bank at this point. You usually have {{user}}.',
+        '{{race}} players here usually have {{target}} in the bank at this point. You usually have {{user}}.',
         words,
       )
     case 'supplyBlocked':
       return t(
         'myStats.coach.fact.supplyBlocked',
-        'On average, {{race}} players here are supply blocked for {{target}}. You usually are for {{user}}.',
+        '{{race}} players here are usually supply blocked for {{target}}. You usually are for {{user}}.',
         words,
       )
     case 'army':
       return t(
         'myStats.coach.fact.army',
-        'On average, {{race}} players here have an army worth {{target}} at this point. Yours is usually worth {{user}}.',
+        '{{race}} players here usually have an army worth {{target}} at this point. Yours is usually worth {{user}}.',
         words,
       )
     case 'armyTrade':
       return t(
         'myStats.coach.fact.armyTrade',
-        'On average, {{race}} players here kill {{target}} army value for every 1 they lose. You usually kill {{user}}.',
+        '{{race}} players here usually kill {{target}} army value for every 1 they lose. You usually kill {{user}}.',
         words,
       )
     case 'workersLost':
       return t(
         'myStats.coach.fact.workersLost',
-        'On average, {{race}} players here lose {{workers}} at {{target}}. You usually lose them at {{user}}.',
+        '{{race}} players here usually lose {{workers}} at {{target}}. You usually lose them at {{user}}.',
         words,
       )
     case 'overlordsLost':
       return t(
         'myStats.coach.fact.overlordsLost',
-        'On average, Zerg players here lose Overlords at {{target}}. You usually lose them at {{user}}.',
+        'Zerg players here usually lose Overlords at {{target}}. You usually lose them at {{user}}.',
         words,
       )
     case 'speed':
       return t(
         'myStats.coach.fact.speed',
-        'On average, {{race}} players here are at {{target}}. You are usually at {{user}}.',
+        '{{race}} players here are usually at {{target}}. You are usually at {{user}}.',
         words,
       )
     case 'unitsPerProduction':
       return t(
         'myStats.coach.fact.unitsPerProduction',
-        'On average, {{race}} players here make army units at {{target}} for each production building. You usually make them at {{user}}.',
+        '{{race}} players here usually make army units at {{target}} for each production building. You usually make them at {{user}}.',
         words,
       )
     default:
@@ -967,7 +969,7 @@ export function getTimingTip(
 ) {
   return t(
     'myStats.coach.fact.timing',
-    'On average, {{race}} players here who get {{build}} start it at {{target}}. You usually start it at {{user}}.',
+    '{{race}} players here who get {{build}} usually start it at {{target}}. You usually start it at {{user}}.',
     { build, race: raceCharToLabel(race, t), ...values },
   )
 }
