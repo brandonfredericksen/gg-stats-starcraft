@@ -125,7 +125,11 @@ describe('client/games/game-stats-production-model', () => {
     expect(getResources(player, times, 2)).toEqual(
       expect.objectContaining({ mined: 2500, minedPerMinute: 1500 }),
     )
-    expect(getResources(player, times, 3)).toBeUndefined()
+    // Past the end of a player's numbers, they stay at the last ones.
+    expect(getResources(player, times, 5)).toEqual(
+      expect.objectContaining({ mined: 2500, minedPerMinute: 1500 }),
+    )
+    expect(getResources(player, times, -1)).toBeUndefined()
     expect(getResources({} as GamePlayerStats, times, 0)).toBeUndefined()
   })
 })

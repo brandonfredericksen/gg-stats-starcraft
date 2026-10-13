@@ -230,16 +230,18 @@ export function findSnapshotIndex(timesMs: ReadonlyArray<number>, atMs: number |
   return atMs === undefined ? timesMs.length - 1 : timesMs.findLastIndex(time => time <= atMs)
 }
 
-/** A player's numbers at the recorded time `index`, like the game's resource bar shows them. */
+/** A player's numbers at the `recorded` time, like the game's resource bar shows them. */
 export function getResources(
   player: GamePlayerStats,
   timesMs: ReadonlyArray<number>,
-  index: number,
+  recorded: number,
 ): PlayerResources | undefined {
   const timeline = player.timeline
-  if (!timeline || index < 0 || index >= timeline.workers.length) {
+  if (!timeline || recorded < 0) {
     return undefined
   }
+  // A player who left has numbers only up to when they did, which stay what they were.
+  const index = Math.min(recorded, timeline.workers.length - 1)
   const earlier = timesMs.findLastIndex(time => time <= timesMs[index] - INCOME_WINDOW_MS)
   const minutes = earlier >= 0 ? (timesMs[index] - timesMs[earlier]) / 60_000 : 0
   return {
