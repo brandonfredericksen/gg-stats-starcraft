@@ -33,6 +33,7 @@ function makeReplay(fileName: string, playerNames: string[], gameTime: number): 
     })),
     teamSize: 1,
     matchup: 'PvP',
+    tileset: 4,
   }
 }
 
@@ -116,6 +117,7 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     raw.exec(`
       ALTER TABLE replays DROP COLUMN path_key;
       ALTER TABLE replay_players DROP COLUMN name_key;
+      ALTER TABLE replays DROP COLUMN tileset;
     `)
     raw.pragma('user_version = 10')
     raw.close()

@@ -18,7 +18,7 @@ export function isWithinWatchedFolders(
  * inside one of `watchedFolders` (a path outside them is refused and reported `failed` without
  * being touched), and a path whose file is already gone is reported `missing`. One path failing
  * never stops the rest from being attempted. The local index isn't touched here; the watcher's own
- * reconcile un-indexes the files (cascading any playlist membership) once it notices they're gone.
+ * reconcile un-indexes the files once it notices they're gone.
  */
 export async function trashReplays(
   paths: ReadonlyArray<string>,

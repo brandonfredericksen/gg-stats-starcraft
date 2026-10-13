@@ -51,6 +51,7 @@ describe('client/replays/game-row-lines', () => {
     expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0), player('B', 0, 1)]))).toBe(
       '1v1',
     )
+    expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0)]))).toBe('-')
   })
 
   test('puts the winning team first', () => {

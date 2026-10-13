@@ -4,6 +4,7 @@ import {
   GameFormat,
   GameSortOption,
 } from './games/game-filters'
+import { TilesetId } from './maps'
 import { RaceChar } from './races'
 
 /**
@@ -52,6 +53,8 @@ export interface ReplayLibraryEntry {
   players: ReplayLibraryPlayer[]
   /** Unix ms when this replay was bookmarked, or `undefined` if it isn't. */
   bookmarkedAt?: number
+  /** The map's tileset, if it has one with art. */
+  tileset?: TilesetId
 }
 
 /**
@@ -64,14 +67,6 @@ export type ReplayTrashOutcome = 'trashed' | 'missing' | 'failed'
 export interface ReplayTrashResult {
   path: string
   outcome: ReplayTrashOutcome
-}
-
-/** A local playlist grouping replays in manual order, as exposed to the renderer. */
-export interface ReplayPlaylist {
-  id: number
-  name: string
-  /** Number of replays currently in the playlist. */
-  count: number
 }
 
 /**
@@ -130,8 +125,6 @@ export interface ReplayLibraryFilters {
   matchup?: EncodedMatchupString
   /** Only match bookmarked replays. */
   bookmarked?: boolean
-  /** Only match replays in this playlist, ordered by the playlist's manual order unless `sort` is set. */
-  playlistId?: number
   /** Result ordering. Defaults to newest-first when omitted. */
   sort?: GameSortOption
   /** Number of matching entries to skip from the start of the results (for pagination). */
@@ -155,13 +148,23 @@ export type ReplayBackfillProgress =
   | { phase: 'indexing'; done: number; total: number }
 
 /** High-level status of the replay index, for surfacing indexing progress in the UI. */
+/** A page of a replay library query. */
+export interface ReplayQueryResult {
+  entries: ReplayLibraryEntry[]
+  /** How many replays match, across every page. */
+  total: number
+  /**
+   * How many more would match if games too short to count weren't left out (see
+   * `ReplayLibraryFilters.includeShort`). Only the first page counts them; later pages have 0.
+   */
+  hiddenShort: number
+}
+
 export interface ReplayLibraryStatus {
-  /** Number of replays currently in the index. */
-  totalIndexed: number
-  /** Number of replays currently bookmarked. */
-  bookmarkedCount: number
   /** Present while an initial/ongoing backfill is running. */
   backfill?: ReplayBackfillProgress
   /** The absolute paths of the folders being indexed. */
   watchedFolders: string[]
+  /** The watched folders that can't be read right now, like a deleted folder or an unplugged drive. */
+  missingFolders: string[]
 }

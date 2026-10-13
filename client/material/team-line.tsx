@@ -56,7 +56,8 @@ const Bar = styled.span<{ $result: TeamLineResult }>`
 const Slots = styled.div<{ $slotWidth: number }>`
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(${SLOTS_PER_ROW}, ${props => props.$slotWidth}px);
+  /* Slots narrow together when the row is too narrow for them, cutting off long names. */
+  grid-template-columns: repeat(${SLOTS_PER_ROW}, minmax(0, ${props => props.$slotWidth}px));
   align-items: center;
   gap: 2px 4px;
 `

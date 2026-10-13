@@ -1,13 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { ReplayPlaylist } from '../../common/replays-library'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
-import { MenuList } from '../material/menu/menu'
-import { Popover, usePopoverController, useRefAnchorPosition } from '../material/popover'
-import { useAppDispatch } from '../redux-hooks'
 import { labelLarge } from '../styles/typography'
-import { getAddToPlaylistMenuItems } from './replay-menu-items'
 
 /** Inverse colors, so the bar stands apart from the panels it floats over. */
 const Root = styled.div`
@@ -68,26 +63,19 @@ const BarButton = styled.button<{ $danger?: boolean; $filled?: boolean }>`
 export function SelectionBar({
   count,
   allBookmarked,
-  playlists,
   onBookmark,
-  onAddToPlaylist,
   onAnalyze,
   onMoveToRecycleBin,
   onClear,
 }: {
   count: number
   allBookmarked: boolean
-  playlists: ReadonlyArray<ReplayPlaylist>
   onBookmark: (bookmarked: boolean) => void
-  onAddToPlaylist: (playlistId: number, playlistName: string) => void
   onAnalyze: () => void
   onMoveToRecycleBin: () => void
   onClear: () => void
 }) {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const [anchor, anchorX, anchorY, refreshAnchorPos] = useRefAnchorPosition('left', 'bottom')
-  const [menuOpen, openMenu, closeMenu] = usePopoverController({ refreshAnchorPos })
 
   return (
     <Root role='toolbar' aria-label={t('replays.selection.label', 'Selected games')}>
@@ -108,10 +96,6 @@ export function SelectionBar({
           ? t('replays.library.removeBookmark', 'Remove bookmark')
           : t('replays.library.bookmark', 'Bookmark')}
       </BarButton>
-      <BarButton ref={anchor} type='button' onClick={openMenu}>
-        <MaterialIcon icon='playlist_add' size={16} />
-        {t('replays.selection.addToPlaylist', 'Add to playlist')}
-      </BarButton>
       <BarButton type='button' $danger={true} onClick={onMoveToRecycleBin}>
         <MaterialIcon icon='delete' size={16} />
         {t('replays.library.moveToRecycleBin', 'Move to Recycle Bin')}
@@ -120,17 +104,6 @@ export function SelectionBar({
       <BarButton type='button' $filled={true} onClick={onClear}>
         {t('replays.selection.clear', 'Clear')}
       </BarButton>
-      <Popover
-        open={menuOpen}
-        onDismiss={closeMenu}
-        anchorX={anchorX ?? 0}
-        anchorY={anchorY ?? 0}
-        originX='left'
-        originY='top'>
-        <MenuList dense={true}>
-          {getAddToPlaylistMenuItems({ playlists, closeMenu, onAddToPlaylist, t, dispatch })}
-        </MenuList>
-      </Popover>
     </Root>
   )
 }

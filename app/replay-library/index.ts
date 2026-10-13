@@ -1,4 +1,5 @@
 import { shell, utilityProcess, UtilityProcess } from 'electron'
+import { access } from 'node:fs/promises'
 import path from 'node:path'
 import createDeferred, { Deferred } from '../../common/async/deferred'
 import { getErrorStack } from '../../common/errors'
@@ -64,46 +65,19 @@ export class ReplayLibraryService {
           : filters,
       ),
     )
-    ipcMain.handle('replayLibraryStatus', async () => this.call('status'))
+    ipcMain.handle('replayLibraryStatus', async () => {
+      const [status, missingFolders] = await Promise.all([
+        this.call('status'),
+        findMissingFolders(this.watchedFolders),
+      ])
+      return { ...status, missingFolders }
+    })
 
     ipcMain.handle('replayLibrarySetBookmarked', async (_event, replayIds, bookmarked) => {
       const changed = await this.call('setBookmarked', replayIds, bookmarked)
       this.notifyChanged()
       return changed
     })
-    ipcMain.handle('replayLibraryListPlaylists', async () => this.call('listPlaylists'))
-    ipcMain.handle('replayLibraryCreatePlaylist', async (_event, name) => {
-      const id = await this.call('createPlaylist', name)
-      this.notifyChanged()
-      return id
-    })
-    ipcMain.handle('replayLibraryRenamePlaylist', async (_event, id, name) => {
-      await this.call('renamePlaylist', id, name)
-      this.notifyChanged()
-    })
-    ipcMain.handle('replayLibraryDeletePlaylist', async (_event, id) => {
-      await this.call('deletePlaylist', id)
-      this.notifyChanged()
-    })
-    ipcMain.handle('replayLibraryAddToPlaylist', async (_event, playlistId, replayIds) => {
-      const added = await this.call('addToPlaylist', playlistId, replayIds)
-      this.notifyChanged()
-      return added
-    })
-    ipcMain.handle('replayLibraryRemoveFromPlaylist', async (_event, playlistId, replayIds) => {
-      await this.call('removeFromPlaylist', playlistId, replayIds)
-      this.notifyChanged()
-    })
-    ipcMain.handle(
-      'replayLibraryMovePlaylistEntry',
-      async (_event, playlistId, replayId, toIndex) => {
-        await this.call('movePlaylistEntry', playlistId, replayId, toIndex)
-        this.notifyChanged()
-      },
-    )
-    ipcMain.handle('replayLibraryGetPlaylistsForReplay', async (_event, replayId) =>
-      this.call('getPlaylistsForReplay', replayId),
-    )
     ipcMain.handle('replayLibrarySuggestOwnNames', async (_event, knownNames) =>
       this.call('suggestOwnNames', knownNames),
     )
@@ -282,4 +256,17 @@ export class ReplayLibraryService {
 /** Creates the replay library service, registering its IPC handlers and starting the index worker. */
 export function setupReplayLibrary(options: ReplayLibraryOptions): ReplayLibraryService {
   return new ReplayLibraryService(options)
+}
+
+/** The folders that can't be read right now. */
+async function findMissingFolders(folders: ReadonlyArray<string>): Promise<string[]> {
+  const readable = await Promise.all(
+    folders.map(folder =>
+      access(folder).then(
+        () => true,
+        () => false,
+      ),
+    ),
+  )
+  return folders.filter((_, i) => !readable[i])
 }

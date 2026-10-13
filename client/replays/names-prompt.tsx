@@ -150,7 +150,7 @@ export function NamesPrompt() {
         <Body>
           {t(
             'replays.names.body',
-            'Your names group your own games into sessions and keep downloaded replays apart. You can change them in Settings.',
+            'Your names tell your games apart from downloaded replays. You can change them in Settings.',
           )}
         </Body>
       </Text>

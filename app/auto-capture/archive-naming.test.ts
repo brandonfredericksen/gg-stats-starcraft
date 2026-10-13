@@ -20,6 +20,7 @@ function makeReplay(overrides: Partial<IndexedReplay> = {}): IndexedReplay {
     ],
     teamSize: 1,
     matchup: 'p-z',
+    tileset: 4,
     ...overrides,
   }
 }

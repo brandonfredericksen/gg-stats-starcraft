@@ -12,7 +12,12 @@ export interface GameRowLine {
 /** The game's type as players say it: `1v1`, `2v2`, `3v3`, `2v1`, `FFA`. */
 export function getGameModeLabel(layout: ReplayTeamLayout): string {
   if (layout.kind === 'flat') {
-    return layout.teams.flat().length > 2 ? 'FFA' : '1v1'
+    const count = layout.teams.flat().length
+    if (count > 2) {
+      return 'FFA'
+    }
+    // A replay with a single player, like a map test, has no game type.
+    return count === 2 ? '1v1' : '-'
   }
   return layout.teams.map(team => team.length).join('v')
 }

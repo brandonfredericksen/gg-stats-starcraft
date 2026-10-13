@@ -70,8 +70,8 @@ export function startReplay({
             i18n.t('replays.loading.initFailureTitle', 'Error loading replay'),
             i18n.t(
               'replays.loading.initFailureBody',
-              'The selected replay could not be loaded. It may either be corrupt, or was ' +
-                'created by a version of StarCraft newer than is currently supported.',
+              "This replay couldn't be loaded. It may be damaged, or from a newer StarCraft than " +
+                'GG Stats supports yet.',
             ),
           ),
         )

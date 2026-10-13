@@ -6,51 +6,35 @@ export function startOfLocalDay(ms: number): number {
 }
 
 /**
- * Parses a `yyyy-mm-dd` string as a local calendar date, returning `undefined` if it doesn't
- * describe a real date. Deliberately avoids `new Date('yyyy-mm-dd')`, which parses that format as
- * UTC midnight rather than local midnight.
+ * A span of time up to now that a list can be narrowed to. It's kept as the span rather than a
+ * start date, so "Last 7 days" still means the last 7 days when it's remembered or linked to later.
  */
-function parseLocalDate(value: string): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) {
-    return undefined
-  }
+export type DatePreset = 'today' | 'week' | 'month' | 'year'
 
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(year, month - 1, day)
-  // `Date` silently rolls over out-of-range components (e.g. month 13, or day 30 in February)
-  // instead of failing, so confirm the parsed date reflects exactly the components given.
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return undefined
-  }
+const DATE_PRESETS: ReadonlyArray<DatePreset> = ['today', 'week', 'month', 'year']
 
-  return date
+/** The `DatePreset` a URL param names, or `undefined` for any other value (any time). */
+export function parseDatePreset(value: string): DatePreset | undefined {
+  return DATE_PRESETS.includes(value as DatePreset) ? (value as DatePreset) : undefined
 }
 
-/**
- * Resolves `yyyy-mm-dd` date-range bounds (as produced by `<input type='date'>` or read from URL
- * params) to inclusive unix-ms bounds in local time: `startMs` is local midnight of `startDate`,
- * `endMs` is the last millisecond of `endDate` (the instant before the following local midnight).
- * A missing, empty, or malformed bound resolves to `undefined` rather than `NaN`, so a
- * user-edited URL can't produce an invalid filter.
- */
-export function resolveDateRangeMs(
-  startDate?: string,
-  endDate?: string,
-): { startMs?: number; endMs?: number } {
-  const startLocalDate = startDate ? parseLocalDate(startDate) : undefined
-  const endLocalDate = endDate ? parseLocalDate(endDate) : undefined
-
-  const startMs = startLocalDate?.getTime()
-  const endMs = endLocalDate
-    ? new Date(
-        endLocalDate.getFullYear(),
-        endLocalDate.getMonth(),
-        endLocalDate.getDate() + 1,
-      ).getTime() - 1
-    : undefined
-
-  return { startMs, endMs }
+/** When a `DatePreset` starts, in unix ms: local midnight of its first day. */
+export function getDatePresetStartMs(preset: DatePreset, nowMs: number): number {
+  const start = new Date(startOfLocalDay(nowMs))
+  switch (preset) {
+    case 'today':
+      break
+    case 'week':
+      start.setDate(start.getDate() - 6)
+      break
+    case 'month':
+      start.setDate(start.getDate() - 29)
+      break
+    case 'year':
+      start.setMonth(0, 1)
+      break
+    default:
+      preset satisfies never
+  }
+  return start.getTime()
 }

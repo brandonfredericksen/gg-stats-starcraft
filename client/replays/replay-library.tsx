@@ -14,17 +14,17 @@ import {
   GameSortOption,
 } from '../../common/games/game-filters'
 import { TypedIpcRenderer } from '../../common/ipc'
-import { FEATURED_REPLAY_GAME_TYPES, SupportedReplayGameType } from '../../common/replays'
 import {
   ReplayBackfillProgress,
   ReplayLibraryEntry,
   ReplayLibraryFilters,
   ReplayLibraryStatus,
-  ReplayPlaylist,
   ReplayTeamsFilter,
 } from '../../common/replays-library'
+import { openDialog } from '../dialogs/action-creators'
+import { DialogType } from '../dialogs/dialog-type'
 import { useContextMenu } from '../dom/use-context-menu'
-import { resolveDateRangeMs } from '../games/date-range'
+import { DatePreset, getDatePresetStartMs, parseDatePreset } from '../games/date-range'
 import { parseMatchup } from '../games/game-filter-url'
 import { useMyPlayerNames } from '../games/my-player-names'
 import { useReplaySummaries } from '../games/replay-stats-status'
@@ -37,10 +37,10 @@ import logger from '../logging/logger'
 import { TextButton } from '../material/button'
 import { MenuItem } from '../material/menu/item'
 import { MenuList } from '../material/menu/menu'
-import { Popover, usePopoverController } from '../material/popover'
+import { Popover } from '../material/popover'
 import { getTeamSlotWidth } from '../material/team-line'
 import { useHistoryEntryKey, useLocationSearchParam } from '../navigation/router-hooks'
-import { push, replace } from '../navigation/routing'
+import { push } from '../navigation/routing'
 import { createViewStateStore } from '../navigation/view-state-store'
 import { useVirtuosoScrollMemory } from '../navigation/virtuoso-scroll-memory'
 import { useRefreshToken } from '../network/refresh-token'
@@ -49,6 +49,8 @@ import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useUserLocalStorageValue } from '../react/state-hooks'
 import { useAppDispatch } from '../redux-hooks'
+import { openSettings } from '../settings/action-creators'
+import { AppSettingsPage } from '../settings/settings-page'
 import { useSnackbarController } from '../snackbars/snackbar-overlay'
 import { CenteredContentContainer } from '../styles/centered-container'
 import { styledWithAttrs } from '../styles/styled-with-attrs'
@@ -61,7 +63,7 @@ import { LibraryFilterRow } from './library-filter-row'
 import { AnalysisFilter, LibraryToolbar, WhoseFilter } from './library-toolbar'
 import { NamesPrompt } from './names-prompt'
 import { getDaySummary, getDayTitle, groupReplaysByDay } from './replay-days'
-import { encodeViewPathname, isManualPlaylistOrder, LibraryView } from './replay-library-helpers'
+import { encodeViewPathname, LibraryView } from './replay-library-helpers'
 import {
   collapseSelection,
   findNeighborOutside,
@@ -71,11 +73,7 @@ import {
   selectRangeTo,
   toggleInSelection,
 } from './replay-library-selection'
-import {
-  getAddToPlaylistMenuItems,
-  getBulkReplayActionMenuItems,
-  getReplayActionMenuItems,
-} from './replay-menu-items'
+import { getBulkReplayActionMenuItems, getReplayActionMenuItems } from './replay-menu-items'
 import { SelectionBar } from './selection-bar'
 
 const ipcRenderer = new TypedIpcRenderer()
@@ -103,19 +101,6 @@ const windowCache = createViewStateStore<ReplayListWindow>('replay-library', {
 const focusedIdCache = createViewStateStore<number>('replay-library-selection', {
   maxAgeMs: WINDOW_MAX_AGE_MS,
 })
-
-interface RailSnapshot {
-  status: ReplayLibraryStatus | undefined
-  backfill: ReplayBackfillProgress | undefined
-  playlists: ReadonlyArray<ReplayPlaylist>
-}
-
-// The rail's data (index counts, backfill progress, playlists) is library-wide rather than
-// per-visit, but it's fetched and owned by `ReplayLibrary`, which remounts on every view change
-// (keyed in `ReplaysRoot`). Seeding each mount from the previous instance's latest values keeps
-// the rail stable across that remount — without it, the rail would blank (counts at zero, playlist
-// rows gone) until the mount-time fetches answer. The fetches still run and replace the seed.
-let railSnapshot: RailSnapshot = { status: undefined, backfill: undefined, playlists: [] }
 
 function parseDuration(value: string): GameDurationFilter {
   return Object.values(GameDurationFilter).includes(value as GameDurationFilter)
@@ -149,31 +134,14 @@ function parseWhose(value: string): WhoseFilter {
   return value === 'mine' || value === 'others' ? value : 'all'
 }
 
-function parseModeFilter(value: string): SupportedReplayGameType | 'others' | undefined {
-  if (value === 'others') {
-    return 'others'
-  }
-  const parsed = Number.parseInt(value, 10)
-  return (FEATURED_REPLAY_GAME_TYPES as readonly number[]).includes(parsed)
-    ? (parsed as SupportedReplayGameType)
-    : undefined
-}
-
 interface BuildFiltersParams {
   view: LibraryView
-  /**
-   * `undefined` in a playlist's manual order, which the query treats as "use the playlist's
-   * arrangement".
-   */
-  sort: GameSortOption | undefined
+  sort: GameSortOption
   mapName: string
-  playerName: string
-  gameType: number | 'others' | undefined
   duration: GameDurationFilter
   format: GameFormat | undefined
   matchup: EncodedMatchupString | undefined
-  startDate: string
-  endDate: string
+  date: DatePreset | undefined
   includeShort: boolean
   teams: ReplayTeamsFilter | undefined
   analysis: AnalysisFilter
@@ -187,13 +155,10 @@ function buildFilters({
   view,
   sort,
   mapName,
-  playerName,
-  gameType,
   duration,
   format,
   matchup,
-  startDate,
-  endDate,
+  date,
   includeShort,
   teams,
   analysis,
@@ -204,21 +169,15 @@ function buildFilters({
   const filters: ReplayLibraryFilters = {}
   if (view.kind === 'bookmarked') {
     filters.bookmarked = true
-  } else if (view.kind === 'playlist') {
-    filters.playlistId = view.id
   }
-  if (sort !== undefined) filters.sort = sort
+  filters.sort = sort
   if (mapName) filters.mapName = mapName
-  if (playerName) filters.playerName = playerName
-  if (gameType !== undefined) filters.gameType = gameType
   if (duration !== GameDurationFilter.All) filters.duration = duration
   if (format !== undefined) {
     filters.format = format
     if (matchup) filters.matchup = matchup
   }
-  const { startMs, endMs } = resolveDateRangeMs(startDate, endDate)
-  if (startMs !== undefined) filters.gameTimeFrom = startMs
-  if (endMs !== undefined) filters.gameTimeTo = endMs
+  if (date) filters.gameTimeFrom = getDatePresetStartMs(date, Date.now())
   if (includeShort) filters.includeShort = true
   if (teams) filters.teams = teams
   if (analysis !== 'any') filters.analysis = analysis
@@ -270,6 +229,16 @@ const CenteredState = styled.div`
   padding: 32px;
   text-align: center;
 
+  color: var(--theme-on-surface-variant);
+`
+
+const ShortGamesNote = styled.div`
+  ${bodyMedium};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: -8px;
   color: var(--theme-on-surface-variant);
 `
 
@@ -334,17 +303,13 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   )
   const [total, setTotal] = useState<number | undefined>(initialWindow?.total)
   const [isLoadingNext, setIsLoadingNext] = useState(false)
-  const [status, setStatus] = useState<ReplayLibraryStatus | undefined>(() => railSnapshot.status)
-  const [backfill, setBackfill] = useState<ReplayBackfillProgress | undefined>(
-    () => railSnapshot.backfill,
-  )
+  const [hiddenShort, setHiddenShort] = useState(0)
+  const [status, setStatus] = useState<ReplayLibraryStatus>()
+  const [backfill, setBackfill] = useState<ReplayBackfillProgress>()
   // Set when the status query rejects, which in practice means the main-process replay library
   // service failed to start (e.g. the SQLite module couldn't load) and none of its IPC handlers are
   // registered — so every query would hang. We surface that instead of spinning forever.
   const [unavailable, setUnavailable] = useState(false)
-  const [playlists, setPlaylists] = useState<ReadonlyArray<ReplayPlaylist>>(
-    () => railSnapshot.playlists,
-  )
   const [observerToken, restartObserver] = useRefreshToken()
 
   // Only the focused row persists across visits; a multi-selection is dropped on leaving.
@@ -379,11 +344,8 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     }
   }
 
-  // Right-click on a row selects it and opens this menu at the cursor, offering the same actions
-  // as the inspector's overflow menu.
+  // Right-click on a row selects it and opens this menu at the cursor.
   const { onContextMenu: openRowContextMenu, contextMenuPopoverProps } = useContextMenu()
-  const [addToPlaylistMenuOpen, openAddToPlaylistMenu, closeAddToPlaylistMenu] =
-    usePopoverController()
 
   // Guards against IPC responses for a query that's since been superseded by a `reset()` (e.g. the
   // user changed filters while a request was in flight).
@@ -392,12 +354,9 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   const [durationParam, setDurationParam] = useLocationSearchParam('duration')
   const [sortParam, setSortParam] = useLocationSearchParam('sort')
   const [mapName, setMapNameParam] = useLocationSearchParam('mapName')
-  const [playerName, setPlayerNameParam] = useLocationSearchParam('playerName')
   const [formatParam, setFormatParam] = useLocationSearchParam('format')
   const [matchupParam, setMatchupParam] = useLocationSearchParam('matchup')
-  const [gameTypeParam, setGameTypeParam] = useLocationSearchParam('gameType')
-  const [startDate, setStartDateParam] = useLocationSearchParam('startDate')
-  const [endDate, setEndDateParam] = useLocationSearchParam('endDate')
+  const [dateParam, setDateParam] = useLocationSearchParam('date')
   const [includeShortParam, setIncludeShortParam] = useLocationSearchParam('includeShort')
   const [teamsParam, setTeamsParam] = useLocationSearchParam('teams')
   const [analysisParam, setAnalysisParam] = useLocationSearchParam('analysis')
@@ -408,20 +367,14 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   const analysis = parseAnalysis(analysisParam)
   const myNames = useMyPlayerNames()
 
-  // The library's mode-like filters are remembered per user across visits, with every view (the
-  // whole library, bookmarks, each playlist) sharing one saved set. Each view names only the
-  // params it actually uses, so a preference a view can't express is neither seeded into its URL
-  // nor counted as "the URL specifies the filters" there (saved entries outside a view's params
-  // survive its saves untouched).
+  // The library's mode-like filters are remembered per user across visits, with both views (the
+  // whole library and bookmarks) sharing one saved set. Each view names only the params it
+  // actually uses, so a preference a view can't express is neither seeded into its URL nor counted
+  // as "the URL specifies the filters" there (saved entries outside a view's params survive its
+  // saves untouched).
   const rememberedUrlValues: Record<string, string> = {
     duration: durationParam,
-    gameType: gameTypeParam,
-  }
-  if (view.kind !== 'playlist') {
-    // Inside a playlist an absent sort means the playlist's manual order, and nothing there ever
-    // writes an absent sort back (every menu choice is explicit, and Clear leaves sort alone) — so
-    // seeding a remembered sort would make drag-to-reorder permanently unreachable.
-    rememberedUrlValues.sort = sortParam
+    sort: sortParam,
   }
   if (view.kind === 'all') {
     rememberedUrlValues.includeShort = includeShortParam
@@ -431,36 +384,33 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     rememberedUrlValues,
   )
 
-  // A playlist reads sort straight from the URL: absent means its manual order, never a
-  // remembered fill-in.
-  const sortValue = view.kind === 'playlist' ? sortParam : filterValues.sort
+  // Remembered per user: hides who won and how long each game took.
+  const [spoilerFree, setSpoilerFree] = useUserLocalStorageValue('gamesSpoilerFree', false)
 
   const duration = parseDuration(filterValues.duration)
-  const sort = parseSort(sortValue)
+  const chosenSort = parseSort(filterValues.sort)
+  const isDurationSort =
+    chosenSort === GameSortOption.ShortestFirst || chosenSort === GameSortOption.LongestFirst
+  // Sorting by length would give results away as much as showing it, so it waits while results
+  // are hidden.
+  const sort = spoilerFree && isDurationSort ? GameSortOption.LatestFirst : chosenSort
   const format = parseFormat(formatParam)
   const matchup = parseMatchup(matchupParam, format)
-  const gameType = parseModeFilter(filterValues.gameType)
-  // The minimum-length floor never applies to curation views (bookmarked/playlist) — see
-  // `buildReplaySqlQuery` — so `includeShort` is meaningless there: it isn't read (a hand-edited
-  // URL param must not disable reordering via `hasActiveFilters`), seeded, or saved, and the
-  // checkbox isn't offered.
+  const date = parseDatePreset(dateParam)
+  // The minimum-length floor never applies to the Bookmarked view (see `buildReplaySqlQuery`), so
+  // `includeShort` is only read, seeded and saved in the whole library.
   const includeShort = view.kind === 'all' && filterValues.includeShort === 'true'
 
   const computerLabel = t('game.playerName.computer', 'Computer')
 
-  // Remembered per user: hides who won and how long each game took.
-  const [spoilerFree, setSpoilerFree] = useUserLocalStorageValue('gamesSpoilerFree', false)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   // The view is navigation rather than a filter: it isn't included here, and clearing filters
   // leaves it alone.
   // How many of the filter row's filters are set, for the badge on the Filters button.
-  const filtersCount = [
-    !!startDate || !!endDate,
-    duration !== GameDurationFilter.All,
-    !!format,
-    !!mapName,
-  ].filter(Boolean).length
+  const filtersCount = [!!date, duration !== GameDurationFilter.All, !!matchup, !!mapName].filter(
+    Boolean,
+  ).length
   const hasActiveFilters =
     !!teams ||
     analysis !== 'any' ||
@@ -468,21 +418,28 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     !!search ||
     duration !== GameDurationFilter.All ||
     !!mapName ||
-    !!playerName ||
     !!format ||
     !!matchup ||
-    gameType !== undefined ||
-    !!startDate ||
-    !!endDate ||
-    includeShort
+    !!date
 
-  const isDurationSort =
-    sort === GameSortOption.ShortestFirst || sort === GameSortOption.LongestFirst
-  const manualOrder = isManualPlaylistOrder(view, sortValue)
-  // A playlist's manual order has no meaningful day boundaries, so it renders flat like the
-  // duration sorts do.
-  const useFlatList = isDurationSort || manualOrder
-  const effectiveSort = manualOrder ? undefined : sort
+  // A list sorted by length has no days to split into.
+  const useFlatList = sort === GameSortOption.ShortestFirst || sort === GameSortOption.LongestFirst
+
+  const currentFilters = buildFilters({
+    view,
+    sort,
+    mapName,
+    duration,
+    format,
+    matchup,
+    date,
+    includeShort,
+    teams,
+    analysis,
+    search,
+    whose,
+    myNames,
+  })
 
   const reset = () => {
     queryEpochRef.current += 1
@@ -529,24 +486,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
 
     ipcRenderer
       .invoke('replayLibraryQuery', {
-        ...buildFilters({
-          view,
-          sort: effectiveSort,
-          mapName,
-          playerName,
-          gameType,
-          duration,
-          format,
-          matchup,
-          startDate,
-          endDate,
-          includeShort,
-          teams,
-          analysis,
-          search,
-          whose,
-          myNames,
-        }),
+        ...currentFilters,
         offset: 0,
         limit,
       })
@@ -554,33 +494,16 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         if (epoch !== queryEpochRef.current || !result) return
         setEntries(result.entries)
         setTotal(result.total)
+        setHiddenShort(result.hiddenShort)
       })
       .catch(swallowNonBuiltins)
   })
 
-  // Fetches the playlists for the rail. Called once on mount and again (debounced) on every index
-  // change. Doubles as the consistency check for the current view: if the playlist being viewed no
-  // longer exists (deleted, or a stale URL), the URL is corrected in place to the whole library —
-  // the replace keeps the visit key while the parent's view-keyed remount swaps in a fresh instance.
-  const fetchPlaylists = useEffectEvent(() => {
-    ipcRenderer
-      .invoke('replayLibraryListPlaylists')
-      ?.then(result => {
-        if (!result) return
-        setPlaylists(result)
-        if (view.kind === 'playlist' && !result.some(p => p.id === view.id)) {
-          replace(encodeViewPathname({ kind: 'all' }) + window.location.search)
-        }
-      })
-      .catch(swallowNonBuiltins)
-  })
-
-  // Re-runs everything the debounced `replayLibraryChanged` listener below refreshes: the loaded
-  // window, status/backfill, and playlists, plus bumping the change token.
+  // Re-runs everything the `replayLibraryChanged` listener below refreshes: the loaded window and
+  // status/backfill.
   const refreshAfterChange = useEffectEvent(() => {
     refreshLoadedWindow()
     fetchStatus()
-    fetchPlaylists()
   })
 
   // Lets a plain event handler (not an Effect) ask for the same refresh `refreshAfterChange`
@@ -602,7 +525,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   // Listen for index change + backfill events only while mounted.
   useEffect(() => {
     fetchStatus()
-    fetchPlaylists()
     if (initialWindow !== undefined) {
       // The index can change while the page is unmounted (files added/removed, backfill progress)
       // with nothing listening for the change events, so a restored window is re-queried
@@ -611,9 +533,15 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
       refreshLoadedWindow()
     }
 
-    const handleChanged = debounce(() => {
-      refreshAfterChange()
-    }, 300)
+    // A scan sends a change every second while it indexes, and each refresh queries every loaded
+    // row again, so refreshes wait for a pause but no longer than a few seconds.
+    const handleChanged = debounce(
+      () => {
+        refreshAfterChange()
+      },
+      500,
+      { maxWait: 3000 },
+    )
     const handleProgress = (_event: unknown, progress: ReplayBackfillProgress | undefined) => {
       setBackfill(progress)
     }
@@ -627,12 +555,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
       ipcRenderer.removeListener('replayLibraryBackfillProgress', handleProgress)
     }
   }, [initialWindow])
-
-  // Mirrored on every change (rather than written through in each setter) so functional updates —
-  // e.g. the optimistic bookmark-count bump in `setBookmarked` — are captured too.
-  useEffect(() => {
-    railSnapshot = { status, backfill, playlists }
-  }, [status, backfill, playlists])
 
   useEffect(() => {
     if (entryKey === undefined) {
@@ -671,7 +593,10 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
 
   const loadedEntries = entries ?? []
   useReplaySummaries(loadedEntries.filter(e => !e.parseError).map(e => e.path))
-  const focusedEntry = loadedEntries.find(e => e.id === focusedId) ?? loadedEntries[0]
+  // The row the user put the keyboard on, by clicking or with the arrow keys. Until they do, the
+  // first row stands in for what the menus and selection act on, but Enter doesn't open it.
+  const pickedEntry = loadedEntries.find(e => e.id === focusedId)
+  const focusedEntry = pickedEntry ?? loadedEntries[0]
   const focusedIndex = focusedEntry ? loadedEntries.findIndex(e => e.id === focusedEntry.id) : -1
   const orderedIds = loadedEntries.map(e => e.id)
   const selectedIds = new Set(getSelectedIds(selection, orderedIds, focusedEntry?.id))
@@ -679,8 +604,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   // What the row context menu, Delete and the selection summary act on: every selected row, which
   // for a single selection is just the focused one.
   const selectedEntries = loadedEntries.filter(e => selectedIds.has(e.id))
-  const currentPlaylistName =
-    view.kind === 'playlist' ? (playlists.find(p => p.id === view.id)?.name ?? '') : ''
 
   const watchEntry = (entry: ReplayLibraryEntry) => {
     dispatch(startReplay({ path: entry.path, name: entry.fileName }))
@@ -697,8 +620,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   }
 
   // Hands focus to a neighboring row before `targets` leave the list -- otherwise the stale
-  // `focusedId` would make the focused-entry fallback jump the selection (and the inspector) to the
-  // first row. Any multi-selection is dropped either way, since its rows are the ones leaving.
+  // `focusedId` would make the focused-entry fallback jump the selection to the first row. Any multi-selection is dropped either way, since its rows are the ones leaving.
   const moveSelectionOffOf = (targets: ReadonlyArray<ReplayLibraryEntry>) => {
     const targetIds = new Set(targets.map(e => e.id))
     if (focusedEntry && targetIds.has(focusedEntry.id)) {
@@ -712,20 +634,12 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     if (targets.length === 0) return
     const isBulk = targets.length > 1
     const targetIds = new Set(targets.map(e => e.id))
-    const bookmarkedCount = targets.filter(e => e.bookmarkedAt !== undefined).length
     moveSelectionOffOf(targets)
     // Update optimistically, same as `setBookmarked`: the watcher notices the files' removal on
     // its own and its resulting index-changed event will confirm this shortly. Anything that
     // didn't actually leave the disk is corrected via the same refresh that event uses.
     setEntries(prev => prev?.filter(e => !targetIds.has(e.id)))
     setTotal(prev => (prev !== undefined ? Math.max(0, prev - targets.length) : prev))
-    if (bookmarkedCount > 0) {
-      setStatus(prev =>
-        prev
-          ? { ...prev, bookmarkedCount: Math.max(0, prev.bookmarkedCount - bookmarkedCount) }
-          : prev,
-      )
-    }
 
     const showError = () => {
       snackbarController.showSnackbar(
@@ -786,6 +700,32 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
       })
   }
 
+  /** Moves several replays to the Recycle Bin once the user says so. One goes right away. */
+  const confirmTrashEntries = (targets: ReadonlyArray<ReplayLibraryEntry>) => {
+    if (targets.length <= 1) {
+      trashEntries(targets)
+      return
+    }
+    dispatch(
+      openDialog({
+        type: DialogType.Confirm,
+        initData: {
+          confirmTitle: t('replays.library.bulk.confirmRecycleTitle', {
+            defaultValue_one: 'Move {{count}} replay to the Recycle Bin?',
+            defaultValue_other: 'Move {{count}} replays to the Recycle Bin?',
+            count: targets.length,
+          }),
+          confirmBody: t(
+            'replays.library.bulk.confirmRecycleBody',
+            'You can restore them from the Recycle Bin.',
+          ),
+          confirmLabel: t('replays.library.moveToRecycleBin', 'Move to Recycle Bin'),
+          onConfirm: () => trashEntries(targets),
+        },
+      }),
+    )
+  }
+
   const handleRowSelect = (id: number, event: React.MouseEvent) => {
     const toggle = event.ctrlKey || event.metaKey
     if (event.shiftKey) {
@@ -821,17 +761,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         changingIds.has(e.id) ? { ...e, bookmarkedAt: bookmarked ? now : undefined } : e,
       )
     })
-    setStatus(prev =>
-      prev
-        ? {
-            ...prev,
-            bookmarkedCount: Math.max(
-              0,
-              prev.bookmarkedCount + (bookmarked ? changing.length : -changing.length),
-            ),
-          }
-        : prev,
-    )
     ipcRenderer
       .invoke('replayLibrarySetBookmarked', [...changingIds], bookmarked)
       ?.then(changed => {
@@ -858,76 +787,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     setBookmarked([entry], entry.bookmarkedAt === undefined)
   }
 
-  const addToPlaylist = (
-    playlistId: number,
-    playlistName: string,
-    targets: ReadonlyArray<ReplayLibraryEntry>,
-  ) => {
-    if (targets.length === 0) return
-    ipcRenderer
-      .invoke(
-        'replayLibraryAddToPlaylist',
-        playlistId,
-        targets.map(e => e.id),
-      )
-      ?.then(added => {
-        if (targets.length <= 1 || !added) return
-        snackbarController.showSnackbar(
-          t('replays.library.bulk.addedToPlaylist', {
-            defaultValue_one: 'Added {{count}} replay to {{playlist}}',
-            defaultValue_other: 'Added {{count}} replays to {{playlist}}',
-            count: added.length,
-            playlist: playlistName,
-          }),
-          { tone: 'success' },
-        )
-      })
-      .catch(swallowNonBuiltins)
-  }
-
-  const removeFromCurrentPlaylist = (targets: ReadonlyArray<ReplayLibraryEntry>) => {
-    if (view.kind !== 'playlist' || targets.length === 0) return
-    const playlistName = currentPlaylistName
-    moveSelectionOffOf(targets)
-    ipcRenderer
-      .invoke(
-        'replayLibraryRemoveFromPlaylist',
-        view.id,
-        targets.map(e => e.id),
-      )
-      ?.then(() => {
-        if (targets.length <= 1) return
-        snackbarController.showSnackbar(
-          t('replays.library.bulk.removedFromPlaylist', {
-            defaultValue_one: 'Removed {{count}} replay from {{playlist}}',
-            defaultValue_other: 'Removed {{count}} replays from {{playlist}}',
-            count: targets.length,
-            playlist: playlistName,
-          }),
-          { tone: 'success' },
-        )
-      })
-      .catch(swallowNonBuiltins)
-  }
-
-  // Move up/down sends the loaded index directly as an absolute playlist position, which is only
-  // correct when the loaded list is the complete playlist in manual order (contiguous from offset
-  // 0, ordered purely by position). Value filters break that: they subset the list, so a loaded
-  // index no longer maps to a playlist position.
-  const canReorder = manualOrder && !hasActiveFilters
-  const moveFocusedBy = (delta: number) => {
-    if (view.kind !== 'playlist' || !canReorder || !focusedEntry || focusedIndex < 0) return
-    const toIndex = focusedIndex + delta
-    if (toIndex < 0 || toIndex >= (total ?? loadedEntries.length)) return
-    ipcRenderer
-      .invoke('replayLibraryMovePlaylistEntry', view.id, focusedEntry.id, toIndex)
-      ?.catch(swallowNonBuiltins)
-  }
-
-  const canMoveUp = canReorder && focusedIndex > 0
-  const canMoveDown =
-    canReorder && focusedIndex >= 0 && focusedIndex < (total ?? loadedEntries.length) - 1
-
   const scrollToIndex = (index: number) => {
     // Only one of these lists is mounted at a time, so the other ref is null.
     groupedRef.current?.scrollIntoView({ index })
@@ -944,7 +803,8 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   }
   const moveFocus = (delta: number) => {
     if (loadedEntries.length === 0) return
-    focusIndex(getIndexAfterMove(delta))
+    // The first key press puts the keyboard on the first row rather than past it.
+    focusIndex(pickedEntry ? getIndexAfterMove(delta) : 0)
   }
   // Shift+Up/Down: moves focus while selecting everything between it and the range anchor.
   const extendSelection = (delta: number) => {
@@ -957,28 +817,12 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   const onLoadNextData = () => {
     setIsLoadingNext(true)
     const epoch = queryEpochRef.current
+    const offset = entries?.length ?? 0
 
     ipcRenderer
       .invoke('replayLibraryQuery', {
-        ...buildFilters({
-          view,
-          sort: effectiveSort,
-          mapName,
-          playerName,
-          gameType,
-          duration,
-          format,
-          matchup,
-          startDate,
-          endDate,
-          includeShort,
-          teams,
-          analysis,
-          search,
-          whose,
-          myNames,
-        }),
-        offset: entries?.length ?? 0,
+        ...currentFilters,
+        offset,
         limit: LOAD_CHUNK_SIZE,
       })
       ?.then(result => {
@@ -990,6 +834,9 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           return (prev ?? []).concat(result.entries.filter(e => !existingIds.has(e.id)))
         })
         setTotal(result.total)
+        if (offset === 0) {
+          setHiddenShort(result.hiddenShort)
+        }
       })
       .catch(swallowNonBuiltins)
       .finally(() => {
@@ -1004,13 +851,9 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   const clearAllFilters = () => {
     setDurationParam('')
     setMapNameParam('')
-    setPlayerNameParam('')
     setFormatParam('')
     setMatchupParam('')
-    setGameTypeParam('')
-    setStartDateParam('')
-    setEndDateParam('')
-    setIncludeShortParam('')
+    setDateParam('')
     setTeamsParam('')
     setAnalysisParam('')
     setSearchParam('')
@@ -1025,9 +868,8 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
     onKeyDown: (event: KeyboardEvent) => {
       // Every key here acts on the replay list, but this page's key listener boundary is shared
       // with other UI whose keydowns bubble to the document, like the search field. While a
-      // text-entry element has focus, the keystroke belongs to it: without this, pressing Delete
-      // while typing would remove the focused replay from a playlist, and Enter would launch the
-      // replay.
+      // text-entry element has focus, the keystroke belongs to it: without this, pressing Enter
+      // while typing would open a replay.
       const target = event.target
       if (
         target instanceof HTMLElement &&
@@ -1066,14 +908,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         case 'End':
           focusIndex(loadedEntries.length - 1)
           return true
-        case 'Delete':
-          // Removes the selection from the current playlist only; replay files on disk are never
-          // touched.
-          if (view.kind === 'playlist' && selectedEntries.length > 0) {
-            removeFromCurrentPlaylist(selectedEntries)
-            return true
-          }
-          return false
         case ENTER:
         case ENTER_NUMPAD: {
           const active = document.activeElement
@@ -1084,7 +918,10 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           ) {
             return false
           }
-          if (focusedEntry) openEntry(focusedEntry)
+          if (!pickedEntry || pickedEntry.parseError) {
+            return false
+          }
+          openEntry(pickedEntry)
           return true
         }
       }
@@ -1104,9 +941,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   }
   const nowMs = useCurrentMinuteMs()
   const getFlatListTitle = () => {
-    if (manualOrder) {
-      return t('replays.filters.playlistOrder', 'Playlist order')
-    }
     return sort === GameSortOption.ShortestFirst
       ? t('replays.filters.shortestFirst', 'Shortest first')
       : t('replays.filters.longestFirst', 'Longest first')
@@ -1124,6 +958,8 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         edge={isLast ? 'last' : 'middle'}
         // Only a selection of several games is marked, since that's what the selection bar acts on.
         selected={isMultiSelection && selectedIds.has(entry.id)}
+        focused={entry.id === pickedEntry?.id}
+        showDate={useFlatList}
         hideResults={spoilerFree}
         myNames={myNames}
         computerLabel={computerLabel}
@@ -1166,25 +1002,34 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           </div>
         </CenteredState>
       )
-    } else if (view.kind === 'playlist') {
+    } else if (
+      status &&
+      (status.watchedFolders.length === 0 ||
+        status.missingFolders.length === status.watchedFolders.length)
+    ) {
       listContent = (
         <CenteredState>
-          <EmptyStateTitle>
-            {t('replays.library.playlistEmpty', 'This playlist is empty')}
-          </EmptyStateTitle>
-          <div>{t('replays.library.playlistEmptyBody', 'Add replays to it from the library.')}</div>
-        </CenteredState>
-      )
-    } else if (status && status.watchedFolders.length === 0) {
-      listContent = (
-        <CenteredState>
-          <EmptyStateTitle>{t('replays.library.noFolders', 'No replay folders')}</EmptyStateTitle>
-          <div>
-            {t(
-              'replays.library.noFoldersBody',
-              'Add a folder in Settings > App > System to start indexing replays.',
-            )}
-          </div>
+          {status.watchedFolders.length === 0 ? (
+            <EmptyStateTitle>{t('replays.library.noFolders', 'No replay folders')}</EmptyStateTitle>
+          ) : (
+            <>
+              <EmptyStateTitle>
+                {t('replays.library.foldersMissing', {
+                  defaultValue_one: "Your replay folder can't be found",
+                  defaultValue_other: "Your replay folders can't be found",
+                  count: status.watchedFolders.length,
+                })}
+              </EmptyStateTitle>
+              {status.missingFolders.map(folder => (
+                <EmptyStatePath key={folder}>{folder}</EmptyStatePath>
+              ))}
+            </>
+          )}
+          <TextButton
+            label={t('replays.library.replayFolders', 'Replay folders')}
+            iconStart={<MaterialIcon icon='folder' />}
+            onClick={() => dispatch(openSettings(AppSettingsPage.Replays))}
+          />
         </CenteredState>
       )
     } else if (backfill) {
@@ -1195,12 +1040,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
       listContent = (
         <CenteredState>
           <EmptyStateTitle>{t('replays.library.empty', 'No replays yet')}</EmptyStateTitle>
-          <div>
-            {t(
-              'replays.library.emptyBody',
-              'Replays you watch and play will show up here automatically.',
-            )}
-          </div>
+          <div>{t('replays.library.emptyBody', 'Games you play show up here on their own.')}</div>
           {status?.watchedFolders.map(folder => (
             <EmptyStatePath key={folder}>{folder}</EmptyStatePath>
           ))}
@@ -1242,7 +1082,10 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         groupContent={index => (
           <GroupHeader
             title={getDayTitle(sessions[index], nowMs, locale, t)}
-            summary={getDaySummary(sessions[index], t)}
+            // The last day loaded may go on past what's loaded, so its count would only be a part.
+            summary={
+              index === sessions.length - 1 && hasNextData ? '' : getDaySummary(sessions[index], t)
+            }
           />
         )}
         // Rows only render again when the context changes, so it carries what they show that
@@ -1266,57 +1109,48 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
       <MenuList dense={true}>
         {getBulkReplayActionMenuItems({
           entries: selectedEntries,
-          inPlaylistView: view.kind === 'playlist',
           closeMenu: contextMenuPopoverProps.onDismiss,
-          onOpenAddToPlaylist: openAddToPlaylistMenu,
-          onRemoveFromPlaylist: () => removeFromCurrentPlaylist(selectedEntries),
           onSetBookmarked: bookmarked => setBookmarked(selectedEntries, bookmarked),
-          onMoveToRecycleBin: () => trashEntries(selectedEntries),
+          onMoveToRecycleBin: () => confirmTrashEntries(selectedEntries),
           t,
         })}
       </MenuList>
     )
   } else if (focusedEntry) {
+    // An unreadable replay can't be watched or bookmarked.
+    const readable = !focusedEntry.parseError
     rowMenu = (
       <MenuList dense={true}>
-        <MenuItem
-          icon={<MaterialIcon icon='play_arrow' />}
-          text={t('replays.library.watchReplay', 'Watch replay')}
-          onClick={() => {
-            contextMenuPopoverProps.onDismiss()
-            watchEntry(focusedEntry)
-          }}
-        />
-        <MenuItem
-          icon={<MaterialIcon icon='bookmark' filled={focusedEntry.bookmarkedAt !== undefined} />}
-          text={
-            focusedEntry.bookmarkedAt !== undefined
-              ? t('replays.library.removeBookmark', 'Remove bookmark')
-              : t('replays.library.bookmark', 'Bookmark')
-          }
-          onClick={() => {
-            contextMenuPopoverProps.onDismiss()
-            toggleBookmark(focusedEntry)
-          }}
-        />
+        {readable ? (
+          <MenuItem
+            icon={<MaterialIcon icon='play_arrow' />}
+            text={t('replays.library.watchReplay', 'Watch replay')}
+            onClick={() => {
+              contextMenuPopoverProps.onDismiss()
+              watchEntry(focusedEntry)
+            }}
+          />
+        ) : null}
+        {readable ? (
+          <MenuItem
+            icon={<MaterialIcon icon='bookmark' filled={focusedEntry.bookmarkedAt !== undefined} />}
+            text={
+              focusedEntry.bookmarkedAt !== undefined
+                ? t('replays.library.removeBookmark', 'Remove bookmark')
+                : t('replays.library.bookmark', 'Bookmark')
+            }
+            onClick={() => {
+              contextMenuPopoverProps.onDismiss()
+              toggleBookmark(focusedEntry)
+            }}
+          />
+        ) : null}
         {getReplayActionMenuItems({
           entry: focusedEntry,
-          inPlaylistView: view.kind === 'playlist',
           closeMenu: contextMenuPopoverProps.onDismiss,
-          onOpenAddToPlaylist: openAddToPlaylistMenu,
-          onRemoveFromPlaylist: () => removeFromCurrentPlaylist([focusedEntry]),
           onReveal: revealEntry,
           onAnalyze: analyzeEntry,
           onMoveToRecycleBin: entry => trashEntries([entry]),
-          reorder:
-            view.kind === 'playlist' && canReorder
-              ? {
-                  canMoveUp,
-                  canMoveDown,
-                  onMoveUp: () => moveFocusedBy(-1),
-                  onMoveDown: () => moveFocusedBy(1),
-                }
-              : undefined,
           t,
         })}
       </MenuList>
@@ -1342,6 +1176,11 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           teams={teams}
           onTeamsChange={v => {
             setTeamsParam(v ?? '')
+            // A matchup is only for 1v1s, so it goes with any other game type.
+            if (v !== undefined && v !== '1v1') {
+              setFormatParam('')
+              setMatchupParam('')
+            }
             reset()
           }}
           analysis={analysis}
@@ -1357,7 +1196,6 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             reset()
           }}
           view={view}
-          playlists={playlists}
           onViewChange={v => {
             const pathname = encodeViewPathname(v)
             if (pathname === encodeViewPathname(view)) {
@@ -1382,40 +1220,16 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
           filtersOpen={filtersOpen}
           filtersCount={filtersCount}
           onFiltersToggle={() => setFiltersOpen(open => !open)}
-          actions={iconOnly => (
-            <AnalyzeLatestButton
-              iconOnly={iconOnly}
-              filters={buildFilters({
-                view,
-                sort: effectiveSort,
-                mapName,
-                playerName,
-                gameType,
-                duration,
-                format,
-                matchup,
-                startDate,
-                endDate,
-                includeShort,
-                teams,
-                analysis,
-                search,
-                whose,
-                myNames,
-              })}
-            />
-          )}
+          actions={iconOnly => <AnalyzeLatestButton iconOnly={iconOnly} filters={currentFilters} />}
         />
 
         {myNames === undefined ? <NamesPrompt /> : null}
 
         {filtersOpen ? (
           <LibraryFilterRow
-            startDate={startDate}
-            endDate={endDate}
-            onDateChange={(start, end) => {
-              setStartDateParam(start)
-              setEndDateParam(end)
+            date={date}
+            onDateChange={v => {
+              setDateParam(v ?? '')
               reset()
             }}
             duration={duration}
@@ -1425,10 +1239,15 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
               reset()
             }}
             matchup={format === '1v1' ? matchup : undefined}
+            // The matchups are 1v1s, so they're offered with the game types that have them.
+            showMatchup={teams === undefined || teams === '1v1'}
             onMatchupChange={v => {
-              // A matchup only applies with its game's format, which the chip's matchups are 1v1.
+              // A matchup only applies with its game's format, and picks that game type too.
               setFormatParam(v ? '1v1' : '')
               setMatchupParam(v ?? '')
+              if (v) {
+                setTeamsParam('1v1')
+              }
               reset()
             }}
             mapName={mapName}
@@ -1436,29 +1255,16 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
               setMapNameParam(v)
               reset()
             }}
-            sort={manualOrder ? undefined : sort}
-            canUsePlaylistOrder={view.kind === 'playlist'}
+            sort={sort}
+            canSortByLength={!spoilerFree}
             onSortChange={v => {
-              // Inside a playlist even `latest` stays explicit in the URL, since an absent sort
-              // means the playlist's manual order there.
-              if (v === undefined) {
-                setSortParam('')
-              } else {
-                setSortParam(v === GameSortOption.LatestFirst && view.kind !== 'playlist' ? '' : v)
-              }
+              setSortParam(v === GameSortOption.LatestFirst ? '' : v)
               saveFilterPrefs()
               reset()
             }}
             onClear={() => {
-              setStartDateParam('')
-              setEndDateParam('')
-              setDurationParam('')
-              setFormatParam('')
-              setMatchupParam('')
-              setMapNameParam('')
               setSortParam('')
-              saveFilterPrefs()
-              reset()
+              clearAllFilters()
             }}
           />
         ) : null}
@@ -1470,12 +1276,8 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             count={selectedEntries.length}
             allBookmarked={selectedEntries.every(e => e.bookmarkedAt !== undefined)}
             onBookmark={bookmarked => setBookmarked(selectedEntries, bookmarked)}
-            playlists={playlists}
-            onAddToPlaylist={(playlistId, playlistName) =>
-              addToPlaylist(playlistId, playlistName, selectedEntries)
-            }
             onAnalyze={() => analyzeEntries(selectedEntries)}
-            onMoveToRecycleBin={() => trashEntries(selectedEntries)}
+            onMoveToRecycleBin={() => confirmTrashEntries(selectedEntries)}
             onClear={() => setSelection(selectOnly(focusedEntry?.id))}
           />
         ) : null}
@@ -1489,30 +1291,33 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
             onLoadNextData={onLoadNextData}>
             {listContent}
           </InfiniteScrollList>
+          {entries !== undefined && !hasNextData && (hiddenShort > 0 || includeShort) ? (
+            <ShortGamesNote>
+              {includeShort
+                ? t('replays.library.showingShortGames', 'Games under 2 minutes are shown.')
+                : t('replays.library.shortGamesHidden', {
+                    defaultValue_one: '{{count}} game under 2 minutes is hidden.',
+                    defaultValue_other: '{{count}} games under 2 minutes are hidden.',
+                    count: hiddenShort,
+                  })}
+              <TextButton
+                label={
+                  includeShort
+                    ? t('replays.library.hideShortGames', 'Hide them')
+                    : t('replays.library.showShortGames', 'Show them')
+                }
+                onClick={() => {
+                  setIncludeShortParam(includeShort ? '' : 'true')
+                  saveFilterPrefs()
+                  reset()
+                }}
+              />
+            </ShortGamesNote>
+          ) : null}
           {pageLoading ? <PageLoadingIndicator /> : null}
         </ListColumn>
 
         <Popover {...contextMenuPopoverProps}>{rowMenu}</Popover>
-        <Popover
-          open={addToPlaylistMenuOpen}
-          onDismiss={closeAddToPlaylistMenu}
-          anchorX={contextMenuPopoverProps.anchorX}
-          anchorY={contextMenuPopoverProps.anchorY}
-          originX={contextMenuPopoverProps.originX}
-          originY={contextMenuPopoverProps.originY}>
-          {selectedEntries.length > 0 ? (
-            <MenuList dense={true}>
-              {getAddToPlaylistMenuItems({
-                playlists,
-                closeMenu: closeAddToPlaylistMenu,
-                onAddToPlaylist: (playlistId, playlistName) =>
-                  addToPlaylist(playlistId, playlistName, selectedEntries),
-                t,
-                dispatch,
-              })}
-            </MenuList>
-          ) : null}
-        </Popover>
       </PageColumn>
     </CenteredContentContainer>
   )

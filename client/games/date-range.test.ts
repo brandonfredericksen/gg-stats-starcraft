@@ -1,77 +1,27 @@
 import { describe, expect, test } from 'vitest'
-import { resolveDateRangeMs } from './date-range'
+import { getDatePresetStartMs, parseDatePreset } from './date-range'
 
-describe('resolveDateRangeMs', () => {
-  test('resolves both bounds to local start/end of day', () => {
-    const { startMs, endMs } = resolveDateRangeMs('2026-07-01', '2026-07-21')
+describe('getDatePresetStartMs', () => {
+  const now = new Date(2026, 6, 21, 15, 30).getTime()
 
-    expect(startMs).toBe(new Date(2026, 6, 1).getTime())
-    expect(endMs).toBe(new Date(2026, 6, 22).getTime() - 1)
+  test('starts today at local midnight', () => {
+    expect(getDatePresetStartMs('today', now)).toBe(new Date(2026, 6, 21).getTime())
   })
 
-  test('resolves only startDate when endDate is omitted', () => {
-    const { startMs, endMs } = resolveDateRangeMs('2026-07-01', undefined)
-
-    expect(startMs).toBe(new Date(2026, 6, 1).getTime())
-    expect(endMs).toBeUndefined()
+  test('counts today as the last of 7 and 30 days', () => {
+    expect(getDatePresetStartMs('week', now)).toBe(new Date(2026, 6, 15).getTime())
+    expect(getDatePresetStartMs('month', now)).toBe(new Date(2026, 5, 22).getTime())
   })
 
-  test('resolves only endDate when startDate is omitted', () => {
-    const { startMs, endMs } = resolveDateRangeMs(undefined, '2026-07-21')
-
-    expect(startMs).toBeUndefined()
-    expect(endMs).toBe(new Date(2026, 6, 22).getTime() - 1)
+  test('starts the year on January 1st', () => {
+    expect(getDatePresetStartMs('year', now)).toBe(new Date(2026, 0, 1).getTime())
   })
+})
 
-  test('both bounds undefined when both inputs are undefined', () => {
-    const { startMs, endMs } = resolveDateRangeMs(undefined, undefined)
-
-    expect(startMs).toBeUndefined()
-    expect(endMs).toBeUndefined()
-  })
-
-  test('empty strings resolve to undefined bounds', () => {
-    const { startMs, endMs } = resolveDateRangeMs('', '')
-
-    expect(startMs).toBeUndefined()
-    expect(endMs).toBeUndefined()
-  })
-
-  test('garbage input resolves to undefined, never NaN', () => {
-    const { startMs, endMs } = resolveDateRangeMs('not-a-date', 'also-garbage')
-
-    expect(startMs).toBeUndefined()
-    expect(endMs).toBeUndefined()
-    expect(Number.isNaN(startMs)).toBe(false)
-    expect(Number.isNaN(endMs)).toBe(false)
-  })
-
-  test('a calendar date that does not exist resolves to undefined', () => {
-    // Date would otherwise roll February 30th over into March.
-    const { startMs, endMs } = resolveDateRangeMs('2026-02-30', '2026-02-30')
-
-    expect(startMs).toBeUndefined()
-    expect(endMs).toBeUndefined()
-  })
-
-  test('an out-of-range month resolves to undefined', () => {
-    const { startMs } = resolveDateRangeMs('2026-13-01', undefined)
-
-    expect(startMs).toBeUndefined()
-  })
-
-  test('parses as local time, not UTC (unlike bare `new Date(string)`)', () => {
-    const { startMs } = resolveDateRangeMs('2026-07-01', undefined)
-
-    // Constructing via `new Date(year, month, day)` (rather than passing the raw string through
-    // to `Date`) is what makes this local time rather than UTC; the two would only coincide by
-    // accident in a UTC-offset-zero test environment.
-    expect(startMs).toBe(new Date(2026, 6, 1, 0, 0, 0, 0).getTime())
-  })
-
-  test('endMs is the last millisecond of the day, not midnight of the next day', () => {
-    const { endMs } = resolveDateRangeMs(undefined, '2026-07-21')
-
-    expect(endMs).toBe(new Date(2026, 6, 21, 23, 59, 59, 999).getTime())
+describe('parseDatePreset', () => {
+  test('reads the presets and nothing else', () => {
+    expect(parseDatePreset('week')).toBe('week')
+    expect(parseDatePreset('')).toBe(undefined)
+    expect(parseDatePreset('2026-07-01')).toBe(undefined)
   })
 })

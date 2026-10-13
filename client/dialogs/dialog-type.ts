@@ -1,10 +1,8 @@
 import { GameDefaultsPreset } from '../../common/settings/local-settings'
 
 export enum DialogType {
-  CreatePlaylist = 'createPlaylist',
-  DeletePlaylist = 'deletePlaylist',
+  Confirm = 'confirm',
   GameDefaultsApply = 'gameDefaultsApply',
-  RenamePlaylist = 'renamePlaylist',
   ReplayInfo = 'replayInfo',
   ReplayLoad = 'replayLoad',
   Simple = 'simple',
@@ -16,18 +14,13 @@ type BaseDialogPayload<D, DataType = undefined> = DataType extends undefined
   ? { type: D; initData?: undefined; keepOnTop?: boolean }
   : { type: D; initData: DataType; keepOnTop?: boolean }
 
-type CreatePlaylistDialogPayload = BaseDialogPayload<
-  typeof DialogType.CreatePlaylist,
+type ConfirmDialogPayload = BaseDialogPayload<
+  typeof DialogType.Confirm,
   {
-    /** Called with the new playlist's id/name once it's been created (before the dialog closes). */
-    onCreated: (id: number, name: string) => void
-  }
->
-type DeletePlaylistDialogPayload = BaseDialogPayload<
-  typeof DialogType.DeletePlaylist,
-  {
-    playlistId: number
-    name: string
+    confirmTitle: string
+    confirmBody: string
+    confirmLabel: string
+    onConfirm: () => void
   }
 >
 type GameDefaultsApplyDialogPayload = BaseDialogPayload<
@@ -39,13 +32,6 @@ type GameDefaultsApplyDialogPayload = BaseDialogPayload<
      * selected), which changes how the dialog is titled.
      */
     justSwitched: boolean
-  }
->
-type RenamePlaylistDialogPayload = BaseDialogPayload<
-  typeof DialogType.RenamePlaylist,
-  {
-    playlistId: number
-    currentName: string
   }
 >
 type ReplayInfoDialogPayload = BaseDialogPayload<
@@ -72,10 +58,8 @@ type GgStatsHealthDialogPayload = BaseDialogPayload<typeof DialogType.GgStatsHea
 type StarcraftHealthDialogPayload = BaseDialogPayload<typeof DialogType.StarcraftHealth>
 
 export type DialogPayload =
-  | CreatePlaylistDialogPayload
-  | DeletePlaylistDialogPayload
+  | ConfirmDialogPayload
   | GameDefaultsApplyDialogPayload
-  | RenamePlaylistDialogPayload
   | ReplayInfoDialogPayload
   | ReplayLoadDialogPayload
   | SimpleDialogPayload

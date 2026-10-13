@@ -49,6 +49,8 @@ export interface IndexedReplay extends ReplayFileInfo {
    * `null` when the layout can't be resolved.
    */
   matchup: string | null
+  /** The map's `ERA ` value, which names its tileset (see `tilesetFromEra`). */
+  tileset: number | null
 }
 
 /**
@@ -111,6 +113,7 @@ export function mapReplayHeaderToRecord(
   header: ReplayHeader,
   headerPlayers: ReadonlyArray<Player>,
   clientData: ShieldBatteryData | undefined,
+  tileset: number | null,
 ): IndexedReplay {
   const players = headerPlayers.map<ReplayLibraryPlayer>(p => ({
     slot: p.slotId,
@@ -133,6 +136,7 @@ export function mapReplayHeaderToRecord(
     players,
     teamSize,
     matchup,
+    tileset,
   }
 }
 
@@ -151,6 +155,7 @@ export function makeParseErrorRecord(fileInfo: ReplayFileInfo): IndexedReplay {
     parseError: true,
     teamSize: null,
     matchup: null,
+    tileset: null,
     players: [],
   }
 }
@@ -177,6 +182,8 @@ export interface ReplayMetadata {
   players: Player[]
   /** The extra section the client that saved the replay added to it, if it added one. */
   clientData?: ShieldBatteryData
+  /** The map's `ERA ` value, or `null` if the map doesn't have one. */
+  tileset: number | null
 }
 
 /**
@@ -199,6 +206,7 @@ export function parseReplayBuffer(buffer: Uint8Array): ReplayMetadata {
         headerData: replay.header,
         players: replay.players(),
         clientData: replay.getShieldBatterySection(),
+        tileset: readEra(replay.getRawSection('mapData')),
       }
     } finally {
       replay.free()
@@ -243,6 +251,41 @@ export async function readReplayChat(filePath: string): Promise<ReplayChatMessag
  * Parses a replay already read into memory into an `IndexedReplay`. Throws if it can't be parsed.
  */
 export function parseReplayContents(fileInfo: ReplayFileInfo, contents: Uint8Array): IndexedReplay {
-  const { headerData, players, clientData } = parseReplayBuffer(contents)
-  return mapReplayHeaderToRecord(fileInfo, headerData, players, clientData)
+  const { headerData, players, clientData, tileset } = parseReplayBuffer(contents)
+  return mapReplayHeaderToRecord(fileInfo, headerData, players, clientData, tileset)
+}
+
+/**
+ * Reads the `ERA ` section of a map's CHK data, which names its tileset. A CHK is a run of
+ * sections, each a 4 byte name, a 32 bit little endian length and that many bytes. StarCraft
+ * keeps the last of a repeated section, which protected maps use to hide the real one behind a
+ * decoy, so this does too.
+ */
+export function readEra(chk: Uint8Array | undefined): number | null {
+  if (!chk) {
+    return null
+  }
+  const view = new DataView(chk.buffer, chk.byteOffset, chk.byteLength)
+  let era: number | null = null
+  let offset = 0
+  while (offset + 8 <= chk.byteLength) {
+    const length = view.getInt32(offset + 4, true)
+    if (length < 0) {
+      // Protected maps also use negative lengths to jump around. Rather than follow them, stop with
+      // what was found so far.
+      break
+    }
+    if (
+      chk[offset] === 0x45 &&
+      chk[offset + 1] === 0x52 &&
+      chk[offset + 2] === 0x41 &&
+      chk[offset + 3] === 0x20 &&
+      length >= 2 &&
+      offset + 10 <= chk.byteLength
+    ) {
+      era = view.getUint16(offset + 8, true)
+    }
+    offset += 8 + length
+  }
+  return era
 }

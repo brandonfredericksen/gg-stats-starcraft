@@ -4,7 +4,6 @@ import { ReplayLibraryPlayer } from '../../common/replays-library'
 import {
   encodeViewPathname,
   getReplayDisplayTeams,
-  isManualPlaylistOrder,
   parseViewPathname,
 } from './replay-library-helpers'
 
@@ -98,47 +97,13 @@ describe('parseViewPathname / encodeViewPathname', () => {
     expect(parseViewPathname('/replays/bookmarked/')).toEqual({ kind: 'bookmarked' })
   })
 
-  test('parses "/replays/playlists/<id>" as a playlist view', () => {
-    expect(parseViewPathname('/replays/playlists/42')).toEqual({ kind: 'playlist', id: 42 })
-  })
-
-  test('falls back to "all" for a playlists subpath missing an id', () => {
-    expect(parseViewPathname('/replays/playlists')).toEqual({ kind: 'all' })
-  })
-
-  test('falls back to "all" for a malformed playlist id', () => {
-    expect(parseViewPathname('/replays/playlists/notanumber')).toEqual({ kind: 'all' })
-  })
-
   test('falls back to "all" for an unrecognized subpath', () => {
     expect(parseViewPathname('/replays/something-else')).toEqual({ kind: 'all' })
+    expect(parseViewPathname('/replays/playlists/42')).toEqual({ kind: 'all' })
   })
 
   test('encodes each view kind to its canonical pathname', () => {
     expect(encodeViewPathname({ kind: 'all' })).toBe('/replays')
     expect(encodeViewPathname({ kind: 'bookmarked' })).toBe('/replays/bookmarked')
-    expect(encodeViewPathname({ kind: 'playlist', id: 42 })).toBe('/replays/playlists/42')
-  })
-
-  test('round-trips a playlist view through encode then parse', () => {
-    expect(parseViewPathname(encodeViewPathname({ kind: 'playlist', id: 7 }))).toEqual({
-      kind: 'playlist',
-      id: 7,
-    })
-  })
-})
-
-describe('isManualPlaylistOrder', () => {
-  test('is true only for a playlist view with no explicit sort', () => {
-    expect(isManualPlaylistOrder({ kind: 'playlist', id: 1 }, '')).toBe(true)
-  })
-
-  test('is false when a sort is explicitly chosen', () => {
-    expect(isManualPlaylistOrder({ kind: 'playlist', id: 1 }, 'latest')).toBe(false)
-  })
-
-  test('is false for non-playlist views', () => {
-    expect(isManualPlaylistOrder({ kind: 'all' }, '')).toBe(false)
-    expect(isManualPlaylistOrder({ kind: 'bookmarked' }, '')).toBe(false)
   })
 })

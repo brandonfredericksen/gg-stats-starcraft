@@ -1,10 +1,9 @@
 import { ReplayCommandStats } from '../../../common/games/command-stats'
 import {
   ReplayBackfillProgress,
-  ReplayLibraryEntry,
   ReplayLibraryFilters,
   ReplayLibraryStatus,
-  ReplayPlaylist,
+  ReplayQueryResult,
   SuggestedOwnName,
 } from '../../../common/replays-library'
 
@@ -16,11 +15,8 @@ export interface ReplayDbWorkerData {
   watchedFolders: string[]
 }
 
-/** A page of query results, matching `ReplayDb.query`'s return shape. */
-export interface ReplayQueryResult {
-  entries: ReplayLibraryEntry[]
-  total: number
-}
+/** The library's status as the worker knows it. The main process checks the folders. */
+export type WorkerLibraryStatus = Omit<ReplayLibraryStatus, 'missingFolders'>
 
 /**
  * The operations the main process can invoke on the worker, each mirroring a method of the
@@ -32,18 +28,9 @@ export interface ReplayQueryResult {
  */
 export interface ReplayDbCalls {
   query: (filters: ReplayLibraryFilters) => ReplayQueryResult
-  status: () => ReplayLibraryStatus
+  status: () => WorkerLibraryStatus
   /** Returns the ids whose bookmark state actually changed (not already in that state). */
   setBookmarked: (replayIds: number[], bookmarked: boolean) => number[]
-  listPlaylists: () => ReplayPlaylist[]
-  createPlaylist: (name: string) => number
-  renamePlaylist: (playlistId: number, name: string) => void
-  deletePlaylist: (playlistId: number) => void
-  /** Returns the ids actually added (ones not already in the playlist). */
-  addToPlaylist: (playlistId: number, replayIds: number[]) => number[]
-  removeFromPlaylist: (playlistId: number, replayIds: number[]) => void
-  movePlaylistEntry: (playlistId: number, replayId: number, toIndex: number) => void
-  getPlaylistsForReplay: (replayId: number) => Array<{ id: number; name: string }>
   suggestOwnNames: (knownNames: string[]) => SuggestedOwnName[]
   getFrequentMaps: (limit: number) => string[]
   /** When each of the given replays was played, for the ones indexed, by path key. */

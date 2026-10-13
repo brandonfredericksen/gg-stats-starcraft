@@ -237,9 +237,7 @@ export function AppReplaySettings() {
         <SettingsSectionDescription>
           {t(
             'settings.app.replays.foldersDescription',
-            'Folders indexed by your replay library. The default StarCraft replay folder is ' +
-              'added automatically. Removing a folder removes its replays from the library, ' +
-              'including their bookmarks and playlist entries.',
+            'Removing a folder takes its replays and their bookmarks out of the library.',
           )}
         </SettingsSectionDescription>
 

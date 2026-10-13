@@ -1,21 +1,16 @@
 import { assertUnreachable } from '../../common/assert-unreachable'
 import { ReplayLibraryPlayer } from '../../common/replays-library'
-import { urlPath } from '../../common/urls'
 
-/** Which subset of the library the rail is currently pointed at, addressed by the `/replays…` pathname. */
-export type LibraryView =
-  | { kind: 'all' }
-  | { kind: 'bookmarked' }
-  | { kind: 'playlist'; id: number }
+/** Which part of the library is shown, addressed by the `/replays…` pathname. */
+export type LibraryView = { kind: 'all' } | { kind: 'bookmarked' }
 
 /**
  * Parses a pathname under `/replays` into the `LibraryView` it addresses:
  * - `/replays` (and `/replays/`) -> the whole library (`all`)
  * - `/replays/bookmarked` -> `bookmarked`
- * - `/replays/playlists/<id>` -> `playlist` with that id
  *
- * Trailing slashes are tolerated. Anything else — an unparseable playlist id, an unrecognized
- * subpath, extra segments — falls back to `all`; callers that need the URL itself to reflect that
+ * Trailing slashes are tolerated. Anything else, like an unrecognized subpath or extra segments,
+ * falls back to `all`; callers that need the URL itself to reflect that
  * fallback canonicalize it separately (see `encodeViewPathname`).
  */
 export function parseViewPathname(pathname: string): LibraryView {
@@ -23,12 +18,6 @@ export function parseViewPathname(pathname: string): LibraryView {
 
   if (segments.length === 2 && segments[1] === 'bookmarked') {
     return { kind: 'bookmarked' }
-  }
-  if (segments.length === 3 && segments[1] === 'playlists') {
-    const id = Number.parseInt(segments[2], 10)
-    if (Number.isFinite(id)) {
-      return { kind: 'playlist', id }
-    }
   }
   return { kind: 'all' }
 }
@@ -43,20 +32,9 @@ export function encodeViewPathname(view: LibraryView): string {
       return '/replays'
     case 'bookmarked':
       return '/replays/bookmarked'
-    case 'playlist':
-      return urlPath`/replays/playlists/${view.id}`
     default:
       return assertUnreachable(view)
   }
-}
-
-/**
- * True when `view` is a playlist and the user hasn't chosen an explicit sort (`rawSort` is the sort
- * in the raw, possibly-empty form a `sort` URL param carries). In that case results come back in
- * the playlist's manual order, which shouldn't be day-grouped like the date sorts are.
- */
-export function isManualPlaylistOrder(view: LibraryView, rawSort: string): boolean {
-  return view.kind === 'playlist' && !rawSort
 }
 
 /**

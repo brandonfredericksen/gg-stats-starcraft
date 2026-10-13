@@ -86,12 +86,13 @@ function report(message: string) {
 
 async function toReplayToAnalyze(replayPath: string): Promise<ReplayToAnalyze | undefined> {
   try {
-    const { headerData, players, clientData } = await parseReplayMetadata(replayPath)
+    const { headerData, players, clientData, tileset } = await parseReplayMetadata(replayPath)
     const record = mapReplayHeaderToRecord(
       { path: replayPath, fileMtime: 0, fileSize: 0, contentHash: '' },
       headerData,
       players,
       clientData,
+      tileset,
     )
     return {
       path: replayPath,

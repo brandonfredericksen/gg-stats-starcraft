@@ -61,8 +61,8 @@ export function withFilterParams(search: string, values: FilterParamValues): str
 /**
  * Merges a save's freshly-read URL params into the previously saved set: `current` wins for the
  * named `keys` (so a named param unset in the URL drops out), while saved entries outside them
- * belong to another view of the same surface (e.g. a playlist view never names `sort`, whose
- * absence means manual order there) and ride along untouched. Returns `undefined` when nothing is
+ * belong to another view of the same surface (e.g. the Bookmarked view never names `includeShort`)
+ * and ride along untouched. Returns `undefined` when nothing is
  * left to save.
  */
 export function mergeSavedFilters(

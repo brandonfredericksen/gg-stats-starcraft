@@ -374,7 +374,7 @@ function CaptureStatus({
             <MenuItem
               icon={<MaterialIcon icon='clear_all' />}
               text={t('autoCapture.menu.clear', {
-                defaultValue: 'Stop the {{count}} waiting',
+                defaultValue: 'Clear the queue ({{count}})',
                 count: queued.length,
               })}
               onClick={run(clearWaitingAnalyses)}

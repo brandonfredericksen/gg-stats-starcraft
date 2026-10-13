@@ -1,19 +1,13 @@
 import { TFunction } from 'i18next'
 import * as React from 'react'
-import { ReplayLibraryEntry, ReplayPlaylist } from '../../common/replays-library'
-import { openDialog } from '../dialogs/action-creators'
-import { DialogType } from '../dialogs/dialog-type'
+import { ReplayLibraryEntry } from '../../common/replays-library'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { Divider } from '../material/menu/divider'
 import { DestructiveMenuItem, MenuItem } from '../material/menu/item'
-import { useAppDispatch } from '../redux-hooks'
 
 /**
- * Builds the "more actions" menu items shared between the inspector's overflow menu and the
- * library's row context menu: add/remove-from-playlist, an optional reorder pair, analyze,
- * show-in-explorer, and move-to-recycle-bin. Watch/Bookmark aren't included here since each caller
- * surfaces those differently (dedicated buttons in the inspector, leading menu items in the
- * context menu).
+ * Builds the row context menu's items after Watch and Bookmark: analyze, show in Explorer and move
+ * to the Recycle Bin. An unreadable replay can only be shown or removed.
  *
  * Returns a flat array of keyed `MenuItem` elements (rather than a component rendering a
  * fragment) so that spreading it directly into a `<MenuList>`'s children keeps every item a
@@ -22,83 +16,20 @@ import { useAppDispatch } from '../redux-hooks'
  */
 export function getReplayActionMenuItems({
   entry,
-  inPlaylistView,
   closeMenu,
-  onOpenAddToPlaylist,
-  onRemoveFromPlaylist,
   onReveal,
   onAnalyze,
   onMoveToRecycleBin,
-  reorder,
   t,
 }: {
   entry: ReplayLibraryEntry
-  inPlaylistView: boolean
   closeMenu: () => void
-  onOpenAddToPlaylist: (event: React.MouseEvent | KeyboardEvent) => void
-  onRemoveFromPlaylist: () => void
   onReveal: (entry: ReplayLibraryEntry) => void
   onAnalyze: (entry: ReplayLibraryEntry) => void
   onMoveToRecycleBin: (entry: ReplayLibraryEntry) => void
-  /** Present only when Move up/Move down should be offered (the inspector, in manual order). */
-  reorder?: {
-    canMoveUp: boolean
-    canMoveDown: boolean
-    onMoveUp: () => void
-    onMoveDown: () => void
-  }
   t: TFunction
 }): React.ReactNode[] {
-  const items: React.ReactNode[] = [
-    <MenuItem
-      key='add-to-playlist'
-      icon={<MaterialIcon icon='playlist_add' />}
-      text={t('replays.library.addToPlaylist', 'Add to playlist…')}
-      onClick={event => {
-        closeMenu()
-        onOpenAddToPlaylist(event)
-      }}
-    />,
-  ]
-
-  if (inPlaylistView) {
-    items.push(
-      <MenuItem
-        key='remove-from-playlist'
-        icon={<MaterialIcon icon='playlist_remove' />}
-        text={t('replays.library.removeFromPlaylist', 'Remove from playlist')}
-        onClick={() => {
-          closeMenu()
-          onRemoveFromPlaylist()
-        }}
-      />,
-    )
-  }
-
-  if (reorder) {
-    items.push(
-      <MenuItem
-        key='move-up'
-        icon={<MaterialIcon icon='arrow_upward' />}
-        text={t('replays.library.moveUp', 'Move up')}
-        disabled={!reorder.canMoveUp}
-        onClick={() => {
-          closeMenu()
-          reorder.onMoveUp()
-        }}
-      />,
-      <MenuItem
-        key='move-down'
-        icon={<MaterialIcon icon='arrow_downward' />}
-        text={t('replays.library.moveDown', 'Move down')}
-        disabled={!reorder.canMoveDown}
-        onClick={() => {
-          closeMenu()
-          reorder.onMoveDown()
-        }}
-      />,
-    )
-  }
+  const items: React.ReactNode[] = []
 
   if (!entry.parseError) {
     items.push(
@@ -124,9 +55,6 @@ export function getReplayActionMenuItems({
         onReveal(entry)
       }}
     />,
-  )
-
-  items.push(
     <Divider key='move-to-recycle-bin-divider' $dense={true} />,
     <DestructiveMenuItem
       key='move-to-recycle-bin'
@@ -140,60 +68,6 @@ export function getReplayActionMenuItems({
   )
 
   return items
-}
-
-/**
- * Builds the playlist-picker menu items shared between the inspector's and the library's "Add to
- * playlist" submenu: one item per existing playlist, plus a trailing "New playlist…" item that
- * opens the create-playlist dialog.
- *
- * Returns a flat array of keyed `MenuItem` elements (rather than a component rendering a
- * fragment) so that spreading it directly into a `<MenuList>`'s children keeps every item a
- * direct child: `MenuList` only clones `dense`/focus state onto, and lets arrow-key navigation
- * reach, its direct `MenuItem` children.
- */
-export function getAddToPlaylistMenuItems({
-  playlists,
-  closeMenu,
-  onAddToPlaylist,
-  t,
-  dispatch,
-}: {
-  playlists: ReadonlyArray<ReplayPlaylist>
-  closeMenu: () => void
-  onAddToPlaylist: (playlistId: number, playlistName: string) => void
-  t: TFunction
-  dispatch: ReturnType<typeof useAppDispatch>
-}): React.ReactNode[] {
-  return [
-    ...playlists.map(p => (
-      <MenuItem
-        key={p.id}
-        icon={<MaterialIcon icon='queue_music' />}
-        text={p.name}
-        onClick={() => {
-          closeMenu()
-          onAddToPlaylist(p.id, p.name)
-        }}
-      />
-    )),
-    <MenuItem
-      key='new-playlist'
-      icon={<MaterialIcon icon='add' />}
-      text={t('replays.library.newPlaylistMenu', 'New playlist…')}
-      onClick={() => {
-        closeMenu()
-        dispatch(
-          openDialog({
-            type: DialogType.CreatePlaylist,
-            initData: {
-              onCreated: (id, name) => onAddToPlaylist(id, name),
-            },
-          }),
-        )
-      }}
-    />,
-  ]
 }
 
 /**
@@ -219,55 +93,25 @@ function getBookmarkText(bookmark: boolean, t: TFunction) {
 
 /**
  * Builds the row context menu's items for a multi-selection: only the actions that make sense on
- * several replays at once (no Watch, View game page, Show in Explorer or reordering).
+ * several replays at once (no Watch or Show in Explorer).
  *
  * Returns a flat array of keyed `MenuItem` elements so each one stays a direct child of
  * `MenuList` (see `getReplayActionMenuItems`).
  */
 export function getBulkReplayActionMenuItems({
   entries,
-  inPlaylistView,
   closeMenu,
-  onOpenAddToPlaylist,
-  onRemoveFromPlaylist,
   onSetBookmarked,
   onMoveToRecycleBin,
   t,
 }: {
   entries: ReadonlyArray<ReplayLibraryEntry>
-  inPlaylistView: boolean
   closeMenu: () => void
-  onOpenAddToPlaylist: (event: React.MouseEvent | KeyboardEvent) => void
-  onRemoveFromPlaylist: () => void
   onSetBookmarked: (bookmarked: boolean) => void
   onMoveToRecycleBin: () => void
   t: TFunction
 }): React.ReactNode[] {
-  const items: React.ReactNode[] = [
-    <MenuItem
-      key='add-to-playlist'
-      icon={<MaterialIcon icon='playlist_add' />}
-      text={t('replays.library.addToPlaylist', 'Add to playlist…')}
-      onClick={event => {
-        closeMenu()
-        onOpenAddToPlaylist(event)
-      }}
-    />,
-  ]
-
-  if (inPlaylistView) {
-    items.push(
-      <MenuItem
-        key='remove-from-playlist'
-        icon={<MaterialIcon icon='playlist_remove' />}
-        text={t('replays.library.removeFromPlaylist', 'Remove from playlist')}
-        onClick={() => {
-          closeMenu()
-          onRemoveFromPlaylist()
-        }}
-      />,
-    )
-  }
+  const items: React.ReactNode[] = []
 
   const bookmark = getBulkBookmarkAction(entries)
   if (bookmark !== undefined) {
@@ -281,11 +125,11 @@ export function getBulkReplayActionMenuItems({
           onSetBookmarked(bookmark)
         }}
       />,
+      <Divider key='move-to-recycle-bin-divider' $dense={true} />,
     )
   }
 
   items.push(
-    <Divider key='move-to-recycle-bin-divider' $dense={true} />,
     <DestructiveMenuItem
       key='move-to-recycle-bin'
       icon={<MaterialIcon icon='delete' />}

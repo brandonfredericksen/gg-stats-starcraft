@@ -43,12 +43,7 @@ export function escapeLike(value: string): string {
  * Maps `filters` to the `ORDER BY` clause body used in the replay query. Parse-error rows store
  * zeroed `game_time`/`duration_frames` (see `makeParseErrorRecord`), so every sort branch leads
  * with `r.parse_error ASC` to pin them after readable replays explicitly, rather than leaving
- * them wherever zero happens to sort. The playlist manual order is the exception: it follows the
- * user's explicit positions alone.
- *
- * When `filters.playlistId` is set and no explicit `sort` was requested, results follow the
- * playlist's own manual ordering (`pe.position`) instead of the usual sort branches; an explicit
- * `sort` always overrides that.
+ * them wherever zero happens to sort.
  *
  * Every sort branch also ends with `r.id ASC` as a final tiebreaker: rows commonly tie on
  * `game_time` (e.g. a same-game autoreplay and manual save share the seed-derived timestamp), and
@@ -58,14 +53,7 @@ export function escapeLike(value: string): string {
  * DESC, id ASC` still lets the `(parse_error, game_time DESC)` index fully serve the default sort
  * without an extra sort step.
  */
-function buildOrderByClause(filters: Pick<ReplayLibraryFilters, 'sort' | 'playlistId'>): string {
-  if (filters.playlistId !== undefined && filters.sort === undefined) {
-    // Purely position-ordered, with no parse-error pinning: the user's explicit placement governs
-    // even for unreadable rows, and the client's move up/down maps a loaded list index to an
-    // absolute playlist position, which requires result order to be exactly position order.
-    return 'pe.position ASC, r.id ASC'
-  }
-
+function buildOrderByClause(filters: Pick<ReplayLibraryFilters, 'sort'>): string {
   const sort = filters.sort ?? GameSortOption.LatestFirst
   switch (sort) {
     case GameSortOption.LatestFirst:
@@ -83,27 +71,20 @@ function buildOrderByClause(filters: Pick<ReplayLibraryFilters, 'sort' | 'playli
 
 /**
  * Builds the SQL statements for a replay query, covering every filter (map name, player name, game
- * type, duration bucket, minimum-length floor, format, matchup, bookmarked, playlist membership) —
+ * type, duration bucket, minimum-length floor, format, matchup, bookmarked) —
  * nothing is filtered in JS afterwards. Format/matchup matching reads the `team_size`/`matchup`
  * columns computed once at parse time (see `mapReplayHeaderToRecord`). Unless `filters.includeShort`
  * is set, replays shorter than `MIN_GAME_LENGTH_MS` are excluded, same as every other games/replays
- * list. `sql` is ordered per `filters.sort` (defaulting to newest-first, or the playlist's manual
- * order when `filters.playlistId` is set with no explicit `sort`) and has no paging applied;
- * `countSql` reuses the same joins/`WHERE` clause and `params` to total the matches, without an
+ * list. `sql` is ordered per `filters.sort` (defaulting to newest-first) and has no paging applied;
+ * `countSql` reuses the same `WHERE` clause and `params` to total the matches, without an
  * `ORDER BY`.
  */
 export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQuery {
   const whereClauses: string[] = []
   const params: Array<string | number> = []
   // Tracks whether any value-constraining filter (as opposed to a curation filter like
-  // bookmarked/playlist membership) is active, to decide whether to exclude parse-error rows below.
+  // bookmarked) is active, to decide whether to exclude parse-error rows below.
   let hasValueFilter = false
-
-  let joinClause = ''
-  if (filters.playlistId !== undefined) {
-    joinClause = ' INNER JOIN playlist_entries pe ON pe.replay_id = r.id AND pe.playlist_id = ?'
-    params.push(filters.playlistId)
-  }
 
   if (filters.mapName !== undefined) {
     whereClauses.push("r.map_name LIKE ? ESCAPE '\\'")
@@ -175,21 +156,20 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
     hasValueFilter = true
   }
 
+  // Path lists go in as one JSON array rather than a variable per path: a library can have more
+  // analyzed replays than SQLite allows variables in one statement.
   if (filters.analysis !== undefined) {
     const paths = filters.analyzedPaths ?? []
-    if (filters.analysis === 'analyzed') {
-      whereClauses.push(paths.length ? `r.path_key IN (${paths.map(() => '?').join(', ')})` : '0')
-    } else if (paths.length) {
-      whereClauses.push(`r.path_key NOT IN (${paths.map(() => '?').join(', ')})`)
-    }
-    params.push(...paths)
+    whereClauses.push(
+      `r.path_key ${filters.analysis === 'analyzed' ? 'IN' : 'NOT IN'} (SELECT value FROM json_each(?))`,
+    )
+    params.push(JSON.stringify(paths))
     hasValueFilter = true
   }
 
   if (filters.excludePaths?.length) {
-    const paths = filters.excludePaths
-    whereClauses.push(`r.path_key NOT IN (${paths.map(() => '?').join(', ')})`)
-    params.push(...paths.map(p => p.toLowerCase()))
+    whereClauses.push('r.path_key NOT IN (SELECT value FROM json_each(?))')
+    params.push(JSON.stringify(filters.excludePaths.map(p => p.toLowerCase())))
     hasValueFilter = true
   }
 
@@ -228,13 +208,9 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
     hasValueFilter = true
   }
 
-  if (!filters.includeShort && filters.playlistId === undefined && !filters.bookmarked) {
-    // The floor is default noise-hiding rather than a user-chosen filter, so curation views
-    // (bookmarked/playlist) are exempt: a replay the user explicitly curated isn't noise, and
-    // hiding it there would leave no active filter to explain the gap. For playlists the floor
-    // would also break reordering, which maps a loaded list index to an absolute playlist
-    // position and is only sound when the default view renders the complete playlist (see
-    // `buildOrderByClause` above). A replay whose length is unknown rather than known-short must
+  if (!filters.includeShort && !filters.bookmarked) {
+    // The floor is default noise-hiding rather than a user-chosen filter, so the Bookmarked view is
+    // exempt: a replay the user bookmarked isn't noise. A replay whose length is unknown rather than known-short must
     // not disappear either: parse-error rows store a zeroed `duration_frames` sentinel, so
     // without the `parse_error` exemption the default (filterless) view would hide them —
     // breaking the invariant that only active value filters exclude parse-error rows (see the
@@ -283,7 +259,7 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
   // against them would be against garbage rather than a real value. Filters constrain known values,
   // so a parse-error row's unknown values must never satisfy one; excluding them here only when a
   // value filter is active leaves the unfiltered view showing them (pinned last by the ORDER BY
-  // above). Bookmarked/playlist membership is user curation rather than a value match, so it must not
+  // above). Being bookmarked is user curation rather than a value match, so it must not
   // trigger this exclusion — a bookmarked-but-unreadable replay still belongs in the Bookmarked view.
   if (hasValueFilter) {
     whereClauses.push('r.parse_error = 0')
@@ -291,8 +267,8 @@ export function buildReplaySqlQuery(filters: ReplayLibraryFilters): ReplaySqlQue
 
   const where = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : ''
   const orderBy = buildOrderByClause(filters)
-  const sql = `SELECT r.* FROM replays r${joinClause}${where} ORDER BY ${orderBy}`
-  const countSql = `SELECT COUNT(*) AS count FROM replays r${joinClause}${where}`
+  const sql = `SELECT r.* FROM replays r${where} ORDER BY ${orderBy}`
+  const countSql = `SELECT COUNT(*) AS count FROM replays r${where}`
 
   return { sql, countSql, params }
 }

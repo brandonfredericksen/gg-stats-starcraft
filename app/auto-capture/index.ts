@@ -422,6 +422,6 @@ export class AutoCaptureService {
 }
 
 function parseReplayParts(data: Buffer) {
-  const { headerData, players, clientData } = parseReplayBuffer(data)
-  return [headerData, players, clientData] as const
+  const { headerData, players, clientData, tileset } = parseReplayBuffer(data)
+  return [headerData, players, clientData, tileset] as const
 }

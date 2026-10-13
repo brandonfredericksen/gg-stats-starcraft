@@ -10,6 +10,7 @@ import {
 } from '../../common/games/game-filters'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { filterColorCodes } from '../../common/maps'
+import { DatePreset } from '../games/date-range'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
 import { MenuItem } from '../material/menu/item'
@@ -147,79 +148,39 @@ function DropdownChip<T>({
   )
 }
 
-/** A date as the `YYYY-MM-DD` string the date filters use, in local time. */
-function toDateString(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-type DatePreset = 'any' | 'today' | 'week' | 'month' | 'year' | 'custom'
-
-function getPresetStart(preset: DatePreset, now: Date): string {
-  const start = new Date(now)
-  switch (preset) {
-    case 'today':
-      break
-    case 'week':
-      start.setDate(start.getDate() - 6)
-      break
-    case 'month':
-      start.setDate(start.getDate() - 29)
-      break
-    case 'year':
-      start.setMonth(0, 1)
-      break
-    default:
-      return ''
-  }
-  return toDateString(start)
-}
-
-function getDatePreset(startDate: string, endDate: string, now: Date): DatePreset {
-  if (!startDate && !endDate) {
-    return 'any'
-  }
-  if (endDate) {
-    return 'custom'
-  }
-  const presets: DatePreset[] = ['today', 'week', 'month', 'year']
-  return presets.find(p => getPresetStart(p, now) === startDate) ?? 'custom'
-}
-
 const ONE_V_ONE_MATCHUPS = ['p-p', 'p-t', 'p-z', 't-t', 't-z', 'z-z']
 
 export interface LibraryFilterRowProps {
-  startDate: string
-  endDate: string
-  onDateChange: (startDate: string, endDate: string) => void
+  date: DatePreset | undefined
+  onDateChange: (date: DatePreset | undefined) => void
   duration: GameDurationFilter
   onDurationChange: (duration: GameDurationFilter) => void
   /** A 1v1 matchup like `p-z`, or undefined for any. */
   matchup: EncodedMatchupString | undefined
+  showMatchup: boolean
   onMatchupChange: (matchup: EncodedMatchupString | undefined) => void
   mapName: string
   onMapNameChange: (mapName: string) => void
-  /** Undefined in a playlist's own order. */
-  sort: GameSortOption | undefined
-  /** Whether the playlist's own order can be picked, inside a playlist. */
-  canUsePlaylistOrder: boolean
-  onSortChange: (sort: GameSortOption | undefined) => void
+  sort: GameSortOption
+  /** False while results are hidden, since a game's length gives its result away. */
+  canSortByLength: boolean
+  onSortChange: (sort: GameSortOption) => void
   onClear: () => void
 }
 
 /** The filters under the library's toolbar: date, length, matchup, map and sort. */
 export function LibraryFilterRow({
-  startDate,
-  endDate,
+  date,
   onDateChange,
   duration,
   onDurationChange,
   matchup,
+  showMatchup,
   onMatchupChange,
   mapName,
   onMapNameChange,
   sort,
-  canUsePlaylistOrder,
+  canSortByLength,
   onSortChange,
   onClear,
 }: LibraryFilterRowProps) {
@@ -233,18 +194,13 @@ export function LibraryFilterRow({
       .catch(swallowNonBuiltins)
   }, [])
 
-  const now = new Date()
-  const datePreset = getDatePreset(startDate, endDate, now)
-  const dateOptions: Array<ChipOption<DatePreset>> = [
-    { value: 'any', label: t('replays.filters.anyTime', 'Any time') },
+  const dateOptions: Array<ChipOption<DatePreset | undefined>> = [
+    { value: undefined, label: t('replays.filters.anyTime', 'Any time') },
     { value: 'today', label: t('replays.filters.today', 'Today') },
     { value: 'week', label: t('replays.filters.last7Days', 'Last 7 days') },
     { value: 'month', label: t('replays.filters.last30Days', 'Last 30 days') },
     { value: 'year', label: t('replays.filters.thisYear', 'This year') },
   ]
-  if (datePreset === 'custom') {
-    dateOptions.push({ value: 'custom', label: t('replays.filters.customDates', 'Custom') })
-  }
 
   const durationOptions: Array<ChipOption<GameDurationFilter>> = [
     { value: GameDurationFilter.All, label: t('replays.filters.anyLength', 'Any') },
@@ -273,38 +229,31 @@ export function LibraryFilterRow({
     mapOptions.push({ value: mapName, label: filterColorCodes(mapName) })
   }
 
-  const sortOptions: Array<ChipOption<GameSortOption | undefined>> = [
+  const sortOptions: Array<ChipOption<GameSortOption>> = [
     { value: GameSortOption.LatestFirst, label: t('replays.filters.latestFirst', 'Latest first') },
     { value: GameSortOption.OldestFirst, label: t('replays.filters.oldestFirst', 'Oldest first') },
-    {
-      value: GameSortOption.LongestFirst,
-      label: t('replays.filters.longestFirst', 'Longest first'),
-    },
-    {
-      value: GameSortOption.ShortestFirst,
-      label: t('replays.filters.shortestFirst', 'Shortest first'),
-    },
   ]
-  if (canUsePlaylistOrder) {
-    sortOptions.unshift({
-      value: undefined,
-      label: t('replays.filters.playlistOrder', 'Playlist order'),
-    })
+  if (canSortByLength) {
+    sortOptions.push(
+      {
+        value: GameSortOption.LongestFirst,
+        label: t('replays.filters.longestFirst', 'Longest first'),
+      },
+      {
+        value: GameSortOption.ShortestFirst,
+        label: t('replays.filters.shortestFirst', 'Shortest first'),
+      },
+    )
   }
-  const defaultSort = canUsePlaylistOrder ? undefined : GameSortOption.LatestFirst
 
   return (
     <Root>
       <DropdownChip
         label={t('replays.filters.date', 'Date:')}
         options={dateOptions}
-        value={datePreset}
-        isSet={datePreset !== 'any'}
-        onChange={preset => {
-          if (preset !== 'custom') {
-            onDateChange(getPresetStart(preset, new Date()), '')
-          }
-        }}
+        value={date}
+        isSet={date !== undefined}
+        onChange={onDateChange}
       />
       <DropdownChip
         label={t('replays.filters.length', 'Length:')}
@@ -313,13 +262,15 @@ export function LibraryFilterRow({
         isSet={duration !== GameDurationFilter.All}
         onChange={onDurationChange}
       />
-      <DropdownChip
-        label={t('replays.filters.matchup', 'Matchup:')}
-        options={matchupOptions}
-        value={matchup ?? ''}
-        isSet={!!matchup}
-        onChange={m => onMatchupChange(m ? makeEncodedMatchupString(m) : undefined)}
-      />
+      {showMatchup ? (
+        <DropdownChip
+          label={t('replays.filters.matchup', 'Matchup:')}
+          options={matchupOptions}
+          value={matchup ?? ''}
+          isSet={!!matchup}
+          onChange={m => onMatchupChange(m ? makeEncodedMatchupString(m) : undefined)}
+        />
+      ) : null}
       <DropdownChip
         label={t('replays.filters.map', 'Map:')}
         options={mapOptions}
@@ -331,7 +282,7 @@ export function LibraryFilterRow({
         label={t('replays.filters.sort', 'Sort:')}
         options={sortOptions}
         value={sort}
-        isSet={sort !== defaultSort}
+        isSet={sort !== GameSortOption.LatestFirst}
         onChange={onSortChange}
       />
       <Spacer />

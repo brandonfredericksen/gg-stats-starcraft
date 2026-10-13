@@ -3,16 +3,18 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { ReplayPlaylist, ReplayTeamsFilter } from '../../common/replays-library'
+import { ReplayTeamsFilter } from '../../common/replays-library'
 import { useFitLevel } from '../dom/use-fit-level'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
 import { MenuItem } from '../material/menu/item'
 import { MenuList } from '../material/menu/menu'
+import { BaseMenuItemProps, MenuItemSymbol, MenuItemType } from '../material/menu/menu-item-symbol'
 import { Popover, usePopoverController, useRefAnchorPosition } from '../material/popover'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { Tooltip } from '../material/tooltip'
 import { useStableCallback } from '../react/state-hooks'
+import { styledWithAttrs } from '../styles/styled-with-attrs'
 import { bodyMedium, labelLarge, singleLine } from '../styles/typography'
 import { LibraryView } from './replay-library-helpers'
 
@@ -83,7 +85,7 @@ const IconToggle = styled(ToolbarButton)`
   justify-content: center;
 `
 
-/** At the last fit level, gives way before search does, so a long playlist name ends in "...". */
+/** At the last fit level, gives way before search does, so a long label ends in "...". */
 const ShowButton = styled(ToolbarButton)<{ $shrink: boolean }>`
   flex-shrink: ${props => (props.$shrink ? 1 : 0)};
   min-width: 96px;
@@ -167,7 +169,6 @@ export interface LibraryToolbarProps {
   search: string
   onSearchChange: (search: string) => void
   view: LibraryView
-  playlists: ReadonlyArray<ReplayPlaylist>
   onViewChange: (view: LibraryView) => void
   whose: WhoseFilter
   /** Undefined until the user has said which names are theirs. */
@@ -180,6 +181,29 @@ export interface LibraryToolbarProps {
   actions?: (iconOnly: boolean) => React.ReactNode
 }
 
+const SelectedCheck = styledWithAttrs(MaterialIcon, { icon: 'check', size: 18 })`
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--theme-primary);
+`
+
+/** One of the Show menu's choices, checked when it's the one shown. */
+function ShowMenuItem({
+  icon,
+  selected,
+  ...menuProps
+}: BaseMenuItemProps & { icon: string; selected: boolean }) {
+  return (
+    <MenuItem
+      {...menuProps}
+      icon={<MaterialIcon icon={icon} />}
+      aria-selected={selected}
+      trailingContent={selected ? <SelectedCheck /> : undefined}
+    />
+  )
+}
+ShowMenuItem[MenuItemSymbol] = MenuItemType.Default
+
 /** The library's toolbar: game type, analysis, Hide results, which replays, filters, search. */
 export function LibraryToolbar({
   teams,
@@ -191,7 +215,6 @@ export function LibraryToolbar({
   search,
   onSearchChange,
   view,
-  playlists,
   onViewChange,
   whose,
   onWhoseChange,
@@ -206,11 +229,23 @@ export function LibraryToolbar({
 
   // The field answers right away while the query waits for a pause in typing.
   const [searchText, setSearchText] = useState(search)
+  // The last search sent up, to tell a search the page changed itself (like Clear filters, or Back)
+  // from the field's own typing coming back.
+  const [sentSearch, setSentSearch] = useState(search)
   const stableSearchChange = useStableCallback(onSearchChange)
   const [debouncedSearch] = useState(() =>
-    debounce((value: string) => stableSearchChange(value), 250),
+    debounce((value: string) => {
+      setSentSearch(value)
+      stableSearchChange(value)
+    }, 250),
   )
   useEffect(() => () => debouncedSearch.cancel(), [debouncedSearch])
+  if (search !== sentSearch) {
+    // The field follows a search the page changed, and drops typing that hadn't been sent yet.
+    debouncedSearch.cancel()
+    setSentSearch(search)
+    setSearchText(search)
+  }
 
   const teamOptions: Array<SegmentOption<ReplayTeamsFilter | undefined>> = [
     { value: undefined, label: t('replays.toolbar.allTypes', 'All') },
@@ -232,8 +267,6 @@ export function LibraryToolbar({
     showLabel = t('replays.toolbar.showOthers', "Other players' replays")
   } else if (view.kind === 'bookmarked') {
     showLabel = t('replays.toolbar.showBookmarked', 'Bookmarked')
-  } else if (view.kind === 'playlist') {
-    showLabel = playlists.find(p => p.id === view.id)?.name ?? showLabel
   }
   const chooseView = (next: LibraryView, nextWhose: WhoseFilter = 'all') => {
     closeShow()
@@ -313,38 +346,34 @@ export function LibraryToolbar({
         originX='left'
         originY='top'>
         <MenuList dense={true}>
-          <MenuItem
-            icon={<MaterialIcon icon='movie' />}
+          <ShowMenuItem
+            icon='movie'
             text={t('replays.toolbar.showAll', 'All replays')}
+            selected={view.kind === 'all' && whose === 'all'}
             onClick={() => chooseView({ kind: 'all' })}
           />
           {onWhoseChange ? (
-            <MenuItem
-              icon={<MaterialIcon icon='person' />}
+            <ShowMenuItem
+              icon='person'
               text={t('replays.toolbar.showMine', 'My games')}
+              selected={view.kind === 'all' && whose === 'mine'}
               onClick={() => chooseView({ kind: 'all' }, 'mine')}
             />
           ) : null}
           {onWhoseChange ? (
-            <MenuItem
-              icon={<MaterialIcon icon='group' />}
+            <ShowMenuItem
+              icon='group'
               text={t('replays.toolbar.showOthers', "Other players' replays")}
+              selected={view.kind === 'all' && whose === 'others'}
               onClick={() => chooseView({ kind: 'all' }, 'others')}
             />
           ) : null}
-          <MenuItem
-            icon={<MaterialIcon icon='bookmark' />}
+          <ShowMenuItem
+            icon='bookmark'
             text={t('replays.toolbar.showBookmarked', 'Bookmarked')}
+            selected={view.kind === 'bookmarked'}
             onClick={() => chooseView({ kind: 'bookmarked' })}
           />
-          {playlists.map(p => (
-            <MenuItem
-              key={p.id}
-              icon={<MaterialIcon icon='queue_music' />}
-              text={p.name}
-              onClick={() => chooseView({ kind: 'playlist', id: p.id })}
-            />
-          ))}
         </MenuList>
       </Popover>
 

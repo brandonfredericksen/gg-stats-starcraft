@@ -18,6 +18,26 @@ export const ALL_TILESET_IDS: ReadonlyArray<TilesetId> = [
 ]
 
 /**
+ * The tileset each value of a map's `ERA ` section names, in StarCraft's order. Installation is
+ * `undefined`, since it has no {@link TilesetId}.
+ */
+const ERA_TILESETS: ReadonlyArray<TilesetId | undefined> = [
+  'badlands',
+  'space',
+  undefined,
+  'ashworld',
+  'jungle',
+  'desert',
+  'ice',
+  'twilight',
+]
+
+/** The tileset a map's `ERA ` value names. StarCraft only reads its low 3 bits. */
+export function tilesetFromEra(era: number | null | undefined): TilesetId | undefined {
+  return era === null || era === undefined ? undefined : ERA_TILESETS[era & 7]
+}
+
+/**
  * Flat fallback colors for each preview tileset, sampled from their terrain. Used before a minimap
  * render has loaded, or if one fails to load.
  */

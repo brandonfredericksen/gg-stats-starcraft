@@ -64,7 +64,7 @@ export function BackfillProgressBar({ backfill }: { backfill: ReplayBackfillProg
     return (
       <BackfillBar>
         <BackfillLabel>
-          {t('replays.library.scanningTitle', 'Scanning your replay folder…')}
+          {t('replays.library.scanningTitle', 'Scanning your replay folders…')}
         </BackfillLabel>
         <ProgressTrack>
           <IndeterminateFill />

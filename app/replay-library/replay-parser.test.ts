@@ -6,6 +6,7 @@ import {
   getReplayTeamRaces,
   makeParseErrorRecord,
   mapReplayHeaderToRecord,
+  readEra,
   ReplayFileInfo,
 } from './replay-parser'
 
@@ -90,7 +91,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       userIds: makeUserIds({ 0: 100, 1: 200 }),
     })
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, clientData)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, clientData, null)
 
     expect(record.parseError).toBe(false)
     expect(record.linkedGameId).toBe('12345678-9abc-def0-1234-56789abcdef0')
@@ -111,7 +112,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       makePlayer({ slotId: 1, name: 'Dave', race: 'p', team: 1 }),
     ]
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined, null)
 
     expect(record.linkedGameId).toBeUndefined()
     expect(record.players.map(p => p.race)).toEqual(['t', 'p'])
@@ -126,7 +127,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       makePlayer({ slotId: 3, team: 2 }),
     ]
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined, null)
 
     expect(record.players.map(p => p.team)).toEqual([1, 1, 2, 2])
   })
@@ -134,7 +135,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
   test('strips color codes from the map name', () => {
     const header = makeHeader({ mapName: 'Neo Sylphid' })
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, [], undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, [], undefined, null)
 
     expect(record.mapName).toBe('Neo Sylphid')
   })
@@ -146,7 +147,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       makePlayer({ slotId: 1, race: 'z', team: 0 }),
     ]
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined, null)
 
     expect(record.teamSize).toBe(1)
     expect(record.matchup).toBe('p-z')
@@ -161,7 +162,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       makePlayer({ slotId: 3, race: 'z', team: 2 }),
     ]
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined, null)
 
     expect(record.teamSize).toBe(2)
     expect(record.matchup).toBe('pt-zz')
@@ -175,7 +176,7 @@ describe('app/replay-library/replay-parser/mapReplayHeaderToRecord', () => {
       makePlayer({ slotId: 2, race: 'z', team: 0 }),
     ]
 
-    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined)
+    const record = mapReplayHeaderToRecord(FILE_INFO, header, players, undefined, null)
 
     expect(record.teamSize).toBeNull()
     expect(record.matchup).toBeNull()
@@ -221,5 +222,35 @@ describe('app/replay-library/replay-parser/getReplayTeamRaces', () => {
       ['p', 't'],
       ['z', 'z'],
     ])
+  })
+})
+
+function chkSection(name: string, data: number[], length = data.length): number[] {
+  return [
+    ...Buffer.from(name, 'latin1'),
+    ...new Uint8Array(new Int32Array([length]).buffer),
+    ...data,
+  ]
+}
+
+describe('app/replay-library/replay-parser/readEra', () => {
+  test('reads the tileset after other sections', () => {
+    const chk = new Uint8Array([...chkSection('VER ', [205, 0]), ...chkSection('ERA ', [4, 0])])
+    expect(readEra(chk)).toBe(4)
+  })
+
+  test('keeps the last of repeated sections', () => {
+    const chk = new Uint8Array([...chkSection('ERA ', [1, 0]), ...chkSection('ERA ', [6, 0])])
+    expect(readEra(chk)).toBe(6)
+  })
+
+  test('stops at a negative length', () => {
+    const chk = new Uint8Array([...chkSection('VER ', [], -8), ...chkSection('ERA ', [4, 0])])
+    expect(readEra(chk)).toBe(null)
+  })
+
+  test('is null without the section or the data', () => {
+    expect(readEra(new Uint8Array(chkSection('VER ', [205, 0])))).toBe(null)
+    expect(readEra(undefined)).toBe(null)
   })
 })

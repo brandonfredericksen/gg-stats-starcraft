@@ -14,19 +14,11 @@ import { zIndexDialogScrim } from '../material/zindex'
 import { useAppDispatch, useAppSelector } from '../redux-hooks'
 import { dialogScrimOpacity } from '../styles/colors'
 import { closeDialogById } from './action-creators'
+import { ConfirmDialog } from './confirm-dialog'
 import { DialogState } from './dialog-reducer'
 import { DialogType } from './dialog-type'
 import { SimpleDialog } from './simple-dialog'
 
-const CreatePlaylistDialog = React.lazy(async () => ({
-  default: (await import('../replays/playlist-dialogs')).CreatePlaylistDialog,
-}))
-const DeletePlaylistDialog = React.lazy(async () => ({
-  default: (await import('../replays/playlist-dialogs')).DeletePlaylistDialog,
-}))
-const RenamePlaylistDialog = React.lazy(async () => ({
-  default: (await import('../replays/playlist-dialogs')).RenamePlaylistDialog,
-}))
 const ReplayInfoDialog = React.lazy(async () => ({
   default: (await import('../replays/replay-info-display')).ReplayInfoDialog,
 }))
@@ -64,14 +56,10 @@ function getDialog(dialogType: DialogType): {
   modal?: boolean
 } {
   switch (dialogType) {
-    case DialogType.CreatePlaylist:
-      return { component: CreatePlaylistDialog }
-    case DialogType.DeletePlaylist:
-      return { component: DeletePlaylistDialog }
+    case DialogType.Confirm:
+      return { component: ConfirmDialog }
     case DialogType.GameDefaultsApply:
       return { component: GameDefaultsApplyDialog }
-    case DialogType.RenamePlaylist:
-      return { component: RenamePlaylistDialog }
     case DialogType.ReplayInfo:
       return { component: ReplayInfoDialog }
     case DialogType.ReplayLoad:

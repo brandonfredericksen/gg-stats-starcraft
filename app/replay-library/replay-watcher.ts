@@ -295,8 +295,8 @@ export class ReplayWatcher {
     const existing = this.db.getExistingReplays()
 
     // A directory that's temporarily unreadable (offline/unplugged drive, permission blip,
-    // unavailable network mount) must NOT prune its rows: doing so would cascade away the bookmarks
-    // and playlist memberships of replays that still exist. So a row is only pruned when its root
+    // unavailable network mount) must NOT prune its rows: doing so would drop the bookmarks of
+    // replays that still exist. So a row is only pruned when its root
     // was removed from settings, or when every directory on the way down to it was readable this
     // reconcile yet the scan didn't find it. See `isIndexedPathVanished`.
     const scannedPaths = new Set(files.keys())

@@ -138,7 +138,7 @@ export function AnalyzeLatestButton({
                 defaultValue_one: 'Analyzing {{count}} game in the background',
                 count: added,
               })
-            : t('replays.analyzeLatest.none', 'Every game here is analyzed already'),
+            : t('replays.analyzeLatest.none', 'Every game here is analyzed'),
         )
       })
       .catch(swallowNonBuiltins)
@@ -147,7 +147,7 @@ export function AnalyzeLatestButton({
   const sizes = BATCH_SIZES.filter(size => available === undefined || size < available)
   const showAll = available !== undefined && available > 0 && available <= BATCH_SIZES.at(-1)!
 
-  let overline = t('replays.analyzeLatest.counting', 'Counting games...')
+  let overline = t('replays.analyzeLatest.counting', 'Counting games…')
   if (available === 0) {
     overline = t('replays.analyzeLatest.noneLeft', 'Every game here is analyzed')
   } else if (available !== undefined) {
@@ -218,7 +218,7 @@ export function AnalyzeLatestButton({
             <DestructiveMenuItem
               icon={<MaterialIcon icon='stop_circle' />}
               text={t('replays.analyzeLatest.clear', {
-                defaultValue: 'Stop the {{count}} waiting',
+                defaultValue: 'Clear the queue ({{count}})',
                 count: queued.length,
               })}
               onClick={() => {

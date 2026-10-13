@@ -5,7 +5,7 @@ import { withAssumedResults } from '../../common/games/assumed-results'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { FASTEST_MS_PER_FRAME } from '../../common/games/game-stats'
 import { isMyPlayerName } from '../../common/games/player-names'
-import { filterColorCodes } from '../../common/maps'
+import { filterColorCodes, TilesetId } from '../../common/maps'
 import { ReplayLibraryEntry } from '../../common/replays-library'
 import { ReplayStatsStatus, useReplayStatsStatus } from '../games/replay-stats-status'
 import { useFormatLocale } from '../i18n/locale-formats'
@@ -58,7 +58,12 @@ const Root = styled.div<{ $edge: PanelEdge }>`
   overflow: hidden;
 `
 
-const RowGrid = styled.div<{ $selected: boolean; $last: boolean }>`
+const RowGrid = styled.div<{
+  $selected: boolean
+  $focused: boolean
+  $last: boolean
+  $openable: boolean
+}>`
   padding: 12px 20px;
 
   display: grid;
@@ -67,11 +72,21 @@ const RowGrid = styled.div<{ $selected: boolean; $last: boolean }>`
   align-items: center;
   gap: 18px;
 
+  /* Keeps the map's terrain art above the panel's background. */
+  isolation: isolate;
   border-top: 1px solid var(--theme-outline-variant);
   ${props => (props.$last ? 'border-radius: 0 0 var(--radius-lg) var(--radius-lg);' : '')}
   background-color: ${props =>
     props.$selected ? 'rgb(from var(--theme-on-surface) r g b / 0.05)' : 'transparent'};
-  cursor: pointer;
+  cursor: ${props => (props.$openable ? 'pointer' : 'default')};
+
+  ${props =>
+    props.$focused
+      ? css`
+          outline: 2px solid var(--theme-grey-blue);
+          outline-offset: -2px;
+        `
+      : ''}
 
   &:focus-visible {
     outline: 3px solid var(--theme-grey-blue);
@@ -83,11 +98,14 @@ const RowGrid = styled.div<{ $selected: boolean; $last: boolean }>`
   }
 
   @container game-list-rows (width < 900px) {
-    /* The map leaves the grid entirely, so its track goes too, or every later cell would shift. */
-    grid-template-columns: 56px minmax(0, 1fr) 48px ${ACTIONS_WIDTH}px;
+    /*
+     * The game type leaves the grid, since the teams already show it. Its track goes too, or every
+     * later cell would shift. The map and time stay: they're how a game is told apart.
+     */
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 168px) 48px ${ACTIONS_WIDTH}px;
     gap: 12px;
 
-    & > :nth-child(3) {
+    & > :first-child {
       display: none;
     }
   }
@@ -115,10 +133,31 @@ const Lines = styled.div`
   gap: 2px;
 `
 
-const MapAndTime = styled.div`
+const MapAndTime = styled.div<{ $tileset?: TilesetId }>`
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
+
+  /*
+   * A faint piece of the map's terrain behind the map name, out to the row's edges above and
+   * below, fading out toward the players.
+   */
+  ${props =>
+    props.$tileset
+      ? css`
+          &::before {
+            content: '';
+            position: absolute;
+            inset: -13px -9px -12px -40px;
+            z-index: -1;
+            background: url('ggstats://app/assets/minimaps/${props.$tileset}.webp') var(--art-x)
+              var(--art-y) / 560px;
+            opacity: 0.28;
+            mask-image: linear-gradient(to right, transparent, black 40%, black 70%, transparent);
+          }
+        `
+      : ''}
 `
 
 const MapName = styled.span`
@@ -160,6 +199,17 @@ const ErrorLine = styled.div`
   }
 `
 
+/**
+ * Where a row's terrain art is cut from, so rows of the same tileset don't all show the same patch.
+ * Steady for a replay, from its id.
+ */
+function getArtPosition(id: number): React.CSSProperties {
+  return {
+    '--art-x': `${(id * 37) % 100}%`,
+    '--art-y': `${(id * 61) % 100}%`,
+  } as React.CSSProperties
+}
+
 function getModeIcon(mode: string) {
   if (mode === 'FFA') {
     return 'grid_view'
@@ -186,6 +236,10 @@ export interface GameRowProps {
   hideResults: boolean
   myNames: ReadonlyArray<string> | undefined
   computerLabel: string
+  /** The keyboard's place in the list. */
+  focused: boolean
+  /** Shows the date along with the time, for lists that aren't split into days. */
+  showDate: boolean
   /** From `getTeamSlotWidth` over every game in the list, so names line up from row to row. */
   slotWidth: number
   /** Called on a click with Ctrl or Shift, which changes the selection instead of opening. */
@@ -208,6 +262,8 @@ export function GameRow({
   entry,
   edge,
   selected,
+  focused,
+  showDate,
   hideResults,
   myNames,
   slotWidth,
@@ -241,12 +297,12 @@ export function GameRow({
         return
       }
       onSelect(entry.id, event)
-      if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      if (!entry.parseError && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         onOpen(entry)
       }
     },
     onKeyDown: (event: React.KeyboardEvent) => {
-      if (event.key === 'Enter' && event.target === event.currentTarget) {
+      if (event.key === 'Enter' && event.target === event.currentTarget && !entry.parseError) {
         // Handled here rather than by the library's Enter key, which acts on the focused entry.
         event.stopPropagation()
         onOpen(entry)
@@ -268,7 +324,12 @@ export function GameRow({
   if (entry.parseError) {
     return (
       <Root $edge={edge}>
-        <RowGrid $selected={selected} $last={edge === 'last'} {...common}>
+        <RowGrid
+          $selected={selected}
+          $focused={focused}
+          $last={edge === 'last'}
+          $openable={false}
+          {...common}>
           <Mode />
           <ErrorLine>
             <MaterialIcon icon='error' size={18} />
@@ -296,9 +357,21 @@ export function GameRow({
         }
       : undefined
   const lines = getGameRowLines(layout, summary, hideResults)
-  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
-    entry.gameTime,
-  )
+  const time = new Intl.DateTimeFormat(
+    locale,
+    showDate
+      ? {
+          month: 'short',
+          day: 'numeric',
+          year:
+            new Date(entry.gameTime).getFullYear() === new Date().getFullYear()
+              ? undefined
+              : 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        }
+      : { hour: 'numeric', minute: '2-digit' },
+  ).format(entry.gameTime)
 
   let runningLabel = t('replays.status.analyzing', 'Analyzing')
   if (status.kind === 'queued') {
@@ -307,9 +380,14 @@ export function GameRow({
 
   return (
     <Root $edge={edge}>
-      <RowGrid $selected={selected} $last={edge === 'last'} {...common}>
+      <RowGrid
+        $selected={selected}
+        $focused={focused}
+        $last={edge === 'last'}
+        $openable={true}
+        {...common}>
         <Mode>
-          <MaterialIcon icon={getModeIcon(mode)} size={16} />
+          {mode === '-' ? null : <MaterialIcon icon={getModeIcon(mode)} size={16} />}
           <ModeLabel>{mode}</ModeLabel>
         </Mode>
         <Lines>
@@ -337,13 +415,16 @@ export function GameRow({
             />
           ))}
         </Lines>
-        <MapAndTime>
+        <MapAndTime $tileset={entry.tileset} style={getArtPosition(entry.id)}>
           <MapName title={filterColorCodes(entry.mapName)}>
             {filterColorCodes(entry.mapName)}
           </MapName>
           <Time>{time}</Time>
         </MapAndTime>
-        <Length>{getGameDurationString(entry.durationFrames * FASTEST_MS_PER_FRAME)}</Length>
+        {/* A game's length gives its result away as much as the result does. */}
+        <Length>
+          {hideResults ? null : getGameDurationString(entry.durationFrames * FASTEST_MS_PER_FRAME)}
+        </Length>
         <Actions
           // The buttons act on their own; a click on them shouldn't also open the row.
           onClick={event => event.stopPropagation()}

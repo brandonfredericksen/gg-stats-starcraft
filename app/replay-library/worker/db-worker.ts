@@ -2,7 +2,6 @@ import { rmSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import { getErrorStack } from '../../../common/errors'
-import { ReplayLibraryStatus } from '../../../common/replays-library'
 import { ReplayDb } from '../replay-db'
 import {
   hashReplayContents,
@@ -13,7 +12,13 @@ import {
   ReplayFileInfo,
 } from '../replay-parser'
 import { ReplayLibraryLogger, ReplayWatcher } from '../replay-watcher'
-import { FromWorkerMessage, ReplayDbCalls, ReplayDbWorkerData, ToWorkerMessage } from './messages'
+import {
+  FromWorkerMessage,
+  ReplayDbCalls,
+  ReplayDbWorkerData,
+  ToWorkerMessage,
+  WorkerLibraryStatus,
+} from './messages'
 
 // Owns the SQLite index and the folder watcher, in a utility process of its own. All the
 // synchronous better-sqlite3 work (queries plus the per-file writes a backfill does) and the WASM
@@ -82,10 +87,8 @@ const watcher = new ReplayWatcher(watchedFolders, db, logger, {
   onChange: () => post({ type: 'changed' }),
 })
 
-function getStatus(): ReplayLibraryStatus {
+function getStatus(): WorkerLibraryStatus {
   return {
-    totalIndexed: db.getTotalIndexed(),
-    bookmarkedCount: db.getBookmarkedCount(),
     backfill: watcher.getBackfillProgress(),
     watchedFolders: watcher.getWatchedFolders(),
   }
@@ -123,15 +126,6 @@ const calls: ReplayDbCalls = {
   query: filters => db.query(filters),
   status: () => getStatus(),
   setBookmarked: (replayIds, bookmarked) => db.setBookmarked(replayIds, bookmarked),
-  listPlaylists: () => db.listPlaylists(),
-  createPlaylist: name => db.createPlaylist(name),
-  renamePlaylist: (playlistId, name) => db.renamePlaylist(playlistId, name),
-  deletePlaylist: playlistId => db.deletePlaylist(playlistId),
-  addToPlaylist: (playlistId, replayIds) => db.addToPlaylist(playlistId, replayIds),
-  removeFromPlaylist: (playlistId, replayIds) => db.removeFromPlaylist(playlistId, replayIds),
-  movePlaylistEntry: (playlistId, replayId, toIndex) =>
-    db.movePlaylistEntry(playlistId, replayId, toIndex),
-  getPlaylistsForReplay: replayId => db.getPlaylistsForReplay(replayId),
   suggestOwnNames: knownNames => db.suggestOwnNames(knownNames),
   getFrequentMaps: limit => db.getFrequentMaps(limit),
   getGameTimes: pathKeys => db.getGameTimes(pathKeys),

@@ -51,8 +51,8 @@ export function isIndexableReplayFilename(filename: string): boolean {
  *
  * The hazard this guards against: a transient read failure — an offline or unplugged drive, a
  * permission blip, an unavailable network mount or junction — makes a directory temporarily
- * unreadable. Pruning its rows then would cascade away the user's bookmarks and playlist entries
- * for replays that still physically exist — so rows under any directory that couldn't be read this
+ * unreadable. Pruning its rows then would drop the user's bookmarks for replays that still
+ * physically exist — so rows under any directory that couldn't be read this
  * reconcile are always kept.
  *
  * A row is treated as vanished (and pruned) only when:

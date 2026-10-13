@@ -26,10 +26,9 @@ import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsResult } from './my-stats/my-stats'
 import {
   ReplayBackfillProgress,
-  ReplayLibraryEntry,
   ReplayLibraryFilters,
   ReplayLibraryStatus,
-  ReplayPlaylist,
+  ReplayQueryResult,
   ReplayTrashResult,
   SuggestedOwnName,
 } from './replays-library'
@@ -129,9 +128,7 @@ interface IpcInvokeables {
    * `filters.limit`, ordered per `filters.sort` (newest-first by default), plus `total`, the
    * number of matches across all pages.
    */
-  replayLibraryQuery: (
-    filters: ReplayLibraryFilters,
-  ) => Promise<{ entries: ReplayLibraryEntry[]; total: number }>
+  replayLibraryQuery: (filters: ReplayLibraryFilters) => Promise<ReplayQueryResult>
   /** Current status of the replay index (total indexed, backfill progress, watched folder). */
   replayLibraryStatus: () => Promise<ReplayLibraryStatus>
   /**
@@ -139,41 +136,17 @@ interface IpcInvokeables {
    * actually changed (replays already in the requested state are left out).
    */
   replayLibrarySetBookmarked: (replayIds: number[], bookmarked: boolean) => Promise<number[]>
-  /** Lists the local playlists, ordered per their manual arrangement. */
-  replayLibraryListPlaylists: () => Promise<ReplayPlaylist[]>
-  /** Creates a new, empty playlist, appended after the existing ones. Returns its new id. */
-  replayLibraryCreatePlaylist: (name: string) => Promise<number>
-  replayLibraryRenamePlaylist: (id: number, name: string) => Promise<void>
-  /** Deletes a playlist and its entries. */
-  replayLibraryDeletePlaylist: (id: number) => Promise<void>
-  /**
-   * Appends replays to a playlist (already-present replays are left where they are). Resolves to
-   * the ids that were actually added.
-   */
-  replayLibraryAddToPlaylist: (playlistId: number, replayIds: number[]) => Promise<number[]>
-  /** Removes replays from a playlist, closing the gap in the remaining manual order. */
-  replayLibraryRemoveFromPlaylist: (playlistId: number, replayIds: number[]) => Promise<void>
-  /** Moves a replay to `toIndex` (clamped) within a playlist's manual order. */
-  replayLibraryMovePlaylistEntry: (
-    playlistId: number,
-    replayId: number,
-    toIndex: number,
-  ) => Promise<void>
   /** Names that look like the user's own, besides the ones they've already said are. */
   replayLibrarySuggestOwnNames: (knownNames: string[]) => Promise<SuggestedOwnName[]>
   /** The maps with the most replays, for picking one to filter by. */
   replayLibraryGetFrequentMaps: () => Promise<string[]>
-  /** Lists the playlists containing a replay, ordered per their manual arrangement. */
-  replayLibraryGetPlaylistsForReplay: (
-    replayId: number,
-  ) => Promise<Array<{ id: number; name: string }>>
   /**
    * Moves already-indexed replay files to the Recycle Bin, recoverable unlike
    * `replayLibraryRemoveSavedReplay`'s hard delete. A path that doesn't resolve inside one of the
    * watched replay folders is refused (reported `failed`) -- so this can never be used to trash an
    * arbitrary file. Every path is attempted even if an earlier one fails, and the result reports
-   * each path's outcome in order. The index (and any playlist membership) is reconciled by the
-   * watcher afterward, not by this call.
+   * each path's outcome in order. The index is reconciled by the watcher afterward, not by this
+   * call.
    */
   replayLibraryTrashReplays: (paths: string[]) => Promise<ReplayTrashResult[]>
 

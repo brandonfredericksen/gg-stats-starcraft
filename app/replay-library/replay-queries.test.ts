@@ -102,14 +102,14 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
     ).not.toContain('IS NULL')
   })
 
-  test('analysis keeps or drops the analyzed paths, and matches nothing when none are analyzed', () => {
+  test('analysis keeps or drops the analyzed paths, passed as one JSON array', () => {
     const analyzed = buildReplaySqlQuery({
       analysis: 'analyzed',
       analyzedPaths: ['c:/a.rep', 'c:/b.rep'],
       includeShort: true,
     })
-    expect(analyzed.sql).toContain('r.path_key IN (?, ?)')
-    expect(analyzed.params).toEqual(['c:/a.rep', 'c:/b.rep'])
+    expect(analyzed.sql).toContain('r.path_key IN (SELECT value FROM json_each(?))')
+    expect(analyzed.params).toEqual(['["c:/a.rep","c:/b.rep"]'])
 
     expect(
       buildReplaySqlQuery({
@@ -117,10 +117,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
         analyzedPaths: ['c:/a.rep'],
         includeShort: true,
       }).sql,
-    ).toContain('r.path_key NOT IN (?)')
-    expect(
-      buildReplaySqlQuery({ analysis: 'analyzed', analyzedPaths: [], includeShort: true }).sql,
-    ).toContain('WHERE 0')
+    ).toContain('r.path_key NOT IN (SELECT value FROM json_each(?))')
   })
 
   test('excludePaths leaves out those replays, ignoring case', () => {
@@ -128,8 +125,8 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       excludePaths: ['C:/Replays/A.rep'],
       includeShort: true,
     })
-    expect(sql).toContain('r.path_key NOT IN (?)')
-    expect(params).toEqual(['c:/replays/a.rep'])
+    expect(sql).toContain('r.path_key NOT IN (SELECT value FROM json_each(?))')
+    expect(params).toEqual(['["c:/replays/a.rep"]'])
   })
 
   test("names and paths match the stored lowercase keys, past ASCII, never SQLite's LOWER()", () => {
@@ -152,7 +149,7 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery', () => {
       'ärger',
       'иван',
       'éclair',
-      'c:/users/иван/a.rep',
+      '["c:/users/иван/a.rep"]',
     ])
   })
 
@@ -414,46 +411,5 @@ describe('app/replay-library/replay-queries/buildReplaySqlQuery bookmarked filte
     const { sql, params } = buildReplaySqlQuery({ bookmarked: true })
     expect(sql).not.toContain('r.duration_frames >=')
     expect(params).toEqual([])
-  })
-})
-
-describe('app/replay-library/replay-queries/buildReplaySqlQuery playlist filter', () => {
-  test('playlistId adds an INNER JOIN over playlist_entries in both sql and countSql', () => {
-    const { sql, countSql, params } = buildReplaySqlQuery({ playlistId: 7 })
-    const join = 'INNER JOIN playlist_entries pe ON pe.replay_id = r.id AND pe.playlist_id = ?'
-    expect(sql).toContain(join)
-    expect(countSql).toContain(join)
-    expect(params).toEqual([7])
-  })
-
-  test('playlistId alone does not exclude parse-error rows (curation, not a value filter)', () => {
-    const { sql } = buildReplaySqlQuery({ playlistId: 7 })
-    expect(sql).not.toContain('r.parse_error = 0')
-  })
-
-  test('playlistId combined with a value filter still excludes parse-error rows, and the join param leads the value params', () => {
-    const { sql, params } = buildReplaySqlQuery({
-      playlistId: 7,
-      mapName: 'Fighting Spirit',
-    })
-    expect(sql).toContain('r.parse_error = 0')
-    expect(params).toEqual([7, '%Fighting Spirit%'])
-  })
-
-  test("playlistId with no explicit sort orders by the playlist's manual position", () => {
-    const { sql } = buildReplaySqlQuery({ playlistId: 7 })
-    expect(sql).toContain('ORDER BY pe.position ASC, r.id ASC')
-  })
-
-  test('an explicit sort overrides the playlist manual order', () => {
-    const { sql } = buildReplaySqlQuery({ playlistId: 7, sort: GameSortOption.OldestFirst })
-    expect(sql).toContain('ORDER BY r.parse_error ASC, r.game_time ASC, r.id ASC')
-    expect(sql).not.toContain('pe.position')
-  })
-
-  test('playlist view skips the minimum-length floor by default', () => {
-    const { sql, params } = buildReplaySqlQuery({ playlistId: 7 })
-    expect(sql).not.toContain('r.duration_frames >=')
-    expect(params).toEqual([7])
   })
 })
