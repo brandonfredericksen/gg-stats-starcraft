@@ -1,8 +1,5 @@
-import { GameDefaultsPreset } from '../../common/settings/local-settings'
-
 export enum DialogType {
   Confirm = 'confirm',
-  GameDefaultsApply = 'gameDefaultsApply',
   ReplayInfo = 'replayInfo',
   ReplayLoad = 'replayLoad',
   Simple = 'simple',
@@ -21,17 +18,6 @@ type ConfirmDialogPayload = BaseDialogPayload<
     confirmBody: string
     confirmLabel: string
     onConfirm: () => void
-  }
->
-type GameDefaultsApplyDialogPayload = BaseDialogPayload<
-  typeof DialogType.GameDefaultsApply,
-  {
-    preset: GameDefaultsPreset
-    /**
-     * Whether the user just switched to `preset` (versus asking to re-apply the one already
-     * selected), which changes how the dialog is titled.
-     */
-    justSwitched: boolean
   }
 >
 type ReplayInfoDialogPayload = BaseDialogPayload<
@@ -59,7 +45,6 @@ type StarcraftHealthDialogPayload = BaseDialogPayload<typeof DialogType.Starcraf
 
 export type DialogPayload =
   | ConfirmDialogPayload
-  | GameDefaultsApplyDialogPayload
   | ReplayInfoDialogPayload
   | ReplayLoadDialogPayload
   | SimpleDialogPayload

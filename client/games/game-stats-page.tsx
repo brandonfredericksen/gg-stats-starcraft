@@ -313,8 +313,8 @@ function getFailureMessage(reason: ReplayAnalysisFailure, replayName: string, t:
     case 'launch':
       return t(
         'gameStats.failedLaunch',
-        "StarCraft couldn't load {{replayName}}. It may be corrupt, or from a version of " +
-          'StarCraft newer than this one supports.',
+        "StarCraft couldn't load {{replayName}}. The replay may be damaged, or StarCraft was " +
+          'just patched and GG Stats needs an update for it.',
         { replayName },
       )
     case 'replaced':

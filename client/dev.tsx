@@ -8,7 +8,6 @@ import DevMaterial from './material/devonly/routes'
 import { DemoPlayerTest } from './my-stats/devonly/demo-player-test'
 import { LoadingIndicatorTest } from './progress/devonly/loading-indicator-test'
 import { DevReplays } from './replays/devonly/routes'
-import { DevSettings } from './settings/devonly/routes'
 import { DevStarcraft } from './starcraft/devonly/dev-starcraft'
 
 const Container = styled.div`
@@ -47,7 +46,6 @@ export default function Dev() {
             ['My stats coach', 'coach', CoachTest],
             ['Progress indicators', 'progress', LoadingIndicatorTest],
             ['Replay components', 'replays', DevReplays],
-            ['Settings components', 'settings', DevSettings],
             ['Starcraft', 'starcraft', DevStarcraft],
           ]}
         />

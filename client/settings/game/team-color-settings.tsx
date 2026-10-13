@@ -186,7 +186,7 @@ function getTeamColorUsageDescription(
     case TeamColorUsage.ExceptIn1v1:
       return t(
         'settings.game.gameplay.teamColorUsage.exceptIn1v1Desc',
-        'Two-player games use individual colors instead.',
+        'Two player games use individual colors instead.',
       )
     case TeamColorUsage.Never:
       return t(
@@ -779,7 +779,7 @@ export function TeamColorSettings({
           <OverridesOffNote>
             {t(
               'settings.game.gameplay.teamColors.overridesOffNote',
-              'Overrides are off, but your color scheme below is kept. Press Shift+Tab in-game ' +
+              'Overrides are off, but your color scheme below is kept. Press Shift+Tab in game ' +
                 'to turn overrides on at any time.',
             )}
           </OverridesOffNote>

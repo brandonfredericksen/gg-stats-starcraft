@@ -191,7 +191,7 @@ interface IpcInvokeables {
   settingsScrMerge: (settings: Readonly<Partial<ScrSettings>>) => void
 
   settingsAutoPickStarcraftPath: () => Promise<boolean>
-  settingsCheckStarcraftPath: (path: string) => Promise<{ path: boolean; version: boolean }>
+  settingsCheckStarcraftPath: (path: string) => Promise<{ path: boolean }>
   settingsBrowseForStarcraft: (
     defaultPath: string,
   ) => Promise<{ canceled: boolean; filePaths: string[] }>

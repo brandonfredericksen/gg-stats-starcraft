@@ -48,7 +48,7 @@ import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useUserLocalStorageValue } from '../react/state-hooks'
-import { useAppDispatch } from '../redux-hooks'
+import { useAppDispatch, useAppSelector } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
 import { useSnackbarController } from '../snackbars/snackbar-overlay'
@@ -61,7 +61,7 @@ import { BackfillProgressBar } from './backfill-progress'
 import { GameRow, GroupHeader } from './game-row'
 import { LibraryFilterRow } from './library-filter-row'
 import { AnalysisFilter, LibraryToolbar, WhoseFilter } from './library-toolbar'
-import { NamesPrompt } from './names-prompt'
+import { NamesPrompt, StartWithWindowsPrompt } from './names-prompt'
 import { getDaySummary, getDayTitle, groupReplaysByDay } from './replay-days'
 import { encodeViewPathname, LibraryView } from './replay-library-helpers'
 import {
@@ -366,6 +366,9 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
   const teams = parseTeams(teamsParam)
   const analysis = parseAnalysis(analysisParam)
   const myNames = useMyPlayerNames()
+  const offerStartWithWindows = useAppSelector(
+    s => !s.settings.local.runAppAtSystemStart && !s.settings.local.startWithWindowsOffered,
+  )
 
   // The library's mode-like filters are remembered per user across visits, with both views (the
   // whole library and bookmarks) sharing one saved set. Each view names only the params it
@@ -1224,6 +1227,7 @@ export function ReplayLibrary({ view }: ReplayLibraryProps) {
         />
 
         {myNames === undefined ? <NamesPrompt /> : null}
+        {myNames !== undefined && offerStartWithWindows ? <StartWithWindowsPrompt /> : null}
 
         {filtersOpen ? (
           <LibraryFilterRow

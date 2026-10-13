@@ -19,9 +19,8 @@ import {
   TeamColorUsage,
 } from '../../../common/settings/local-settings'
 import { cloneCustomTeamColors } from '../../../common/settings/team-colors'
-import { useForm, useFormCallbacks, Validator } from '../../forms/form-hook'
+import { useForm, useFormCallbacks } from '../../forms/form-hook'
 import { CheckBox } from '../../material/check-box'
-import { NumberTextField } from '../../material/number-text-field'
 import { SelectOption } from '../../material/select/option'
 import { Select } from '../../material/select/select'
 import { useAppDispatch, useAppSelector } from '../../redux-hooks'
@@ -39,10 +38,6 @@ const BonusSkinsCheckBox = styled(CheckBox)`
 `
 
 interface GameplaySettingsModel {
-  apmAlertOn: boolean
-  apmAlertColorOn: boolean
-  apmAlertSoundOn: boolean
-  apmAlertValue: number
   apmDisplayOn: boolean
   colorCyclingOn: boolean
   consoleSkin: ConsoleSkin
@@ -60,20 +55,7 @@ interface GameplaySettingsModel {
   showBonusSkins: boolean
   selectedSkin: IngameSkin
   unitPortraits: number
-  showTurnRate: boolean
   startingFog: StartingFog
-}
-
-function validateApmValue(): Validator<number, GameplaySettingsModel> {
-  return (val, model, _dirty, t) => {
-    if (!model.apmAlertOn) {
-      return undefined
-    }
-
-    return val <= 0 || val > 999
-      ? t('settings.game.gameplay.apmValueValidation', 'Enter a value between 1 and 999')
-      : undefined
-  }
 }
 
 export function GameplaySettings() {
@@ -97,7 +79,7 @@ export function GameplaySettings() {
         teamSelfColor: localSettings.teamSelfColor,
         ffaSelfColor: localSettings.ffaSelfColor,
       },
-      { apmAlertValue: validateApmValue() },
+      {},
     )
 
   useFormCallbacks(form, {
@@ -105,10 +87,6 @@ export function GameplaySettings() {
       dispatch(
         mergeScrSettings(
           {
-            apmAlertOn: model.apmAlertOn,
-            apmAlertColorOn: model.apmAlertColorOn,
-            apmAlertSoundOn: model.apmAlertSoundOn,
-            apmAlertValue: model.apmAlertValue,
             apmDisplayOn: model.apmDisplayOn,
             colorCyclingOn: model.colorCyclingOn,
             consoleSkin: model.consoleSkin,
@@ -117,7 +95,6 @@ export function GameplaySettings() {
             showBonusSkins: model.showBonusSkins,
             selectedSkin: model.selectedSkin,
             unitPortraits: model.unitPortraits,
-            showTurnRate: model.showTurnRate,
           },
           {
             onSuccess: () => {},
@@ -183,11 +160,6 @@ export function GameplaySettings() {
             inputProps={{ tabIndex: 0 }}
           />
           <CheckBox
-            {...bindCheckable('showTurnRate')}
-            label={t('settings.game.gameplay.latency', 'Show latency')}
-            inputProps={{ tabIndex: 0 }}
-          />
-          <CheckBox
             {...bindCheckable('colorCyclingOn')}
             label={t('settings.game.gameplay.colorCycling', 'Enable color cycling')}
             inputProps={{ tabIndex: 0 }}
@@ -203,7 +175,7 @@ export function GameplaySettings() {
             tabIndex={0}>
             <SelectOption
               value={true}
-              text={t('settings.game.gameplay.minimapPosition.bottomLeft', 'Bottom-left corner')}
+              text={t('settings.game.gameplay.minimapPosition.bottomLeft', 'Bottom left corner')}
             />
             <SelectOption
               value={false}
@@ -226,7 +198,7 @@ export function GameplaySettings() {
           <SettingsSectionDescription>
             {t(
               'settings.game.gameplay.teamColors.description',
-              'How player colors appear in your games. Cycle between modes in-game with Shift+Tab.',
+              'How player colors appear in your games. Cycle between modes in game with Shift+Tab.',
             )}
           </SettingsSectionDescription>
           <TeamColorSettings
@@ -264,7 +236,7 @@ export function GameplaySettings() {
           />
           <Select
             {...bindCustom('selectedSkin')}
-            label={t('settings.game.gameplay.ingameSkins.title', 'Ingame skin')}
+            label={t('settings.game.gameplay.ingameSkins.title', 'In game skin')}
             tabIndex={0}
             disabled={!getInputValue('showBonusSkins')}>
             {ALL_INGAME_SKINS.map(skin => (
@@ -283,36 +255,6 @@ export function GameplaySettings() {
               <SelectOption key={skin} value={skin} text={getConsoleSkinName(skin, t)} />
             ))}
           </Select>
-        </SectionContainer>
-        <SectionContainer>
-          <SettingsSectionHeader>
-            {t('settings.game.gameplay.apmAlertHeader', 'APM alert')}
-          </SettingsSectionHeader>
-          <CheckBox
-            {...bindCheckable('apmAlertOn')}
-            label={t('settings.game.gameplay.apmAlert', 'Alert when APM falls below')}
-            inputProps={{ tabIndex: 0 }}
-          />
-          <NumberTextField
-            {...bindCustom('apmAlertValue')}
-            floatingLabel={false}
-            dense={true}
-            label={t('settings.game.gameplay.apmValue', 'APM value')}
-            inputProps={{ min: 0, max: 999 }}
-            disabled={!getInputValue('apmAlertOn')}
-          />
-          <CheckBox
-            {...bindCheckable('apmAlertColorOn')}
-            label={t('settings.game.gameplay.apmColorText', 'Color text')}
-            inputProps={{ tabIndex: 0 }}
-            disabled={!getInputValue('apmAlertOn')}
-          />
-          <CheckBox
-            {...bindCheckable('apmAlertSoundOn')}
-            label={t('settings.game.gameplay.apmSound', 'Play sound')}
-            inputProps={{ tabIndex: 0 }}
-            disabled={!getInputValue('apmAlertOn')}
-          />
         </SectionContainer>
       </FormContainer>
     </form>

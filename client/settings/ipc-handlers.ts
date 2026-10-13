@@ -4,32 +4,39 @@ import { LocalSettings } from '../../common/settings/local-settings'
 import { dispatch } from '../dispatch-registry'
 import { jotaiStore } from '../jotai-store'
 import { checkGgStatsFiles } from '../starcraft/check-gg-stats-files-ipc'
-import {
-  starcraftChecked,
-  starcraftPathValid,
-  starcraftVersionValid,
-} from '../starcraft/health-state'
+import { ggStatsHealthy, starcraftChecked, starcraftPathValid } from '../starcraft/health-state'
 
 export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcRenderer }) {
   let lastPath = ''
   let lastPathWasValid = false
-  const afterLocalSettingsChange = (settings: Partial<LocalSettings>) => {
-    if (settings.starcraftPath === lastPath && lastPathWasValid) {
-      return
-    }
-
-    lastPath = settings.starcraftPath ?? ''
+  const checkStarcraftPath = (starcraftPath: string) => {
+    lastPath = starcraftPath
     lastPathWasValid = false
     ipcRenderer
-      .invoke('settingsCheckStarcraftPath', lastPath)
+      .invoke('settingsCheckStarcraftPath', starcraftPath)
       ?.then(result => {
-        lastPathWasValid = result.path && result.version
+        lastPathWasValid = result.path
         jotaiStore.set(starcraftPathValid, result.path)
-        jotaiStore.set(starcraftVersionValid, result.version)
         jotaiStore.set(starcraftChecked, true)
       })
       .catch(swallowNonBuiltins)
   }
+  const afterLocalSettingsChange = (settings: Partial<LocalSettings>) => {
+    if (settings.starcraftPath !== lastPath || !lastPathWasValid) {
+      checkStarcraftPath(settings.starcraftPath ?? '')
+    }
+  }
+
+  // Coming back to the window is when a problem may have been fixed elsewhere, like StarCraft
+  // installed or files restored from quarantine, so anything wrong is checked again then.
+  window.addEventListener('focus', () => {
+    if (!lastPathWasValid) {
+      checkStarcraftPath(lastPath)
+    }
+    if (!jotaiStore.get(ggStatsHealthy)) {
+      checkGgStatsFiles().catch(swallowNonBuiltins)
+    }
+  })
 
   ipcRenderer
     .on('settingsLocalChanged', (event, settings) => {
@@ -69,5 +76,5 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
     })
     .catch(swallowNonBuiltins)
 
-  checkGgStatsFiles()
+  checkGgStatsFiles().catch(swallowNonBuiltins)
 }

@@ -1,6 +1,5 @@
 import { Link, Route, Switch } from 'wouter'
 import { ButtonsTest } from './buttons-test'
-import { ChipTest } from './chip-test'
 import { ColorPickerTest } from './color-picker-test'
 import { GamePartsTest } from './game-parts-test'
 import { MenuTest } from './menu-test'
@@ -9,7 +8,6 @@ import { RadioTest } from './radio-test'
 import { SelectsTest } from './selects-test'
 import { SliderTest } from './slider-test'
 import { SnackbarTest } from './snackbar-test'
-import { TabsTest } from './tabs-test'
 import { TextFieldTest } from './text-field-test'
 import { TooltipTest } from './tooltip-test'
 
@@ -20,9 +18,6 @@ function DevMaterialDashboard() {
     <ul>
       <li>
         <Link href={`${BASE_URL}/button`}>Button component</Link>
-      </li>
-      <li>
-        <Link href={`${BASE_URL}/chip`}>Chip component</Link>
       </li>
       <li>
         <Link href={`${BASE_URL}/color-picker`}>Color picker component</Link>
@@ -49,9 +44,6 @@ function DevMaterialDashboard() {
         <Link href={`${BASE_URL}/snackbar`}>Snackbar component</Link>
       </li>
       <li>
-        <Link href={`${BASE_URL}/tabs`}>Tabs component</Link>
-      </li>
-      <li>
         <Link href={`${BASE_URL}/textfield`}>Textfield component</Link>
       </li>
       <li>
@@ -65,7 +57,6 @@ export default function DevMaterialRoutes() {
   return (
     <Switch>
       <Route path={`${BASE_URL}/button`} component={ButtonsTest} />
-      <Route path={`${BASE_URL}/chip`} component={ChipTest} />
       <Route path={`${BASE_URL}/color-picker`} component={ColorPickerTest} />
       <Route path={`${BASE_URL}/game-parts`} component={GamePartsTest} />
       <Route path={`${BASE_URL}/menu`} component={MenuTest} />
@@ -74,7 +65,6 @@ export default function DevMaterialRoutes() {
       <Route path={`${BASE_URL}/select`} component={SelectsTest} />
       <Route path={`${BASE_URL}/slider`} component={SliderTest} />
       <Route path={`${BASE_URL}/snackbar`} component={SnackbarTest} />
-      <Route path={`${BASE_URL}/tabs`} component={TabsTest} />
       <Route path={`${BASE_URL}/textfield`} component={TextFieldTest} />
       <Route path={`${BASE_URL}/tooltip`} component={TooltipTest} />
       <Route>

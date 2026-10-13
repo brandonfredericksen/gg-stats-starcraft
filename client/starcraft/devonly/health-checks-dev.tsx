@@ -6,7 +6,7 @@ import { CheckBox } from '../../material/check-box'
 import { CenteredContentContainer } from '../../styles/centered-container'
 import { TitleMedium } from '../../styles/typography'
 import { GgStatsHealthDialog } from '../gg-stats-health'
-import { ggStatsFilesState, starcraftPathValid, starcraftVersionValid } from '../health-state'
+import { ggStatsFilesState, starcraftPathValid } from '../health-state'
 import { StarcraftHealthCheckupDialog } from '../starcraft-health'
 
 const Root = styled(CenteredContentContainer)`
@@ -31,7 +31,6 @@ export function HealthChecksDev() {
 
 function StarcraftContent() {
   const [pathValid, setPathValid] = useAtom(starcraftPathValid)
-  const [versionValid, setVersionValid] = useAtom(starcraftVersionValid)
   const [shown, setShown] = useState(false)
 
   return (
@@ -41,11 +40,6 @@ function StarcraftContent() {
         label='StarCraft path valid'
         checked={pathValid}
         onChange={e => setPathValid(e.target.checked)}
-      />
-      <CheckBox
-        label='StarCraft version valid'
-        checked={versionValid}
-        onChange={e => setVersionValid(e.target.checked)}
       />
       <FilledButton
         label='Show StarCraft Health Dialog'
@@ -68,7 +62,8 @@ function StarcraftContent() {
 }
 
 function GgStatsContent() {
-  const [files, setFiles] = useAtom(ggStatsFilesState)
+  const [checkedFiles, setFiles] = useAtom(ggStatsFilesState)
+  const files = checkedFiles ?? { init: true, main: true, init64: true, main64: true }
   const [shown, setShown] = useState(false)
 
   return (

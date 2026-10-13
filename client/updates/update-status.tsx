@@ -1,4 +1,5 @@
 import { atom, useAtomValue } from 'jotai'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
@@ -62,6 +63,8 @@ const RestartButton = styled.button`
 export function RestartToUpdateButton() {
   const { t } = useTranslation()
   const status = useAtomValue(updateStatusAtom)
+  // An analysis that's running finishes before the app restarts, so the button says it's coming.
+  const [updating, setUpdating] = useState(false)
   if (status.kind !== 'ready') {
     return null
   }
@@ -75,11 +78,13 @@ export function RestartToUpdateButton() {
       position='bottom'>
       <RestartButton
         type='button'
+        disabled={updating}
         onClick={() => {
+          setUpdating(true)
           ipcRenderer.invoke('updaterRestart')?.catch(swallowNonBuiltins)
         }}>
         <MaterialIcon icon='update' size={18} />
-        {t('updates.restart', 'Restart to update')}
+        {updating ? t('updates.updating', 'Updating…') : t('updates.restart', 'Restart to update')}
       </RestartButton>
     </Tooltip>
   )

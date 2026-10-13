@@ -13,7 +13,7 @@ import {
 import { cloneCustomTeamColors, DEFAULT_FFA_COLORS, TEAM_COLOR_PRESETS } from './team-colors'
 
 export const DEFAULT_LOCAL_SETTINGS: ReadonlyDeep<Omit<LocalSettings, keyof GgStatsAppSettings>> = {
-  runAppAtSystemStart: true,
+  runAppAtSystemStart: false,
   runAppAtSystemStartMinimized: true,
   starcraftPath: '',
   gameWinX: undefined,
@@ -21,7 +21,6 @@ export const DEFAULT_LOCAL_SETTINGS: ReadonlyDeep<Omit<LocalSettings, keyof GgSt
   gameWinWidth: undefined,
   gameWinHeight: undefined,
   quickOpenReplays: false,
-  gameDefaultsPreset: undefined,
   startingFog: StartingFog.ShowTerrainAndResources,
   minimapColorMode: MinimapColorMode.Standard,
   teamColorPreset: TeamColorPreset.CoolVsWarm,

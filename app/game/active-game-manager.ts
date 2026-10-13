@@ -654,7 +654,7 @@ async function doLaunch(
     throw new Error('No Starcraft path set')
   }
   const checkResult = await checkStarcraftPath(starcraftPath)
-  if (!checkResult.path || !checkResult.version) {
+  if (!checkResult.path) {
     throw new Error(`StarCraft path ${starcraftPath} not valid: ` + JSON.stringify(checkResult))
   }
 

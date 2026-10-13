@@ -22,8 +22,8 @@ export default class SystemTray {
 
   buildContextMenu = () => {
     return Menu.buildFromTemplate([
-      { label: 'Restore', type: 'normal', click: this.onTrayClick },
-      { label: 'Open Logs Folder', type: 'normal', click: this.onOpenLogs },
+      { label: `Open ${app.name}`, type: 'normal', click: this.onTrayClick },
+      { label: 'Open logs folder', type: 'normal', click: this.onOpenLogs },
       { label: `Quit ${app.name}`, type: 'normal', click: this.onQuitClick },
     ])
   }

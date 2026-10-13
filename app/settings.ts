@@ -15,7 +15,6 @@ import {
 import { DEFAULT_LOCAL_SETTINGS } from '../common/settings/default-settings'
 import {
   FfaColorPreset,
-  GameDefaultsPreset,
   LocalSettings,
   ScrSettings,
   StartingFog,
@@ -24,7 +23,7 @@ import { cloneCustomTeamColors, DEFAULT_FFA_COLORS } from '../common/settings/te
 import { findInstallPath } from './find-install-path'
 import log from './logger'
 
-const VERSION = 26
+const VERSION = 27
 const SCR_VERSION = 6
 
 /**
@@ -34,16 +33,16 @@ const SCR_VERSION = 6
  */
 const REMOVED_CLASSIC_FFA_PRESET = 'classic'
 
+/**
+ * Where StarCraft is installed, or an empty path when it can't be found, so Settings asks for it
+ * rather than reporting a problem with a folder the user never picked.
+ */
 async function findStarcraftPath() {
-  let starcraftPath = await findInstallPath()
+  const starcraftPath = await findInstallPath()
   if (!starcraftPath) {
-    log.warning('No Starcraft path found in search, defaulting to standard install location')
-    starcraftPath = process.env['ProgramFiles(x86)']
-      ? `${process.env['ProgramFiles(x86)']}\\Starcraft`
-      : `${process.env.ProgramFiles}\\Starcraft`
+    log.warning("Couldn't find where StarCraft is installed")
   }
-
-  return starcraftPath
+  return starcraftPath ?? ''
 }
 
 function jsonify(settings: unknown) {
@@ -430,13 +429,6 @@ export async function migrateLocalSettings(
     newSettings.grabPanInverted = DEFAULT_LOCAL_SETTINGS.grabPanInverted
   }
 
-  if (!settings.version || settings.version < 23) {
-    log.verbose('Found settings version 22, migrating to version 23')
-    // Installs that predate the game defaults preset have been running on the recommended
-    // defaults all along, so they keep them rather than being prompted to choose.
-    newSettings.gameDefaultsPreset = GameDefaultsPreset.Recommended
-  }
-
   if (!settings.version || settings.version < 24) {
     log.verbose('Found settings version 23, migrating to version 24')
     // Games are only analyzed while the app runs, so it now starts with Windows, in the tray.
@@ -458,6 +450,12 @@ export async function migrateLocalSettings(
     log.verbose('Found settings version 25, migrating to version 26')
     // The game doesn't keep the minimap terrain toggle, so there is nothing to store.
     delete (newSettings as any).minimapTerrainHidden
+  }
+
+  if (!settings.version || settings.version < 27) {
+    log.verbose('Found settings version 26, migrating to version 27')
+    // The gameplay defaults presets were removed. Each setting they set is kept as it is.
+    delete (newSettings as any).gameDefaultsPreset
   }
 
   newSettings.version = VERSION

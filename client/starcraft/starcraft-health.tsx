@@ -1,87 +1,59 @@
-import { useAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { useEffect } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 import { STARCRAFT_DOWNLOAD_URL } from '../../common/url-constants'
 import { CommonDialogProps } from '../dialogs/common-dialog-props'
+import { FilledButton, TextButton } from '../material/button'
 import { Dialog } from '../material/dialog'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { GameSettingsPage } from '../settings/settings-page'
-import { useSnackbarController } from '../snackbars/snackbar-overlay'
 import { BodyLarge } from '../styles/typography'
-import { starcraftPathValid, starcraftVersionValid } from './health-state'
+import { starcraftHealthy } from './health-state'
 
+const StyledDialog = styled(Dialog)`
+  max-width: 480px;
+`
+
+/** Says StarCraft can't be found, with the way to point GG Stats at it. */
 export function StarcraftHealthCheckupDialog({ onCancel, close }: CommonDialogProps) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const snackbarController = useSnackbarController()
-  const [pathValid] = useAtom(starcraftPathValid)
-  const [versionValid] = useAtom(starcraftVersionValid)
+  const healthy = useAtomValue(starcraftHealthy)
 
   useEffect(() => {
-    if (pathValid && versionValid) {
-      snackbarController.showSnackbar(
-        t(
-          'starcraft.starcraftHealth.noProblems',
-          'Your local installation is now free of problems.',
-        ),
-        { tone: 'success' },
-      )
+    if (healthy) {
       close()
     }
-  }, [close, pathValid, snackbarController, t, versionValid])
+  }, [close, healthy])
 
   return (
-    <Dialog
-      title={t('starcraft.starcraftHealth.title', 'Installation problems detected')}
+    <StyledDialog
+      title={t('starcraft.starcraftHealth.title', "StarCraft wasn't found")}
       onCancel={onCancel}
-      showCloseButton={true}>
+      showCloseButton={true}
+      buttons={[
+        <TextButton key='close' label={t('common.actions.close', 'Close')} onClick={onCancel} />,
+        <FilledButton
+          key='settings'
+          label={t('starcraft.starcraftHealth.pickFolder', 'Pick its folder')}
+          onClick={() => {
+            onCancel()
+            dispatch(openSettings(GameSettingsPage.StarCraft))
+          }}
+        />,
+      ]}>
       <BodyLarge>
-        {t(
-          'starcraft.starcraftHealth.header',
-          'The following problems need to be corrected before you can analyze or watch replays:',
-        )}
+        <Trans t={t} i18nKey='starcraft.starcraftHealth.body'>
+          Analyzing and watching replays needs StarCraft: Remastered. Pick the folder it's installed
+          in, or install it from{' '}
+          <a href={STARCRAFT_DOWNLOAD_URL} target='_blank' rel='noreferrer noopener'>
+            Battle.net
+          </a>
+          .
+        </Trans>
       </BodyLarge>
-      {!pathValid ? (
-        <p>
-          <Trans t={t} i18nKey='starcraft.starcraftHealth.installPathContents'>
-            Your StarCraft path setting does not point to a valid installation. Please correct the
-            value in{' '}
-            <a
-              href='#'
-              onClick={e => {
-                e.preventDefault()
-                onCancel()
-                dispatch(openSettings(GameSettingsPage.StarCraft))
-              }}>
-              Settings
-            </a>
-            . If you do not have the game installed, it can be easily downloaded from{' '}
-            <span>
-              <a href={STARCRAFT_DOWNLOAD_URL} target='_blank' rel='noreferrer noopener'>
-                Battle.net
-              </a>
-            </span>
-            . You may need to restart GG Stats after installation.
-          </Trans>
-        </p>
-      ) : null}
-      {pathValid && !versionValid ? (
-        <div>
-          <p>
-            <Trans t={t} i18nKey='starcraft.starcraftHealth.starcraftVersionContents'>
-              Your StarCraft installation is out of date. GG Stats supports installations of the
-              latest Remastered version from Battle.net. Please install the{' '}
-              <span>
-                <a href={STARCRAFT_DOWNLOAD_URL} target='_blank' rel='noreferrer noopener'>
-                  latest version
-                </a>
-              </span>{' '}
-              and restart GG Stats.
-            </Trans>
-          </p>
-        </div>
-      ) : null}
-    </Dialog>
+    </StyledDialog>
   )
 }

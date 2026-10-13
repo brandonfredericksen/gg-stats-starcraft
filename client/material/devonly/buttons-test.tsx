@@ -11,7 +11,6 @@ import {
   TextButton,
 } from '../button'
 import { Card } from '../card'
-import { FloatingActionButton } from '../floating-action-button'
 
 const StyledCard = styled(Card)`
   width: 100%;
@@ -78,17 +77,6 @@ export function ButtonsTest() {
           <IconButton
             icon={<MaterialIcon icon='local_pizza' />}
             title='Icon button disabled'
-            disabled={true}
-          />
-        </Row>
-        <Row>
-          <FloatingActionButton
-            icon={<MaterialIcon icon='elderly' invertColor={true} />}
-            title='FAB'
-          />
-          <FloatingActionButton
-            icon={<MaterialIcon icon='skull' invertColor={true} />}
-            title='Disabled FAB'
             disabled={true}
           />
         </Row>

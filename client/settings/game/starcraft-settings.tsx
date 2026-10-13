@@ -217,7 +217,7 @@ export function StarcraftSettings() {
             {...bindCheckable('launch32Bit')}
             label={t(
               'settings.game.starcraft.launch32Bit',
-              'Launch the 32-bit game client (not recommended)',
+              "Use the 32 bit StarCraft, only if the 64 bit one won't start",
             )}
             inputProps={{ tabIndex: 0 }}
           />
@@ -225,7 +225,7 @@ export function StarcraftSettings() {
           {DEV_INDICATOR ? (
             <SectionContainer>
               <SectionOverline>
-                {t('settings.game.starcraft.devOnlySettings', 'Dev-only settings')}
+                {t('settings.game.starcraft.devOnlySettings', 'Dev only settings')}
               </SectionOverline>
               <CheckBox
                 {...bindCheckable('disableHd')}

@@ -57,12 +57,12 @@ export function AppSystemSettings() {
           </SettingsSectionHeader>
           <CheckBox
             {...bindCheckable('runAppAtSystemStart')}
-            label={t('settings.app.system.runOnStartup', 'Run GG Stats on system startup')}
+            label={t('settings.app.system.runOnStartup', 'Start with Windows')}
             inputProps={{ tabIndex: 0 }}
           />
           <IndentedCheckBox
             {...bindCheckable('runAppAtSystemStartMinimized')}
-            label={t('settings.app.system.startMinimized', 'Start minimized')}
+            label={t('settings.app.system.startMinimized', 'Start in the tray')}
             inputProps={{ tabIndex: 0 }}
             disabled={!getInputValue('runAppAtSystemStart')}
           />

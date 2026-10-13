@@ -1,103 +1,107 @@
-import { useAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { useEffect } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { DEV_ERROR } from '../../common/flags'
 import { CommonDialogProps } from '../dialogs/common-dialog-props'
-import { FilledButton } from '../material/button'
+import { FilledButton, TextButton } from '../material/button'
 import { Dialog } from '../material/dialog'
 import { useSnackbarController } from '../snackbars/snackbar-overlay'
 import { bodyLarge, bodyMedium } from '../styles/typography'
 import { checkGgStatsFiles } from './check-gg-stats-files-ipc'
 import { ggStatsFilesState, ggStatsHealthy } from './health-state'
 
-const Text = styled.div`
+const StyledDialog = styled(Dialog)`
+  max-width: 520px;
+`
+
+const Text = styled.p`
   ${bodyLarge};
+  margin: 0;
 
   & + & {
-    margin-top: 24px;
+    margin-top: 16px;
   }
 `
 
 const FileList = styled.ul`
   ${bodyMedium};
-  margin-bottom: 40px;
+  margin: 12px 0 16px;
 `
 
-const RescanButton = styled(FilledButton)`
-  margin-top: 40px;
-`
-
-const DevContent = styled.div`
-  margin-bottom: 24px;
+const DevContent = styled.p`
+  ${bodyMedium};
+  margin: 0 0 16px;
   color: var(--theme-error);
 `
 
+/** Says which of GG Stats' own files are missing, and lets the user check again once restored. */
 export function GgStatsHealthDialog({ onCancel, close }: CommonDialogProps) {
   const { t } = useTranslation()
-  const [files] = useAtom(ggStatsFilesState)
-  const [healthy] = useAtom(ggStatsHealthy)
+  const files = useAtomValue(ggStatsFilesState)
+  const healthy = useAtomValue(ggStatsHealthy)
   const snackbarController = useSnackbarController()
 
   useEffect(() => {
     if (healthy) {
-      snackbarController.showSnackbar(
-        t('starcraft.ggStatsHealth.noProblems', 'Your local installation is now free of problems.'),
-        { tone: 'success' },
-      )
       close()
     }
-  }, [healthy, close, snackbarController, t])
+  }, [healthy, close])
 
-  const initDescription = files.init ? null : <li>sb_init.dll</li>
-  const mainDescription = files.main ? null : <li>ggstats.dll</li>
-  const init64Description = files.init64 ? null : <li>sb_init_64.dll</li>
-  const main64Description = files.main64 ? null : <li>ggstats_64.dll</li>
+  const missing = [
+    files?.init ? undefined : 'sb_init.dll',
+    files?.main ? undefined : 'ggstats.dll',
+    files?.init64 ? undefined : 'sb_init_64.dll',
+    files?.main64 ? undefined : 'ggstats_64.dll',
+  ].filter(Boolean)
 
   return (
-    <Dialog
-      title={t('starcraft.ggStatsHealth.title', 'Installation problems detected')}
+    <StyledDialog
+      title={t('starcraft.ggStatsHealth.title', 'GG Stats files are missing')}
       onCancel={onCancel}
-      showCloseButton={true}>
+      showCloseButton={true}
+      buttons={[
+        <TextButton key='close' label={t('common.actions.close', 'Close')} onClick={onCancel} />,
+        <FilledButton
+          key='check'
+          label={t('starcraft.ggStatsHealth.checkAgain', 'Check again')}
+          onClick={() => {
+            checkGgStatsFiles()
+              .then(allThere => {
+                if (!allThere) {
+                  snackbarController.showSnackbar(
+                    t('starcraft.ggStatsHealth.stillMissing', 'Still missing.'),
+                    { tone: 'error' },
+                  )
+                }
+              })
+              .catch(swallowNonBuiltins)
+          }}
+        />,
+      ]}>
       {DEV_ERROR ? (
         <DevContent>
-          <Text>Couldn't find the game DLLs, you probably need to run game/build.bat</Text>
+          Couldn't find the game DLLs, you probably need to run game/build.bat
         </DevContent>
       ) : null}
-
-      <div>
-        <Text>
-          <Trans t={t} i18nKey='starcraft.ggStatsHealth.topContents'>
-            We've detected that the following GG Stats files are missing or have been modified:
-          </Trans>
-        </Text>
-        <FileList>
-          {initDescription}
-          {mainDescription}
-          {init64Description}
-          {main64Description}
-        </FileList>
-
-        <Text>
-          <Trans t={t} i18nKey='starcraft.ggStatsHealth.middleContents'>
-            This is often the result of installed anti-virus software taking action on false
-            positives. You may need to add exceptions for these files, or tell the software to
-            remove them from quarantine. You can also try reinstalling GG Stats.
-          </Trans>
-        </Text>
-
-        <Text>
-          <Trans t={t} i18nKey='starcraft.ggStatsHealth.bottomContents'>
-            If you are able to, reporting these as false positives to your anti-virus vendor will
-            help this stop happening for other users as well!
-          </Trans>
-        </Text>
-      </div>
-
-      <RescanButton
-        label={t('starcraft.ggStatsHealth.rescanFiles', 'Rescan files')}
-        onClick={() => checkGgStatsFiles()}
-      />
-    </Dialog>
+      <Text>
+        {t(
+          'starcraft.ggStatsHealth.missing',
+          'GG Stats needs these files to analyze and watch replays:',
+        )}
+      </Text>
+      <FileList>
+        {missing.map(file => (
+          <li key={file}>{file}</li>
+        ))}
+      </FileList>
+      <Text>
+        {t(
+          'starcraft.ggStatsHealth.antivirus',
+          'Antivirus software sometimes quarantines them by mistake. Restore them from its quarantine, or reinstall GG Stats.',
+        )}
+      </Text>
+    </StyledDialog>
   )
 }

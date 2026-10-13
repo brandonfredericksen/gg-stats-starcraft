@@ -7,7 +7,7 @@ import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
 import { panelSurface } from '../material/panel'
 import { useAppDispatch } from '../redux-hooks'
-import { openSettings } from '../settings/action-creators'
+import { mergeLocalSettings, openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
 import { bodySmall, labelLarge, titleSmall } from '../styles/typography'
 
@@ -186,6 +186,49 @@ export function NamesPrompt() {
         </TextAction>
         <TextAction type='button' $muted={true} onClick={() => dispatch(setMyPlayerNames([]))}>
           {t('replays.names.skip', 'Skip')}
+        </TextAction>
+      </Actions>
+    </Root>
+  )
+}
+
+/**
+ * Offers once to start GG Stats with Windows, since it only analyzes the games played while it's
+ * running. It starts in the tray, out of the way.
+ */
+export function StartWithWindowsPrompt() {
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
+  const answer = (startWithWindows: boolean) =>
+    dispatch(
+      mergeLocalSettings(
+        {
+          startWithWindowsOffered: true,
+          ...(startWithWindows
+            ? { runAppAtSystemStart: true, runAppAtSystemStartMinimized: true }
+            : {}),
+        },
+        { onSuccess: () => {}, onError: () => {} },
+      ),
+    )
+
+  return (
+    <Root aria-label={t('replays.startup.label', 'Start with Windows')}>
+      <Text>
+        <Title>{t('replays.startup.title', 'Analyze every game you play?')}</Title>
+        <Body>
+          {t(
+            'replays.startup.body',
+            "GG Stats analyzes your games while it's running. Start it with Windows, in the tray, and none get missed. You can change this in Settings.",
+          )}
+        </Body>
+      </Text>
+      <Actions>
+        <TextAction type='button' $primary={true} onClick={() => answer(true)}>
+          {t('replays.startup.yes', 'Start with Windows')}
+        </TextAction>
+        <TextAction type='button' $muted={true} onClick={() => answer(false)}>
+          {t('replays.startup.no', 'Not now')}
         </TextAction>
       </Actions>
     </Root>

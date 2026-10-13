@@ -225,7 +225,7 @@ export function AppReplaySettings() {
           disabled={!autoCapture}
           label={t(
             'settings.app.replays.autoCaptureNotifications',
-            'Show a notification when GG Stats is in the tray',
+            'Notify me when a game is analyzed while GG Stats is in the tray',
           )}
           inputProps={{ tabIndex: 0 }}
         />
@@ -275,10 +275,7 @@ export function AppReplaySettings() {
         <CheckBox
           checked={localSettings.quickOpenReplays}
           onChange={onQuickOpenChange}
-          label={t(
-            'settings.app.replays.quickOpen',
-            'Launch replays opened with GG Stats immediately without previewing',
-          )}
+          label={t('settings.app.replays.quickOpen', 'Skip the preview when opening a replay file')}
           inputProps={{ tabIndex: 0 }}
         />
       </SectionContainer>

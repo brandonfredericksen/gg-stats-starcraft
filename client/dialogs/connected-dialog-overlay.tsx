@@ -25,9 +25,6 @@ const ReplayInfoDialog = React.lazy(async () => ({
 const ReplayLoadDialog = React.lazy(async () => ({
   default: (await import('../replays/replay-load-dialog')).ReplayLoadDialog,
 }))
-const GameDefaultsApplyDialog = React.lazy(async () => ({
-  default: (await import('../settings/game/game-defaults-apply-dialog')).GameDefaultsApplyDialog,
-}))
 const GgStatsHealthDialog = React.lazy(async () => ({
   default: (await import('../starcraft/gg-stats-health')).GgStatsHealthDialog,
 }))
@@ -58,8 +55,6 @@ function getDialog(dialogType: DialogType): {
   switch (dialogType) {
     case DialogType.Confirm:
       return { component: ConfirmDialog }
-    case DialogType.GameDefaultsApply:
-      return { component: GameDefaultsApplyDialog }
     case DialogType.ReplayInfo:
       return { component: ReplayInfoDialog }
     case DialogType.ReplayLoad:

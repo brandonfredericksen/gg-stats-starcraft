@@ -282,7 +282,7 @@ export function GameVideoSettings() {
           />
           <CheckBox
             {...bindCheckable('realTimeLightingOn')}
-            label={t('settings.game.video.realTimeLighting', 'Real-time lighting')}
+            label={t('settings.game.video.realTimeLighting', 'Real time lighting')}
             inputProps={{ tabIndex: 0 }}
           />
           <CheckBox

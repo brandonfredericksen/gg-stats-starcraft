@@ -4,7 +4,6 @@ import { MaterialIcon } from '../../icons/material/material-icon'
 import { IconButton } from '../button'
 import { Card } from '../card'
 import { CheckBox } from '../check-box'
-import { PasswordTextField } from '../password-text-field'
 import { TextField } from '../text-field'
 
 const Container = styled.div`
@@ -40,7 +39,6 @@ export function TextFieldTest() {
   const [value11, setValue11] = useState('')
   const [value12, setValue12] = useState('')
   const [value13, setValue13] = useState('')
-  const [value14, setValue14] = useState('')
   const [value15, setValue15] = useState('')
   const [value16, setValue16] = useState('')
   const [value17, setValue17] = useState('')
@@ -253,14 +251,6 @@ export function TextFieldTest() {
           label='No errors, no float'
           allowErrors={false}
           onChange={event => setValue13(event.target.value)}
-        />
-        <PasswordTextField
-          name='14'
-          value={value14}
-          floatingLabel={true}
-          dense={dense}
-          label='Password text field'
-          onChange={event => setValue14(event.target.value)}
         />
         <TextField
           name='15'

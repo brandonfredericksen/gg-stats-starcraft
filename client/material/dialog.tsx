@@ -2,7 +2,7 @@ import keycode from 'keycode'
 import { Transition, Variants } from 'motion/react'
 import * as m from 'motion/react-m'
 import * as React from 'react'
-import { useCallback, useContext } from 'react'
+import { useCallback, useContext, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { useIsDocumentVisible } from '../dom/document-visibility'
@@ -166,23 +166,6 @@ const Actions = styled.div<{ $showDivider?: boolean }>`
   }
 `
 
-const TabsContainer = styled.div<{ $showDivider?: boolean }>`
-  position: relative;
-  padding: 0 24px 8px;
-
-  &::after {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    height: 1px;
-
-    background-color: ${props =>
-      props.$showDivider ? 'var(--theme-outline-variant)' : 'transparent'};
-    content: '';
-  }
-`
-
 const dialogVariants: Variants = {
   initial: { opacity: 0, y: 12, scale: 0.97 },
   animate: { opacity: 1, y: 0, scale: 1 },
@@ -210,11 +193,9 @@ export interface DialogProps {
   overline?: string
   showCloseButton?: boolean
   style?: React.CSSProperties
-  tabs?: React.ReactNode
   title: React.ReactNode
   titleAction?: React.ReactNode
   onCancel?: () => void
-  alwaysHasTopDivider?: boolean
   testName?: string
 }
 
@@ -226,11 +207,9 @@ export function Dialog({
   overline,
   showCloseButton = false,
   style,
-  tabs,
   title,
   titleAction,
   onCancel,
-  alwaysHasTopDivider = false,
   testName,
 }: DialogProps) {
   const { t } = useTranslation()
@@ -251,17 +230,19 @@ export function Dialog({
     ),
   })
   const [isAtTop, isAtBottom, topNode, bottomNode] = useScrollIndicatorState()
+  const titleId = useId()
 
   const closeButton = showCloseButton ? (
     <CloseButton
       icon={<MaterialIcon icon='close' />}
       title={t('material.dialog.closeDialog', 'Close dialog')}
+      ariaLabel={t('material.dialog.closeDialog', 'Close dialog')}
       onClick={onCancel}
     />
   ) : null
 
   return (
-    <Container role='dialog' data-testid={testName}>
+    <Container role='dialog' aria-modal={true} aria-labelledby={titleId} data-testid={testName}>
       {/*
         While the document is hidden (window minimized/fully occluded), animation frames never
         fire, so an enter/exit animation would never progress: an entering dialog would stay
@@ -277,18 +258,14 @@ export function Dialog({
         exit={isDocVisible ? 'exit' : undefined}
         transition={dialogTransition}
         $isTopDialog={dialogContext.isTopDialog}>
-        <TitleBar $fullBleed={fullBleed} $showDivider={!isAtTop && !tabs}>
-          <Title>
+        <TitleBar $fullBleed={fullBleed} $showDivider={!isAtTop}>
+          <Title id={titleId}>
             {overline ? <Overline>{overline}</Overline> : null}
             {title}
           </Title>
           {titleAction}
           {closeButton}
         </TitleBar>
-        {tabs ? (
-          <TabsContainer $showDivider={!isAtTop || alwaysHasTopDivider}>{tabs}</TabsContainer>
-        ) : null}
-
         <Body $fullBleed={fullBleed}>
           {topNode}
           {children}

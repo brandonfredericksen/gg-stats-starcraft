@@ -28,7 +28,6 @@ import { GameSettingsPage } from '../settings/settings-page'
 import {
   starcraftChecked as starcraftCheckedAtom,
   starcraftPathValid as starcraftPathValidAtom,
-  starcraftVersionValid as starcraftVersionValidAtom,
 } from '../starcraft/health-state'
 import { bahnschrift, labelLarge, labelMedium, titleMedium } from '../styles/typography'
 import { RestartToUpdateButton } from '../updates/update-status'
@@ -229,15 +228,12 @@ function useCaptureStatus(): CaptureStatusView {
   const { enabled, paused, pausedByUser, queued, running } = useAtomValue(autoCaptureStatusAtom)
   const starcraftChecked = useAtomValue(starcraftCheckedAtom)
   const starcraftPathValid = useAtomValue(starcraftPathValidAtom)
-  const starcraftVersionValid = useAtomValue(starcraftVersionValidAtom)
 
   // Checked first: without StarCraft every analysis fails, and the rest would only say it stopped.
-  if (starcraftChecked && (!starcraftPathValid || !starcraftVersionValid)) {
+  if (starcraftChecked && !starcraftPathValid) {
     return {
       indicator: <CaptureDot $color='var(--theme-negative)' />,
-      label: starcraftPathValid
-        ? t('autoCapture.status.starcraftVersion', 'StarCraft version not supported')
-        : t('autoCapture.status.starcraftMissing', 'StarCraft not found'),
+      label: t('autoCapture.status.starcraftMissing', 'StarCraft not found'),
       starcraftProblem: true,
     }
   } else if (pausedByUser) {

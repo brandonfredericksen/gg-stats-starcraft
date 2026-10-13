@@ -15,24 +15,13 @@ async function checkRemasteredPath(dirPath: string): Promise<boolean> {
 }
 
 export interface PathCheckResult {
-  /** Whether the path contains a StarCraft installation. */
+  /**
+   * Whether the path contains a StarCraft: Remastered installation. Any version of it counts: the
+   * game DLL finds what it needs in each patch as it loads, see `game/scr-analysis`.
+   */
   path: boolean
-  /** Whether the StarCraft installation is a compatible version. */
-  version: boolean
 }
 
-// Given a path, returns an object with the following information:
-//  - is this a valid StarCraft path
-//  - does this path contain a supported StarCraft version
-//  - is this a StarCraft:Remastered version of the game
 export async function checkStarcraftPath(dirPath: string): Promise<PathCheckResult> {
-  const result = { path: false, version: false }
-
-  if (await checkRemasteredPath(dirPath)) {
-    // NOTE(2Pac): For now we're assuming that every SC:R version is supported since we're updating
-    // our offsets for each new patch dynamically thanks to neive's magic.
-    return { ...result, path: true, version: true }
-  }
-
-  return result
+  return { path: await checkRemasteredPath(dirPath) }
 }

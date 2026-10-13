@@ -3,12 +3,12 @@ import { useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import logger from './logging/logger'
-import { FilledButton } from './material/button'
+import { FilledButton, TextButton } from './material/button'
 import { zIndexSystemBar } from './material/zindex'
 import { DismissSplash } from './splash'
 import GlobalStyle from './styles/global'
 import ResetStyle from './styles/reset'
-import { bodyLarge, TitleLarge } from './styles/typography'
+import { bodyLarge, bodySmall, TitleLarge } from './styles/typography'
 import { WindowControls } from './system-bar/window-controls'
 
 export interface RootErrorBoundaryProps {
@@ -63,13 +63,22 @@ const Container = styled.div`
   justify-content: center;
 `
 
-const ErrorInfo = styled.div`
-  ${bodyLarge};
-  max-width: 960px;
+/** What broke, in a box of its own that scrolls, so a long stack never runs off the window. */
+const ErrorInfo = styled.pre`
+  ${bodySmall};
+  width: min(960px, calc(100% - 32px));
+  max-height: 40vh;
   margin: 16px;
+  padding: 12px 16px;
+  overflow: auto;
 
+  border: 1px solid var(--theme-outline-variant);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-container-low);
   color: var(--theme-on-surface-variant);
-  white-space: pre;
+  font-family: ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 
   &,
   & * {
@@ -80,8 +89,18 @@ const ErrorInfo = styled.div`
 const Instructions = styled.div`
   ${bodyLarge};
   max-width: 960px;
-  margin: 16px 16px 32px;
+  margin: 16px;
+  text-align: center;
 `
+
+const Actions = styled.div`
+  display: flex;
+  gap: 8px;
+`
+
+function copyDetails(error: Error) {
+  navigator.clipboard.writeText(String(error.stack ?? error)).catch(() => {})
+}
 
 /**
  * A React error boundary that is intended to be attached at the application root. This should be
@@ -188,18 +207,24 @@ function TranslatedErrorContents({ rootError, onReloadAppClick }: ErrorContentsP
 
   return (
     <>
-      <TitleLarge>{t('rootErrorBoundary.title', 'Something went wrong :(')}</TitleLarge>
-      <ErrorInfo>{String(rootError.stack ?? rootError)}</ErrorInfo>
+      <TitleLarge>{t('rootErrorBoundary.title', 'Something went wrong')}</TitleLarge>
       <Instructions>
         {t(
           'rootErrorBoundary.reloadHint',
-          'Reloading usually fixes it. If it keeps happening, the details above say what broke.',
+          'Reloading usually fixes it. If it keeps happening, copy the details into a bug report.',
         )}
       </Instructions>
-      <FilledButton
-        label={t('rootErrorBoundary.reloadApp', 'Reload app')}
-        onClick={onReloadAppClick}
-      />
+      <ErrorInfo>{String(rootError.stack ?? rootError)}</ErrorInfo>
+      <Actions>
+        <TextButton
+          label={t('rootErrorBoundary.copyDetails', 'Copy details')}
+          onClick={() => copyDetails(rootError)}
+        />
+        <FilledButton
+          label={t('rootErrorBoundary.reloadApp', 'Reload app')}
+          onClick={onReloadAppClick}
+        />
+      </Actions>
     </>
   )
 }
@@ -207,12 +232,15 @@ function TranslatedErrorContents({ rootError, onReloadAppClick }: ErrorContentsP
 function StaticErrorContents({ rootError, onReloadAppClick }: ErrorContentsProps) {
   return (
     <>
-      <TitleLarge>Something went wrong :(</TitleLarge>
-      <ErrorInfo>{String(rootError.stack ?? rootError)}</ErrorInfo>
+      <TitleLarge>Something went wrong</TitleLarge>
       <Instructions>
-        Reloading usually fixes it. If it keeps happening, the details above say what broke.
+        Reloading usually fixes it. If it keeps happening, copy the details into a bug report.
       </Instructions>
-      <FilledButton label='Reload app' onClick={onReloadAppClick} />
+      <ErrorInfo>{String(rootError.stack ?? rootError)}</ErrorInfo>
+      <Actions>
+        <TextButton label='Copy details' onClick={() => copyDetails(rootError)} />
+        <FilledButton label='Reload app' onClick={onReloadAppClick} />
+      </Actions>
     </>
   )
 }

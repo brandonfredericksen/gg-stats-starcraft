@@ -478,7 +478,7 @@ export function getTeamColorPresetLabel(preset: TeamColorPreset, t: TFunction): 
     case TeamColorPreset.WarmVsCool:
       return t('settings.game.gameplay.teamColorPreset.warmVsCool', 'Warm vs cool')
     case TeamColorPreset.ColorblindSafe:
-      return t('settings.game.gameplay.teamColorPreset.colorblindSafe', 'Colorblind-safe')
+      return t('settings.game.gameplay.teamColorPreset.colorblindSafe', 'Colorblind safe')
     case TeamColorPreset.Custom:
       return t('settings.game.gameplay.teamColorPreset.custom', 'Custom')
     default:
@@ -499,7 +499,7 @@ export function getFfaColorPresetLabel(preset: FfaColorPreset, t: TFunction): st
     case FfaColorPreset.Neon:
       return t('settings.game.gameplay.ffaColorPreset.neon', 'Neon')
     case FfaColorPreset.ColorblindSafe:
-      return t('settings.game.gameplay.ffaColorPreset.colorblindSafe', 'Colorblind-safe')
+      return t('settings.game.gameplay.ffaColorPreset.colorblindSafe', 'Colorblind safe')
     case FfaColorPreset.Custom:
       return t('settings.game.gameplay.ffaColorPreset.custom', 'Custom')
     default:

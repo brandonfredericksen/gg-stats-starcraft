@@ -78,7 +78,7 @@ describe('app/settings migrateLocalSettings', () => {
       visualizeNetworkStalls: true,
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 26 })
+    expect(migrated).toEqual({ ...VERSION_24, version: 27 })
   })
 
   test('drops the minimap terrain toggle from version 25 settings', async () => {
@@ -88,11 +88,21 @@ describe('app/settings migrateLocalSettings', () => {
       minimapTerrainHidden: true,
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 26 })
+    expect(migrated).toEqual({ ...VERSION_24, version: 27 })
+  })
+
+  test('drops the gameplay defaults preset from version 26 settings', async () => {
+    const migrated = await migrateLocalSettings({
+      ...VERSION_24,
+      version: 26,
+      gameDefaultsPreset: 'legacy',
+    } as any)
+
+    expect(migrated).toEqual({ ...VERSION_24, version: 27 })
   })
 
   test('leaves current settings as they are', async () => {
-    const current = { ...VERSION_24, version: 26 }
+    const current = { ...VERSION_24, version: 27 }
 
     expect(await migrateLocalSettings(current)).toEqual(current)
   })

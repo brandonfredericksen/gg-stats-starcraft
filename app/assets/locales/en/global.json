@@ -21,7 +21,6 @@
       "pausing": "Pausing after this game",
       "starcraftFix": "Set StarCraft's location in Settings",
       "starcraftMissing": "StarCraft not found",
-      "starcraftVersion": "StarCraft version not supported",
       "stopped": "Analysis stopped after errors",
       "watching": "Watching for new games"
     },
@@ -604,7 +603,7 @@
     "defeat": "Defeat",
     "eapm": "EAPM",
     "eapmDescription": "Actions per minute that did something. Spam like repeated clicks, orders past a full queue and instant cancels is left out.",
-    "failedLaunch": "StarCraft couldn't load {{replayName}}. It may be corrupt, or from a version of StarCraft newer than this one supports.",
+    "failedLaunch": "StarCraft couldn't load {{replayName}}. The replay may be damaged, or StarCraft was just patched and GG Stats needs an update for it.",
     "failedNoStats": "StarCraft couldn't get any stats from {{replayName}}.",
     "failedReplaced": "Another game started, which stopped the analysis of {{replayName}}.",
     "failedStopped": "StarCraft stopped before it finished playing through {{replayName}}.",
@@ -692,10 +691,6 @@
   "material": {
     "dialog": {
       "closeDialog": "Close dialog"
-    },
-    "passwordField": {
-      "hide": "Hide password",
-      "show": "Show password"
     }
   },
   "myStats": {
@@ -1405,6 +1400,13 @@
       "unreadable": "Unreadable replays",
       "yesterday": "Yesterday"
     },
+    "startup": {
+      "body": "GG Stats analyzes your games while it's running. Start it with Windows, in the tray, and none get missed. You can change this in Settings.",
+      "label": "Start with Windows",
+      "no": "Not now",
+      "title": "Analyze every game you play?",
+      "yes": "Start with Windows"
+    },
     "status": {
       "analyze": "Analyze",
       "analyzing": "Analyzing",
@@ -1432,9 +1434,10 @@
     "watchMissing": "Couldn't find this game's replay."
   },
   "rootErrorBoundary": {
+    "copyDetails": "Copy details",
     "reloadApp": "Reload app",
-    "reloadHint": "Reloading usually fixes it. If it keeps happening, the details above say what broke.",
-    "title": "Something went wrong :("
+    "reloadHint": "Reloading usually fixes it. If it keeps happening, copy the details into a bug report.",
+    "title": "Something went wrong"
   },
   "settings": {
     "activity": {
@@ -1474,19 +1477,19 @@
         "addFolderTitle": "Select a replay folder",
         "autoCapture": "Analyze each game when it ends",
         "autoCaptureDescription": "When a game ends, its replay is analyzed in the background. Replays StarCraft didn't save to AutoSave are kept in a GG Stats folder next to your replays.",
-        "autoCaptureNotifications": "Show a notification when GG Stats is in the tray",
+        "autoCaptureNotifications": "Notify me when a game is analyzed while GG Stats is in the tray",
         "autoCaptureTitle": "New games",
         "foldersDescription": "Removing a folder takes its replays and their bookmarks out of the library.",
         "foldersTitle": "Replay folders",
         "openingTitle": "Opening replays",
-        "quickOpen": "Launch replays opened with GG Stats immediately without previewing",
+        "quickOpen": "Skip the preview when opening a replay file",
         "removeFolder": "Remove folder",
         "title": "Replays"
       },
       "system": {
         "checkForUpdates": "Check GitHub for new versions and install them",
-        "runOnStartup": "Run GG Stats on system startup",
-        "startMinimized": "Start minimized",
+        "runOnStartup": "Start with Windows",
+        "startMinimized": "Start in the tray",
         "startupOverline": "Startup",
         "title": "System",
         "updatesOverline": "Updates"
@@ -1496,54 +1499,8 @@
       "save": "There was an issue saving the settings."
     },
     "game": {
-      "defaults": {
-        "apply": {
-          "explanation_one": "New features will use {{preset}} defaults from now on. What about the {{count}} setting this preset covers?",
-          "explanation_other": "New features will use {{preset}} defaults from now on. What about the {{count}} settings this preset covers?",
-          "keepChoice": "Keep my current settings",
-          "keepChoiceDescription": "Nothing changes today. Only new features follow {{preset}}.",
-          "resetChoice": "Reset them to {{preset}}",
-          "resetTitle": "Reset to {{preset}}?",
-          "resetToLegacyDescription": "Starting fog, cursor sizing, team colors and drag pan switch to the Battle.net behavior.",
-          "resetToRecommendedDescription": "Starting fog, cursor sizing, team colors and drag pan switch to the GG Stats defaults.",
-          "switchedTitle": "Switched to {{preset}}"
-        },
-        "intro": "The preset decides which values GG Stats' own gameplay settings start on. It also picks the default for anything added later.",
-        "legacyDescription": "Matches Battle.net.",
-        "preset": {
-          "legacy": "Legacy",
-          "recommended": "Recommended"
-        },
-        "presetLabel": "Game defaults preset",
-        "preview": {
-          "grabPanAdjustable": "Adjustable",
-          "grabPanFixed": "Fixed speed"
-        },
-        "recommendedDescription": "Tuned defaults.",
-        "resetToPreset": "Reset to preset",
-        "table": {
-          "caption": "A dot marks a value that differs from the selected preset.",
-          "cursorConsistent": "Consistent",
-          "cursorPerCursor": "Per-cursor",
-          "cursorSizing": "Cursor sizing",
-          "dragPanAdjustable": "Adjustable",
-          "dragPanFixed": "Fixed",
-          "dragPanSensitivity": "Drag pan sensitivity",
-          "setting": "Setting",
-          "startingFog": "Starting fog",
-          "teamColorPreset": "Team color preset",
-          "yourValue": "Your value"
-        },
-        "title": "Defaults"
-      },
       "gameplay": {
-        "apmAlert": "Alert when APM falls below",
-        "apmAlertHeader": "APM alert",
-        "apmColorText": "Color text",
         "apmDisplay": "APM display",
-        "apmSound": "Play sound",
-        "apmValue": "APM value",
-        "apmValueValidation": "Enter a value between 1 and 999",
         "colorCycling": "Enable color cycling",
         "colorNames": {
           "azure": "Azure",
@@ -1597,7 +1554,7 @@
         "ffaColorPreset": {
           "arcade": "Arcade",
           "attributionPrefix": "Palette: ",
-          "colorblindSafe": "Colorblind-safe",
+          "colorblindSafe": "Colorblind safe",
           "custom": "Custom",
           "jewel": "Jewel",
           "neon": "Neon",
@@ -1624,17 +1581,16 @@
           "carbot": "Carbot",
           "none": "None",
           "preorder": "Preorder",
-          "title": "Ingame skin"
+          "title": "In game skin"
         },
         "interface": {
           "title": "Interface"
         },
-        "latency": "Show latency",
         "mapMinimap": {
           "title": "Map & minimap"
         },
         "minimapPosition": {
-          "bottomLeft": "Bottom-left corner",
+          "bottomLeft": "Bottom left corner",
           "standard": "Standard",
           "title": "Minimap position"
         },
@@ -1650,7 +1606,7 @@
           "title": "Starting fog of war"
         },
         "teamColorPreset": {
-          "colorblindSafe": "Colorblind-safe",
+          "colorblindSafe": "Colorblind safe",
           "coolVsWarm": "Cool vs warm",
           "custom": "Custom",
           "legacyDiplomacy": "Legacy diplomacy",
@@ -1662,7 +1618,7 @@
           "clear": "Clear",
           "copyFromPreset": "Copy from preset",
           "copyFromPresetCaption": "Overwrites your custom colors",
-          "description": "How player colors appear in your games. Cycle between modes in-game with Shift+Tab.",
+          "description": "How player colors appear in your games. Cycle between modes in game with Shift+Tab.",
           "editHint": "Click a color to change it, or drag to reorder.",
           "header": "Player colors",
           "label": "Color overrides",
@@ -1675,7 +1631,7 @@
             "standardDesc": "StarCraft's normal colors."
           },
           "offNote": "Off. The individual colors below are used in every game.",
-          "overridesOffNote": "Overrides are off, but your color scheme below is kept. Press Shift+Tab in-game to turn overrides on at any time.",
+          "overridesOffNote": "Overrides are off, but your color scheme below is kept. Press Shift+Tab in game to turn overrides on at any time.",
           "pickerTargetAlly": "Team scheme · allies · #{{n}}",
           "pickerTargetEnemy": "Team scheme · enemies · #{{n}}",
           "pickerTargetSelf": "Team scheme · your color",
@@ -1706,7 +1662,7 @@
           "alwaysDesc": "Your 1v1 opponent always gets the first enemy color.",
           "alwaysShuffledDesc": "Your 1v1 opponent gets a random color from your enemy pool.",
           "exceptIn1v1": "Only in team games",
-          "exceptIn1v1Desc": "Two-player games use individual colors instead.",
+          "exceptIn1v1Desc": "Two player games use individual colors instead.",
           "never": "Never",
           "neverDesc": "Everyone keeps their own color, even when alliances change.",
           "title": "Use team colors"
@@ -1773,9 +1729,9 @@
         "browse": "Browse…",
         "detect": "Detect",
         "detectionFailedShort": "Couldn't find StarCraft: Remastered. Browse to its folder instead.",
-        "devOnlySettings": "Dev-only settings",
+        "devOnlySettings": "Dev only settings",
         "disableHd": "Don't load HD graphics (Crashes if switching to HD in game)",
-        "launch32Bit": "Launch the 32-bit game client (not recommended)",
+        "launch32Bit": "Use the 32 bit StarCraft, only if the 64 bit one won't start",
         "pathInvalidShort": "This folder isn't an up to date StarCraft: Remastered install.",
         "pathNotSet": "No StarCraft folder set",
         "pathValid": "This is a working StarCraft: Remastered install.",
@@ -1798,7 +1754,7 @@
         "monitorItem": "Monitor {{index}} - {{label}}",
         "pillarbox": "Pillarbox (4:3 aspect ratio)",
         "primaryMonitor": "Default (primary monitor)",
-        "realTimeLighting": "Real-time lighting",
+        "realTimeLighting": "Real time lighting",
         "resetWindowPosition": "Reset window position",
         "sdGraphicsFilter": "SD graphics filter",
         "shadowStacking": "Shadow stacking",
@@ -1806,6 +1762,12 @@
         "smoothUnitTurning": "Smooth unit turning",
         "title": "Video"
       }
+    },
+    "replayViewing": {
+      "reset": "Reset to defaults",
+      "resetBody": "Every setting for watching replays goes back to how GG Stats starts.",
+      "resetConfirm": "Reset",
+      "resetTitle": "Reset to defaults?"
     },
     "sections": {
       "general": "General",
@@ -1819,24 +1781,22 @@
   },
   "starcraft": {
     "ggStatsHealth": {
-      "bottomContents": "If you are able to, reporting these as false positives to your anti-virus vendor will help this stop happening for other users as well!",
-      "middleContents": "This is often the result of installed anti-virus software taking action on false positives. You may need to add exceptions for these files, or tell the software to remove them from quarantine. You can also try reinstalling GG Stats.",
-      "noProblems": "Your local installation is now free of problems.",
-      "rescanFiles": "Rescan files",
-      "title": "Installation problems detected",
-      "topContents": "We've detected that the following GG Stats files are missing or have been modified:"
+      "antivirus": "Antivirus software sometimes quarantines them by mistake. Restore them from its quarantine, or reinstall GG Stats.",
+      "checkAgain": "Check again",
+      "missing": "GG Stats needs these files to analyze and watch replays:",
+      "stillMissing": "Still missing.",
+      "title": "GG Stats files are missing"
     },
     "starcraftHealth": {
-      "header": "The following problems need to be corrected before you can analyze or watch replays:",
-      "installPathContents": "Your StarCraft path setting does not point to a valid installation. Please correct the value in <2>Settings</2>. If you do not have the game installed, it can be easily downloaded from <5><0>Battle.net</0></5>. You may need to restart GG Stats after installation.",
-      "noProblems": "Your local installation is now free of problems.",
-      "starcraftVersionContents": "Your StarCraft installation is out of date. GG Stats supports installations of the latest Remastered version from Battle.net. Please install the <2><0>latest version</0></2> and restart GG Stats.",
-      "title": "Installation problems detected"
+      "body": "Analyzing and watching replays needs StarCraft: Remastered. Pick the folder it's installed in, or install it from <2>Battle.net</2>.",
+      "pickFolder": "Pick its folder",
+      "title": "StarCraft wasn't found"
     }
   },
   "updates": {
     "restart": "Restart to update",
-    "restartTooltip": "Version {{version}} is ready. It also installs the next time GG Stats quits."
+    "restartTooltip": "Version {{version}} is ready. It also installs the next time GG Stats quits.",
+    "updating": "Updating…"
   },
   "windowControls": {
     "close": "Close",

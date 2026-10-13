@@ -273,7 +273,7 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
       }
       app.setLoginItemSettings({
         openAtLogin: atStart,
-        args: [minimized ? '--hidden' : ''],
+        args: minimized ? ['--hidden'] : [],
       })
       lastRunAppAtSystemStart = atStart
       lastRunAppAtSystemStartMinimized = minimized
@@ -351,16 +351,12 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
   })
 
   ipcMain.handle('settingsAutoPickStarcraftPath', async event => {
-    let starcraftPath = await findInstallPath()
-    const found = !!starcraftPath
-    if (!starcraftPath) {
-      starcraftPath = process.env['ProgramFiles(x86)']
-        ? `${process.env['ProgramFiles(x86)']}\\Starcraft`
-        : `${process.env.ProgramFiles}\\Starcraft`
+    // Not finding it leaves the folder as it was, which may be one the user picked themselves.
+    const starcraftPath = await findInstallPath()
+    if (starcraftPath) {
+      localSettings.merge({ starcraftPath }).catch(swallowNonBuiltins)
     }
-    localSettings.merge({ starcraftPath }).catch(swallowNonBuiltins)
-
-    return found
+    return !!starcraftPath
   })
 
   ipcMain.handle('settingsCheckStarcraftPath', async (event, path) => checkStarcraftPath(path))

@@ -1,11 +1,11 @@
 import { atom } from 'jotai'
 
 export const starcraftPathValid = atom(false)
-export const starcraftVersionValid = atom(false)
 /** Whether StarCraft's path has been checked yet, so nothing claims it's missing before then. */
 export const starcraftChecked = atom(false)
 
-export const starcraftHealthy = atom(get => get(starcraftPathValid) && get(starcraftVersionValid))
+/** Whether StarCraft can be used, as far as is known: until it's been checked, it's assumed it can. */
+export const starcraftHealthy = atom(get => !get(starcraftChecked) || get(starcraftPathValid))
 
 export interface GgStatsFileStatus {
   init: boolean
@@ -14,14 +14,11 @@ export interface GgStatsFileStatus {
   main64: boolean
 }
 
-export const ggStatsFilesState = atom<GgStatsFileStatus>({
-  init: false,
-  main: false,
-  init64: false,
-  main64: false,
-})
+/** Which of GG Stats' own files are there, or undefined until they've been checked. */
+export const ggStatsFilesState = atom<GgStatsFileStatus | undefined>(undefined)
 
+/** Whether GG Stats' files are all there, as far as is known: until checked, it's assumed they are. */
 export const ggStatsHealthy = atom(get => {
   const statuses = get(ggStatsFilesState)
-  return Object.values(statuses).every(status => status)
+  return !statuses || Object.values(statuses).every(status => status)
 })

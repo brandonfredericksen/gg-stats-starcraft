@@ -5,14 +5,14 @@ import { useTranslation } from 'react-i18next'
 import { useSearch } from 'wouter'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { useKeyListener } from '../keyboard/key-listener'
+import { TextButton } from '../material/button'
 import { useAppDispatch } from '../redux-hooks'
 import { starcraftHealthy } from '../starcraft/health-state'
-import { closeSettings } from './action-creators'
+import { closeSettings, confirmResetReplayViewing } from './action-creators'
 import { AppAppearanceSettings } from './app/appearance-settings'
 import { AppPlayerNamesSettings } from './app/player-names-settings'
 import { AppReplaySettings } from './app/replay-settings'
 import { AppSystemSettings } from './app/system-settings'
-import { GameDefaultsSettings } from './game/game-defaults-settings'
 import { GameplaySettings } from './game/gameplay-settings'
 import { GameInputSettings } from './game/input-settings'
 import { GameSoundSettings } from './game/sound-settings'
@@ -70,7 +70,6 @@ const SECTIONS: ReadonlyArray<SettingsSection> = [
       GameSettingsPage.Sound,
       GameSettingsPage.Video,
       GameSettingsPage.Gameplay,
-      GameSettingsPage.Defaults,
     ],
   },
 ]
@@ -272,6 +271,15 @@ export function SettingsScreen() {
                       </SettingsCard>
                     ))
                   : null}
+                {replayViewingOpen && isStarcraftHealthy ? (
+                  <div>
+                    <TextButton
+                      label={t('settings.replayViewing.reset', 'Reset to defaults')}
+                      iconStart={<MaterialIcon icon='restart_alt' />}
+                      onClick={() => dispatch(confirmResetReplayViewing())}
+                    />
+                  </div>
+                ) : null}
               </Section>
             )
           }
@@ -319,8 +327,6 @@ function SettingsPageDisplay({ page }: { page: SettingsPage }) {
       return <GameVideoSettings />
     case GameSettingsPage.Gameplay:
       return <GameplaySettings />
-    case GameSettingsPage.Defaults:
-      return <GameDefaultsSettings />
     default:
       return page satisfies never
   }
@@ -346,8 +352,6 @@ function getSettingsPageTitle({ page, t }: { page: SettingsPage; t: TFunction })
       return t('settings.game.video.title', 'Video')
     case GameSettingsPage.Gameplay:
       return t('settings.game.gameplay.title', 'Gameplay')
-    case GameSettingsPage.Defaults:
-      return t('settings.game.defaults.title', 'Defaults')
     default:
       return page satisfies never
   }
