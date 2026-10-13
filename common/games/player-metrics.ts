@@ -15,7 +15,7 @@ import { getMapFamily, MapFamily } from './map-family'
  * The version of {@link GameMetrics} computed now. Metrics computed by an older version are worked
  * out again from the saved stats, which are never touched.
  */
-export const GAME_METRICS_VERSION = 15
+export const GAME_METRICS_VERSION = 16
 
 /** The minutes into a game that players' progress is compared at. */
 export const CHECKPOINT_MINUTES: ReadonlyArray<number> = [4, 5, 6, 7, 8, 10, 12, 15]
@@ -141,6 +141,7 @@ const DETECTOR_IDS: Partial<Record<AssignedRaceChar, ReadonlySet<number>>> = {
   p: new Set([84, 162]),
   t: new Set([72, 107, 124]),
 }
+const OBSERVER_ID = 84
 const OVERLORD_ID = 42
 const HATCHERY_ID = 131
 const TOWN_HALL_IDS: ReadonlySet<number> = new Set([106, HATCHERY_ID, 154])
@@ -735,16 +736,30 @@ function getLarvaeFull(times: PlayerTimes, player: GamePlayerStats) {
   return total && full !== null ? full / total : null
 }
 
-/** For Terran and Protoss, when they first started a detector, or null if they never did. */
+/**
+ * For Terran and Protoss, when they first started a detector, or null if they never did. Against
+ * Zerg a Protoss counts only Observers: the Cannons of a Forge expand go up to defend, long before
+ * anything cloaked could come.
+ */
 function getDetection(
   player: GamePlayerStats,
   unitSteps: ReadonlyArray<{ id: number; timeMs: number }>,
+  game: GameStats,
 ) {
-  const detectors = player.race ? DETECTOR_IDS[player.race] : undefined
+  let detectors = player.race ? DETECTOR_IDS[player.race] : undefined
   if (!detectors || !player.buildOrder) {
     return undefined
   }
+  if (player.race === 'p' && getOpponents(player, game).some(p => p.race === 'z')) {
+    detectors = new Set([OBSERVER_ID])
+  }
   return unitSteps.find(step => detectors.has(step.id))?.timeMs ?? null
+}
+
+/** The players on other sides than `player`, or everyone else in a game without teams. */
+function getOpponents(player: GamePlayerStats, game: GameStats) {
+  const hasTeams = new Set(game.players.map(p => p.team)).size > 1
+  return game.players.filter(p => p !== player && (!hasTeams || p.team !== player.team))
 }
 
 /** The moments in a player's game a coach would point to, from its timeline. */
@@ -884,7 +899,7 @@ function computePlayerMetrics(game: GameStats, player: GamePlayerStats): PlayerM
     moments: getMoments(times, player),
     firstScoutMs: player.firstScoutMs,
     larvaeFull10: getLarvaeFull(times, player),
-    detectionMs: getDetection(player, unitSteps),
+    detectionMs: getDetection(player, unitSteps, game),
     armyMadePerMin: player.buildOrder ? getArmyMadePerMin(times.playedMs, unitSteps) : undefined,
     ...getBuild(times, player, unitSteps),
   }

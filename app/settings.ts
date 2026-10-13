@@ -23,7 +23,7 @@ import { cloneCustomTeamColors, DEFAULT_FFA_COLORS } from '../common/settings/te
 import { findInstallPath } from './find-install-path'
 import log from './logger'
 
-const VERSION = 27
+const VERSION = 28
 const SCR_VERSION = 6
 
 /**
@@ -456,6 +456,14 @@ export async function migrateLocalSettings(
     log.verbose('Found settings version 26, migrating to version 27')
     // The gameplay defaults presets were removed. Each setting they set is kept as it is.
     delete (newSettings as any).gameDefaultsPreset
+  }
+
+  if (!settings.version || settings.version < 28) {
+    log.verbose('Found settings version 27, migrating to version 28')
+    // Version 24 turned starting with Windows on for everyone. It's off until the user says yes,
+    // which the Library asks once.
+    newSettings.runAppAtSystemStart = false
+    delete newSettings.startWithWindowsOffered
   }
 
   newSettings.version = VERSION

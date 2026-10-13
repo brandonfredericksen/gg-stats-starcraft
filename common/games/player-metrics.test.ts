@@ -426,6 +426,10 @@ describe('common/games/player-metrics/getGameShape', () => {
     const [p] = computeGameMetrics('g', game([toss])).players
     expect(p.detectionMs).toBe(4 * 60_000)
     expect(p.larvaeFull10).toBeUndefined()
+
+    // Against Zerg, only an Observer counts.
+    const [pvz] = computeGameMetrics('g', game([toss, { ...zerg, id: 1, team: 1 }])).players
+    expect(pvz.detectionMs).toBe(7 * 60_000)
   })
 
   test('tells game types apart', () => {

@@ -126,6 +126,29 @@ const SidePlayer = styled.div`
   gap: 8px;
 `
 
+/**
+ * A player's EAPM, quiet, between their race and name. Its slot is the same width for every
+ * player, so their names line up even when one has no EAPM.
+ */
+const SidePlayerEapm = styled.span`
+  ${bodySmall};
+  font-size: 11px;
+  /* Room for three digits, sitting closer to the race tag than the row's usual gap. */
+  width: 1.8em;
+  margin-left: -4px;
+  flex-shrink: 0;
+
+  color: rgb(from var(--theme-on-surface-variant) r g b / 0.7);
+  /*
+   * Equal width digits keep the numbers in a straight column, and spacing them a little closer
+   * than usual keeps the column narrow, the same for every digit so it stays straight.
+   */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  text-align: right;
+  white-space: nowrap;
+`
+
 const SidePlayerName = styled.span<{ $lead: boolean; $large: boolean }>`
   ${bahnschrift};
   ${singleLine};
@@ -265,6 +288,9 @@ function SideSummary({
         {side.players.map(player => (
           <SidePlayer key={player.id}>
             {player.race ? <RaceTag race={player.race} /> : null}
+            <SidePlayerEapm title={t('gameStats.eapm', 'EAPM')}>
+              {player.eapm !== undefined ? format.format(player.eapm) : null}
+            </SidePlayerEapm>
             <SidePlayerName $lead={lead} $large={!isTeam}>
               <PlayerNameButton name={player.name} race={player.race}>
                 {player.name}
