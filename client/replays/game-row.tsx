@@ -136,8 +136,11 @@ const Lines = styled.div`
 const MapAndTime = styled.div<{ $tileset?: TilesetId }>`
   position: relative;
   min-width: 0;
+  /* As tall as the row, so the art below reaches its edges however tall the players make it. */
+  align-self: stretch;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 
   /*
    * A faint piece of the map's terrain behind the map name, out to the row's edges above and
