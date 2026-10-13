@@ -70,19 +70,6 @@
         --positive: #4ade80;
         --focus: #38c6f4;
 
-        --tab-library: #38c6f4;
-        --tab-library-tint: rgb(56 198 244 / 0.14);
-        --tab-library-ring: rgb(56 198 244 / 0.28);
-        --tab-stats: #a78bfa;
-        --tab-stats-tint: rgb(167 139 250 / 0.16);
-        --tab-stats-ring: rgb(167 139 250 / 0.3);
-        --tab-coach: #34d399;
-        --tab-coach-tint: rgb(52 211 153 / 0.14);
-        --tab-coach-ring: rgb(52 211 153 / 0.28);
-        --tab-builds: #f472b6;
-        --tab-builds-tint: rgb(244 114 182 / 0.14);
-        --tab-builds-ring: rgb(244 114 182 / 0.28);
-
         /* The app's own faces ship with Windows; the bundled fonts stand in everywhere else. */
         --body:
           'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', Inter, system-ui, sans-serif;
@@ -191,72 +178,38 @@
         opacity: 1;
       }
 
-      /* The screen picker copies the app's top bar tabs. */
+      /* One dot per screen. The current one stretches into a bar. */
       .tabs {
         display: flex;
-        flex-wrap: wrap;
         justify-content: center;
-        gap: 4px;
-        margin-top: 16px;
+        margin-top: 12px;
       }
 
       .tab {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        height: 32px;
-        padding: 0 14px 2px 11px;
+        display: grid;
+        place-items: center;
+        height: 24px;
+        padding: 0 4px;
+      }
+
+      .tab::before {
+        content: '';
+        width: 8px;
+        height: 8px;
         border-radius: 9999px;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
+        background: var(--outline);
+        transition:
+          width 200ms ease,
+          background 200ms ease;
       }
 
-      .tab svg {
-        width: 20px;
-        height: 20px;
-        fill: var(--tab);
-        transform: translateY(1px);
+      .tab:hover::before {
+        background: var(--on-surface-variant);
       }
 
-      .tab {
-        color: var(--on-surface-variant);
-      }
-
-      .tab:hover {
-        background: var(--container-high);
-        color: var(--on-surface);
-      }
-
-      .tab[aria-selected='true'] {
-        background: var(--tint);
-        box-shadow: inset 0 0 0 1px var(--ring);
-        color: var(--on-surface);
-      }
-
-      .library {
-        --tab: var(--tab-library);
-        --tint: var(--tab-library-tint);
-        --ring: var(--tab-library-ring);
-      }
-
-      .stats {
-        --tab: var(--tab-stats);
-        --tint: var(--tab-stats-tint);
-        --ring: var(--tab-stats-ring);
-      }
-
-      .coach {
-        --tab: var(--tab-coach);
-        --tint: var(--tab-coach-tint);
-        --ring: var(--tab-coach-ring);
-      }
-
-      .builds {
-        --tab: var(--tab-builds);
-        --tint: var(--tab-builds-tint);
-        --ring: var(--tab-builds-ring);
+      .tab[aria-selected='true']::before {
+        width: 24px;
+        background: var(--on-surface);
       }
 
       h1 {
@@ -384,23 +337,9 @@
         white-space: nowrap;
       }
 
-      /* Three tabs to a row on a phone. */
-      @media (max-width: 480px) {
-        .tab {
-          gap: 5px;
-          padding: 0 10px 2px 8px;
-          font-size: 13px;
-          letter-spacing: 0;
-        }
-
-        .tab svg {
-          width: 18px;
-          height: 18px;
-        }
-      }
-
       @media (prefers-reduced-motion: reduce) {
-        .window img {
+        .window img,
+        .tab::before {
           transition: none;
         }
       }
@@ -420,7 +359,7 @@
           width="1920"
           height="1350"
           fetchpriority="high"
-          alt="A 3v3 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
+          alt="A 2v2 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
         <img
           src="shots/charts.webp"
           srcset="shots/charts-960.webp 960w, shots/charts.webp 1920w"
@@ -430,7 +369,27 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Charts of army, workers, income, APM, supply and bases over the course of the game." />
+          alt="Charts of army, workers, income, EAPM, supply and bases over the course of the game." />
+        <img
+          src="shots/minimap.webp"
+          srcset="shots/minimap-960.webp 960w, shots/minimap.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="The game playing out on its minimap, with the chat beside it." />
+        <img
+          src="shots/heatmap.webp"
+          srcset="shots/heatmap-960.webp 960w, shots/heatmap.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="A heatmap of where two Zerg armies spent the game, with a cross where each unit died." />
         <img
           src="shots/units.webp"
           srcset="shots/units-960.webp 960w, shots/units.webp 1920w"
@@ -440,7 +399,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Two Protoss players side by side: the units each made, above their build orders with times and supply." />
+          alt="A Protoss and a Zerg side by side: the units each made, above their build orders with times and supply." />
         <img
           src="shots/mystats.webp"
           srcset="shots/mystats-960.webp 960w, shots/mystats.webp 1920w"
@@ -450,7 +409,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="My stats: the last 20 results, overall record, win rate by matchup and APM over recent games." />
+          alt="My stats for 3v3: the last 20 results, overall record, win rate by game length and APM over recent games." />
         <img
           src="shots/coach.webp"
           srcset="shots/coach-960.webp 960w, shots/coach.webp 1920w"
@@ -460,7 +419,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Coach for an S rank Protoss player in PvZ: goals for the next game, how their latest games are going and what to keep doing." />
+          alt="Coach for an S rank Protoss player in PvP: goals for the next game, how their latest games are going and what to keep doing." />
         <img
           src="shots/numbers.webp"
           srcset="shots/numbers-960.webp 960w, shots/numbers.webp 1920w"
@@ -470,7 +429,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="All the numbers: economy, growth, fights and speed from their PvZ games, next to other S rank Protoss players." />
+          alt="All the numbers: economy, growth, fights and speed from their PvP games, next to other S rank Protoss players." />
         <img
           src="shots/builds.webp"
           srcset="shots/builds-960.webp 960w, shots/builds.webp 1920w"
@@ -481,104 +440,127 @@
           decoding="async"
           aria-hidden="true"
           alt="Builds: each build played here, with how often top players open with it and its win rate at your level and for you." />
+        <img
+          src="shots/build-steps.webp"
+          srcset="shots/build-steps-960.webp 960w, shots/build-steps.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="One build step by step: the supply and time of each step for top players, your level, winners and you." />
+        <img
+          src="shots/timeline.webp"
+          srcset="shots/timeline-960.webp 960w, shots/timeline.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="The same build as a timeline, with your steps against everyone else's." />
       </div>
 
       <div class="tabs" role="tablist" aria-label="Screens">
         <button
-          class="tab library"
+          class="tab"
           id="tab-game"
           role="tab"
           aria-selected="true"
           aria-controls="screens"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path d="M80-120v-480h210v480H80Zm295 0v-720h210v720H375Zm295 0v-400h210v400H670Z" />
-          </svg>
-          Scoreboard
-        </button>
+          type="button"
+          aria-label="Scoreboard"></button>
         <button
-          class="tab library"
+          class="tab"
           id="tab-charts"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path d="m126-220-46-46 300-300 160 161 298-335 42 41-340 384-160-159-254 254Z" />
-          </svg>
-          Over time
-        </button>
+          type="button"
+          aria-label="Over time"></button>
         <button
-          class="tab library"
+          class="tab"
+          id="tab-minimap"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Minimap"></button>
+        <button
+          class="tab"
+          id="tab-heatmap"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Heatmap"></button>
+        <button
+          class="tab"
           id="tab-units"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path
-              d="M120-80v-60h100v-30h-60v-60h60v-30H120v-60h120q17 0 28.5 11.5T280-280v40q0 17-11.5 28.5T240-200q17 0 28.5 11.5T280-160v40q0 17-11.5 28.5T240-80H120Zm0-280v-110q0-17 11.5-28.5T160-510h60v-30H120v-60h120q17 0 28.5 11.5T280-560v70q0 17-11.5 28.5T240-450h-60v30h100v60H120Zm60-280v-180h-60v-60h120v240h-60Zm189 431v-60h471v60H369Zm0-243v-60h471v60H369Zm0-243v-60h471v60H369Z" />
-          </svg>
-          Build orders
-        </button>
+          type="button"
+          aria-label="Build orders"></button>
         <button
-          class="tab stats"
+          class="tab"
           id="tab-mystats"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path
-              d="M660-160v-280h140v280H660Zm-250 0v-640h140v640H410Zm-250 0v-440h140v440H160Z" />
-          </svg>
-          My stats
-        </button>
+          type="button"
+          aria-label="My stats"></button>
         <button
-          class="tab coach"
+          class="tab"
           id="tab-coach"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path
-              d="m89-412-49-36 193-310 125 146 165-268 125 186 143-226 48 35-190 301-124-184-159 258-125-146L89-412Zm494 192q48 0 82.5-33.5T700-335q0-49-34-83t-83-34q-48 0-81.5 34.5T468-335q0 48 33.5 81.5T583-220ZM797-80 685-192q-22 15-47.5 23.5T583-160q-73 0-124-51t-51-124q0-73 51-125t124-52q74 0 125.5 51.5T760-335q0 29-8.5 54.5T727-233l112 111-42 42Z" />
-          </svg>
-          Coach
-        </button>
+          type="button"
+          aria-label="Coach"></button>
         <button
-          class="tab coach"
+          class="tab"
           id="tab-numbers"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path
-              d="M450-340H120v160q0 24.75 17.63 42.37Q155.25-120 180-120h270v-220Zm60 0v220h270q24.75 0 42.38-17.63Q840-155.25 840-180v-160H510Zm-60-60v-220H120v220h330Zm60 0h330v-220H510v220ZM120-680h720v-100q0-24.75-17.62-42.38Q804.75-840 780-840H180q-24.75 0-42.37 17.62Q120-804.75 120-780v100Z" />
-          </svg>
-          All the numbers
-        </button>
+          type="button"
+          aria-label="All the numbers"></button>
         <button
-          class="tab builds"
+          class="tab"
           id="tab-builds"
           role="tab"
           aria-selected="false"
           aria-controls="screens"
           tabindex="-1"
-          type="button">
-          <svg viewBox="0 -960 960 960" aria-hidden="true">
-            <path
-              d="M604-120v-125H450v-410h-93v130H80v-315h277v125h247v-125h276v315H604v-130h-94v350h94v-130h276v315H604Z" />
-          </svg>
-          Builds
-        </button>
+          type="button"
+          aria-label="Builds"></button>
+        <button
+          class="tab"
+          id="tab-steps"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Build steps"></button>
+        <button
+          class="tab"
+          id="tab-timeline"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Timeline"></button>
       </div>
 
       <h1>Stats for every StarCraft game you play</h1>
