@@ -159,8 +159,8 @@ function TimeTick({ x, y, payload, index, visibleTicksCount }: XAxisTickContentP
  * jumps around with every trip.
  */
 const INCOME_WINDOW_MS = 30_000
-/** How far back APM is measured over, the minute the name says. */
-const APM_WINDOW_MS = 60_000
+/** How far back EAPM is measured over, the minute the name says. */
+const EAPM_WINDOW_MS = 60_000
 
 /** How visible the lines of players who aren't focused are, while any are. */
 const UNFOCUSED_LINE_OPACITY = 0.15
@@ -293,9 +293,10 @@ export function GameStatsTimelines({
       getValues: tl => getRatePerMinute(timesMs, tl.resourcesMined, INCOME_WINDOW_MS),
     },
     {
-      key: 'apm',
-      title: t('gameStats.apm', 'APM'),
-      getValues: tl => tl.actions && getRatePerMinute(timesMs, tl.actions, APM_WINDOW_MS),
+      key: 'eapm',
+      title: t('gameStats.eapm', 'EAPM'),
+      getValues: tl =>
+        tl.effectiveActions && getRatePerMinute(timesMs, tl.effectiveActions, EAPM_WINDOW_MS),
     },
     {
       key: 'unspent',
