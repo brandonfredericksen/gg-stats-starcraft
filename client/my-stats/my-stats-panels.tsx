@@ -162,10 +162,18 @@ function getShapeLabel(shape: GameShape, t: TFunction) {
   }
 }
 
-/** A 1v1 matchup like PvZ, or the game type for anything else. */
+/** 4v4 is left out: eight races don't fit on a chip. */
+const TEAM_SIZES: Partial<Record<GameShape, number>> = { '1v1': 1, '2v2': 2, '3v3': 3 }
+
+/**
+ * Both teams' races, the user's team first, like ZvT or PPZvTZZ, or the game type in 4v4, when the
+ * teams aren't even or when a race is missing.
+ */
 function getMatchupLabel(game: MyStatsGame, t: TFunction) {
-  if (game.shape === '1v1' && game.race && game.opponentRaces[0]) {
-    return `${game.race.toUpperCase()}v${game.opponentRaces[0].toUpperCase()}`
+  const team = game.race ? [game.race, ...game.teammateRaces].sort() : []
+  const size = TEAM_SIZES[game.shape]
+  if (size && team.length === size && game.opponentRaces.length === size) {
+    return `${team.join('')}v${game.opponentRaces.join('')}`.toUpperCase()
   }
   return getShapeLabel(game.shape, t)
 }
@@ -549,7 +557,9 @@ function Matchup({ row }: { row: MatchupRow }) {
   if (row.opponentRaces?.length) {
     return (
       <MatchupCell>
-        {getShapeLabel(row.shape, t)}
+        {row.teamRaces?.length
+          ? row.teamRaces.map((race, i) => <RaceTag key={i} race={race} />)
+          : getShapeLabel(row.shape, t)}
         <Muted>{t('myStats.versus', 'vs')}</Muted>
         {row.opponentRaces.map((race, i) => (
           <RaceTag key={i} race={race} />
@@ -610,7 +620,7 @@ export function ByMatchup({
         <tbody>
           {rows.map(row => (
             <tr
-              key={`${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}${row.opponentRaces?.join('') ?? ''}`}>
+              key={`${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}${row.teamRaces?.join('') ?? ''}${row.opponentRaces?.join('') ?? ''}`}>
               <td>
                 <Matchup row={row} />
               </td>

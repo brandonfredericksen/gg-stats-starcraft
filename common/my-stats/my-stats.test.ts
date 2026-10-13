@@ -237,7 +237,7 @@ describe('common/my-stats', () => {
       expect.objectContaining({ mapName: 'Eclipse', family: 'standard', games: 1 }),
     ])
   })
-  test("splits 2v2 by the opposing team's races and filters by them", () => {
+  test("splits 2v2 by both teams' races and filters by the opposing team's", () => {
     const twos = (result: GameStatsResult, foes: [AssignedRaceChar, AssignedRaceChar]) =>
       game('2v2', [
         player(me, 'p', 0, result),
@@ -248,9 +248,9 @@ describe('common/my-stats', () => {
     const games = [twos('win', ['z', 'p']), twos('loss', ['p', 'z']), twos('win', ['t', 't'])]
 
     const all = computeMyStats(games, { names: [me], range: 'all' }, NOW)
-    expect(all.byMatchup.map(r => [r.opponentRaces, r.wins, r.losses])).toEqual([
-      [['p', 'z'], 1, 1],
-      [['t', 't'], 1, 0],
+    expect(all.byMatchup.map(r => [r.teamRaces, r.opponentRaces, r.wins, r.losses])).toEqual([
+      [['p', 't'], ['p', 'z'], 1, 1],
+      [['p', 't'], ['t', 't'], 1, 0],
     ])
 
     const vsPz = computeMyStats(

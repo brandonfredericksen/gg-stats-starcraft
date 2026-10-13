@@ -123,7 +123,8 @@ export interface MatchupRow extends WinLoss {
   /** In 1v1, the races on each side. */
   race?: AssignedRaceChar
   opponentRace?: AssignedRaceChar
-  /** In 2v2, the opposing team's races, in alphabetical order. */
+  /** In 2v2, the races of the user's team and of the opposing team, in alphabetical order. */
+  teamRaces?: AssignedRaceChar[]
   opponentRaces?: AssignedRaceChar[]
   apm?: number
   durationMs?: number
@@ -341,10 +342,12 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
   const rows = new Map<string, MatchupRow & { apmAverage: Averager; length: Averager }>()
   for (const g of games) {
     const oneVsOne = g.game.shape === '1v1'
+    const twoVsTwo = g.game.shape === '2v2'
     const race = oneVsOne ? g.me.race : undefined
     const opponentRace = oneVsOne ? g.opponents[0]?.race : undefined
-    const opponentRaces = g.game.shape === '2v2' ? races(g.opponents) : undefined
-    const key = `${g.game.shape}:${race ?? ''}:${opponentRace ?? ''}:${opponentRaces?.join('') ?? ''}`
+    const teamRaces = twoVsTwo ? races([g.me, ...g.teammates]) : undefined
+    const opponentRaces = twoVsTwo ? races(g.opponents) : undefined
+    const key = `${g.game.shape}:${race ?? ''}:${opponentRace ?? ''}:${teamRaces?.join('') ?? ''}:${opponentRaces?.join('') ?? ''}`
     let row = rows.get(key)
     if (!row) {
       row = {
@@ -352,6 +355,7 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
         shape: g.game.shape,
         race,
         opponentRace,
+        teamRaces,
         opponentRaces,
         apmAverage: new Averager(),
         length: new Averager(),
@@ -372,6 +376,7 @@ function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
       order.indexOf(a.shape) - order.indexOf(b.shape) ||
       (a.race ?? '').localeCompare(b.race ?? '') ||
       (a.opponentRace ?? '').localeCompare(b.opponentRace ?? '') ||
+      (a.teamRaces?.join('') ?? '').localeCompare(b.teamRaces?.join('') ?? '') ||
       (a.opponentRaces?.join('') ?? '').localeCompare(b.opponentRaces?.join('') ?? ''),
   )
 }
