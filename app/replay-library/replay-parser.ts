@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { open, readFile } from 'node:fs/promises'
 import { ReplayCommandStats, summarizeCommands } from '../../common/games/command-stats'
 import { computeMatchupString } from '../../common/games/matchups'
-import { getReplayChat, ReplayChatMessage } from '../../common/games/replay-chat'
+import { getReplayChat, ReplayChat } from '../../common/games/replay-chat'
 import { filterColorCodes } from '../../common/maps'
 import { RaceChar } from '../../common/races'
 import { replayGameTypeToNumber } from '../../common/replays'
@@ -233,7 +233,7 @@ export async function readReplayCommandStats(filePath: string): Promise<ReplayCo
 }
 
 /** Reads the chat from a replay's commands. Rejects if the file can't be parsed. */
-export async function readReplayChat(filePath: string): Promise<ReplayChatMessage[]> {
+export async function readReplayChat(filePath: string): Promise<ReplayChat> {
   const buffer = await readFile(filePath)
   try {
     const replay = parseReplay(buffer)

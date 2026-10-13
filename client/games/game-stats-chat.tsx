@@ -5,12 +5,13 @@ import styled from 'styled-components'
 import { getErrorStack } from '../../common/errors'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { GamePlayerStats } from '../../common/games/game-stats'
-import { ReplayChatMessage } from '../../common/games/replay-chat'
+import { ReplayChat, ReplayChatMessage } from '../../common/games/replay-chat'
 import { TypedIpcRenderer } from '../../common/ipc'
 import logger from '../logging/logger'
 import { RaceTag } from '../material/race-tag'
 import { selectableTextContainer } from '../styles/text-selection'
 import { bodyMedium, labelLarge, singleLine } from '../styles/typography'
+import { Side } from './game-stats-model'
 import { gameScrubAtom } from './game-stats-scrub'
 import {
   CURRENT_ROW_BACKGROUND,
@@ -29,20 +30,25 @@ const ipcRenderer = new TypedIpcRenderer()
 
 /**
  * Beside something taller, the chat takes up the same height, however much was said, and scrolls
- * inside it.
+ * inside it. Its minimum is kept low so that in team games, where the production box above it is
+ * tall, the chat doesn't make the column taller than the minimap beside it.
  */
 const FillingPanel = styled(StatsPanel)<{ $fill: boolean }>`
   ${props =>
     props.$fill
       ? `
         flex: 1 1 0;
-        min-height: 240px;
+        min-height: 120px;
         contain: size;
       `
       : ''}
 `
 
-/** Long chats scroll rather than stretch the page, and can be selected to copy. */
+/**
+ * Long chats scroll rather than stretch the page, and can be selected to copy. The columns are
+ * shared by every message: the times and names take only the width they need, but the messages
+ * always get at least 60% of it, and names that don't fit in the rest are cut short.
+ */
 const MessageList = styled.ol<{ $fill: boolean }>`
   ${selectableTextContainer};
   max-height: ${props => (props.$fill ? '100%' : '560px')};
@@ -50,15 +56,20 @@ const MessageList = styled.ol<{ $fill: boolean }>`
   padding: 6px 0;
   overflow-y: auto;
   list-style: none;
+
+  display: grid;
+  grid-template-columns: max-content minmax(0, max-content) minmax(60%, 1fr);
+  align-content: start;
+  column-gap: 12px;
 `
 
 const MessageRow = styled.li<{ $current: boolean; $future: boolean }>`
   ${bodyMedium};
   background: ${props => (props.$current ? CURRENT_ROW_BACKGROUND : 'transparent')};
   opacity: ${props => (props.$future ? FUTURE_ROW_OPACITY : 1)};
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 64px minmax(0, 200px) minmax(0, 1fr);
-  column-gap: 12px;
+  grid-template-columns: subgrid;
   align-items: baseline;
   padding: 6px 18px;
 `
@@ -186,29 +197,80 @@ function copyMessages(
   )
 }
 
-/** Everything said in the game, read from its replay, with when it was said. */
-export function GameChat({
-  replayPath,
+/**
+ * Says which teams' ally chat the replay is missing. A replay only has the chat the person who
+ * saved it could see, so ally chat between the players of any other team, or of every team if an
+ * observer saved it, isn't in it.
+ */
+export function MissingAllyChatNote({
+  chat,
   players,
-  playerColors,
-  fill = false,
+  teamsByPlayer,
 }: {
-  replayPath: string
+  chat: LoadedReplayChat
   players: ReadonlyArray<GamePlayerStats>
-  playerColors: ReadonlyMap<number, string>
-  /** Whether to take up the height it's given, like beside the minimap, rather than its own. */
-  fill?: boolean
+  teamsByPlayer: ReadonlyMap<number, Side>
 }) {
-  const { t } = useTranslation()
-  const [chat, setChat] = useState<{ path: string; messages?: ReplayChatMessage[] }>()
-  const scrubMs = useAtomValue(gameScrubAtom)?.timeMs
+  const { t, i18n } = useTranslation()
+  if (!chat.chat) {
+    return null
+  }
+  const { recorder } = chat.chat
+  const recorderPlayer =
+    recorder && !recorder.isObserver ? findPlayer(players, recorder.name) : undefined
+  const recorderTeam = recorderPlayer ? teamsByPlayer.get(recorderPlayer.id) : undefined
+  // A player alone on their team has no one to ally chat with.
+  const missing = Array.from(new Set(teamsByPlayer.values()))
+    .filter(team => team !== recorderTeam && team.players.length > 1)
+    .sort((a, b) => a.number - b.number)
+  if (!missing.length) {
+    return null
+  }
+
+  const teams = new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(
+    missing.map(team => t('gameStats.teamName', 'Team {{number}}', { number: team.number })),
+  )
+  let note
+  if (!recorder) {
+    note = t(
+      'gameStats.chatAllyUnknownRecorder',
+      'A replay only has the ally chat of the team that saved it.',
+    )
+  } else if (recorder.isObserver) {
+    note = t(
+      'gameStats.chatAllyObserverRecorder',
+      'An observer saved this replay, so it has no ally chat from {{teams}}.',
+      { teams },
+    )
+  } else {
+    note = t(
+      'gameStats.chatAllyPlayerRecorder',
+      '{{name}} saved this replay, so it has no ally chat from {{teams}}.',
+      { name: recorder.name, teams },
+    )
+  }
+  return <SectionNote>{note}</SectionNote>
+}
+
+/** A replay's chat, once read, or none if it couldn't be. */
+export interface LoadedReplayChat {
+  path: string
+  chat?: ReplayChat
+}
+
+/** Reads the chat from `replayPath`, giving undefined until it's done. */
+export function useReplayChat(replayPath: string | undefined): LoadedReplayChat | undefined {
+  const [chat, setChat] = useState<LoadedReplayChat>()
 
   useEffect(() => {
+    if (!replayPath) {
+      return undefined
+    }
     let cancelled = false
     Promise.resolve(ipcRenderer.invoke('replayReadChat', replayPath))
-      .then(messages => {
+      .then(replayChat => {
         if (!cancelled) {
-          setChat({ path: replayPath, messages })
+          setChat({ path: replayPath, chat: replayChat })
         }
       })
       .catch(err => {
@@ -222,10 +284,30 @@ export function GameChat({
     }
   }, [replayPath])
 
-  if (!chat || chat.path !== replayPath) {
-    return null
-  }
-  if (!chat.messages) {
+  return replayPath && chat?.path === replayPath ? chat : undefined
+}
+
+/**
+ * Everything said in the game, read from its replay, with when it was said. The note on which ally
+ * chat the replay is missing is {@link MissingAllyChatNote}, apart from this so it can sit on the
+ * same row as the minimap's note.
+ */
+export function GameChat({
+  chat,
+  players,
+  playerColors,
+  fill = false,
+}: {
+  chat: LoadedReplayChat
+  players: ReadonlyArray<GamePlayerStats>
+  playerColors: ReadonlyMap<number, string>
+  /** Whether to take up the height it's given, like beside the minimap, rather than its own. */
+  fill?: boolean
+}) {
+  const { t } = useTranslation()
+  const scrubMs = useAtomValue(gameScrubAtom)?.timeMs
+
+  if (!chat.chat) {
     return (
       <Section>
         <SectionTitle>{t('gameStats.chat', 'Chat')}</SectionTitle>
@@ -236,15 +318,16 @@ export function GameChat({
     )
   }
 
-  const currentIndex = findCurrentIndex(chat.messages, scrubMs)
+  const { messages } = chat.chat
+  const currentIndex = findCurrentIndex(messages, scrubMs)
   return (
     <Section>
       <SectionTitle>{t('gameStats.chat', 'Chat')}</SectionTitle>
       <SectionErrorBoundary>
         <FillingPanel $fill={fill}>
-          {chat.messages.length ? (
-            <MessageList $fill={fill} onCopy={event => copyMessages(event, chat.messages!)}>
-              {chat.messages.map((message, i) => (
+          {messages.length ? (
+            <MessageList $fill={fill} onCopy={event => copyMessages(event, messages)}>
+              {messages.map((message, i) => (
                 <ChatMessageRow
                   key={i}
                   message={message}

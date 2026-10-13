@@ -9,7 +9,7 @@ import { Tooltip } from '../material/tooltip'
 import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
-import { GameChat } from './game-stats-chat'
+import { GameChat, MissingAllyChatNote, useReplayChat } from './game-stats-chat'
 import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { GameOtherStats } from './game-stats-other'
@@ -59,21 +59,18 @@ const MapAndChat = styled.div`
   }
 `
 
-/** The production box above the chat, which takes the height the minimap leaves it. */
+/**
+ * The production box above the chat, which together take the header and panel rows beside the
+ * minimap, so the chat ends where the minimap does. The chat's note goes on the note row.
+ */
 const ChatColumn = styled.div`
-  && {
-    display: grid;
-    grid-row: span 3;
-    grid-template-rows: auto minmax(0, 1fr);
-    row-gap: 20px;
-  }
-
-  /* Undoes the header row rule above, which is for the sections themselves. */
   && > :first-child {
+    grid-row: span 2;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
+    row-gap: 20px;
   }
 `
 
@@ -165,6 +162,7 @@ export function GameStatsView({
 }) {
   const { t } = useTranslation()
   const myNames = useMyPlayerNames()
+  const chat = useReplayChat(replayPath)
   if (!stats.players.length) {
     return (
       <Root>
@@ -232,15 +230,20 @@ export function GameStatsView({
           onAnalyzeAgain={onAnalyzeAgain}
         />
         <ChatColumn>
-          <SectionErrorBoundary>
-            <GameProduction
-              players={sides.flatMap(side => side.players)}
-              playerColors={playerColors}
-              snapshotTimesMs={stats.snapshotTimesMs}
-            />
-          </SectionErrorBoundary>
-          {replayPath ? (
-            <GameChat replayPath={replayPath} players={players} playerColors={playerColors} fill />
+          <div>
+            <SectionErrorBoundary>
+              <GameProduction
+                players={sides.flatMap(side => side.players)}
+                playerColors={playerColors}
+                snapshotTimesMs={stats.snapshotTimesMs}
+              />
+            </SectionErrorBoundary>
+            {chat ? (
+              <GameChat chat={chat} players={players} playerColors={playerColors} fill />
+            ) : null}
+          </div>
+          {chat ? (
+            <MissingAllyChatNote chat={chat} players={players} teamsByPlayer={teamsByPlayer} />
           ) : null}
         </ChatColumn>
       </MapAndChat>

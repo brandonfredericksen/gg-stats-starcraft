@@ -19,7 +19,7 @@ import {
   SavedGameStats,
 } from './games/game-stats'
 import { ReportedGameStatus } from './games/game-status'
-import { ReplayChatMessage } from './games/replay-chat'
+import { ReplayChat } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
 import { TilesetId } from './maps'
 import { CoachQuery, CoachResult } from './my-stats/coach'
@@ -123,7 +123,7 @@ interface IpcInvokeables {
   }>
 
   /** The chat in the replay at `replayPath`, in the order it was sent. */
-  replayReadChat: (replayPath: string) => Promise<ReplayChatMessage[]>
+  replayReadChat: (replayPath: string) => Promise<ReplayChat>
 
   /** What each player did, from the commands in the replay at `replayPath`. */
   replayReadCommandStats: (replayPath: string) => Promise<ReplayCommandStats>
