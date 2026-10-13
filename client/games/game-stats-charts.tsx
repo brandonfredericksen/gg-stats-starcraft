@@ -96,14 +96,16 @@ const X_AXIS_HEIGHT = 30
 
 /**
  * A line over the chart at the moment picked. It's drawn over the chart rather than in it, so
- * following the minimap's playback doesn't redraw every chart.
+ * following the minimap's playback doesn't redraw every chart. It's dashed, so it never reads as
+ * a player's line, whatever color that player has.
  */
 const ScrubLine = styled.div`
   position: absolute;
   top: ${PLOT_TOP}px;
   bottom: ${X_AXIS_HEIGHT}px;
   width: 1.5px;
-  background: var(--theme-amber);
+  background: repeating-linear-gradient(to bottom, var(--theme-amber) 0 4px, transparent 4px 8px);
+  opacity: 0.7;
   pointer-events: none;
 `
 
