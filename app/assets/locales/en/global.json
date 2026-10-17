@@ -756,6 +756,8 @@
       "games": "Games",
       "length": "Length",
       "matchup": "Matchup",
+      "matchupCount_one": "{{count}} matchup",
+      "matchupCount_other": "{{count}} matchups",
       "note_one": "APM is from the one game that tracked it.",
       "note_other": "APM is from the {{count}} games that tracked it.",
       "record": "Record",

@@ -523,6 +523,50 @@ const MatchupCell = styled.span`
   font-weight: 600;
 `
 
+const ExpandButton = styled.button`
+  ${buttonReset};
+  ${bodyMedium};
+  margin: -4px -8px;
+  padding: 4px 8px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgb(from var(--theme-on-surface) r g b / 0.08);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--theme-primary);
+  }
+`
+
+const ExpandChevron = styled(MaterialIcon)<{ $open: boolean }>`
+  color: var(--theme-on-surface-variant);
+  transform: rotate(${props => (props.$open ? '180deg' : '0deg')});
+  transition: transform 150ms ease;
+`
+
+const MatchupCount = styled.span`
+  ${bodySmall};
+  color: var(--theme-on-surface-variant);
+  font-weight: 400;
+`
+
+const BreakdownRow = styled.tr`
+  background: rgb(from var(--theme-on-surface) r g b / 0.03);
+
+  td:first-child {
+    padding-left: 44px;
+  }
+`
+
 const WinBar = styled.span`
   display: inline-flex;
   align-items: center;
@@ -588,6 +632,74 @@ function sumGames(rows: ReadonlyArray<MatchupRow>) {
   return rows.reduce((total, row) => total + row.games, 0)
 }
 
+function getMatchupKey(row: MatchupRow) {
+  return `${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}${row.teamRaces?.join('') ?? ''}${row.opponentRaces?.join('') ?? ''}`
+}
+
+function MatchupCells({ row }: { row: MatchupRow }) {
+  const format = useStatFormat()
+  return (
+    <>
+      <td>{format.format(row.games)}</td>
+      <td>
+        <RecordText record={row} />
+      </td>
+      <td>
+        <WinRate record={row} />
+      </td>
+      {/* Zero means the games didn't record it, like one that ended before it started. */}
+      <td>{row.apm ? format.format(row.apm) : '-'}</td>
+      <td>{row.durationMs ? getGameDurationString(row.durationMs) : '-'}</td>
+    </>
+  )
+}
+
+function ShapeRows({ row, startOpen }: { row: MatchupRow; startOpen: boolean }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(startOpen)
+  const matchups = row.matchups ?? []
+  if (!matchups.length) {
+    return (
+      <tr>
+        <td>
+          <Matchup row={row} />
+        </td>
+        <MatchupCells row={row} />
+      </tr>
+    )
+  }
+  return (
+    <>
+      <tr>
+        <td>
+          <ExpandButton type='button' aria-expanded={open} onClick={() => setOpen(!open)}>
+            {getShapeLabel(row.shape, t)}
+            <MatchupCount>
+              {t('myStats.byMatchup.matchupCount', {
+                defaultValue: '{{count}} matchups',
+                defaultValue_one: '{{count}} matchup',
+                count: matchups.length,
+              })}
+            </MatchupCount>
+            <ExpandChevron icon='expand_more' size={18} $open={open} />
+          </ExpandButton>
+        </td>
+        <MatchupCells row={row} />
+      </tr>
+      {open
+        ? matchups.map(matchup => (
+            <BreakdownRow key={getMatchupKey(matchup)}>
+              <td>
+                <Matchup row={matchup} />
+              </td>
+              <MatchupCells row={matchup} />
+            </BreakdownRow>
+          ))
+        : null}
+    </>
+  )
+}
+
 export function ByMatchup({
   rows,
   apmGames,
@@ -596,7 +708,6 @@ export function ByMatchup({
   apmGames: number
 }) {
   const { t } = useTranslation()
-  const format = useStatFormat()
   return (
     <StatsPanel>
       <PanelHead $flush={true}>
@@ -632,23 +743,9 @@ export function ByMatchup({
           </tr>
         </thead>
         <tbody>
+          {/* With only one kind of game there's nothing to scan past, so its matchups show. */}
           {rows.map(row => (
-            <tr
-              key={`${row.shape}${row.race ?? ''}${row.opponentRace ?? ''}${row.teamRaces?.join('') ?? ''}${row.opponentRaces?.join('') ?? ''}`}>
-              <td>
-                <Matchup row={row} />
-              </td>
-              <td>{format.format(row.games)}</td>
-              <td>
-                <RecordText record={row} />
-              </td>
-              <td>
-                <WinRate record={row} />
-              </td>
-              {/* Zero means the games didn't record it, like one that ended before it started. */}
-              <td>{row.apm ? format.format(row.apm) : '-'}</td>
-              <td>{row.durationMs ? getGameDurationString(row.durationMs) : '-'}</td>
-            </tr>
+            <ShapeRows key={getMatchupKey(row)} row={row} startOpen={rows.length === 1} />
           ))}
         </tbody>
       </Table>

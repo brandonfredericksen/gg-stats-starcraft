@@ -85,7 +85,10 @@ describe('common/my-stats', () => {
     expect(stats.games).toBe(3)
     expect(stats.record).toEqual({ games: 3, wins: 2, losses: 1 })
     expect(stats.apm?.value).toBeCloseTo(700 / 3)
-    expect(stats.byMatchup.map(r => [r.race, r.opponentRace, r.wins, r.losses])).toEqual([
+    expect(stats.byMatchup.map(r => [r.shape, r.wins, r.losses])).toEqual([['1v1', 2, 1]])
+    expect(
+      stats.byMatchup[0].matchups?.map(r => [r.race, r.opponentRace, r.wins, r.losses]),
+    ).toEqual([
       ['p', 't', 0, 1],
       ['p', 'z', 2, 0],
     ])
@@ -248,7 +251,10 @@ describe('common/my-stats', () => {
     const games = [twos('win', ['z', 'p']), twos('loss', ['p', 'z']), twos('win', ['t', 't'])]
 
     const all = computeMyStats(games, { names: [me], range: 'all' }, NOW)
-    expect(all.byMatchup.map(r => [r.teamRaces, r.opponentRaces, r.wins, r.losses])).toEqual([
+    expect(all.byMatchup.map(r => [r.shape, r.wins, r.losses])).toEqual([['2v2', 2, 1]])
+    expect(
+      all.byMatchup[0].matchups?.map(r => [r.teamRaces, r.opponentRaces, r.wins, r.losses]),
+    ).toEqual([
       [['p', 't'], ['p', 'z'], 1, 1],
       [['p', 't'], ['t', 't'], 1, 0],
     ])

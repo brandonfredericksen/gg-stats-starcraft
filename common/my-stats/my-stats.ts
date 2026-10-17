@@ -128,6 +128,8 @@ export interface MatchupRow extends WinLoss {
   opponentRaces?: AssignedRaceChar[]
   apm?: number
   durationMs?: number
+  /** For a 1v1 or 2v2 row, the same games split by the races on each side. */
+  matchups?: MatchupRow[]
 }
 
 export interface LengthRow extends WinLoss {
@@ -338,47 +340,81 @@ function toGame({ game, me, result, teammates, opponents }: MyGame): MyStatsGame
   }
 }
 
-function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
-  const rows = new Map<string, MatchupRow & { apmAverage: Averager; length: Averager }>()
-  for (const g of games) {
-    const oneVsOne = g.game.shape === '1v1'
-    const twoVsTwo = g.game.shape === '2v2'
-    const race = oneVsOne ? g.me.race : undefined
-    const opponentRace = oneVsOne ? g.opponents[0]?.race : undefined
-    const teamRaces = twoVsTwo ? races([g.me, ...g.teammates]) : undefined
-    const opponentRaces = twoVsTwo ? races(g.opponents) : undefined
-    const key = `${g.game.shape}:${race ?? ''}:${opponentRace ?? ''}:${teamRaces?.join('') ?? ''}:${opponentRaces?.join('') ?? ''}`
-    let row = rows.get(key)
-    if (!row) {
-      row = {
-        ...emptyRecord(),
-        shape: g.game.shape,
-        race,
-        opponentRace,
-        teamRaces,
-        opponentRaces,
-        apmAverage: new Averager(),
-        length: new Averager(),
-      }
-      rows.set(key, row)
-    }
-    tally(row, g.result)
-    row.apmAverage.add(g.me.apm)
-    row.length.add(g.game.durationMs)
+type MatchupTally = MatchupRow & { apmAverage: Averager; length: Averager }
+
+function tallyMatchup(
+  rows: Map<string, MatchupTally>,
+  key: string,
+  row: Omit<MatchupRow, keyof WinLoss>,
+  g: MyGame,
+) {
+  let tallied = rows.get(key)
+  if (!tallied) {
+    tallied = { ...emptyRecord(), ...row, apmAverage: new Averager(), length: new Averager() }
+    rows.set(key, tallied)
   }
-  const order: ReadonlyArray<GameShape> = ['1v1', '2v2', '3v3', '4v4', 'ffa', 'other']
+  tally(tallied, g.result)
+  tallied.apmAverage.add(g.me.apm)
+  tallied.length.add(g.game.durationMs)
+}
+
+function finishMatchupRows(rows: Map<string, MatchupTally>): MatchupRow[] {
   return Array.from(rows.values(), ({ apmAverage, length, ...row }) => ({
     ...row,
     apm: apmAverage.get()?.value,
     durationMs: length.get()?.value,
-  })).sort(
-    (a, b) =>
-      order.indexOf(a.shape) - order.indexOf(b.shape) ||
-      (a.race ?? '').localeCompare(b.race ?? '') ||
-      (a.opponentRace ?? '').localeCompare(b.opponentRace ?? '') ||
-      (a.teamRaces?.join('') ?? '').localeCompare(b.teamRaces?.join('') ?? '') ||
-      (a.opponentRaces?.join('') ?? '').localeCompare(b.opponentRaces?.join('') ?? ''),
-  )
+  }))
+}
+
+/**
+ * One row per game shape, with 1v1 and 2v2 also split by the races on each side so the table
+ * stays short however many race combinations were played.
+ */
+function getMatchupRows(games: ReadonlyArray<MyGame>): MatchupRow[] {
+  const shapes = new Map<string, MatchupTally>()
+  const matchups = new Map<GameShape, Map<string, MatchupTally>>()
+  for (const g of games) {
+    const shape = g.game.shape
+    tallyMatchup(shapes, shape, { shape }, g)
+
+    let row: Omit<MatchupRow, keyof WinLoss> | undefined
+    if (shape === '1v1') {
+      row = { shape, race: g.me.race, opponentRace: g.opponents[0]?.race }
+    } else if (shape === '2v2') {
+      row = {
+        shape,
+        teamRaces: races([g.me, ...g.teammates]),
+        opponentRaces: races(g.opponents),
+      }
+    }
+    if (row) {
+      const key = `${row.race ?? ''}:${row.opponentRace ?? ''}:${row.teamRaces?.join('') ?? ''}:${row.opponentRaces?.join('') ?? ''}`
+      let byKey = matchups.get(shape)
+      if (!byKey) {
+        byKey = new Map()
+        matchups.set(shape, byKey)
+      }
+      tallyMatchup(byKey, key, row, g)
+    }
+  }
+  const order: ReadonlyArray<GameShape> = ['1v1', '2v2', '3v3', '4v4', 'ffa', 'other']
+  return finishMatchupRows(shapes)
+    .map(row => {
+      const byKey = matchups.get(row.shape)
+      return byKey
+        ? {
+            ...row,
+            matchups: finishMatchupRows(byKey).sort(
+              (a, b) =>
+                (a.race ?? '').localeCompare(b.race ?? '') ||
+                (a.opponentRace ?? '').localeCompare(b.opponentRace ?? '') ||
+                (a.teamRaces?.join('') ?? '').localeCompare(b.teamRaces?.join('') ?? '') ||
+                (a.opponentRaces?.join('') ?? '').localeCompare(b.opponentRaces?.join('') ?? ''),
+            ),
+          }
+        : row
+    })
+    .sort((a, b) => order.indexOf(a.shape) - order.indexOf(b.shape))
 }
 
 function getLengthRows(games: ReadonlyArray<MyGame>): LengthRow[] {
