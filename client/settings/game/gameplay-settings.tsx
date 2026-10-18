@@ -34,7 +34,7 @@ import {
 import { TeamColorSettings } from './team-color-settings'
 
 const BonusSkinsCheckBox = styled(CheckBox)`
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 `
 
 interface GameplaySettingsModel {

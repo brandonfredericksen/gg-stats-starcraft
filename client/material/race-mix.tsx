@@ -43,7 +43,7 @@ const Breakdown = styled.span`
   display: grid;
   grid-template-columns: auto auto auto;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--space-1) var(--space-2);
 `
 
 const Percent = styled.span`

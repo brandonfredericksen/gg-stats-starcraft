@@ -13,7 +13,7 @@ import { bodySmall, labelLarge, titleSmall } from '../styles/typography'
 
 const Root = styled.section`
   ${panelSurface};
-  padding: 16px 20px;
+  padding: var(--space-4) var(--space-5);
 
   display: flex;
   flex-direction: column;
@@ -44,13 +44,13 @@ const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const Actions = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const Chip = styled.button<{ $on: boolean }>`

@@ -11,7 +11,7 @@ const Root = styled.button<{ $pressed: boolean }>`
 
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   background-color: ${props =>
     props.$pressed ? 'var(--theme-container-highest)' : 'var(--theme-container-low)'};

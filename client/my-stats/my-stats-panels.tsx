@@ -243,7 +243,7 @@ export function HelpLabel({
 const TotalsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const TotalTile = styled(StatsPanel)`
@@ -492,7 +492,7 @@ const Table = styled.table`
 
   th {
     ${labelMedium};
-    padding: 8px;
+    padding: var(--space-2);
     color: var(--theme-on-surface-variant);
     font-weight: 600;
     text-align: right;
@@ -506,13 +506,13 @@ const Table = styled.table`
 
   th:first-child,
   td:first-child {
-    padding-left: 20px;
+    padding-left: var(--space-5);
     text-align: left;
   }
 
   th:last-child,
   td:last-child {
-    padding-right: 20px;
+    padding-right: var(--space-5);
   }
 `
 
@@ -527,11 +527,11 @@ const ExpandButton = styled.button`
   ${buttonReset};
   ${bodyMedium};
   margin: -4px -8px;
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   border-radius: var(--radius-sm);
   color: inherit;
@@ -571,7 +571,7 @@ const WinBar = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const WinBarTrack = styled.span`
@@ -836,7 +836,7 @@ const ChartFooter = styled.div`
   ${bodySmall};
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--space-4);
   color: var(--theme-on-surface-variant);
 `
 
@@ -883,7 +883,7 @@ const TrendTip = styled.div`
 const TrendTipTitle = styled.span`
   ${labelMedium};
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const TrendTipValue = styled.span<{ $color: string }>`
@@ -1221,7 +1221,7 @@ const MacroColumns = styled.div<{ $others: boolean }>`
   grid-template-columns: ${props =>
     props.$others ? 'minmax(0, 1fr) 84px 84px' : 'minmax(0, 1fr) 84px'};
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const MacroGroupHeader = styled(MacroColumns)`
@@ -1268,7 +1268,7 @@ const MacroOtherValue = styled.span`
 `
 
 const MacroNote = styled(PanelNote)`
-  padding: 12px 20px 16px;
+  padding: var(--space-3) var(--space-5) var(--space-4);
 `
 
 interface MacroRow {
@@ -1532,7 +1532,7 @@ const RaceRow = styled.span<{ $slots?: number }>`
   min-width: ${props => (props.$slots ? `calc(${props.$slots} * 18px + ${props.$slots - 1} * 4px)` : '0')};
   flex-shrink: 0;
   display: inline-flex;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const ListRow = styled.div`
@@ -1547,7 +1547,7 @@ const ListName = styled.span`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 600;
 `
 
@@ -1567,7 +1567,7 @@ const PagerRoot = styled.div`
   ${bodyMedium};
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   color: var(--theme-on-surface-variant);
   font-variant-numeric: tabular-nums;
 `
@@ -1684,10 +1684,10 @@ const MapListRow = styled.div<{ $art?: MapArt }>`
   isolation: isolate;
   min-height: 48px;
   margin: 0 -8px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 16px;
+  gap: var(--space-4);
   align-items: center;
   border-radius: 8px;
   overflow: hidden;
@@ -1775,22 +1775,22 @@ const TeamPanel = styled(PaddedPanel)`
 const TeamBody = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
 
   @container team-games (width >= ${TEAM_SIDE_BY_SIDE_PX}px) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
-    gap: 32px;
+    gap: var(--space-8);
   }
 `
 
 const TeamRaces = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 
   @container team-games (width >= ${TEAM_SIDE_BY_SIDE_PX}px) {
-    padding-left: 32px;
+    padding-left: var(--space-8);
     border-left: 1px solid var(--theme-outline-variant);
 
     & > h3 {
@@ -1802,22 +1802,22 @@ const TeamRaces = styled.div`
 `
 
 const TeamFacts = styled.div`
-  padding: 4px 0;
+  padding: var(--space-1) 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const TeamFact = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const TeamSubtitle = styled.h3`
   ${labelMedium};
-  margin: 4px 0 0;
-  padding-top: 12px;
+  margin: var(--space-1) 0 0;
+  padding-top: var(--space-3);
   border-top: 1px solid var(--theme-outline-variant);
   color: var(--theme-on-surface-variant);
   font-weight: 700;

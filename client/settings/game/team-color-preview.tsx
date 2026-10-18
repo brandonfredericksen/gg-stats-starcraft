@@ -60,8 +60,8 @@ const FFA_DOT_POSITIONS: ReadonlyArray<readonly [number, number]> = [
 const Header = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 `
 
 const HeaderLabel = styled.div`
@@ -160,7 +160,7 @@ const Minimap = styled.div<{ $background: string }>`
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
   overflow: hidden;
 
   border: 1px solid rgb(255 255 255 / 0.1);
@@ -190,7 +190,7 @@ const Dot = styled.div<{ $color: string; $x: number; $y: number }>`
 
 const Roster = styled.div`
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const RosterColumn = styled.div`
@@ -204,7 +204,7 @@ const RosterColumn = styled.div`
 const RosterRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const RosterSwatch = styled.div<{ $color: string }>`

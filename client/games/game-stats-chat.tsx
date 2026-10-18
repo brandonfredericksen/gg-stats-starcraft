@@ -60,7 +60,7 @@ const MessageList = styled.ol<{ $fill: boolean }>`
   display: grid;
   grid-template-columns: max-content minmax(0, max-content) minmax(60%, 1fr);
   align-content: start;
-  column-gap: 12px;
+  column-gap: var(--space-3);
 `
 
 const MessageRow = styled.li<{ $current: boolean; $future: boolean }>`
@@ -85,7 +85,7 @@ const Sender = styled.span`
   display: flex;
   align-items: center;
   align-self: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 600;
 `
 

@@ -25,7 +25,7 @@ export const MenuItemButton = styled.button<{
   height: ${props =>
     props.$hasSecondaryText ? 'auto' : `${props.$dense ? ITEM_HEIGHT_DENSE : ITEM_HEIGHT}px`};
   min-height: ${props => (props.$dense ? ITEM_HEIGHT_DENSE : ITEM_HEIGHT)}px;
-  margin: 0 4px;
+  margin: 0 var(--space-1);
   padding: ${props => (props.$hasSecondaryText ? '6px 8px' : '0 8px')};
 
   display: flex;
@@ -81,7 +81,7 @@ const ItemIcon = styled.span`
   display: flex;
   align-items: center;
   width: 24px;
-  margin-right: 12px;
+  margin-right: var(--space-3);
   /*
     Clips oversized icons, but leaves room for things that deliberately hang off an icon's edge,
     like the availability dot on an avatar's corner.

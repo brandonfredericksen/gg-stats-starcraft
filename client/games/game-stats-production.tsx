@@ -26,7 +26,7 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /** A player: their name, then tiles of what they have, as compact as the game's own tab. */
@@ -119,20 +119,20 @@ const RESOURCE_COLUMNS = 'minmax(0, 88px) repeat(5, minmax(0, 1fr)) minmax(0, 1.
 
 const ResourceHeader = styled.div`
   ${labelMedium};
-  padding: 8px 12px 4px;
+  padding: var(--space-2) var(--space-3) var(--space-1);
   display: grid;
   grid-template-columns: ${RESOURCE_COLUMNS};
-  column-gap: 8px;
+  column-gap: var(--space-2);
   color: var(--theme-on-surface-variant);
   text-align: right;
 `
 
 const ResourceRow = styled.div`
   ${bodyMedium};
-  padding: 4px 12px;
+  padding: var(--space-1) var(--space-3);
   display: grid;
   grid-template-columns: ${RESOURCE_COLUMNS};
-  column-gap: 8px;
+  column-gap: var(--space-2);
   align-items: center;
   text-align: right;
   white-space: nowrap;
@@ -157,7 +157,7 @@ const RateTooltip = styled(Tooltip)`
 const ResourceRate = styled.span`
   ${labelMedium};
   white-space: nowrap;
-  margin-left: 4px;
+  margin-left: var(--space-1);
   color: var(--theme-on-surface-variant);
 `
 

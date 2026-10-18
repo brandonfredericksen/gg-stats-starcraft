@@ -65,7 +65,7 @@ const RowGrid = styled.div<{
   $last: boolean
   $openable: boolean
 }>`
-  padding: 12px 20px;
+  padding: var(--space-3) var(--space-5);
 
   display: grid;
   /* The map keeps room for its name, so the players give way first. */
@@ -104,7 +104,7 @@ const RowGrid = styled.div<{
      * later cell would shift. The map and time stay: they're how a game is told apart.
      */
     grid-template-columns: minmax(0, 1fr) minmax(112px, 168px) 48px ${ACTIONS_WIDTH}px;
-    gap: 12px;
+    gap: var(--space-3);
 
     & > :first-child {
       display: none;
@@ -186,7 +186,7 @@ const Actions = styled.div`
   grid-template-columns: ${PLAY_BUTTON_SIZE}px ${STATUS_PILL_WIDTH}px;
   align-items: center;
   justify-content: end;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const ErrorLine = styled.div`
@@ -194,7 +194,7 @@ const ErrorLine = styled.div`
   ${singleLine};
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   color: var(--theme-on-surface-variant);
 
   & > :first-child {
@@ -461,7 +461,7 @@ export function GameRow({
  */
 const HeaderRoot = styled.div`
   position: relative;
-  padding: 12px 20px;
+  padding: var(--space-3) var(--space-5);
 
   display: flex;
   align-items: baseline;

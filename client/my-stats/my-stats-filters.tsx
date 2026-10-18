@@ -39,7 +39,7 @@ const Root = styled.div`
 
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: var(--space-3);
 
   background-color: var(--theme-container-lowest);
 `
@@ -48,7 +48,7 @@ const FieldRoot = styled.div`
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const Caption = styled.span`

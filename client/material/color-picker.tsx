@@ -43,8 +43,8 @@ export function getColorLabel(hex: string, t: TFunction): string {
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 `
 
 const GridSwatch = styled.button<{ $color: string; $active: boolean }>`
@@ -69,7 +69,7 @@ const GridSwatch = styled.button<{ $color: string; $active: boolean }>`
 const CustomRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const NativeColorChip = styled.div`
@@ -106,7 +106,7 @@ const HexTextField = styled(TextField)`
 const SwatchGroupLabel = styled.div`
   ${labelSmall};
   color: var(--theme-on-surface-variant);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 `
 
 export interface ColorPickerContentProps {
@@ -208,20 +208,20 @@ export function ColorPickerContent({
 
 const PopoverBody = styled.div`
   width: 360px;
-  padding: 16px;
+  padding: var(--space-4);
 `
 
 const PopoverSubtitle = styled.div`
   ${bodyMedium};
   color: var(--theme-on-surface-variant);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 `
 
 const PopoverActions = styled.div`
   display: flex;
   justify-content: flex-end;
-  gap: 4px;
-  margin-top: 8px;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 `
 
 export interface ColorPickerPopoverContentProps extends ColorPickerContentProps {

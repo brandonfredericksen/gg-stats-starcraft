@@ -18,7 +18,7 @@ import { FormContainer, SectionContainer } from '../settings-content'
 const AnnouncerOverline = styled.div`
   ${labelMedium};
   color: var(--theme-on-surface-variant);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 `
 
 interface GameSoundSettingsModel {

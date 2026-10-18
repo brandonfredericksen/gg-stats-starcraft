@@ -147,7 +147,7 @@ const StatusPanel = styled(Card)`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
   text-align: center;
 `
 
@@ -200,21 +200,21 @@ const StatusBody = styled.div`
 `
 
 const StatusActions = styled.div`
-  margin-top: 8px;
+  margin-top: var(--space-2);
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 type StepState = 'done' | 'active' | 'waiting'
 
 const Steps = styled.ol`
   width: 100%;
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
 
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   list-style: none;
   text-align: left;
 `
@@ -228,7 +228,7 @@ const Step = styled.li<{ $state: StepState }>`
   ${bodyLarge};
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   color: ${props =>
     props.$state === 'waiting' ? 'var(--theme-on-surface-variant)' : 'var(--theme-on-surface)'};
 `
@@ -413,7 +413,7 @@ const Header = styled.div`
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 /**
@@ -457,7 +457,7 @@ const headerButton = css`
 
 const QuietButton = styled.button`
   ${headerButton};
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   &:hover {
     background: rgb(from var(--theme-on-surface) r g b / 0.06);

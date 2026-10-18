@@ -25,7 +25,7 @@ const Root = styled.div`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 
   border: 1px solid var(--theme-outline-variant);

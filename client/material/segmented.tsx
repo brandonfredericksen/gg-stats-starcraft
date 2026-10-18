@@ -10,7 +10,7 @@ import { Popover, usePopoverController, useRefAnchorPosition } from './popover'
 
 const Root = styled.div`
   flex-shrink: 0;
-  padding: 4px;
+  padding: var(--space-1);
 
   display: inline-flex;
   gap: 2px;
@@ -24,7 +24,7 @@ const Segment = styled.button<{ $on: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 30px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   display: inline-flex;
   align-items: center;
@@ -66,7 +66,7 @@ export interface SegmentOption<T> {
 }
 
 const MenuCheck = styled(MaterialIcon).attrs({ icon: 'check', size: 20 })`
-  margin-left: 12px;
+  margin-left: var(--space-3);
   color: var(--theme-on-surface-variant);
 `
 

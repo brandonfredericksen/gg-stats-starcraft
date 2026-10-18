@@ -43,7 +43,7 @@ const FitLevel = {
 const Root = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /** A toolbar button. Pressed ones get a filled background and a stronger border. */
@@ -52,11 +52,11 @@ export const ToolbarButton = styled.button<{ $pressed?: boolean }>`
   ${labelLarge};
   flex-shrink: 0;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   border: 1px solid
     ${props => (props.$pressed ? 'var(--theme-outline)' : 'var(--theme-outline-variant)')};
@@ -132,7 +132,7 @@ const Search = styled.label`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   border: 1px solid var(--theme-outline-variant);
   border-radius: var(--radius-md);
@@ -183,7 +183,7 @@ export interface LibraryToolbarProps {
 
 const SelectedCheck = styledWithAttrs(MaterialIcon, { icon: 'check', size: 18 })`
   margin-left: auto;
-  padding-left: 12px;
+  padding-left: var(--space-3);
   color: var(--theme-primary);
 `
 

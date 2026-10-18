@@ -39,8 +39,8 @@ const Root = styled.div`
 const MapAndChat = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 20px;
-  row-gap: 12px;
+  column-gap: var(--space-5);
+  row-gap: var(--space-3);
 
   & > * {
     display: grid;
@@ -70,28 +70,28 @@ const ChatColumn = styled.div`
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
-    row-gap: 20px;
+    row-gap: var(--space-5);
   }
 `
 
 const TopSection = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 export const StatsNotice = styled(Card)`
   ${bodyLarge};
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   color: var(--theme-on-surface-variant);
 `
 
 const SectionTitleRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const IncompleteIconRoot = styled(MaterialIcon)`

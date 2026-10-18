@@ -7,5 +7,5 @@ export const Card = styled.div`
   border-radius: var(--radius-lg);
   /* TODO(tec27): there's probably places we don't want 16px padding (full bleed images), */
   /* figure out a good way to handle that */
-  padding: 16px;
+  padding: var(--space-4);
 `

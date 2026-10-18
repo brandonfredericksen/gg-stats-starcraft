@@ -202,7 +202,7 @@ const SliderLabel = styled.div<{ $showBalloon?: boolean }>`
         `
       : css`
           display: inline-block;
-          margin-bottom: 8px;
+          margin-bottom: var(--space-2);
         `}
 
   color: var(--theme-on-surface-variant);

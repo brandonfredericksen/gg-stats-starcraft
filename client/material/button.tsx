@@ -340,7 +340,7 @@ const IconContainer = styled.div`
   display: flex;
   align-items: center;
 
-  margin-right: 8px;
+  margin-right: var(--space-2);
 `
 
 const FilledButtonRoot = styled.button<{ $hasIcon: boolean }>`

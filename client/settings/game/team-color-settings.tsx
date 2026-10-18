@@ -222,15 +222,15 @@ function getTeamSelfHint(hasOverride: boolean, shuffleColors: boolean, t: TFunct
 const BehaviorRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 24px;
-  margin: 8px 0 20px;
+  gap: var(--space-6);
+  margin: var(--space-2) 0 var(--space-5);
 `
 
 // Everything that configures the overrides themselves is grouped under its own sub-header, clearly
 // set apart from the mode select above it, so it reads as "the scheme the non-Off modes apply"
 // rather than as settings that are always in effect.
 const OverrideSetupSection = styled.div`
-  margin-top: 32px;
+  margin-top: var(--space-8);
 `
 
 const OverrideSetupLabel = styled.div`
@@ -240,7 +240,7 @@ const OverrideSetupLabel = styled.div`
 
 const OverridesOffNote = styled.div`
   ${bodySmall};
-  margin-top: 8px;
+  margin-top: var(--space-2);
   color: var(--theme-on-surface-variant);
 `
 
@@ -257,8 +257,8 @@ const ShuffleCheckBox = styled(CheckBox)`
 const CollapsedCard = styled(Card)`
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 `
 
 const CollapsedTitle = styled.h3`
@@ -272,12 +272,12 @@ const CollapsedNote = styled.div`
 `
 
 const TeamSchemeCard = styled(Card)`
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 `
 
 const SchemeContentRow = styled.div`
   display: flex;
-  gap: 24px;
+  gap: var(--space-6);
 `
 
 const SchemeColumn = styled.div`
@@ -285,7 +285,7 @@ const SchemeColumn = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-5);
 `
 
 const CardTitle = styled.h3`
@@ -312,7 +312,7 @@ const AttributionLine = styled.div`
 const GroupLabel = styled.div`
   ${labelSmall};
   color: var(--theme-on-surface-variant);
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 `
 
 const Hint = styled.div`
@@ -332,7 +332,7 @@ const Preview = styled(TeamColorPreview)`
 const CopyButtonRow = styled.div`
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: var(--space-4);
 `
 
 const CopyButtonAnchor = styled.div`
@@ -364,7 +364,7 @@ const ClearButton = styled.button`
   ${buttonReset};
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   color: var(--theme-amber);
   cursor: pointer;

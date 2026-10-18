@@ -19,18 +19,18 @@ export const Panel = styled.section`
 
 /** A panel's header strip, slightly set apart from its content. */
 export const PanelHeader = styled.div`
-  padding: 12px 20px;
+  padding: var(--space-3) var(--space-5);
 
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-3);
 
   background-color: var(--theme-container);
 `
 
 /** One row of a panel, separated from the one above by a hairline. */
 export const PanelRow = styled.div`
-  padding: 12px 20px;
+  padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--theme-outline-variant);
 
   &:hover {

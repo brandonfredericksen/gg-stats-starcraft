@@ -102,7 +102,7 @@ const Icon = styled.span<{
   right: ${props => (props.$dense ? '8px' : '12px')};
   width: 24px;
   height: 24px;
-  margin-left: 4px;
+  margin-left: var(--space-1);
   pointer-events: none;
   transform: translate3d(0, -50%, 0) ${props => (props.$opened ? 'rotate(180deg)' : '')};
   transition: transform 150ms ${standardEasing};

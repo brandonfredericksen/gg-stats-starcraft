@@ -6,7 +6,7 @@ import { showGameStatsAtom } from '../game-stats-atoms'
 import { SAMPLE_GAME_STATS } from './sample-game-stats'
 
 const Root = styled.div`
-  padding: 16px;
+  padding: var(--space-4);
 `
 
 const SAMPLE_GAME_ID = 'dev-sample'

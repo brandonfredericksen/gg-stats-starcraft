@@ -37,7 +37,7 @@ const settleTransition: Transition = { type: 'spring', duration: 0.3, bounce: 0.
 const Row = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
   // Reserves room for EntryBadge, which straddles a swatch's bottom edge and would otherwise
   // overlap the Hint below (absolutely-positioned content doesn't contribute to Row's own height).
   padding-bottom: 10px;

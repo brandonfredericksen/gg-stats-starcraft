@@ -109,12 +109,12 @@ const TitleBar = styled.div<{ $fullBleed?: boolean; $showDivider?: boolean }>`
 export const Title = styled.div`
   ${titleLarge};
   flex-grow: 1;
-  padding: 24px 24px 20px;
+  padding: var(--space-6) var(--space-6) var(--space-5);
 `
 
 const Overline = styled.div`
   ${labelMedium};
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
 
   color: var(--theme-on-surface-variant);
   font-weight: 600;
@@ -128,8 +128,8 @@ const Overline = styled.div`
 export const CloseButton = styled(IconButton)`
   flex-shrink: 0;
   align-self: flex-start;
-  margin-top: 12px;
-  margin-right: 12px;
+  margin-top: var(--space-3);
+  margin-right: var(--space-3);
 `
 
 export const Body = styled.div<{ $fullBleed?: boolean }>`
@@ -146,12 +146,12 @@ const Actions = styled.div<{ $showDivider?: boolean }>`
   position: relative;
   flex-grow: 0;
   flex-shrink: 0;
-  padding: 12px 16px 16px;
+  padding: var(--space-3) var(--space-4) var(--space-4);
 
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 
   &::after {
     position: absolute;

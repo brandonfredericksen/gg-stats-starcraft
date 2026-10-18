@@ -19,7 +19,7 @@ export const FormContainer = styled.div`
 
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-6);
 `
 
 export const SectionOverline = styled.div`
@@ -32,7 +32,7 @@ export const SectionContainer = styled.div`
   flex-direction: column;
 
   & + & {
-    padding-top: 24px;
+    padding-top: var(--space-6);
     border-top: 1px solid var(--theme-outline-variant);
   }
 `
@@ -44,13 +44,13 @@ export const SectionContainer = styled.div`
  */
 export const SettingsSectionHeader = styled.div`
   ${titleMedium};
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 `
 
 /** A muted description line following a `SettingsSectionHeader`. */
 export const SettingsSectionDescription = styled.div`
   ${bodyMedium};
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
   color: var(--theme-on-surface-variant);
 
   ${SettingsSectionHeader} + & {
@@ -78,18 +78,18 @@ export const SideNav = styled.nav`
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 export const NavTitle = styled.h1`
   ${headlineMedium};
   margin: 0;
-  padding-left: 12px;
+  padding-left: var(--space-3);
 `
 
 export const NavVersion = styled.div`
   ${labelMedium};
-  padding-left: 12px;
+  padding-left: var(--space-3);
   color: var(--theme-on-surface-variant);
 `
 
@@ -103,7 +103,7 @@ export const NavItem = styled.button<{ $active: boolean; $hasError?: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 40px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   display: flex;
   align-items: center;
@@ -143,7 +143,7 @@ export const Main = styled.div`
 export const Section = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 export const SectionTitle = styled.h2`
@@ -158,7 +158,7 @@ export const SectionDescription = styled.span`
 
 export const SectionNote = styled.div`
   ${bodyLarge};
-  padding: 20px 24px;
+  padding: var(--space-5) var(--space-6);
 
   background-color: var(--theme-container-low);
   border: 1px dashed var(--theme-outline-variant);
@@ -173,7 +173,7 @@ export const CollapseButton = styled.button`
 
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 
   background-color: var(--theme-container-low);
   border: 1px solid var(--theme-outline-variant);
@@ -196,7 +196,7 @@ export const CollapseText = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 export const CollapseChevron = styled(MaterialIcon)<{ $open: boolean }>`
@@ -210,7 +210,7 @@ const CardRoot = styled.div`
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 
   background-color: var(--theme-container-low);
   border: 1px solid var(--theme-outline-variant);

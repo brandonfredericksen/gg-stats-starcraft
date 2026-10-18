@@ -16,21 +16,21 @@ const StyledCard = styled(Card)`
   width: 100%;
   max-width: 640px;
   margin-inline: auto;
-  margin-top: 24px;
+  margin-top: var(--space-6);
 
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--space-1);
 
   & > * {
-    margin-top: 8px;
+    margin-top: var(--space-2);
   }
 `
 
 const Row = styled.div`
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 export function ButtonsTest() {

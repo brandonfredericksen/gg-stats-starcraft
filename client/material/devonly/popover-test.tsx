@@ -16,7 +16,7 @@ import { Select } from '../select/select'
 const Container = styled.div`
   width: 100%;
   height: 100%;
-  padding: 16px !important;
+  padding: var(--space-4) !important;
   padding-top: 64px !important;
 `
 
@@ -65,7 +65,7 @@ const PopoverScrollable = styled.div`
 
 const PopoverContents = styled.div`
   min-width: 256px;
-  padding: 16px;
+  padding: var(--space-4);
 `
 
 export default function PopoverTest() {

@@ -223,10 +223,10 @@ const CenteredState = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   min-height: 320px;
-  padding: 32px;
+  padding: var(--space-8);
   text-align: center;
 
   color: var(--theme-on-surface-variant);
@@ -237,7 +237,7 @@ const ShortGamesNote = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin-top: -8px;
   color: var(--theme-on-surface-variant);
 `

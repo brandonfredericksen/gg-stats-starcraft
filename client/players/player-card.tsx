@@ -105,18 +105,18 @@ export function PlayerNameButton({
 
 const Card = styled.div`
   width: 340px;
-  padding: 16px;
+  padding: var(--space-4);
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const CardHeader = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const CardName = styled.div`
@@ -146,7 +146,7 @@ const FieldLabel = styled.div`
 const Records = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const RecordBox = styled.div`
@@ -247,7 +247,7 @@ const AddButton = styled.button`
   ${buttonReset};
   ${labelLarge};
   height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   border-radius: var(--radius-md);
   color: var(--theme-on-surface);

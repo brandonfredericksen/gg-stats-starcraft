@@ -25,7 +25,7 @@ const Line = styled.div<{ $result: TeamLineResult }>`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   color: ${props =>
     props.$result === 'lost' ? 'var(--theme-on-surface-variant)' : 'var(--theme-on-surface)'};
@@ -65,7 +65,7 @@ const Slots = styled.div<{ $slotWidth: number }>`
 const Player = styled.span`
   min-width: 0;
   height: 26px;
-  padding: 0 8px 0 4px;
+  padding: 0 var(--space-2) 0 var(--space-1);
 
   display: flex;
   align-items: center;
@@ -77,7 +77,7 @@ const Name = styled.span<{ $result: TeamLineResult; $you: boolean }>`
   ${singleLine};
   min-width: 0;
   /* Room below the text so the underline marking the user's name isn't cut off */
-  padding-block: 4px;
+  padding-block: var(--space-1);
 
   font-weight: ${props => {
     if (props.$result === 'won') return 700

@@ -23,7 +23,7 @@ const Banner = styled.div<{ $columns: string }>`
   display: grid;
   grid-template-columns: ${props => props.$columns};
   align-items: stretch;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const VsPill = styled.div`
@@ -56,7 +56,7 @@ const SideCard = styled(StatsPanel)`
 const SideHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const SideLabel = styled.span`
@@ -80,7 +80,7 @@ const SideScore = styled.span<{ $lead: boolean }>`
 /** The side's combined numbers, under its players. */
 const Totals = styled.dl`
   margin: 2px 0 0;
-  padding-top: 12px;
+  padding-top: var(--space-3);
 
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -123,7 +123,7 @@ const SidePlayer = styled.div`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /**

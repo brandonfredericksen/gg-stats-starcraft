@@ -43,7 +43,7 @@ const BackfillBar = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 `
 
 const BackfillLabel = styled.div`

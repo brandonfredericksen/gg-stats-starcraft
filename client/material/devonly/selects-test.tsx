@@ -9,7 +9,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px !important;
+  padding: var(--space-4) !important;
 `
 
 const StyledCard = styled(Card)`

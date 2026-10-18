@@ -13,7 +13,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px !important;
+  padding: var(--space-4) !important;
 `
 
 const StyledCard = styled(Card)`
@@ -30,8 +30,8 @@ const StyledMenuList = styled(MenuList)`
 
 const Overline = styled.div`
   ${labelMedium};
-  padding: 0 12px;
-  margin: 8px 0;
+  padding: 0 var(--space-3);
+  margin: var(--space-2) 0;
   color: var(--theme-on-surface-variant);
 `
 

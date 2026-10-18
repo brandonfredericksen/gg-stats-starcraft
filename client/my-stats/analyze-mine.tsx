@@ -20,11 +20,11 @@ const CompactButton = styled.button`
   ${buttonReset};
   ${labelLarge};
   height: 28px;
-  padding: 0 12px 0 8px;
+  padding: 0 var(--space-3) 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   border-radius: var(--radius-full);
   background-color: var(--theme-container-high);

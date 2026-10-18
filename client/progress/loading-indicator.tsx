@@ -137,7 +137,7 @@ function delayedShowCss(delayMs: number) {
 }
 
 const Root = styled.div<{ $showImmediately?: boolean }>`
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
 
   ${props => (!props.$showImmediately ? delayedShowCss(LOADING_SHOW_DELAY_MS) : '')};
 `
@@ -283,7 +283,7 @@ const LoadingArea = styled.div<{ $showImmediately?: boolean }>`
   align-items: center;
   justify-content: center;
   min-height: 56px;
-  padding: 16px 0;
+  padding: var(--space-4) 0;
 
   ${props => (!props.$showImmediately ? delayedShowCss(LOADING_SHOW_DELAY_MS) : '')};
 `

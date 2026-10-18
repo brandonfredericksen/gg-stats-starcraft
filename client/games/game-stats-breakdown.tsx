@@ -26,7 +26,7 @@ const Header = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   & > ${SectionTitle} {
     flex: 1 1 auto;
@@ -39,7 +39,7 @@ const PLAYERS_PER_ROW = 3
 const PanelRows = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /**
@@ -51,7 +51,7 @@ const PanelsGrid = styled.div<{ $count: number }>`
   grid-template-columns: repeat(${props => props.$count}, minmax(0, 1fr));
   grid-template-rows: auto auto;
   grid-auto-flow: column;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /** The tabs drop below the name when a long one wouldn't leave them room. */
@@ -62,7 +62,7 @@ const UnitsHeader = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: var(--space-2) var(--space-3);
 
   background: var(--theme-container);
 `
@@ -75,7 +75,7 @@ const UnitsPlayer = styled.h3`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   font-weight: 600;
 `
@@ -100,7 +100,7 @@ const Tab = styled.button<{ $on: boolean }>`
   ${buttonReset};
   ${labelMedium};
   height: 26px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   border-radius: var(--radius-full);
   background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
@@ -128,7 +128,7 @@ const UnitRow = styled.li<{ $none: boolean }>`
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   border-top: 1px solid var(--theme-outline-variant);
   color: ${props => (props.$none ? 'var(--theme-on-surface-variant)' : 'var(--theme-on-surface)')};
@@ -151,7 +151,7 @@ const UnitName = styled.span`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const UnitNameText = styled.span`

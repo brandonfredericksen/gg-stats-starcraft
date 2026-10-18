@@ -10,7 +10,7 @@ import { pvz, pvzScope, recentWindow, scopes } from '../../coach/devonly/coach-t
 import { BuildsView } from '../builds-page'
 
 const CaseLabel = styled.h2`
-  margin: 24px 32px 0;
+  margin: var(--space-6) var(--space-8) 0;
   color: var(--theme-on-surface-variant);
 `
 

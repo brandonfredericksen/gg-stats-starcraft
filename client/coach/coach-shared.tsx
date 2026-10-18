@@ -38,11 +38,11 @@ export const Text = styled.p`
 `
 
 export const Card = styled.div`
-  padding: 16px;
+  padding: var(--space-4);
 
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 
   border: 1px solid var(--theme-outline-variant);
   border-radius: var(--radius-md);
@@ -72,7 +72,7 @@ export const ColumnTitle = styled.h4<{ $tone?: Tone }>`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   ${props =>
     props.$tone

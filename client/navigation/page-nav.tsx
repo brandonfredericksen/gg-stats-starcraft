@@ -20,7 +20,7 @@ const Root = styled.nav`
 
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const ArrowButton = styled.button`
@@ -71,7 +71,7 @@ const Crumbs = styled.ol`
 
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   list-style: none;
 `
@@ -80,7 +80,7 @@ const CrumbItem = styled.li`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const CrumbLink = styled.button`
@@ -121,12 +121,12 @@ const Separator = styled(MaterialIcon).attrs({ icon: 'chevron_right', size: 18 }
 
 const Actions = styled.div`
   margin-left: auto;
-  padding-left: 12px;
+  padding-left: var(--space-3);
   flex-shrink: 0;
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const entrySections = new EntrySections()

@@ -4,7 +4,7 @@ import { Tooltip } from '../tooltip'
 const Container = styled.div`
   width: 100%;
   height: 100%;
-  padding: 16px !important;
+  padding: var(--space-4) !important;
   padding-top: 64px !important;
 `
 
@@ -19,7 +19,7 @@ const Content = styled.div`
 
 const StyledTooltipTarget = styled(Tooltip)`
   display: inline-block;
-  margin: 0 16px;
+  margin: 0 var(--space-4);
 `
 
 const ContentComponent = styled.div`

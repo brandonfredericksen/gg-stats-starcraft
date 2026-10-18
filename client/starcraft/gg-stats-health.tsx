@@ -21,18 +21,18 @@ const Text = styled.p`
   margin: 0;
 
   & + & {
-    margin-top: 16px;
+    margin-top: var(--space-4);
   }
 `
 
 const FileList = styled.ul`
   ${bodyMedium};
-  margin: 12px 0 16px;
+  margin: var(--space-3) 0 var(--space-4);
 `
 
 const DevContent = styled.p`
   ${bodyMedium};
-  margin: 0 0 16px;
+  margin: 0 0 var(--space-4);
   color: var(--theme-error);
 `
 

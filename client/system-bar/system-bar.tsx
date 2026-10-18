@@ -56,7 +56,7 @@ const Container = styled.header`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-5);
 
   background-color: var(--theme-surface);
   overflow: hidden;
@@ -92,7 +92,7 @@ const Nav = styled.nav`
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'settings'
@@ -164,7 +164,7 @@ const CaptureStatusButton = styled.button`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   border-radius: var(--radius-full);
   color: var(--theme-on-surface-variant);

@@ -16,9 +16,9 @@ import { LoadingIndicator, LoadingIndicatorArea } from '../loading-indicator'
 const Root = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-6);
   max-width: 800px;
-  padding: 24px;
+  padding: var(--space-6);
 `
 
 const SectionTitle = styled.div`
@@ -28,15 +28,15 @@ const SectionTitle = styled.div`
 const SurfaceRow = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Surface = styled.div<{ $color: string; $light?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 24px;
+  gap: var(--space-2);
+  padding: var(--space-6);
   background-color: ${props => props.$color};
   border-radius: 8px;
 
@@ -62,7 +62,7 @@ const DelayedDemo = styled(Card)`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 export function LoadingIndicatorTest() {

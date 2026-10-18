@@ -114,7 +114,7 @@ const RankCell = styled(BodyCell)<{ $rank: number }>`
 
 const PlayerCell = styled(BodyCell)`
   ${bodyMedium};
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const ScoreCell = styled(BodyCell)<{ $startsGroup?: boolean }>`

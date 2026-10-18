@@ -19,7 +19,7 @@ const Container = styled.div`
 const HomeLink = styled.div`
   width: 100%;
   height: 32px;
-  padding-left: 16px;
+  padding-left: var(--space-4);
   line-height: 32px;
   border-bottom: 1px solid var(--theme-outline);
 `

@@ -95,7 +95,7 @@ export function useCompactStatFormat() {
 export const Section = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 export const SectionTitle = styled.h2`
@@ -146,7 +146,7 @@ const PlayerNameRoot = styled.span`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 600;
 `
 
@@ -271,7 +271,7 @@ export function TeamChip({ team }: { team: Side }) {
 
 const SectionFallback = styled.div`
   ${bodyMedium};
-  padding: 16px;
+  padding: var(--space-4);
   color: var(--theme-on-surface-variant);
 `
 
@@ -309,7 +309,7 @@ export class SectionErrorBoundary extends React.Component<
 
 /** A row of buttons that each turn something on or off, like a player to show. */
 export const Picker = styled.div`
-  padding: 4px;
+  padding: var(--space-1);
 
   display: inline-flex;
   flex-wrap: wrap;
@@ -378,7 +378,7 @@ export const LegendButton = styled.button<{ $dimmed: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 28px;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 
   display: inline-flex;
   align-items: center;

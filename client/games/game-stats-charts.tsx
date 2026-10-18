@@ -41,7 +41,7 @@ const Header = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 
   & > ${SectionTitle} {
     flex: 1 1 auto;
@@ -58,7 +58,7 @@ const LineSwatch = styled.span<{ $color: string }>`
 const ChartGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /** A chart's tooltip can be bigger than its chart, so it reaches past the card, over its neighbors. */
@@ -69,7 +69,7 @@ const ChartCard = styled(StatsPanel)`
 
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 
   &:hover {
     z-index: 1;

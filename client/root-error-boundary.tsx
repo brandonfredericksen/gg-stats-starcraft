@@ -68,8 +68,8 @@ const ErrorInfo = styled.pre`
   ${bodySmall};
   width: min(960px, calc(100% - 32px));
   max-height: 40vh;
-  margin: 16px;
-  padding: 12px 16px;
+  margin: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   overflow: auto;
 
   border: 1px solid var(--theme-outline-variant);
@@ -89,13 +89,13 @@ const ErrorInfo = styled.pre`
 const Instructions = styled.div`
   ${bodyLarge};
   max-width: 960px;
-  margin: 16px;
+  margin: var(--space-4);
   text-align: center;
 `
 
 const Actions = styled.div`
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 function copyDetails(error: Error) {

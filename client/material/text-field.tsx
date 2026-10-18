@@ -211,7 +211,7 @@ const InlineCounter = styled(InputCounter)`
   bottom: 5px;
   right: calc(var(--scrollbar-width, 16px) + 4px);
 
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 
   /* Matches the field background (in both enabled and disabled states) so that any input text
      that runs beneath the counter passes behind it, keeping the count legible. */

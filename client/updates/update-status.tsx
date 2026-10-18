@@ -29,7 +29,7 @@ const RestartButton = styled.button`
   ${buttonReset};
   ${labelMedium};
   height: 28px;
-  padding: 0 12px 0 8px;
+  padding: 0 var(--space-3) 0 var(--space-2);
   flex-shrink: 0;
 
   display: flex;

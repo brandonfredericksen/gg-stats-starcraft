@@ -33,7 +33,7 @@ const Root = styled.div``
 
 const ErrorText = styled.div`
   ${bodyLarge};
-  padding: 16px;
+  padding: var(--space-4);
 
   color: var(--theme-error);
 `
@@ -69,7 +69,7 @@ const PlayerContainer = styled.div`
   text-align: left;
 
   & + ${TeamLabel} {
-    margin-top: 16px;
+    margin-top: var(--space-4);
   }
 `
 
@@ -88,8 +88,8 @@ const StyledRaceIcon = styled(RaceIcon)`
 const PlayerName = styled.div`
   ${titleLarge};
   ${singleLine};
-  margin-left: 16px;
-  margin-right: 8px;
+  margin-left: var(--space-4);
+  margin-right: var(--space-2);
   flex-grow: 1;
 `
 
@@ -110,13 +110,13 @@ const MapNameTooltip = styled(Tooltip)`
 const MapName = styled.div`
   ${titleLarge};
   ${singleLine};
-  margin: 12px 0 16px;
+  margin: var(--space-3) 0 var(--space-4);
 `
 
 const ReplayInfoText = styled.div`
   ${bodyLarge};
   ${singleLine};
-  margin: 4px 0;
+  margin: var(--space-1) 0;
 
   color: var(--theme-on-surface-variant);
 `

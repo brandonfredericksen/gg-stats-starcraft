@@ -47,7 +47,7 @@ const Stack = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const itemVariants: Variants = {

@@ -26,7 +26,7 @@ const ipcRenderer = new TypedIpcRenderer()
 
 const ResetWindowPositionButton = styled(OutlinedButton)`
   align-self: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 `
 
 const GAMMA_SLIDER_MIN = 0

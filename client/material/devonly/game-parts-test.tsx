@@ -9,12 +9,12 @@ import { ToggleButton } from '../toggle-button'
 
 const Root = styled.div`
   max-width: 1100px;
-  padding: 24px;
+  padding: var(--space-6);
 
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--space-4);
 
   & > ${'section'} {
     align-self: stretch;
@@ -25,7 +25,7 @@ const Row = styled(PanelRow)`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 80px;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Lines = styled.div`
@@ -37,14 +37,14 @@ const Lines = styled.div`
 const Mixes = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const Actions = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 interface SampleGame {

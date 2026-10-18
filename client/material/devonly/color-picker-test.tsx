@@ -12,8 +12,8 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
-  padding: 24px;
+  gap: var(--space-6);
+  padding: var(--space-6);
 `
 
 const StyledCard = styled(Card)`
@@ -21,7 +21,7 @@ const StyledCard = styled(Card)`
   max-width: 640px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const SectionTitle = styled.h3`

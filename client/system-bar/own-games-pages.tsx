@@ -20,7 +20,7 @@ import { OwnGamesNeeded, useNewestOwnGame } from './own-games-needed'
 const Root = styled.div`
   width: 100%;
   height: 100%;
-  padding: 32px;
+  padding: var(--space-8);
 
   display: flex;
   align-items: center;
@@ -35,7 +35,7 @@ const Card = styled.section`
 
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-5);
 `
 
 const GameText = styled.div`
@@ -43,7 +43,7 @@ const GameText = styled.div`
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const Overline = styled.div`

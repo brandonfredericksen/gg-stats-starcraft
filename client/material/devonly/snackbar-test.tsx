@@ -7,12 +7,12 @@ import { Snackbar } from '../snackbar'
 
 const Root = styled.div`
   height: calc(100% - 24px);
-  margin-top: 24px;
+  margin-top: var(--space-6);
 
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const StaticSnackbars = styled.div`
@@ -23,17 +23,17 @@ const StaticSnackbars = styled.div`
 
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Buttons = styled.div`
-  padding-block: 24px;
+  padding-block: var(--space-6);
 
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 export function SnackbarTest() {

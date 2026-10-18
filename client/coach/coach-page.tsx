@@ -113,7 +113,7 @@ export const Title = styled.h1`
 export const Badge = styled.span`
   ${labelSmall};
   height: 20px;
-  padding: 0 8px;
+  padding: 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
@@ -221,7 +221,7 @@ const About = styled(Text)`
 const TitleRace = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /**
@@ -385,10 +385,10 @@ const CompareTabs = styled(Segmented)`
 const Bucket = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 
   & + & {
-    margin-top: 16px;
+    margin-top: var(--space-4);
   }
 `
 
@@ -411,7 +411,7 @@ const Progress = styled.div`
   /* The same label width in every row, so the bars start and end together. */
   grid-template-columns: 180px minmax(0, 1fr) 100px;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const ProgressCount = styled.span`
@@ -438,7 +438,7 @@ const Fill = styled.span<{ $tone?: Tone }>`
 const UnlockActions = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /** Where the user's typical game falls among other players: the marker sits at their share. */
@@ -479,7 +479,7 @@ const MiniStanding = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const MiniTrack = styled(Standing)`

@@ -22,7 +22,7 @@ import {
 const stepColumns = css`
   display: grid;
   grid-template-columns: 52px 52px minmax(0, 1fr);
-  column-gap: 8px;
+  column-gap: var(--space-2);
 `
 
 const StepHeader = styled.div`
@@ -64,7 +64,7 @@ const StepNameCell = styled.span`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /** Names stay on one line, so every step is the same height and lines up across players. */

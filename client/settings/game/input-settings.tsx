@@ -17,8 +17,8 @@ import {
 } from '../settings-content'
 
 const SubSettings = styled.div`
-  padding-top: 4px;
-  padding-left: 32px;
+  padding-top: var(--space-1);
+  padding-left: var(--space-8);
 
   display: flex;
   flex-direction: column;
@@ -28,16 +28,16 @@ const ItemWithTooltip = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const GrabPanRow = styled(ItemWithTooltip)`
-  margin-top: 16px;
+  margin-top: var(--space-4);
 `
 
 const SliderEndpointLabels = styled.div`
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 
   display: flex;
   flex-direction: row;

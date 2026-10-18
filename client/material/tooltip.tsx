@@ -57,7 +57,7 @@ export const TooltipContent = styled.div<{ $position: TooltipPosition; $interact
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   background: linear-gradient(180deg, var(--theme-tooltip-sheen), var(--theme-tooltip) 70%);
   border: 1px solid var(--theme-tooltip-border);

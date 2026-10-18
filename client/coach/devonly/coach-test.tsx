@@ -15,8 +15,8 @@ import { CoachView } from '../coach-page'
 const CaseLabel = styled.h2`
   ${titleSmall};
   max-width: 1180px;
-  margin: 24px auto 0;
-  padding: 0 32px;
+  margin: var(--space-6) auto 0;
+  padding: 0 var(--space-8);
   color: var(--theme-on-surface-variant);
 `
 

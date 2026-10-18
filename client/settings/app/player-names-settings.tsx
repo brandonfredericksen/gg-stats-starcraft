@@ -25,14 +25,14 @@ import {
 const Body = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Chips = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 const NameChip = styled.span`
@@ -42,7 +42,7 @@ const NameChip = styled.span`
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   background-color: var(--theme-container-highest);
   border-radius: var(--radius-full);
@@ -82,7 +82,7 @@ const AddRow = styled.div`
   max-width: 440px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   & > :first-child {
     flex: 1;
@@ -91,11 +91,11 @@ const AddRow = styled.div`
 `
 
 const Notice = styled.section`
-  padding: 16px;
+  padding: var(--space-4);
 
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 
   background-color: var(--theme-container);
   border: 1px solid var(--theme-outline-variant);
@@ -116,7 +116,7 @@ const PickChip = styled.button<{ $on: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 32px;
-  padding: 0 12px 0 8px;
+  padding: 0 var(--space-3) 0 var(--space-2);
 
   display: inline-flex;
   align-items: center;
@@ -138,7 +138,7 @@ const PickChip = styled.button<{ $on: boolean }>`
 const Actions = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /** The names the user plays under, which personal stats are counted for. */

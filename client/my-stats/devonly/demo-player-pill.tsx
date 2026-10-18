@@ -12,11 +12,11 @@ const Root = styled.div`
   left: 24px;
   bottom: 24px;
   z-index: ${zIndexMenu};
-  padding: 4px 4px 4px 12px;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   background-color: var(--theme-purple-container);
   border-radius: var(--radius-md);
@@ -26,7 +26,7 @@ const Root = styled.div`
 const StopButton = styled.button`
   ${buttonReset};
   ${labelMedium};
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: 700;

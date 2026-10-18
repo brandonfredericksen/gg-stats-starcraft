@@ -50,16 +50,16 @@ function folderDisplayName(folder: string): string {
 const FolderList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
 `
 
 const FolderRow = styled.div`
   min-height: 56px;
-  padding: 8px 8px 8px 12px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
 
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   border-radius: var(--radius-md);
 
@@ -104,7 +104,7 @@ const FolderPath = styled.div`
 
 const AddFolderButton = styled(OutlinedButton)`
   align-self: flex-start;
-  margin-top: 12px;
+  margin-top: var(--space-3);
 `
 
 export function AppReplaySettings() {

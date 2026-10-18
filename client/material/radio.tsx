@@ -20,7 +20,7 @@ const RadioOverline = styled.div`
   ${labelMedium};
   color: var(--theme-on-surface-variant);
 
-  padding: 4px 0;
+  padding: var(--space-1) 0;
 `
 
 export interface RadioGroupProps<T> {
@@ -97,7 +97,7 @@ const RadioButtonContainer = styled.div`
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   input {
     position: absolute;
@@ -169,7 +169,7 @@ const RadioIcon = styled.div<{ $selected?: boolean; $dense?: boolean }>`
 `
 
 const StyledRipple = styled(Ripple)`
-  margin: 4px;
+  margin: var(--space-1);
   border-radius: 50%;
 `
 
@@ -177,7 +177,7 @@ const Label = styled.label<{ $disabled?: boolean }>`
   ${bodyMedium};
 
   flex-grow: 1;
-  padding: 4px 0;
+  padding: var(--space-1) 0;
 
   color: ${props =>
     props.$disabled ? 'rgb(from var(--theme-on-surface) r g b / 0.38)' : 'var(--theme-on-surface)'};

@@ -10,7 +10,7 @@ import { ggStatsFilesState, starcraftPathValid } from '../health-state'
 import { StarcraftHealthCheckupDialog } from '../starcraft-health'
 
 const Root = styled(CenteredContentContainer)`
-  padding-block: 16px;
+  padding-block: var(--space-4);
 
   display: flex;
   gap: 40px;

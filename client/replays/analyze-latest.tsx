@@ -91,7 +91,7 @@ export function setAnalysisPaused(paused: boolean) {
 
 const Overline = styled.div`
   ${labelMedium};
-  padding: 8px 12px 4px;
+  padding: var(--space-2) var(--space-3) var(--space-1);
   color: var(--theme-on-surface-variant);
 `
 

@@ -28,7 +28,7 @@ function normalizePath(path: string) {
 const Layout = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const PathRow = styled.div`
@@ -37,7 +37,7 @@ const PathRow = styled.div`
 
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   background-color: var(--theme-container);
   border: 1px solid var(--theme-outline-variant);

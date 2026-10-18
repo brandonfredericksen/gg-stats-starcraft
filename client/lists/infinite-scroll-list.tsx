@@ -47,7 +47,7 @@ const LoadingArea = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 56px;
-  padding: 16px 0;
+  padding: var(--space-4) 0;
 `
 
 export interface InfiniteListProps {

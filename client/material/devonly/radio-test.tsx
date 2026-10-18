@@ -6,7 +6,7 @@ import { RadioButton, RadioGroup } from '../radio'
 const Container = styled.div`
   width: 100%;
   height: 100%;
-  padding: 16px !important;
+  padding: var(--space-4) !important;
   padding-top: 64px !important;
 `
 

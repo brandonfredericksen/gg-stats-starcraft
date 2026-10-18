@@ -10,14 +10,14 @@ import { ReplayLibraryUnavailable } from '../replay-library'
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px;
+  gap: var(--space-6);
+  padding: var(--space-6);
 `
 
 const Case = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 
   border: 1px solid var(--theme-outline-variant);
   border-radius: 2px;
@@ -25,19 +25,19 @@ const Case = styled.div`
 
 const CaseLabel = styled.div`
   ${titleSmall};
-  padding: 12px 16px 0;
+  padding: var(--space-3) var(--space-4) 0;
   color: var(--theme-on-surface-variant);
 `
 
 const CaseBody = styled.div`
-  padding: 0 16px 16px;
+  padding: 0 var(--space-4) var(--space-4);
 `
 
 const Controls = styled.div`
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
-  padding: 0 16px 12px;
+  padding: 0 var(--space-4) var(--space-3);
 `
 
 const DEMO_TOTAL = 11_248

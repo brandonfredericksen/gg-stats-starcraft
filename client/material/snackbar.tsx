@@ -26,12 +26,12 @@ const Root = styled.div<{ $tone: SnackbarTone }>`
   position: relative;
   width: 360px;
   max-width: 100%;
-  padding: 12px 8px 12px 12px;
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
 
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  column-gap: 12px;
+  column-gap: var(--space-3);
   overflow: hidden;
 
   background: linear-gradient(180deg, var(--theme-snackbar-sheen), var(--theme-snackbar) 48px);
@@ -78,7 +78,7 @@ const Count = styled.div`
   top: -6px;
   right: -8px;
   min-width: 16px;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
 
   background-color: var(--_tone);
   border-radius: var(--radius-full);
@@ -99,7 +99,7 @@ const Action = styled.button`
 
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 
   border-radius: var(--radius-sm);
   color: var(--_tone);

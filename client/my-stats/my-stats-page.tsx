@@ -38,7 +38,7 @@ const Root = styled.div`
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Header = styled.div`
@@ -80,7 +80,7 @@ const Coverage = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 12px;
+  gap: var(--space-1) var(--space-3);
   color: var(--theme-on-surface-variant);
 
   &:empty {
@@ -92,7 +92,7 @@ const Coverage = styled.div`
 const Columns = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--space-4);
   align-items: stretch;
 
   @media (max-width: 960px) {
@@ -112,32 +112,32 @@ const EvenColumns = styled(Columns)`
 const Column = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
   min-width: 0;
 `
 
 const Buckets = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Message = styled(StatsPanel)`
   ${bodyMedium};
-  padding: 24px;
+  padding: var(--space-6);
   color: var(--theme-on-surface-variant);
 
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 /** Stats for filters picked before the current ones stay up, faded, until the new ones arrive. */
 const Content = styled.div<{ $stale: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
   opacity: ${props => (props.$stale ? 0.5 : 1)};
   transition: opacity 150ms linear;
 `

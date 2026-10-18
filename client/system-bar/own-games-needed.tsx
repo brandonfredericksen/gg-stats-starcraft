@@ -86,7 +86,7 @@ export type NewestOwnGame =
 const Root = styled.div`
   width: 100%;
   height: 100%;
-  padding: 32px;
+  padding: var(--space-8);
 
   display: flex;
   align-items: center;
@@ -102,7 +102,7 @@ const Card = styled.section`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-3);
 `
 
 const IconTile = styled.div`
@@ -120,7 +120,7 @@ const IconTile = styled.div`
 
 const Title = styled.h2`
   ${titleLarge};
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
 `
 
 const Body = styled.p`
@@ -130,10 +130,10 @@ const Body = styled.p`
 `
 
 const Actions = styled.div`
-  margin-top: 8px;
+  margin-top: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 `
 
 /**

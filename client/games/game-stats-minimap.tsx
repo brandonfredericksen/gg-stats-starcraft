@@ -69,7 +69,7 @@ const Header = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 
   & > ${SectionTitle} {
     flex: 1 1 auto;
@@ -82,7 +82,7 @@ const Toolbar = styled.div`
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 
   border-bottom: 1px solid var(--theme-outline-variant);
 `
@@ -197,7 +197,7 @@ const Missing = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-2);
 
   color: var(--theme-on-surface-variant);
 `

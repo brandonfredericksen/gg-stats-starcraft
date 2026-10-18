@@ -8,11 +8,11 @@ import { demoPlayerAtom } from '../demo-player'
 
 const Root = styled.div`
   max-width: 720px;
-  padding: 32px;
+  padding: var(--space-8);
 
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 const Title = styled.h1`
@@ -29,7 +29,7 @@ const Text = styled.p`
 const Links = styled.div`
   ${bodyMedium};
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 `
 
 /** Turns the made up player on and off for My stats and the coach. */

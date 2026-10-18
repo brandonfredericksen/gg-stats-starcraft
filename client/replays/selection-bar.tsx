@@ -9,7 +9,7 @@ const Root = styled.div`
   position: sticky;
   top: 8px;
   z-index: 2;
-  padding: 8px 8px 8px 16px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
 
   display: flex;
   align-items: center;
@@ -35,7 +35,7 @@ const BarButton = styled.button<{ $danger?: boolean; $filled?: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
 
   display: inline-flex;
   align-items: center;
