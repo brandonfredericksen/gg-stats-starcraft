@@ -3,19 +3,11 @@ import path from 'path'
 
 /**
  * A URL for all the Google fonts used in the app. This will be used at build time to download the
- * necessary fonts for self-hosting.
+ * necessary fonts for self-hosting. The text faces (Segoe UI Variable, Bahnschrift) ship with
+ * Windows, so only the emoji fallback is downloaded.
  */
 const GOOGLE_FONTS_URL = constructURL({
   families: {
-    Inter: {
-      wght: [400, 500, 550, 600, 700],
-    },
-    'Sofia Sans': {
-      wght: [400, 600, 700],
-    },
-    'Sofia Sans Condensed': {
-      wght: [400],
-    },
     // Noto Color Emoji has a single static weight, not a wght axis; Google rejects axis params
     // for it, so this must stay `true` rather than a weight object.
     'Noto Color Emoji': true,
@@ -48,7 +40,7 @@ async function doDownload() {
     ],
   ] satisfies DownloadOptions['headers']
 
-  // Noto Color Emoji's CSS has no per-subset comments (unlike Inter's `/* latin */`), so
+  // Noto Color Emoji's CSS has no per-subset comments (unlike most fonts' `/* latin */`), so
   // google-fonts-helper falls back to naming every one of its ~10 subset files
   // `Noto_Color_Emoji-normal-400-text.woff2`, each overwriting the last. Google numbers the
   // source URLs of otherwise-identically-named subsets (`...abc.4.woff2`), so re-derive a unique

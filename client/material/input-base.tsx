@@ -1,5 +1,5 @@
 import styled, { css } from 'styled-components'
-import { bodyLarge, inter, singleLine } from '../styles/typography'
+import { bodyLarge, segoeUi, singleLine } from '../styles/typography'
 
 export const InputBase = styled.div<{
   $floatingLabel?: boolean
@@ -10,7 +10,7 @@ export const InputBase = styled.div<{
   $trailingIconsLength?: number
   $leadingContentWidth?: number
 }>`
-  ${inter};
+  ${segoeUi};
   ${bodyLarge};
   flex-grow: 1;
   order: 2;
@@ -50,12 +50,12 @@ export const InputBase = styled.div<{
 
     if (props.$floatingLabel) {
       return css`
-        padding: 12px;
+        padding: var(--space-3);
         padding-top: 0;
       `
     } else {
       return css`
-        padding: 12px;
+        padding: var(--space-3);
         padding-top: ${props.$dense ? 11 : 19}px;
       `
     }

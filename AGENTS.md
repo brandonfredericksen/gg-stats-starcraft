@@ -137,10 +137,14 @@ and saved stats files, so a dev instance never shares them with another.
 - **Always style text with the typography tokens from `client/styles/typography.ts`** — compose the
   `css` token (e.g. `${bodyMedium}`) or render the styled component (e.g. `<BodyMedium>`). Don't
   hand-roll `font-*`/`line-height`/`letter-spacing`, and don't invent font CSS vars (none exist —
-  the global family comes from the `inter` token in `client/styles/global.ts`). For a non-standard
+  the global family comes from the `segoeUi` token in `client/styles/global.ts`). For a non-standard
   size/weight, build on the nearest token and override only the differing property
   (`${titleMedium}; font-size: 20px;`); even genuinely exceptional cases (oversized display
-  numerals) should compose a font-family token (`inter`/`sofiaSans`/`sofiaSansCondensed`).
+  numerals) should compose a font-family token (`segoeUi` for text, `bahnschrift` for big titles,
+  names and numbers). Both faces ship with Windows, so the app bundles no text fonts.
+- **Space with the tokens from `client/styles/global.ts`**: `--space-1` to `--space-8` for gaps,
+  padding and margins, `--radius-sm`/`-md`/`-lg`/`-full` for corners. Off-scale values (2px,
+  6px, 10px) are fine where a part needs them.
 - Use `motion` library for animations, `react-i18next` for translations
 - Development test pages in `devonly/` folders (accessible at `/dev`)
 

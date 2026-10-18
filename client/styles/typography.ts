@@ -26,12 +26,6 @@ export const bahnschrift = css`
   font-synthesis: style small-caps;
 `
 
-// TODO(gg-stats): Switch the remaining users of these names over to `segoeUi` and `bahnschrift`,
-// then delete them.
-export const inter = segoeUi
-export const sofiaSans = segoeUi
-export const sofiaSansCondensed = bahnschrift
-
 export const bodySmall = css`
   font-size: 12px;
   font-weight: 400;
