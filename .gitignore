@@ -18,3 +18,5 @@ electron-builder.env
 .local/
 .mcp.json
 
+
+gg-stats-video/
