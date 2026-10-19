@@ -15,13 +15,13 @@ const results = (players: ReadonlyArray<{ name: string; result: GameStatsResult 
   Object.fromEntries(players.map(p => [p.name, p.result]))
 
 describe('common/games/assumed-results', () => {
-  test('gives the user a loss when their replay stopped early, but not their teammates', () => {
+  test("gives the user's team a loss when their replay stopped early", () => {
     const players = [player('Me', 1), player('Ally', 1), player('Foe', 2), player('Foe2', 2)]
     expect(results(withAssumedResults(players, false, ['me']))).toEqual({
       Me: 'loss',
-      Ally: 'unknown',
-      Foe: 'unknown',
-      Foe2: 'unknown',
+      Ally: 'loss',
+      Foe: 'win',
+      Foe2: 'win',
     })
 
     const allyOut = [
@@ -79,6 +79,15 @@ describe('common/games/assumed-results', () => {
   test('counts leaving before the end as a loss even when the replay covers the whole game', () => {
     const players = [player('Me', 0, 'unknown', 60_000), player('Foe', 0)]
     expect(results(withAssumedResults(players, true, ['Me']))).toEqual({ Me: 'loss', Foe: 'win' })
+  })
+
+  test('keeps the win of a team the user left that went on to win', () => {
+    const players = [player('Me', 1, 'unknown', 60_000), player('Ally', 1, 'win'), player('Foe', 2)]
+    expect(results(withAssumedResults(players, true, ['Me']))).toEqual({
+      Me: 'loss',
+      Ally: 'win',
+      Foe: 'loss',
+    })
   })
 
   test('only gives the user a loss in a free for all', () => {

@@ -28,25 +28,32 @@ interface ResultPlayer {
 
 /**
  * Fills in results a replay doesn't have. A game the user left has no result for them, since the
- * user's replay stops when they leave, but leaving lost it for them: the user is given a loss, and
- * their teammates keep theirs, since they can play on. Then in a game of two sides where only one
- * side's result is known, the other side gets the opposite: a replay often ends as soon as one side
- * loses, before the other is recorded as winning. Games without the user and games the user played
- * to the end are otherwise left as they are.
+ * user's replay stops when they leave, but leaving lost it for them: the user's side is given a
+ * loss, unless a teammate is recorded as winning. Then in a game of two sides where only one side's
+ * result is known, the other side gets the opposite: a replay often ends as soon as one side loses,
+ * before the other is recorded as winning. Games without the user and games the user played to the
+ * end are otherwise left as they are.
  */
 export function withAssumedResults<P extends ResultPlayer>(
   players: ReadonlyArray<P>,
   complete: boolean,
   myNames: ReadonlyArray<string> | undefined,
 ): ReadonlyArray<P> {
-  const me = players.find(p => isMyPlayer(p, myNames))
-  const meLeft =
-    me !== undefined && me.result === 'unknown' && (!complete || me.leftAtMs !== undefined)
-  const withMine = meLeft ? players.map(p => (p === me ? { ...p, result: 'loss' } : p)) : players
-
   // Without teams, every player is their own side.
   const hasTeams = new Set(players.map(p => p.team)).size > 1
   const sideOf = (p: P) => (hasTeams ? `team ${p.team}` : `player ${p.name}`)
+
+  const me = players.find(p => isMyPlayer(p, myNames))
+  const meLeft =
+    me !== undefined && me.result === 'unknown' && (!complete || me.leftAtMs !== undefined)
+  const mySide = me && sideOf(me)
+  const myTeamWon = players.some(p => sideOf(p) === mySide && p.result === 'win')
+  const lostWithMe = (p: P) =>
+    p === me || (!myTeamWon && sideOf(p) === mySide && p.result === 'unknown')
+  const withMine = meLeft
+    ? players.map(p => (lostWithMe(p) ? { ...p, result: 'loss' } : p))
+    : players
+
   const sides = Array.from(new Set(withMine.map(sideOf)), side =>
     withMine.filter(p => sideOf(p) === side),
   )
