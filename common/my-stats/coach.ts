@@ -2158,8 +2158,8 @@ export function computeCoach(
 
   const results: CoachBucket[] = []
   for (const bucket of buckets.values()) {
-    if (!bucket.user.length && !bucket.skipped) {
-      // Other players' games on a kind of map the user never played here.
+    if (splitByMap && !mapFamily && !bucket.user.length && !bucket.skipped) {
+      // Other players' games on a kind of map the user never played here, when none was picked.
       continue
     }
     const bucketContext: CoachContext = {

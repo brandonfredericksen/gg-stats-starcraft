@@ -1,5 +1,6 @@
 import { TFunction } from 'i18next'
-import { useState } from 'react'
+import { useSetAtom } from 'jotai'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
@@ -7,18 +8,11 @@ import { MapFamily } from '../../common/games/map-family'
 import { CoachBuild, CoachTeamBuild, MIN_WINNER_GAMES } from '../../common/my-stats/builds'
 import { CoachBucket, CoachResult, CoachScope } from '../../common/my-stats/coach'
 import { MetaResult } from '../../common/my-stats/meta-builds'
+import { MyStatsShape } from '../../common/my-stats/my-stats'
+import { splitsByMap } from '../../common/my-stats/player-games'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
-import { useCoach, useMetaBuilds, useShapeCounts } from '../coach/coach-data'
-import {
-  Badge,
-  CoachToolbar,
-  Header,
-  LockedView,
-  Message,
-  Root,
-  Title,
-  useLockedShape,
-} from '../coach/coach-page'
+import { coachScopeAtom, useCoach, useMetaBuilds, useShapeCounts } from '../coach/coach-data'
+import { Badge, CoachToolbar, Header, Message, Root, Title } from '../coach/coach-page'
 import { Cell, HeadCell, Text } from '../coach/coach-shared'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
@@ -411,13 +405,54 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
   )
 }
 
-/** The builds players use in the user's kind of game, and how the user's compares. */
+const SHAPES: ReadonlyArray<MyStatsShape> = ['1v1', '2v2', '3v3', '4v4', 'ffa']
+const RACES: ReadonlyArray<AssignedRaceChar> = ['p', 't', 'z']
+const MAP_FAMILIES: ReadonlyArray<MapFamily> = ['standard', 'fastest', 'bgh']
+
+/**
+ * Every kind of game builds can be shown for, the user's most played first, then every other one.
+ * Builds come from other players' games, so the user needn't have played a kind for it to be here.
+ */
+function getEveryScope(played: ReadonlyArray<CoachScope>): CoachScope[] {
+  const scopes = [...played]
+  const keyOf = (s: Omit<CoachScope, 'games'>) =>
+    `${s.shape}:${s.race}:${s.opponentRace ?? ''}:${s.allyRace ?? ''}:${s.mapFamily ?? ''}`
+  const known = new Set(played.map(keyOf))
+  for (const shape of SHAPES) {
+    for (const mapFamily of splitsByMap(shape) ? MAP_FAMILIES : [undefined]) {
+      for (const race of RACES) {
+        for (const other of shape === '1v1' || shape === '2v2' ? RACES : [undefined]) {
+          const scope: CoachScope = {
+            shape,
+            race,
+            opponentRace: shape === '1v1' ? other : undefined,
+            allyRace: shape === '2v2' ? other : undefined,
+            mapFamily,
+            games: 0,
+          }
+          if (!known.has(keyOf(scope))) {
+            scopes.push(scope)
+          }
+        }
+      }
+    }
+  }
+  return scopes
+}
+
+/** The builds players use in any kind of game, and how the user's compares where they played it. */
 export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined }) {
   const { t } = useTranslation()
   const counts = useShapeCounts()
-  // Every kind of game the user played, however few times: builds are mostly other players'.
-  const scopes = coach && coach !== 'error' ? coach.scopes : []
-  const pickedLocked = useLockedShape(coach, scopes, counts)
+  const setScope = useSetAtom(coachScopeAtom)
+  const scopes = getEveryScope(coach && coach !== 'error' ? coach.scopes : [])
+  const noGames = coach !== 'error' && coach?.status === 'noGames'
+  useEffect(() => {
+    if (noGames) {
+      const { games: _, ...first } = getEveryScope([])[0]
+      setScope(first)
+    }
+  }, [noGames, setScope])
 
   let content: React.ReactNode
   if (coach === 'error') {
@@ -432,9 +467,7 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
     content = <PageLoadingIndicator />
   } else {
     let body: React.ReactNode
-    if (pickedLocked) {
-      body = <LockedView locked={pickedLocked} />
-    } else if (coach.status === 'ready') {
+    if (coach.status === 'ready') {
       body = <BuildsBody key={JSON.stringify(coach.scope)} coach={coach} />
     } else {
       body = (

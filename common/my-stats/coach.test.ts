@@ -101,6 +101,17 @@ describe('common/my-stats/coach', () => {
     expect(computeCoach([], { names: [me] }).status).toBe('noGames')
   })
 
+  test("looks at other players' games of a kind the user never played", () => {
+    const coach = computeCoach(
+      poolGames(4, () => 18),
+      query,
+    )
+    expect(coach.status === 'ready' && coach.buckets[0]).toMatchObject({
+      userGames: 0,
+      poolGames: 4,
+    })
+  })
+
   test('coaches the most played kind of game when none is picked', () => {
     const coach = computeCoach([...myGames(5, 18)], { names: [me] })
     expect(coach.status === 'ready' && coach.scope).toEqual({

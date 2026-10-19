@@ -957,7 +957,7 @@ function ScopeLine({
 }
 
 /** A game type the coach can't look at yet: how many of its replays are analyzed, and a way on. */
-export function LockedView({ locked }: { locked: ShapeCount }) {
+function LockedView({ locked }: { locked: ShapeCount }) {
   const { t } = useTranslation()
   const names = useStatsPlayerNames() ?? []
   const name = locked.shape === 'ffa' ? t('myStats.ffa', 'FFA') : locked.shape
