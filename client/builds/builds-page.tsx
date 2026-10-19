@@ -9,7 +9,16 @@ import { CoachBucket, CoachResult, CoachScope } from '../../common/my-stats/coac
 import { MetaResult } from '../../common/my-stats/meta-builds'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
 import { useCoach, useMetaBuilds, useShapeCounts } from '../coach/coach-data'
-import { Badge, CoachToolbar, Header, Message, Root, Title } from '../coach/coach-page'
+import {
+  Badge,
+  CoachToolbar,
+  Header,
+  LockedView,
+  Message,
+  Root,
+  Title,
+  useLockedShape,
+} from '../coach/coach-page'
 import { Cell, HeadCell, Text } from '../coach/coach-shared'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
@@ -406,6 +415,9 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
 export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined }) {
   const { t } = useTranslation()
   const counts = useShapeCounts()
+  // Every kind of game the user played, however few times: builds are mostly other players'.
+  const scopes = coach && coach !== 'error' ? coach.scopes : []
+  const pickedLocked = useLockedShape(coach, scopes, counts)
 
   let content: React.ReactNode
   if (coach === 'error') {
@@ -419,21 +431,27 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
   } else if (!coach) {
     content = <PageLoadingIndicator />
   } else {
+    let body: React.ReactNode
+    if (pickedLocked) {
+      body = <LockedView locked={pickedLocked} />
+    } else if (coach.status === 'ready') {
+      body = <BuildsBody key={JSON.stringify(coach.scope)} coach={coach} />
+    } else {
+      body = (
+        <Message>
+          <Text>
+            {t(
+              'builds.noGames',
+              'None of your analyzed games can be compared yet. Analyze a few more of yours.',
+            )}
+          </Text>
+        </Message>
+      )
+    }
     content = (
       <>
-        <CoachToolbar coach={coach} counts={counts} />
-        {coach.status === 'ready' ? (
-          <BuildsBody key={JSON.stringify(coach.scope)} coach={coach} />
-        ) : (
-          <Message>
-            <Text>
-              {t(
-                'builds.noGames',
-                'None of your analyzed games can be compared yet. Analyze a few more of yours.',
-              )}
-            </Text>
-          </Message>
-        )}
+        <CoachToolbar coach={coach} scopes={scopes} counts={counts} />
+        {body}
       </>
     )
   }

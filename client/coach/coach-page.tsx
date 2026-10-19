@@ -9,6 +9,7 @@ import {
   COACH_METRIC_ORDER,
   COACH_MIN_POOL_GAMES,
   COACH_MIN_RESULT_GAMES,
+  COACH_MIN_SCOPE_GAMES,
   COACH_MIN_USER_GAMES,
   COACH_WINDOW_GAMES,
   CoachBucket,
@@ -646,8 +647,10 @@ function ShapeMenu({
     return null
   }
   let value: string = picked?.shape ?? options[0].value
-  if (pickedLocked && locked.some(count => count.shape === pickedLocked)) {
-    value = `locked:${pickedLocked}`
+  const lockedShape =
+    pickedLocked ?? (picked && !shapes.has(picked.shape) ? picked.shape : undefined)
+  if (lockedShape && locked.some(count => count.shape === lockedShape)) {
+    value = `locked:${lockedShape}`
   }
 
   return (
@@ -954,7 +957,7 @@ function ScopeLine({
 }
 
 /** A game type the coach can't look at yet: how many of its replays are analyzed, and a way on. */
-function LockedView({ locked }: { locked: ShapeCount }) {
+export function LockedView({ locked }: { locked: ShapeCount }) {
   const { t } = useTranslation()
   const names = useStatsPlayerNames() ?? []
   const name = locked.shape === 'ffa' ? t('myStats.ffa', 'FFA') : locked.shape
@@ -2017,37 +2020,55 @@ function useStuck() {
 }
 
 /**
+ * The game type picked, from the locked ones or else the one `coach` looks at, if it has none of
+ * `scopes` yet.
+ */
+export function useLockedShape(
+  coach: CoachResult | 'error' | undefined,
+  scopes: ReadonlyArray<CoachScope>,
+  counts: ReadonlyArray<ShapeCount>,
+): ShapeCount | undefined {
+  const lockedShape = useAtomValue(coachLockedShapeAtom)
+  const pickedShape =
+    lockedShape ??
+    (coach && coach !== 'error' && coach.status === 'ready' ? coach.scope.shape : undefined)
+  return scopes.some(s => s.shape === pickedShape)
+    ? undefined
+    : counts.find(c => c.shape === pickedShape)
+}
+
+/**
  * The bar picking the kind of game, the user's games and who they're compared with, shared by the
  * Coach and Builds pages. Stays in view as the page scrolls, with an edge once it's stuck.
  */
 export function CoachToolbar({
   coach,
+  scopes,
   counts,
 }: {
   coach: CoachResult
+  /** The kinds of game to offer, of `coach.scopes`. */
+  scopes: ReadonlyArray<CoachScope>
   counts: ReadonlyArray<ShapeCount>
 }) {
   const { t } = useTranslation()
   const [sentinelRef, stuck] = useStuck()
   const [toolbarRef, toolbarSize] = useObservedDimensions<HTMLDivElement>()
   useStuckBarBottom(stuck ? toolbarSize?.height : undefined)
-  const pickedShape = useAtomValue(coachLockedShapeAtom)
-  const pickedLocked = coach.scopes.some(s => s.shape === pickedShape)
-    ? undefined
-    : counts.find(c => c.shape === pickedShape)
+  const pickedLocked = useLockedShape(coach, scopes, counts)
   const picked = coach.status === 'ready' ? coach.scope : undefined
   return (
     <>
       <StuckSentinel ref={sentinelRef} />
       <Toolbar ref={toolbarRef} $stuck={stuck}>
-        <ShapeMenu scopes={coach.scopes} picked={picked} counts={counts} />
+        <ShapeMenu scopes={scopes} picked={picked} counts={counts} />
         {picked && !pickedLocked ? (
           <>
-            <MapPicker scopes={coach.scopes} picked={picked} />
+            <MapPicker scopes={scopes} picked={picked} />
             {coach.status === 'ready' ? (
               <MapNameMenu maps={coach.maps} picked={coach.mapKey} />
             ) : null}
-            <RacePicker scopes={coach.scopes} picked={picked} />
+            <RacePicker scopes={scopes} picked={picked} />
           </>
         ) : null}
         <Spacer />
@@ -2081,11 +2102,10 @@ export function CoachView({
   const { t } = useTranslation()
   const counts = useShapeCounts()
   const [explainerClosed, setExplainerClosed] = useState(readExplainerClosed)
-  const result = coach === 'error' ? undefined : coach
-  const pickedShape = useAtomValue(coachLockedShapeAtom)
-  const pickedLocked = result?.scopes.some(s => s.shape === pickedShape)
-    ? undefined
-    : counts.find(c => c.shape === pickedShape)
+  const scopes = (coach === 'error' ? undefined : coach)?.scopes.filter(
+    scope => scope.games >= COACH_MIN_SCOPE_GAMES,
+  )
+  const pickedLocked = useLockedShape(coach, scopes ?? [], counts)
   const toggleExplainer = () => {
     writeExplainerClosed(!explainerClosed)
     setExplainerClosed(!explainerClosed)
@@ -2111,7 +2131,7 @@ export function CoachView({
   } else if (coach) {
     content = (
       <>
-        <CoachToolbar coach={coach} counts={counts} />
+        <CoachToolbar coach={coach} scopes={scopes ?? []} counts={counts} />
         {pickedLocked ? (
           <LockedView locked={pickedLocked} />
         ) : (

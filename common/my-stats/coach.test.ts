@@ -225,7 +225,7 @@ describe('common/my-stats/coach', () => {
     expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(5)
   })
 
-  test('offers the kinds of game the user played most, as quick picks', () => {
+  test('lists every kind of game the user played, most played first', () => {
     const pvt = Array.from({ length: 3 }, (_, i) =>
       game('1v1', [player(me, 'p', 0, 'win'), player(`terran${i}`, 't', 1, 'loss')]),
     )
@@ -239,7 +239,6 @@ describe('common/my-stats/coach', () => {
         player('e', 'p', 1, 'loss'),
       ]),
     )
-    // One stray game of a kind isn't worth a pick.
     const stray = game('2v2', [
       player(me, 'z', 0, 'win'),
       player('a', 'p', 0, 'win'),
@@ -251,6 +250,7 @@ describe('common/my-stats/coach', () => {
       { shape: '1v1', race: 'p', opponentRace: 'z', games: 5 },
       { shape: '1v1', race: 'p', opponentRace: 't', games: 3 },
       { shape: '3v3', race: 'z', opponentRace: undefined, mapFamily: 'standard', games: 3 },
+      { shape: '2v2', race: 'z', opponentRace: undefined, allyRace: 'p', games: 1 },
     ])
   })
 

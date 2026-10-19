@@ -47,8 +47,11 @@ export const COACH_WINDOW_GAMES = [25, 50, 100] as const
 export type CoachWindow = 'auto' | 'all' | (typeof COACH_WINDOW_GAMES)[number]
 const AUTO_WINDOW_MS = 90 * 24 * 60 * 60_000
 const AUTO_WINDOW_MIN_GAMES = 30
-/** The fewest of the user's games a kind of game needs to be offered, so a stray game isn't. */
-const MIN_SCOPE_GAMES = 3
+/**
+ * The fewest of the user's games a kind of game needs for the coach to offer it, so a stray game
+ * isn't. Builds offer every kind the user played, since they're mostly about other players' games.
+ */
+export const COACH_MIN_SCOPE_GAMES = 3
 /** How many wins and how many losses comparing them needs. */
 export const COACH_MIN_RESULT_GAMES = 5
 /**
@@ -880,7 +883,10 @@ export interface CoachQuery {
 }
 
 export type CoachResult = {
-  /** Every kind of game the user has played enough of, most played first. */
+  /**
+   * Every kind of game the user has played, most played first. The coach offers only those with
+   * `COACH_MIN_SCOPE_GAMES`.
+   */
   scopes: CoachScope[]
   eapmFloor: number
   /** The ladder rank other players were picked by, in 1v1. */
@@ -1466,9 +1472,7 @@ function getScopes(
     scope.games += 1
     scopes.set(key, scope)
   }
-  return Array.from(scopes.values())
-    .filter(scope => scope.games >= MIN_SCOPE_GAMES)
-    .sort((a, b) => b.games - a.games)
+  return Array.from(scopes.values()).sort((a, b) => b.games - a.games)
 }
 
 function countResults(games: ReadonlyArray<CoachGame>) {
