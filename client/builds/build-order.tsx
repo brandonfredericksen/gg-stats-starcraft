@@ -63,6 +63,14 @@ const StepShare = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
+/** A timeline tooltip's lines, one under another rather than side by side in the tooltip's row. */
+const TipLines = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+`
+
 const TipLine = styled.span`
   display: flex;
   align-items: center;
@@ -490,7 +498,7 @@ function Timeline({
                   position='top'
                   tabIndex={-1}
                   text={
-                    <>
+                    <TipLines>
                       <TipLine>
                         <GameIcon buildKey={step.key} size={SMALL_ICON_SIZE} />
                         {getStepName(step, t)}
@@ -502,7 +510,7 @@ function Timeline({
                           {sideStep ? ` (${getStepTip(sideStep, t)})` : ''}
                         </TipLine>
                       ))}
-                    </>
+                    </TipLines>
                   }>
                   <Track>
                     {ticks.map(minute => (
