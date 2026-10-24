@@ -44,18 +44,12 @@ import {
   PanelHeadNote,
   PanelTitle,
 } from '../my-stats/my-stats-panels'
+import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
 import { getPoolSource, getScriptedNote } from '../my-stats/pool-source'
 import { RankMenu } from '../my-stats/rank-menu'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { STUCK_EDGE_PX, stuckEdgeGradient, useStuckBarBottom } from '../stuck-bar-edge'
-import {
-  bodyMedium,
-  headlineMedium,
-  labelLarge,
-  labelSmall,
-  titleMedium,
-  titleSmall,
-} from '../styles/typography'
+import { bodyMedium, labelLarge, titleMedium, titleSmall } from '../styles/typography'
 import { OwnGamesNeeded, useNewestOwnGame } from '../system-bar/own-games-needed'
 import {
   coachLockedShapeAtom,
@@ -86,44 +80,6 @@ import {
   toneColor,
   useFormatValue,
 } from './coach-shared'
-
-/** The page, as a container so its sections can stack in a narrow window. */
-export const Root = styled.div`
-  container: coach / inline-size;
-  width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-8) 48px;
-
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-`
-
-export const Header = styled.div`
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-`
-
-export const Title = styled.h1`
-  ${headlineMedium};
-  margin: 0;
-`
-
-export const Badge = styled.span`
-  ${labelSmall};
-  height: 20px;
-  padding: 0 var(--space-2);
-
-  display: inline-flex;
-  align-items: center;
-
-  border: 1px solid var(--theme-outline-strong);
-  border-radius: var(--radius-full);
-  color: var(--theme-on-surface-variant);
-  font-weight: 700;
-`
 
 /**
  * The kind of game to coach, which games, and who to compare with. Stays in view while the page
@@ -267,7 +223,7 @@ const CalloutSteps = styled.ol`
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3) var(--space-6);
 
-  @container coach (width < 720px) {
+  @container page (width < 720px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `
@@ -366,7 +322,7 @@ const PlanColumns = styled.div`
   gap: var(--space-4);
   align-items: start;
 
-  @container coach (width < 880px) {
+  @container page (width < 880px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `
@@ -400,10 +356,6 @@ const BucketTitle = styled.h2`
 
 const ComparePanel = styled(PaddedPanel)`
   gap: var(--space-4);
-`
-
-export const Message = styled(PaddedPanel)`
-  gap: var(--space-3);
 `
 
 const Progress = styled.div`

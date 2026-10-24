@@ -291,7 +291,7 @@ function TallyText({ tally }: { tally: Tally }) {
  * The user's record against and with a player. Until it's counted, the same boxes show with
  * placeholders for the numbers, so the card keeps its size when they arrive.
  */
-function RecordSummary({
+export function RecordSummary({
   record,
   t,
 }: {

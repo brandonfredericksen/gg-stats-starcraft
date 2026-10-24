@@ -55,7 +55,7 @@ export const Columns = styled.div`
   gap: var(--space-4) var(--space-5);
   align-items: start;
 
-  @container coach (width < ${STACK_BELOW_PX}px) {
+  @container page (width < ${STACK_BELOW_PX}px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `

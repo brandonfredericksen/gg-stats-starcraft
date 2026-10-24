@@ -21,10 +21,12 @@ import {
 import { ReportedGameStatus } from './games/game-status'
 import { ReplayChat } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
+import { LiveGame } from './live-game'
 import { TilesetId } from './maps'
 import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
+import { PlayerScout } from './my-stats/player-scout'
 import {
   ReplayBackfillProgress,
   ReplayLibraryFilters,
@@ -172,6 +174,10 @@ interface IpcInvokeables {
   gameStatsSummarizeReplays: (replayPaths: string[]) => Promise<Record<string, GameStatsSummary>>
   /** Sums up the user's analyzed games for My stats. */
   myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsSummary>
+  /** What the analyzed games say about each person, given every account each plays under. */
+  liveGameScout: (accountLists: string[][]) => Promise<PlayerScout[]>
+  /** The game the user joined, if they're in one. */
+  liveGameGet: () => Promise<LiveGame | undefined>
   /** Compares the user's games of one kind with other players', for the Coach page. */
   coachQuery: (query: CoachQuery) => Promise<CoachResult>
   /** The builds top players use in one kind of game, for the Builds page. */
@@ -256,6 +262,9 @@ interface IpcMainSendables {
 
   /** Sent when saved stats gained something My stats shows, outside a game ending. */
   myStatsChanged: () => void
+
+  /** Sent when the user joins a game, when who's in it changes, and when they leave a lobby. */
+  liveGameChanged: (game: LiveGame | undefined) => void
 
   /** Sent whenever the replay index changes (files added/removed/updated). */
   replayLibraryChanged: () => void

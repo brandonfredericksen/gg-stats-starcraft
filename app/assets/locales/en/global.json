@@ -724,6 +724,48 @@
     "overline": "Your last game",
     "tooltip": "Stats for your newest game (Alt + G)"
   },
+  "liveGame": {
+    "buildsTable": "Builds by matchup",
+    "empty": "Join a game on the ladder, in a custom lobby or on ShieldBattery to see who's in it.",
+    "fromBaseline_one": "1 is from the ladder games built into GG Stats.",
+    "fromBaseline_other": "{{count}} are from the ladder games built into GG Stats.",
+    "games": "Games",
+    "inAnalyzedGames": "In analyzed games",
+    "joined": "Joined {{when}}",
+    "ladderSeason": "Ladder this season",
+    "lastPlayed": "Last played {{when}}",
+    "likelyRace": "Likely {{race}}",
+    "matchupAndBuild": "Matchup and build",
+    "mmr": "MMR",
+    "needsNames": "Add your names in Settings to see which player is you and your record with the others.",
+    "noGames": "They're not in any analyzed games yet.",
+    "observer": "Observer",
+    "off": "Showing who's in the games you join is turned off.",
+    "openSettings": "Open settings",
+    "otherAccounts": "Also plays as",
+    "record": "Record",
+    "region": {
+      "asia": "Asia",
+      "europe": "Europe",
+      "korea": "Korea",
+      "usEast": "U.S. East",
+      "usWest": "U.S. West"
+    },
+    "scoutFailed": "Couldn't look up their games.",
+    "setNames": "Set your names",
+    "source": {
+      "ladder": "Ladder",
+      "lobby": "Custom game"
+    },
+    "title": "Live game",
+    "tooltip": "Who's in the game you joined",
+    "unnamed": "Unnamed",
+    "unranked": "Unranked",
+    "usualRace": "Not picked yet. They play this race most.",
+    "waitingForPlayers": "Waiting to see who's in the game.",
+    "you": "You",
+    "yourGamesWith": "Your games with them"
+  },
   "maps": {
     "thumbnail": {
       "noMapPreview": "Map preview not available"
@@ -1524,6 +1566,9 @@
         "autoCaptureTitle": "New games",
         "foldersDescription": "Removing a folder takes its replays and their bookmarks out of the library.",
         "foldersTitle": "Replay folders",
+        "liveGame": "Show who's in the games you join",
+        "liveGameDescription": "When you join a game, Live game shows who you play with and against, from what StarCraft and ShieldBattery keep on your computer. It only reads and listens, so your game isn't affected.",
+        "liveGameTitle": "Games you join",
         "openingTitle": "Opening replays",
         "quickOpen": "Skip the preview when opening a replay file",
         "removeFolder": "Remove folder",

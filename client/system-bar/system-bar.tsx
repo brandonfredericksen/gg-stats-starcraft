@@ -11,6 +11,7 @@ import { SYSTEM_BAR_HEIGHT } from '../../common/window-layout'
 import { useFitLevel } from '../dom/use-fit-level'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
+import { hasLiveGameAtom } from '../live-game/live-game-atoms'
 import logo from '../logos/logo.png'
 import { useButtonHotkey } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -95,7 +96,7 @@ const Nav = styled.nav`
   gap: var(--space-1);
 `
 
-type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'settings'
+type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'live-game' | 'settings'
 
 const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   ${buttonReset};
@@ -421,6 +422,8 @@ export function SystemBar() {
   const isCoach = section === 'coach'
   const isBuilds = section === 'builds'
   const isLastGame = section === 'lastGame'
+  const isLiveGame = section === 'liveGame'
+  const hasLiveGame = useAtomValue(hasLiveGameAtom)
   const [settingsButton, setSettingsButton] = useState<HTMLButtonElement | null>(null)
   useButtonHotkey({ elem: settingsButton, hotkey: ALT_S })
   const [lastGameButton, setLastGameButton] = useState<HTMLButtonElement | null>(null)
@@ -434,9 +437,11 @@ export function SystemBar() {
   }, [])
 
   const captureStatus = useCaptureStatus()
+  const showLiveGame = hasLiveGame || isLiveGame
+  // The tab coming and going changes what has to fit.
   const [containerRef, fitLevel] = useFitLevel<HTMLElement>(
     FitLevel.NoWordmark,
-    captureStatus.label,
+    `${captureStatus.label}|${showLiveGame}`,
   )
 
   return (
@@ -501,6 +506,19 @@ export function SystemBar() {
             {t('lastGame.label', 'Last game')}
           </NavItem>
         </Tooltip>
+        {showLiveGame ? (
+          <Tooltip text={t('liveGame.tooltip', "Who's in the game you joined")} position='bottom'>
+            <NavItem
+              type='button'
+              $tab='live-game'
+              $active={isLiveGame}
+              aria-current={isLiveGame ? 'page' : undefined}
+              onClick={() => push('/live-game')}>
+              <MaterialIcon icon='sensors' size={20} />
+              {t('liveGame.title', 'Live game')}
+            </NavItem>
+          </Tooltip>
+        ) : null}
       </Nav>
       <Spacer />
       <RestartToUpdateButton />

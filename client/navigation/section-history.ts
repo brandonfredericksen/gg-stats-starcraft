@@ -1,5 +1,13 @@
 /** The app's top level sections, each with its own tab. */
-export type Section = 'library' | 'myStats' | 'coach' | 'builds' | 'lastGame' | 'settings' | 'other'
+export type Section =
+  | 'library'
+  | 'myStats'
+  | 'coach'
+  | 'builds'
+  | 'lastGame'
+  | 'liveGame'
+  | 'settings'
+  | 'other'
 
 export function getSection(pathname: string): Section {
   if (pathname === '/replays' || pathname.startsWith('/replays/')) {
@@ -16,6 +24,9 @@ export function getSection(pathname: string): Section {
   }
   if (pathname.startsWith('/last-game')) {
     return 'lastGame'
+  }
+  if (pathname.startsWith('/live-game')) {
+    return 'liveGame'
   }
   if (pathname.startsWith('/settings')) {
     return 'settings'

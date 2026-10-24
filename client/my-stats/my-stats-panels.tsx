@@ -144,7 +144,7 @@ const RecordSeparator = styled.span`
 `
 
 /** Wins and losses, each in its result's color, or "-" when no game had a result. */
-function RecordText({ record }: { record: WinLoss }) {
+export function RecordText({ record }: { record: Pick<WinLoss, 'wins' | 'losses'> }) {
   if (!record.wins && !record.losses) {
     return <Muted>-</Muted>
   }
@@ -157,7 +157,7 @@ function RecordText({ record }: { record: WinLoss }) {
   )
 }
 
-function getShapeLabel(shape: GameShape, t: TFunction) {
+export function getShapeLabel(shape: GameShape, t: TFunction) {
   switch (shape) {
     case 'ffa':
       return t('myStats.ffa', 'FFA')

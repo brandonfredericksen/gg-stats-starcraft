@@ -197,6 +197,15 @@ export function AppReplaySettings() {
     )
   }
 
+  const onLiveGameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    dispatch(
+      mergeLocalSettings(
+        { liveGame: event.target.checked },
+        { onSuccess: () => {}, onError: () => {} },
+      ),
+    )
+  }
+
   const autoCapture = localSettings.autoCapture !== false
   const removeFolderLabel = t('settings.app.replays.removeFolder', 'Remove folder')
 
@@ -227,6 +236,25 @@ export function AppReplaySettings() {
             'settings.app.replays.autoCaptureNotifications',
             'Notify me when a game is analyzed while GG Stats is in the tray',
           )}
+          inputProps={{ tabIndex: 0 }}
+        />
+      </SectionContainer>
+      <SectionContainer>
+        <SettingsSectionHeader>
+          {t('settings.app.replays.liveGameTitle', 'Games you join')}
+        </SettingsSectionHeader>
+        <SettingsSectionDescription>
+          {t(
+            'settings.app.replays.liveGameDescription',
+            'When you join a game, Live game shows who you play with and against, from what ' +
+              'StarCraft and ShieldBattery keep on your computer. It only reads and listens, so ' +
+              "your game isn't affected.",
+          )}
+        </SettingsSectionDescription>
+        <CheckBox
+          checked={localSettings.liveGame !== false}
+          onChange={onLiveGameChange}
+          label={t('settings.app.replays.liveGame', "Show who's in the games you join")}
           inputProps={{ tabIndex: 0 }}
         />
       </SectionContainer>

@@ -182,7 +182,7 @@ const Facts = styled.div`
   color: var(--theme-on-surface-variant);
   font-variant-numeric: tabular-nums;
 
-  @container coach (width < 720px) {
+  @container page (width < 720px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `
