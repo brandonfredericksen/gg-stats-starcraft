@@ -3,6 +3,7 @@ import { MIN_GAME_LENGTH_MS } from '../common/games/game-filters'
 import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
+import { ESkill, ESkillModel, fitESkillModel, getESkill } from '../common/my-stats/eskill'
 import { computeMetaBuilds } from '../common/my-stats/meta-builds'
 import { computeMyStatsSummary, DatedGameMetrics } from '../common/my-stats/my-stats'
 import { GameStatsStore } from './game/game-stats-store'
@@ -20,8 +21,8 @@ function isLongEnough(game: DatedGameMetrics) {
  * replay the library doesn't know, like one moved away, is dated by when its stats were saved.
  * Players of a ladder replay get their MMR and rank from the ladder manifest next to it, if there is
  * one. The ladder baseline the app ships adds other players' games to compare with. Games shorter
- * than `MIN_GAME_LENGTH_MS` don't count. Also answers what the games say about the people in a game
- * the user joined, see {@link ScoutGames}.
+ * than `MIN_GAME_LENGTH_MS` don't count. eSkill is fit to the baseline's ranked players. Also
+ * answers what the games say about the people in a game the user joined, see {@link ScoutGames}.
  */
 export function setupMyStats(
   gameStatsStore: GameStatsStore,
@@ -31,19 +32,37 @@ export function setupMyStats(
   const ladderManifests = new LadderManifests()
   // Read once, the first time it's needed: it ships with the app and doesn't change while it runs.
   let baseline: Promise<DatedGameMetrics[]> | undefined
+  /** The baseline's games long enough to count, once it's been read. */
   let loadedBaseline: DatedGameMetrics[] | undefined
   const getBaseline = () => {
     if (!baseline) {
-      const loading = loadBaseline().then(games => games.filter(isLongEnough))
+      const loading = loadBaseline()
       baseline = loading
       loading.then(
         games => {
-          loadedBaseline = games
+          loadedBaseline = games.filter(isLongEnough)
         },
         () => {},
       )
     }
     return baseline
+  }
+
+  let eSkillModel: Promise<ESkillModel | undefined> | undefined
+  /** The eSkill model, once it's been fit. */
+  let loadedESkillModel: ESkillModel | undefined
+  const loadESkillModel = () => {
+    eSkillModel ??= getBaseline().then(games => {
+      const model = fitESkillModel(games)
+      log.info(
+        model
+          ? `Fit eSkill to ${model.players} ladder players`
+          : "The ladder baseline doesn't have enough ranked players to fit eSkill to",
+      )
+      loadedESkillModel = model
+      return model
+    })
+    return eSkillModel
   }
 
   /**
@@ -82,28 +101,43 @@ export function setupMyStats(
       return { ...withLadder(game, ladder), gameTimeMs: game.gameTimeMs }
     })
     return [
-      ...ownGames.filter(isLongEnough),
+      ...ownGames,
       ...withoutLibraryCopies(baselineGames, own.replayPathKeys, ownGames),
-    ]
+    ].filter(isLongEnough)
   }
 
   const ipcMain = new TypedIpcMain()
-  ipcMain.handle('myStatsQuery', async (_event, query) =>
-    computeMyStatsSummary(await loadGames(), query, Date.now()),
-  )
+  ipcMain.handle('myStatsQuery', async (_event, query) => {
+    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    return computeMyStatsSummary(games, query, Date.now(), model)
+  })
+  ipcMain.handle('gameESkill', async (_event, gameId) => {
+    const [found, model] = await Promise.all([gameStatsStore.getMetrics(gameId), loadESkillModel()])
+    const scores: Record<number, ESkill> = {}
+    if (found && model) {
+      found.metrics.players.forEach((player, i) => {
+        const eSkill = getESkill(model, found.metrics, player)
+        if (eSkill) {
+          scores[found.playerIds[i]] = eSkill
+        }
+      })
+    }
+    return scores
+  })
   ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
   ipcMain.handle('metaBuildsQuery', async (_event, query) =>
     computeMetaBuilds(await loadGames(), query),
   )
 
   // Looking up the players in a game happens while it loads: no ladder manifests, which it doesn't
-  // need, and no baseline unless something else already read it.
+  // need, and no baseline or eSkill model unless something else already read them.
   const scoutGames = new ScoutGames({
     loadOwnGames: async () => {
       const { games, replayPathKeys } = await loadOwnGames()
       return { games: games.filter(isLongEnough), replayPathKeys }
     },
     loadedBaseline: () => loadedBaseline,
+    loadedESkillModel: () => loadedESkillModel,
   })
   ipcMain.handle('liveGameScout', (_event, accountLists) => scoutGames.scout(accountLists))
 

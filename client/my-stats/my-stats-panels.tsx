@@ -281,6 +281,20 @@ const TileNote = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
+const RankLetter = styled.span`
+  margin-left: var(--space-2);
+  color: var(--theme-on-surface-variant);
+`
+
+function ESkillValue({ value, rank }: { value: string; rank?: LadderRank }) {
+  return (
+    <>
+      {value}
+      {rank ? <RankLetter>{rank.toUpperCase()}</RankLetter> : null}
+    </>
+  )
+}
+
 /**
  * The headline numbers. `compact` fits them in a narrow panel, like a player's card, without a
  * panel around each.
@@ -289,7 +303,7 @@ export function Totals({
   stats,
   compact = false,
 }: {
-  stats: Pick<MyStatsResult, 'games' | 'record' | 'apm' | 'eapm' | 'durationMs'>
+  stats: Pick<MyStatsResult, 'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill'>
   compact?: boolean
 }) {
   const { t } = useTranslation()
@@ -335,6 +349,28 @@ export function Totals({
         'myStats.help.eapm',
         'Effective actions per minute. Like APM, but without spam, like the same order clicked again right away.',
       ),
+    ],
+    [
+      stats.eSkill ? (
+        <ESkillValue
+          key='eSkill'
+          value={format.format(stats.eSkill.value)}
+          rank={stats.eSkill.rank}
+        />
+      ) : (
+        '-'
+      ),
+      t('myStats.totals.eSkill', 'eSkill'),
+      t(
+        'myStats.help.eSkill',
+        'The 1v1 ladder MMR and rank of players who play the way you do: your speed, hotkeys and macro, ranked against players of your race in the same kind of game. Nothing an opponent decides counts in it.',
+      ),
+      stats.eSkill
+        ? t('myStats.totals.eSkillGames', {
+            defaultValue: 'Over your last {{count}} games',
+            count: stats.eSkill.games,
+          })
+        : undefined,
     ],
     [
       stats.durationMs ? getGameDurationString(stats.durationMs.value) : '-',
@@ -857,6 +893,13 @@ const TrendsPanel = styled(PaddedPanel)`
   flex: 1 1 auto;
 `
 
+/** Wraps onto a second line rather than run past a narrow panel. */
+const MetricPicker = styled(Segmented)`
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  max-width: 100%;
+` as typeof Segmented
+
 const ChartArea = styled.div`
   flex: 1 1 auto;
   width: 100%;
@@ -937,7 +980,7 @@ const SECOND_COLOR = 'var(--theme-data-2)'
 /** With more games than this, points would crowd the line, so only the hovered one is drawn. */
 const MAX_DOTS = 50
 
-type TrendMetric = 'apm' | 'workers6' | 'income6' | 'bankMid' | 'supplyBlocked'
+type TrendMetric = 'apm' | 'eSkill' | 'workers6' | 'income6' | 'bankMid' | 'supplyBlocked'
 type TrendCount = 20 | 50 | 100
 
 interface TrendMetricInfo {
@@ -1042,6 +1085,15 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
       secondLabel: t('myStats.trends.eapm', 'EAPM'),
       format: value => format.format(value),
     },
+    eSkill: {
+      label: t('myStats.trends.eSkill', 'eSkill'),
+      help: t(
+        'myStats.help.trendESkill',
+        'The 1v1 ladder MMR of players who play the way you did, from your speed, hotkeys and macro. Games under 6 minutes have none.',
+      ),
+      values: game => [game.eSkill],
+      format: value => format.format(value),
+    },
     workers6: {
       label: t('myStats.trends.workers', 'Workers'),
       help: t('myStats.help.trendWorkers', 'Finished workers you had at 6 minutes.'),
@@ -1122,7 +1174,7 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
         />
       </PanelHead>
       <div>
-        <Segmented
+        <MetricPicker
           label={t('myStats.trends.metric', 'What to show')}
           options={metricOptions}
           value={metric}

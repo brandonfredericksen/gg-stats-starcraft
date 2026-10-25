@@ -10,6 +10,7 @@ import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat, MissingAllyChatNote, useReplayChat } from './game-stats-chat'
+import { ESkillSection } from './game-stats-eskill'
 import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { GameOtherStats } from './game-stats-other'
@@ -210,6 +211,13 @@ export function GameStatsView({
           )}
         </SectionNote>
       </Section>
+
+      <ESkillSection
+        gameId={gameId}
+        players={ranked}
+        teamsByPlayer={teamsByPlayer}
+        durationMs={stats.durationMs}
+      />
 
       <SectionErrorBoundary>
         <GameStatsTimelines
