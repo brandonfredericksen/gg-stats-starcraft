@@ -367,7 +367,7 @@ export function Totals({
       ),
       stats.eSkill
         ? t('myStats.totals.eSkillGames', {
-            defaultValue: 'Over your last {{count}} games',
+            defaultValue: 'Over the last {{count}} games',
             count: stats.eSkill.games,
           })
         : undefined,
