@@ -280,6 +280,35 @@
         text-wrap: balance;
       }
 
+      .download {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        margin-top: 24px;
+        padding: 0 20px 0 16px;
+        border-radius: 10px;
+        background: var(--on-surface);
+        color: var(--page);
+        font-size: 16px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .download:hover {
+        background: #ffffff;
+      }
+
+      .download svg {
+        width: 20px;
+        height: 20px;
+        fill: currentColor;
+      }
+
+      .install[hidden] {
+        display: none;
+      }
+
       .install {
         display: flex;
         flex-wrap: wrap;
@@ -411,6 +440,16 @@
           height="1350"
           fetchpriority="high"
           alt="A 2v2 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
+        <img
+          src="shots/library.webp"
+          srcset="shots/library-960.webp 960w, shots/library.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="The Library: every replay by day, with its players, map and length, and whether it's analyzed." />
         <img
           src="shots/live.webp"
           srcset="shots/live-960.webp 960w, shots/live.webp 1920w"
@@ -544,6 +583,15 @@
           aria-label="Scoreboard"></button>
         <button
           class="tab"
+          id="tab-library"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Library"></button>
+        <button
+          class="tab"
           id="tab-live"
           role="tab"
           aria-selected="false"
@@ -649,7 +697,22 @@
         Your old replays work too. Join a game and it shows who you're up against.
       </p>
 
-      <div class="install">
+      <a
+        class="download"
+        id="download"
+        href="https://github.com/brandonfredericksen/gg-stats-starcraft/releases/download/v1.4.2/GGStats-setup-1.4.2.exe">
+        <svg viewBox="0 -960 960 960" aria-hidden="true">
+          <path
+            d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" />
+        </svg>
+        Download for Windows
+      </a>
+      <p class="note">
+        Version <span id="version">1.4.2</span>. Needs StarCraft: Remastered.
+      </p>
+
+      <!-- TODO(winget): show once the ggstats package is approved in winget. -->
+      <div class="install" hidden>
         <span>To install:</span>
         <span class="command">
           <code id="command">winget install ggstats</code>
@@ -665,12 +728,6 @@
         </span>
         <span class="visually-hidden" role="status" id="copy-status"></span>
       </div>
-      <p class="note">
-        Or
-        <a href="https://github.com/brandonfredericksen/gg-stats-starcraft/releases/latest"
-          >download the installer</a
-        >. Needs StarCraft: Remastered on Windows.
-      </p>
 
       <footer>
         <a
@@ -799,6 +856,18 @@
           copyStatus.textContent = ''
         }, 1600)
       })
+
+      // The newest release's installer, so the button keeps up with releases. The link in the markup
+      // is the one current when it was written, for when GitHub can't be asked.
+      fetch('https://api.github.com/repos/brandonfredericksen/gg-stats-starcraft/releases/latest')
+        .then(response => (response.ok ? response.json() : Promise.reject(response.status)))
+        .then(release => {
+          const installer = release.assets.find(a => /^GGStats-setup-.+\.exe$/.test(a.name))
+          if (!installer) return
+          document.getElementById('download').href = installer.browser_download_url
+          document.getElementById('version').textContent = release.tag_name.replace(/^v/, '')
+        })
+        .catch(() => {})
 
       schedule()
     </script>
