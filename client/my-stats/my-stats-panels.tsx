@@ -366,7 +366,7 @@ const RecentStrip = styled.div<{ $columns: number }>`
   gap: 5px;
 `
 
-/** Chips to a row in a narrow panel, so the latest 20 games make two rows. */
+/** How many of the latest games a compact strip shows: one row of them, in a narrow panel. */
 const COMPACT_CHIP_COLUMNS = 10
 
 const RESULT_FILLS: Record<MyStatsGame['result'], string> = {
@@ -452,8 +452,8 @@ function getChipMatchupLabel(game: MyStatsGame, t: TFunction) {
 }
 
 /**
- * The latest games as chips colored by result, oldest first. `compact` leaves out the panel and its
- * title, for inside another panel.
+ * The latest games as chips colored by result, oldest first. `compact` shows only the latest row of
+ * them, without the panel and its title, for inside another panel.
  */
 export function RecentGames({
   games,
@@ -466,9 +466,10 @@ export function RecentGames({
   // The same matchup on every chip is noise; it's shown once in the title instead.
   const matchups = new Set(games.map(game => getChipMatchupLabel(game, t)))
   const matchupsVary = matchups.size > 1
+  const shown = compact ? games.slice(-COMPACT_CHIP_COLUMNS) : games
   const strip = (
     <RecentStrip $columns={compact ? COMPACT_CHIP_COLUMNS : 20}>
-      {games.toReversed().map(game => (
+      {shown.toReversed().map(game => (
         <RecentTooltip
           key={game.gameId}
           tabIndex={-1}
