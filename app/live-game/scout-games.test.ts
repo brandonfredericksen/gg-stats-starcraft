@@ -4,10 +4,17 @@ import {
   GAME_METRICS_VERSION,
   PlayerMetrics,
 } from '../../common/games/player-metrics'
+import { ESkillModel } from '../../common/my-stats/eskill'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
+import { computePlayerScout } from '../../common/my-stats/player-scout'
+import { asMockedFunction } from '../../common/testing/mocks'
 import { indexByName, KEEP_GAMES_MS, ScoutGames } from './scout-games'
 
 vi.mock('../logger', () => ({ default: { verbose: vi.fn(), warning: vi.fn(), error: vi.fn() } }))
+vi.mock('../../common/my-stats/player-scout', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../common/my-stats/player-scout')>()
+  return { ...actual, computePlayerScout: vi.fn(actual.computePlayerScout) }
+})
 
 const empty = CHECKPOINT_MINUTES.map(() => null)
 
@@ -79,12 +86,20 @@ describe('ScoutGames', () => {
   function setup(own: DatedGameMetrics[], baseline?: DatedGameMetrics[]) {
     const loadOwnGames = vi.fn(async () => ({ games: own, replayPathKeys: [] }))
     let loadedBaseline = baseline
-    const scoutGames = new ScoutGames({ loadOwnGames, loadedBaseline: () => loadedBaseline })
+    let loadedESkillModel: ESkillModel | undefined
+    const scoutGames = new ScoutGames({
+      loadOwnGames,
+      loadedBaseline: () => loadedBaseline,
+      loadedESkillModel: () => loadedESkillModel,
+    })
     return {
       scoutGames,
       loadOwnGames,
       loadBaseline: (games: DatedGameMetrics[]) => {
         loadedBaseline = games
+      },
+      fitESkill: (model: ESkillModel) => {
+        loadedESkillModel = model
       },
     }
   }
@@ -105,6 +120,18 @@ describe('ScoutGames', () => {
       totals: { games: 2 },
       fromBaseline: 0,
     })
+  })
+
+  test("scores eSkill once the model's been fit, without fitting it", async () => {
+    const { scoutGames, fitESkill } = setup([game('Opp', 'Me')])
+    const scout = asMockedFunction(computePlayerScout)
+    const [before] = await scoutGames.scout([['Opp']])
+    expect(scout.mock.lastCall?.[3]).toBeUndefined()
+    const model = { players: 1 } as ESkillModel
+    fitESkill(model)
+    scout.mockReturnValueOnce(before)
+    await scoutGames.scout([['Opp']])
+    expect(scout.mock.lastCall?.[3]).toBe(model)
   })
 
   test('reads the games once for a while, then again', async () => {

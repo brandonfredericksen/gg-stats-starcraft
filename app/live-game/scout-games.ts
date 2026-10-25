@@ -1,3 +1,4 @@
+import { ESkillModel } from '../../common/my-stats/eskill'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { computePlayerScout, PlayerScout } from '../../common/my-stats/player-scout'
 import { withoutLibraryCopies } from '../ladder-baseline/load-baseline'
@@ -16,6 +17,8 @@ export interface ScoutGamesDeps {
    * one to start while the user's game is loading, so they're only used once something else did.
    */
   loadedBaseline: () => ReadonlyArray<DatedGameMetrics> | undefined
+  /** The eSkill model, if it's been fit already, for the same reason. */
+  loadedESkillModel: () => ESkillModel | undefined
 }
 
 type NameIndex = ReadonlyMap<string, ReadonlyArray<DatedGameMetrics>>
@@ -59,12 +62,14 @@ export class ScoutGames {
   async scout(accountLists: ReadonlyArray<ReadonlyArray<string>>): Promise<PlayerScout[]> {
     const own = await this.loadOwn()
     const baseline = this.getBaselineIndex()
+    const eSkillModel = this.deps.loadedESkillModel()
+    const nowMs = Date.now()
     return accountLists.map(accounts => {
       const ownGames = gamesOf(own.byName, accounts)
       const baselineGames = baseline
         ? withoutLibraryCopies(gamesOf(baseline.byName, accounts), own.replayPathKeys, ownGames)
         : []
-      return computePlayerScout([...ownGames, ...baselineGames], accounts)
+      return computePlayerScout([...ownGames, ...baselineGames], accounts, nowMs, eSkillModel)
     })
   }
 

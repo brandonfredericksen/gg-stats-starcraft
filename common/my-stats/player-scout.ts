@@ -2,6 +2,7 @@ import { MapFamily } from '../games/map-family'
 import { GameShape, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
+import { ESkillModel } from './eskill'
 import { computeMyStats, DatedGameMetrics, MyStatsResult, WinLoss } from './my-stats'
 import { getMyResult, getSidesOf, splitsByMap } from './player-games'
 
@@ -32,7 +33,7 @@ export interface ScoutMatchup extends WinLoss {
 /** The parts of My stats a player's card shows, worked out the same way as on My stats. */
 export type ScoutTotals = Pick<
   MyStatsResult,
-  'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'recent'
+  'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill' | 'recent'
 >
 
 /** What the analyzed games say about a player: how they've done, and how they play. */
@@ -68,6 +69,7 @@ export function computePlayerScout(
   games: ReadonlyArray<DatedGameMetrics>,
   accounts: ReadonlyArray<string>,
   nowMs = Date.now(),
+  eSkillModel?: ESkillModel,
 ): PlayerScout {
   const lowerAccounts = new Set(accounts.map(a => a.toLowerCase()))
   const {
@@ -76,10 +78,11 @@ export function computePlayerScout(
     apm,
     eapm,
     durationMs,
+    eSkill,
     recent,
-  } = computeMyStats(games, { names: [...accounts], range: 'all' }, nowMs)
+  } = computeMyStats(games, { names: [...accounts], range: 'all' }, nowMs, eSkillModel)
   const scout: PlayerScout = {
-    totals: { games: count, record, apm, eapm, durationMs, recent },
+    totals: { games: count, record, apm, eapm, durationMs, eSkill, recent },
     races: [],
     matchups: [],
     fromBaseline: 0,
