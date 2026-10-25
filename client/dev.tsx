@@ -4,6 +4,7 @@ import { BuildsTest } from './builds/devonly/builds-test'
 import { CoachTest } from './coach/devonly/coach-test'
 import { DevSection } from './debug/dev-section'
 import { GameStatsTest } from './games/devonly/game-stats-test'
+import { LiveGameTest } from './live-game/devonly/live-game-test'
 import DevMaterial from './material/devonly/routes'
 import { DemoPlayerTest } from './my-stats/devonly/demo-player-test'
 import { LoadingIndicatorTest } from './progress/devonly/loading-indicator-test'
@@ -42,6 +43,7 @@ export default function Dev() {
             ['Builds', 'builds', BuildsTest],
             ['Demo player', 'demo-player', DemoPlayerTest],
             ['Game stats', 'game-stats', GameStatsTest],
+            ['Live game', 'live-game', LiveGameTest],
             ['Material components', 'material', DevMaterial],
             ['My stats coach', 'coach', CoachTest],
             ['Progress indicators', 'progress', LoadingIndicatorTest],

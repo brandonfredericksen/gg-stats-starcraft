@@ -121,7 +121,7 @@ export const Muted = styled.span`
 `
 
 /** A win rate, or nothing when no game had a result. */
-function getWinRate(record: WinLoss): number | undefined {
+export function getWinRate(record: WinLoss): number | undefined {
   const decided = record.wins + record.losses
   return decided ? record.wins / decided : undefined
 }
@@ -144,7 +144,7 @@ const RecordSeparator = styled.span`
 `
 
 /** Wins and losses, each in its result's color, or "-" when no game had a result. */
-function RecordText({ record }: { record: WinLoss }) {
+export function RecordText({ record }: { record: Pick<WinLoss, 'wins' | 'losses'> }) {
   if (!record.wins && !record.losses) {
     return <Muted>-</Muted>
   }
@@ -157,7 +157,7 @@ function RecordText({ record }: { record: WinLoss }) {
   )
 }
 
-function getShapeLabel(shape: GameShape, t: TFunction) {
+export function getShapeLabel(shape: GameShape, t: TFunction) {
   switch (shape) {
     case 'ffa':
       return t('myStats.ffa', 'FFA')
@@ -240,9 +240,10 @@ export function HelpLabel({
 
 // Totals
 
-const TotalsGrid = styled.div`
+const TotalsGrid = styled.div<{ $compact?: boolean }>`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: ${props =>
+    props.$compact ? 'repeat(3, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(140px, 1fr))'};
   gap: var(--space-3);
 `
 
@@ -253,12 +254,20 @@ const TotalTile = styled(StatsPanel)`
   gap: 6px;
 `
 
-const BigNumber = styled.span`
+const BigNumber = styled.span<{ $compact?: boolean }>`
   ${bahnschrift};
-  font-size: 30px;
+  font-size: ${props => (props.$compact ? 22 : 30)}px;
   font-weight: 700;
-  line-height: 30px;
+  line-height: ${props => (props.$compact ? 24 : 30)}px;
   font-variant-numeric: tabular-nums;
+`
+
+/** A total without a panel of its own, for inside another panel. */
+const CompactTile = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `
 
 const TileLabel = styled.span`
@@ -286,7 +295,17 @@ function ESkillValue({ value, rank }: { value: string; rank?: LadderRank }) {
   )
 }
 
-export function Totals({ stats }: { stats: MyStatsResult }) {
+/**
+ * The headline numbers. `compact` fits them in a narrow panel, like a player's card, without a
+ * panel around each.
+ */
+export function Totals({
+  stats,
+  compact = false,
+}: {
+  stats: Pick<MyStatsResult, 'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill'>
+  compact?: boolean
+}) {
   const { t } = useTranslation()
   const format = useStatFormat()
   const noResult = stats.games - stats.record.wins - stats.record.losses
@@ -348,7 +367,7 @@ export function Totals({ stats }: { stats: MyStatsResult }) {
       ),
       stats.eSkill
         ? t('myStats.totals.eSkillGames', {
-            defaultValue: 'Over your last {{count}} games',
+            defaultValue: 'Over the last {{count}} games',
             count: stats.eSkill.games,
           })
         : undefined,
@@ -359,16 +378,17 @@ export function Totals({ stats }: { stats: MyStatsResult }) {
       t('myStats.help.length', 'How long your games lasted, on average.'),
     ],
   ]
+  const Tile = compact ? CompactTile : TotalTile
   return (
-    <TotalsGrid>
+    <TotalsGrid $compact={compact}>
       {tiles.map(([value, label, help, note]) => (
-        <TotalTile key={label}>
-          <BigNumber>{value}</BigNumber>
+        <Tile key={label}>
+          <BigNumber $compact={compact}>{value}</BigNumber>
           <TileLabel>
             <HelpLabel label={label} help={help} />
           </TileLabel>
           {note ? <TileNote>{note}</TileNote> : null}
-        </TotalTile>
+        </Tile>
       ))}
     </TotalsGrid>
   )
@@ -376,11 +396,14 @@ export function Totals({ stats }: { stats: MyStatsResult }) {
 
 // Recent games
 
-const RecentStrip = styled.div`
+const RecentStrip = styled.div<{ $columns: number }>`
   display: grid;
-  grid-template-columns: repeat(20, minmax(0, 1fr));
+  grid-template-columns: repeat(${props => props.$columns}, minmax(0, 1fr));
   gap: 5px;
 `
+
+/** How many of the latest games a compact strip shows: one row of them, in a narrow panel. */
+const COMPACT_CHIP_COLUMNS = 10
 
 const RESULT_FILLS: Record<MyStatsGame['result'], string> = {
   win: 'var(--theme-positive-container)',
@@ -464,11 +487,52 @@ function getChipMatchupLabel(game: MyStatsGame, t: TFunction) {
   return game.shape === '1v1' ? getMatchupLabel(game, t) : getShapeLabel(game.shape, t)
 }
 
-export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
+/**
+ * The latest games as chips colored by result, oldest first. `compact` shows only the latest row of
+ * them, without the panel and its title, for inside another panel.
+ */
+export function RecentGames({
+  games,
+  compact = false,
+}: {
+  games: ReadonlyArray<MyStatsGame>
+  compact?: boolean
+}) {
   const { t } = useTranslation()
   // The same matchup on every chip is noise; it's shown once in the title instead.
   const matchups = new Set(games.map(game => getChipMatchupLabel(game, t)))
   const matchupsVary = matchups.size > 1
+  const shown = compact ? games.slice(-COMPACT_CHIP_COLUMNS) : games
+  const strip = (
+    <RecentStrip $columns={compact ? COMPACT_CHIP_COLUMNS : 20}>
+      {shown.toReversed().map(game => (
+        <RecentTooltip
+          key={game.gameId}
+          tabIndex={-1}
+          position='top'
+          text={[
+            getResultWord(game.result, t),
+            getMatchupLabel(game, t),
+            game.mapName,
+            getGameDurationString(game.durationMs),
+            new Date(game.gameTimeMs).toLocaleString(),
+          ].join(', ')}>
+          <RecentChip
+            type='button'
+            $result={game.result}
+            $tall={matchupsVary}
+            aria-label={`${getResultLetter(game.result, t)} ${getMatchupLabel(game, t)}`}
+            onClick={() => push(getGameStatsUrl(game.gameId))}>
+            <span>{getResultLetter(game.result, t)}</span>
+            {matchupsVary ? <RecentMatchup>{getChipMatchupLabel(game, t)}</RecentMatchup> : null}
+          </RecentChip>
+        </RecentTooltip>
+      ))}
+    </RecentStrip>
+  )
+  if (compact) {
+    return strip
+  }
   return (
     <PaddedPanel>
       <PanelHead>
@@ -489,31 +553,7 @@ export function RecentGames({ games }: { games: ReadonlyArray<MyStatsGame> }) {
             : null}
         </PanelHeadNote>
       </PanelHead>
-      <RecentStrip>
-        {games.toReversed().map(game => (
-          <RecentTooltip
-            key={game.gameId}
-            tabIndex={-1}
-            position='top'
-            text={[
-              getResultWord(game.result, t),
-              getMatchupLabel(game, t),
-              game.mapName,
-              getGameDurationString(game.durationMs),
-              new Date(game.gameTimeMs).toLocaleString(),
-            ].join(', ')}>
-            <RecentChip
-              type='button'
-              $result={game.result}
-              $tall={matchupsVary}
-              aria-label={`${getResultLetter(game.result, t)} ${getMatchupLabel(game, t)}`}
-              onClick={() => push(getGameStatsUrl(game.gameId))}>
-              <span>{getResultLetter(game.result, t)}</span>
-              {matchupsVary ? <RecentMatchup>{getChipMatchupLabel(game, t)}</RecentMatchup> : null}
-            </RecentChip>
-          </RecentTooltip>
-        ))}
-      </RecentStrip>
+      {strip}
     </PaddedPanel>
   )
 }

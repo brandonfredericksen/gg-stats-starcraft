@@ -51,7 +51,12 @@ export class LadderManifests {
     const byDir = new Map<string, string[]>()
     for (const key of replayPathKeys) {
       const dir = path.dirname(key)
-      byDir.set(dir, [...(byDir.get(dir) ?? []), key])
+      const keys = byDir.get(dir)
+      if (keys) {
+        keys.push(key)
+      } else {
+        byDir.set(dir, [key])
+      }
     }
     const games = new Map<string, LadderGame>()
     await Promise.all(

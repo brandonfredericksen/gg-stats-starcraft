@@ -294,6 +294,8 @@ export const THEME_CSS = css`
   --theme-best: #fbbf24;
   --theme-tab-last-game-tint: rgb(251 191 36 / 0.14);
   --theme-tab-last-game-ring: rgb(251 191 36 / 0.28);
+  /* A game going on now. */
+  --theme-live: #f87171;
   --theme-tab-settings: #94a3b8;
   --theme-tab-settings-tint: rgb(148 163 184 / 0.14);
   --theme-tab-settings-ring: rgb(148 163 184 / 0.28);
@@ -438,6 +440,7 @@ export const LIGHT_THEME_CSS = css`
   --theme-best: #b45309;
   --theme-tab-last-game-tint: #fef3c7;
   --theme-tab-last-game-ring: #fde68a;
+  --theme-live: #dc2626;
   --theme-tab-settings: #475569;
   --theme-tab-settings-tint: #f1f5f9;
   --theme-tab-settings-ring: #e2e8f0;

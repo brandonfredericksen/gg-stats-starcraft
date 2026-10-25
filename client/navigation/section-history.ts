@@ -1,5 +1,13 @@
 /** The app's top level sections, each with its own tab. */
-export type Section = 'library' | 'myStats' | 'coach' | 'builds' | 'lastGame' | 'settings' | 'other'
+export type Section =
+  | 'library'
+  | 'myStats'
+  | 'coach'
+  | 'builds'
+  | 'lastGame'
+  | 'liveGame'
+  | 'settings'
+  | 'other'
 
 export function getSection(pathname: string): Section {
   if (pathname === '/replays' || pathname.startsWith('/replays/')) {
@@ -17,6 +25,9 @@ export function getSection(pathname: string): Section {
   if (pathname.startsWith('/last-game')) {
     return 'lastGame'
   }
+  if (pathname.startsWith('/live-game')) {
+    return 'liveGame'
+  }
   if (pathname.startsWith('/settings')) {
     return 'settings'
   }
@@ -25,6 +36,15 @@ export function getSection(pathname: string): Section {
 
 /** How the app got to a history entry, as the Navigation API reports it. */
 export type VisitType = 'push' | 'replace' | 'reload' | 'traverse'
+
+/**
+ * Where a game's page belongs unless it was opened from one of {@link OPENS_GAMES_IN_PLACE}: Match
+ * stats, whose tab covers a game, before and after. The Library's tab is for the library itself.
+ */
+const GAME_SECTION: Section = 'lastGame'
+
+/** Sections whose games stay in them, so going to one of their games keeps their tab lit. */
+const OPENS_GAMES_IN_PLACE: ReadonlySet<Section> = new Set(['myStats', 'coach', 'builds'])
 
 /** A single game's page, which can be opened from any section, not just the library. */
 function isGamePage(pathname: string) {
@@ -54,8 +74,8 @@ export class EntrySections {
   }
 
   /**
-   * Makes the next page the app goes to belong to `section`, like a game opened from the Last
-   * game tab. Only the very next page, so one that never comes doesn't claim a later one.
+   * Makes the next page the app goes to belong to `section`, like a game opened from the Match
+   * stats tab. Only the very next page, so one that never comes doesn't claim a later one.
    */
   openNextIn(section: Section) {
     this.pending = section
@@ -71,13 +91,13 @@ export class EntrySections {
     if (isGamePage(pathname)) {
       const known = this.sections.get(key)
       if (type === 'traverse' || type === 'reload') {
-        section = known ?? 'library'
+        section = known ?? GAME_SECTION
       } else if (type === 'replace' && known) {
         section = known
       } else if (pending) {
         section = pending
-      } else if (this.current !== 'other' && this.current !== 'settings') {
-        section = this.current
+      } else {
+        section = OPENS_GAMES_IN_PLACE.has(this.current) ? this.current : GAME_SECTION
       }
     }
     this.sections.set(key, section)

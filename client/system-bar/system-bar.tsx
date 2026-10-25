@@ -11,6 +11,7 @@ import { SYSTEM_BAR_HEIGHT } from '../../common/window-layout'
 import { useFitLevel } from '../dom/use-fit-level'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
+import { hasLiveGameAtom } from '../live-game/live-game-atoms'
 import logo from '../logos/logo.png'
 import { useButtonHotkey } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -96,6 +97,18 @@ const Nav = styled.nav`
 `
 
 type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'settings'
+
+/**
+ * Marks Match stats while the user is in a game. It stays still: the app is open while they play,
+ * and an animation would keep it drawing.
+ */
+const LiveDot = styled.span`
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--theme-live);
+`
 
 const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   ${buttonReset};
@@ -420,7 +433,9 @@ export function SystemBar() {
   const isMyStats = section === 'myStats'
   const isCoach = section === 'coach'
   const isBuilds = section === 'builds'
-  const isLastGame = section === 'lastGame'
+  // Match stats is both the game being played and the last game's stats.
+  const isMatch = section === 'lastGame' || section === 'liveGame'
+  const hasLiveGame = useAtomValue(hasLiveGameAtom)
   const [settingsButton, setSettingsButton] = useState<HTMLButtonElement | null>(null)
   useButtonHotkey({ elem: settingsButton, hotkey: ALT_S })
   const [lastGameButton, setLastGameButton] = useState<HTMLButtonElement | null>(null)
@@ -459,6 +474,28 @@ export function SystemBar() {
           <MaterialIcon icon='video_library' size={20} />
           {t('replays.activity.library', 'Library')}
         </NavItem>
+        <Tooltip
+          text={
+            hasLiveGame
+              ? t('matchStats.liveTooltip', "Who's in the game you joined (Alt + G)")
+              : t('matchStats.tooltip', 'Stats for your newest game (Alt + G)')
+          }
+          position='bottom'>
+          <NavItem
+            ref={setLastGameButton}
+            type='button'
+            $tab='last-game'
+            $active={isMatch}
+            aria-current={isMatch ? 'page' : undefined}
+            data-testid='last-game-button'
+            onClick={() => (hasLiveGame ? push('/live-game') : dispatch(openLastGame()))}>
+            <MaterialIcon icon='sports_esports' size={20} />
+            {t('matchStats.label', 'Match stats')}
+            {hasLiveGame ? (
+              <LiveDot aria-label={t('matchStats.inGame', 'In a game')} role='img' />
+            ) : null}
+          </NavItem>
+        </Tooltip>
         <NavItem
           type='button'
           $tab='stats'
@@ -486,21 +523,6 @@ export function SystemBar() {
           <MaterialIcon icon='account_tree' size={20} />
           {t('builds.title', 'Builds')}
         </NavItem>
-        <Tooltip
-          text={t('lastGame.tooltip', 'Stats for your newest game (Alt + G)')}
-          position='bottom'>
-          <NavItem
-            ref={setLastGameButton}
-            type='button'
-            $tab='last-game'
-            $active={isLastGame}
-            aria-current={isLastGame ? 'page' : undefined}
-            data-testid='last-game-button'
-            onClick={() => dispatch(openLastGame())}>
-            <MaterialIcon icon='history' size={20} />
-            {t('lastGame.label', 'Last game')}
-          </NavItem>
-        </Tooltip>
       </Nav>
       <Spacer />
       <RestartToUpdateButton />

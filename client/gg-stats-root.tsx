@@ -53,6 +53,9 @@ const BuildsPage = React.lazy(async () => ({
 const CoachPage = React.lazy(async () => ({
   default: (await import('./coach/coach-page')).CoachPage,
 }))
+const LiveGamePage = React.lazy(async () => ({
+  default: (await import('./live-game/live-game-page')).LiveGamePage,
+}))
 const GameStatsPage = React.lazy(async () => ({
   default: (await import('./games/game-stats-page')).GameStatsPage,
 }))
@@ -249,6 +252,7 @@ function Layout() {
                 <Route path='/replays/*?' component={ReplaysRoot} />
                 <Route path='/settings' component={SettingsScreen} />
                 <Route path='/last-game' component={LastGamePage} />
+                <Route path='/live-game' component={LiveGamePage} />
                 <Route path='/my-stats' component={MyStatsPage} />
                 <Route path='/coach' component={CoachPage} />
                 <Route path='/builds' component={BuildsPage} />

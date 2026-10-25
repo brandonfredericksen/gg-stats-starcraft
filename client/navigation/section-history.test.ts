@@ -46,10 +46,24 @@ describe('client/navigation/section-history', () => {
     expect(sections.section).toBe('myStats')
   })
 
-  test('puts a game opened from settings in the library', () => {
+  test('puts a game opened from the library, settings or a notification in Match stats', () => {
     const sections = new EntrySections()
-    sections.visit('a', '/settings', 'reload')
+    sections.visit('a', '/replays', 'reload')
     sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('lastGame')
+    sections.visit('c', '/settings', 'push')
+    sections.visit('d', '/replays/stats/g2', 'push')
+    expect(sections.section).toBe('lastGame')
+    sections.visit('e', '/replays/stats/g3', 'reload')
+    expect(sections.section).toBe('lastGame')
+  })
+
+  test('keeps the library lit only for the library', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/replays', 'reload')
+    expect(sections.section).toBe('library')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    sections.visit('a', '/replays', 'traverse')
     expect(sections.section).toBe('library')
   })
 })

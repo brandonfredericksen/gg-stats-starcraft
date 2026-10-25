@@ -42,6 +42,7 @@ import {
   readMissingCommands,
 } from './ladder-baseline/ladder-run'
 import { getLaunchReplayPaths } from './launch-args'
+import { LiveGameService } from './live-game'
 import logger from './logger'
 import { setupMyStats } from './my-stats'
 import { ReplayLibraryService, setupReplayLibrary } from './replay-library'
@@ -900,9 +901,17 @@ app.on('ready', () => {
         // A failure to set up the replay index shouldn't take down the whole app.
         logger.error(`Error setting up the replay library: ${getErrorStack(err)}`)
       }
-      setupMyStats(gameStatsStore, pathKeys => replayLibrary?.getGameTimes(pathKeys) ?? new Map())
-      const commandStatsBackfill = new CommandStatsBackfill(gameStatsStore, readCommandStats, () =>
-        TypedIpcSender.from(mainWindow?.webContents).send('myStatsChanged'),
+      const myStats = setupMyStats(
+        gameStatsStore,
+        pathKeys => replayLibrary?.getGameTimes(pathKeys) ?? new Map(),
+      )
+      const commandStatsBackfill = new CommandStatsBackfill(
+        gameStatsStore,
+        readCommandStats,
+        () => {
+          myStats.forgetScoutGames()
+          TypedIpcSender.from(mainWindow?.webContents).send('myStatsChanged')
+        },
       )
       commandStatsBackfill.start()
       // New stats, and a played game's replay once it's saved, have commands to read.
@@ -910,6 +919,7 @@ app.on('ready', () => {
         .resolve(ActiveGameManager)
         .on('gameStats', (_gameId, _stats, source) => {
           commandStatsBackfill.schedule(5000)
+          myStats.forgetScoutGames()
           if (source.kind === 'replay') {
             replayLibrary?.fillTileset(source.path).catch(err => {
               logger.error(`Error reading the tileset of ${source.path}: ${getErrorStack(err)}`)
@@ -917,6 +927,21 @@ app.on('ready', () => {
           }
         })
         .on('replaySaved', () => commandStatsBackfill.schedule(5000))
+
+      const liveGame = new LiveGameService({
+        localSettings,
+        browserCacheFolder: path.join(app.getPath('temp'), 'blizzard_browser_cache'),
+        shieldBatteryLogFolder: path.join(app.getPath('appData'), 'ShieldBattery', 'logs'),
+        replayFolder: defaultReplayFolder(),
+        onChange: game =>
+          TypedIpcSender.from(mainWindow?.webContents).send('liveGameChanged', game),
+      })
+      ipcMain.handle('liveGameGet', async () => liveGame.game)
+      if (!ladderRun) {
+        liveGame.start().catch(err => {
+          logger.error(`Error starting the live game watchers: ${getErrorStack(err)}`)
+        })
+      }
 
       const autoCapture = new AutoCaptureService({
         replayFolder: defaultReplayFolder(),
@@ -1012,6 +1037,7 @@ app.on('ready', () => {
 
       app.on('will-quit', () => {
         autoCapture.stop()
+        liveGame.stop()
         replayLibrary?.stop()
         localSettings.saveSettingsToDiskSync()
         scrSettings.saveSettingsToDiskSync()

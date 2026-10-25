@@ -124,9 +124,18 @@ describe('app/game/game-stats-store', () => {
 
   test("finds a replay's latest stats by its path, however the path is written", async () => {
     const replayPath = await makeReplay('game.rep')
-    await new GameStatsStore(dir).save('first', analysis(replayPath), STATS)
+    // The latest is the one saved last, so the two saves need different times: fast enough, they'd
+    // land in the same millisecond.
     const store = new GameStatsStore(dir)
-    await store.save('second', analysis(replayPath), STATS)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(1_000_000)
+      await new GameStatsStore(dir).save('first', analysis(replayPath), STATS)
+      vi.setSystemTime(2_000_000)
+      await store.save('second', analysis(replayPath), STATS)
+    } finally {
+      vi.useRealTimers()
+    }
 
     expect((await store.findByReplayPath(replayPath.replaceAll('\\', '/')))?.gameId).toBe('second')
     expect(await store.findByReplayPath(await makeReplay('other.rep'))).toBeUndefined()
