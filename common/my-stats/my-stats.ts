@@ -5,6 +5,7 @@ import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../ga
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
 import { DEFAULT_EAPM_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
+import { ESKILL_AVERAGE_GAMES, ESkillModel, getESkill, getESkillRank } from './eskill'
 import {
   findMe,
   getMyResult,
@@ -67,10 +68,11 @@ export function computeMyStatsSummary(
   games: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
   nowMs: number,
+  eSkillModel?: ESkillModel,
 ): MyStatsSummary {
   const { names, range, shape } = query
   return {
-    stats: computeMyStats(games, query, nowMs),
+    stats: computeMyStats(games, query, nowMs, eSkillModel),
     analyzedGames: computeMyStats(games, { names, range: 'all' }, nowMs).games,
     scopedGames: computeMyStats(games, { names, range, shape }, nowMs).games,
   }
@@ -115,6 +117,8 @@ export interface MyStatsGame {
   bankMid?: number
   /** The share of the game spent supply blocked, after the first 3 minutes. */
   supplyBlockedShare?: number
+  /** The user's eSkill in the game, see `eskill.ts`, if they played long enough to score. */
+  eSkill?: number
 }
 
 export interface MatchupRow extends WinLoss {
@@ -182,6 +186,11 @@ export interface MyStatsResult {
   apm?: Average
   eapm?: Average
   durationMs?: Average
+  /**
+   * The user's eSkill averaged over their latest {@link ESKILL_AVERAGE_GAMES} scored games, and the
+   * ladder rank it falls in.
+   */
+  eSkill?: Average & { rank?: LadderRank }
   /** The latest games, oldest first. */
   recent: MyStatsGame[]
   /** The latest games for the trends, oldest first, up to {@link TREND_GAMES}. */
@@ -320,7 +329,10 @@ function playsAgainstPair(
   return game.shape === '2v2' && races(opponents).join('') === pair
 }
 
-function toGame({ game, me, result, teammates, opponents }: MyGame): MyStatsGame {
+function toGame(
+  { game, me, result, teammates, opponents }: MyGame,
+  eSkillModel: ESkillModel | undefined,
+): MyStatsGame {
   return {
     gameId: game.gameId,
     gameTimeMs: game.gameTimeMs,
@@ -337,7 +349,21 @@ function toGame({ game, me, result, teammates, opponents }: MyGame): MyStatsGame
     income6: me.income[CHECKPOINT_MINUTES.indexOf(6)] ?? undefined,
     bankMid: me.bank[1] ?? undefined,
     supplyBlockedShare: me.supplyBlockedShare ?? undefined,
+    eSkill: eSkillModel ? getESkill(eSkillModel, game, me)?.value : undefined,
   }
+}
+
+function getESkillAverage(
+  games: ReadonlyArray<MyStatsGame>,
+  model: ESkillModel | undefined,
+): MyStatsResult['eSkill'] {
+  const scores = games.flatMap(g => (g.eSkill !== undefined ? [g.eSkill] : []))
+  const latest = scores.slice(-ESKILL_AVERAGE_GAMES)
+  if (!model || !latest.length) {
+    return undefined
+  }
+  const value = latest.reduce((a, b) => a + b, 0) / latest.length
+  return { value, games: latest.length, rank: getESkillRank(model, value) }
 }
 
 type MatchupTally = MatchupRow & { apmAverage: Averager; length: Averager }
@@ -649,6 +675,7 @@ export function computeMyStats(
   allGames: ReadonlyArray<DatedGameMetrics>,
   pickedQuery: MyStatsQuery,
   nowMs: number,
+  eSkillModel?: ESkillModel,
 ): MyStatsResult {
   const myGames = allGames
     .map(game => toMyGame(game, pickedQuery.names))
@@ -669,6 +696,7 @@ export function computeMyStats(
     durationMs.add(g.game.durationMs)
   }
 
+  const shown = games.map(g => toGame(g, eSkillModel))
   const people = getPeople(games, query.names)
   const { auto: autoRank, rank } =
     query.shape === '1v1'
@@ -687,8 +715,9 @@ export function computeMyStats(
     apm: apm.get(),
     eapm: eapm.get(),
     durationMs: durationMs.get(),
-    recent: games.slice(-RECENT_GAMES).map(toGame),
-    trend: games.slice(-TREND_GAMES).map(toGame),
+    eSkill: getESkillAverage(shown, eSkillModel),
+    recent: shown.slice(-RECENT_GAMES),
+    trend: shown.slice(-TREND_GAMES),
     byMatchup: getMatchupRows(games),
     byLength: getLengthRows(games),
     // Held to the same rule as the others they're compared with.

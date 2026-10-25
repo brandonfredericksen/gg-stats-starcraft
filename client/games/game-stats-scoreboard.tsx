@@ -39,6 +39,8 @@ export interface ScoreColumn {
   split?: (player: GamePlayerStats) => ArmyWorth | undefined
   /** Says what the column's values mean, on hover. */
   description?: string
+  /** The value a full bar stands for, if not the column's highest. */
+  max?: number
 }
 
 const ScoreboardPanel = styled(StatsPanel)`
@@ -340,7 +342,8 @@ export function PlayerStatsGrid({
 }) {
   const { t } = useTranslation()
   const format = useStatFormat()
-  const maxes = columns.map(column => Math.max(0, ...players.map(p => column.get(p) ?? 0)))
+  const highests = columns.map(column => Math.max(0, ...players.map(p => column.get(p) ?? 0)))
+  const maxes = columns.map((column, i) => column.max ?? highests[i])
   // A player who left early had less time to lose units or get supply blocked, so for the numbers
   // where less is better only the players who stayed until the end can be the best, unless nobody
   // did.
@@ -355,7 +358,7 @@ export function PlayerStatsGrid({
       return undefined
     }
     if (!column.lowerIsBetter) {
-      return maxes[i] > 0 ? maxes[i] : undefined
+      return highests[i] > 0 ? highests[i] : undefined
     }
     const values = lowestFrom.map(p => column.get(p)).filter(value => value !== undefined)
     const lowest = Math.min(...values)

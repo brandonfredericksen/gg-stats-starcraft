@@ -23,6 +23,7 @@ import { ReplayChat } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
 import { TilesetId } from './maps'
 import { CoachQuery, CoachResult } from './my-stats/coach'
+import { ESkill } from './my-stats/eskill'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
 import {
@@ -172,6 +173,8 @@ interface IpcInvokeables {
   gameStatsSummarizeReplays: (replayPaths: string[]) => Promise<Record<string, GameStatsSummary>>
   /** Sums up the user's analyzed games for My stats. */
   myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsSummary>
+  /** The eSkill of each player in a game with saved stats who played long enough to score, by id. */
+  gameESkill: (gameId: string) => Promise<Record<number, ESkill>>
   /** Compares the user's games of one kind with other players', for the Coach page. */
   coachQuery: (query: CoachQuery) => Promise<CoachResult>
   /** The builds top players use in one kind of game, for the Builds page. */

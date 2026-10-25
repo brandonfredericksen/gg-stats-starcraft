@@ -600,6 +600,28 @@ export class GameStatsStore {
   }
 
   /**
+   * The numbers My stats works from for one game, as {@link get} finds its stats, with the id of
+   * each player in the same order.
+   */
+  async getMetrics(
+    gameId: string,
+  ): Promise<{ metrics: GameMetrics; playerIds: number[] } | undefined> {
+    const saved = await this.get(gameId)
+    if (!saved) {
+      return undefined
+    }
+    const stats = fromGameStatsPayload(saved.stats)
+    return {
+      metrics: computeGameMetrics(
+        saved.gameId,
+        stats,
+        saved.commands?.version === COMMAND_STATS_VERSION ? saved.commands : undefined,
+      ),
+      playerIds: stats.players.map(p => p.id),
+    }
+  }
+
+  /**
    * The numbers My stats works from, for every game with saved stats. A replay analyzed more than
    * once, or played and then analyzed, is listed once: stats covering the whole game first, then
    * the newest.
