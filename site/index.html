@@ -17,7 +17,7 @@
     <title>GG Stats for StarCraft</title>
     <meta
       name="description"
-      content="Stats for every StarCraft: Remastered and Brood War game you play. GG Stats analyzes each replay as soon as the game ends. Free and open source." />
+      content="Stats for every StarCraft: Remastered and Brood War game you play. GG Stats analyzes each replay as soon as the game ends, and shows who's in the games you join. Free and open source." />
     <meta property="og:title" content="GG Stats for StarCraft" />
     <meta
       property="og:description"
@@ -412,6 +412,16 @@
           fetchpriority="high"
           alt="A 2v2 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
         <img
+          src="shots/live.webp"
+          srcset="shots/live-960.webp 960w, shots/live.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          alt="A 3v3 that's about to start: both teams, with each player's rating, EAPM, eSkill, record and usual build." />
+        <img
           src="shots/charts.webp"
           srcset="shots/charts-960.webp 960w, shots/charts.webp 1920w"
           sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
@@ -470,7 +480,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Coach for an S rank Protoss player in PvP: goals for the next game, how their latest games are going and what to keep doing." />
+          alt="Coach for an S rank Protoss player in PvT: goals for the next game, how their latest games are going and what to keep doing." />
         <img
           src="shots/numbers.webp"
           srcset="shots/numbers-960.webp 960w, shots/numbers.webp 1920w"
@@ -480,7 +490,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="All the numbers: economy, growth, fights and speed from their PvP games, next to other S rank Protoss players." />
+          alt="All the numbers: economy, growth, fights and speed from their PvT games, next to other S rank Protoss players." />
         <img
           src="shots/builds.webp"
           srcset="shots/builds-960.webp 960w, shots/builds.webp 1920w"
@@ -532,6 +542,15 @@
           aria-controls="screens"
           type="button"
           aria-label="Scoreboard"></button>
+        <button
+          class="tab"
+          id="tab-live"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          aria-label="Live game"></button>
         <button
           class="tab"
           id="tab-charts"
@@ -627,7 +646,7 @@
       <h1>Stats for every StarCraft game you play</h1>
       <p class="lede">
         GG Stats analyzes each replay as soon as the game ends, from Battle.net or ShieldBattery.
-        Your old replays work too.
+        Your old replays work too. Join a game and it shows who you're up against.
       </p>
 
       <div class="install">
