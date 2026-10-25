@@ -21,7 +21,16 @@ import logger from '../logging/logger'
 import { TextButton } from '../material/button'
 import { RaceTag } from '../material/race-tag'
 import { SkeletonText } from '../material/skeleton'
-import { getShapeLabel, Muted, PaddedPanel, RecordText } from '../my-stats/my-stats-panels'
+import {
+  formatPercent,
+  getShapeLabel,
+  getWinRate,
+  Muted,
+  PaddedPanel,
+  RecentGames,
+  RecordText,
+  Totals,
+} from '../my-stats/my-stats-panels'
 import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
 import { findPlayerByAccount, useKnownPlayers } from '../players/known-players'
 import { PlayerNameButton } from '../players/player-card'
@@ -118,6 +127,30 @@ const Section = styled.section`
   gap: var(--space-2);
 `
 
+/** A part of a section, under its own small label. */
+const SubSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+`
+
+const SubLabel = styled.div`
+  ${labelSmall};
+  color: var(--theme-on-surface-variant);
+`
+
+const Races = styled.div`
+  ${bodyMedium};
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+`
+
+const SectionNote = styled.div`
+  ${bodySmall};
+  color: var(--theme-on-surface-variant);
+`
+
 const SectionLabel = styled.h3`
   ${labelMedium};
   margin: 0;
@@ -162,7 +195,7 @@ const Table = styled.div`
   ${bodySmall};
   display: grid;
   /* The same columns in every matchup, so the numbers line up from one to the next. */
-  grid-template-columns: minmax(0, 1fr) 56px 72px;
+  grid-template-columns: minmax(0, 1fr) 48px 64px 48px;
   align-items: baseline;
   gap: 2px var(--space-3);
 `
@@ -343,113 +376,147 @@ function RecordWithYou({
   )
 }
 
+/** How much of the builds table shows before it's opened up: a glance, not every game ever. */
+const MATCHUPS_SHOWN = 3
+const BUILDS_SHOWN = 3
+
+/** The rows a matchup has: its builds, then the games whose build has no name, if any. */
+function getBuildRows(matchup: ScoutMatchup, all: boolean) {
+  const builds = all ? matchup.builds : matchup.builds.slice(0, BUILDS_SHOWN)
+  // Unnamed games only take a row of their own when they're all there is, or everything shows.
+  const unnamed = matchup.unnamed.games > 0 && (all || !matchup.builds.length)
+  return { builds, unnamed }
+}
+
+function countRows(matchups: ReadonlyArray<ScoutMatchup>, all: boolean) {
+  return matchups.slice(0, all ? undefined : MATCHUPS_SHOWN).reduce((count, matchup) => {
+    const rows = getBuildRows(matchup, all)
+    return count + 1 + rows.builds.length + Number(rows.unnamed)
+  }, 0)
+}
+
 function BuildsTable({ matchups }: { matchups: ReadonlyArray<ScoutMatchup> }) {
   const { t } = useTranslation()
+  const [all, setAll] = useState(false)
+  const hiddenRows = countRows(matchups, true) - countRows(matchups, false)
   return (
-    <Table role='table' aria-label={t('liveGame.buildsTable', 'Builds by matchup')}>
-      <TableRow role='row'>
-        <HeadCell role='columnheader'>
-          {t('liveGame.matchupAndBuild', 'Matchup and build')}
-        </HeadCell>
-        <HeadCell role='columnheader' $end={true}>
-          {t('liveGame.games', 'Games')}
-        </HeadCell>
-        <HeadCell role='columnheader' $end={true}>
-          {t('liveGame.record', 'Record')}
-        </HeadCell>
-      </TableRow>
-      {matchups.map(matchup => (
-        <React.Fragment
-          key={[
-            matchup.shape,
-            matchup.race,
-            matchup.teammateRaces.join(''),
-            matchup.opponentRaces.join(''),
-            matchup.mapFamily,
-          ].join(' ')}>
-          <TableRow role='row'>
-            <MatchupCell role='rowheader'>{getMatchupLabel(matchup, t)}</MatchupCell>
-            <MatchupCell role='cell' $end={true}>
-              <Figure>{matchup.games}</Figure>
-            </MatchupCell>
-            <MatchupCell role='cell' $end={true}>
-              <RecordText record={matchup} />
-            </MatchupCell>
-          </TableRow>
-          {matchup.builds.map(build => (
-            <TableRow role='row' key={build.family}>
-              <BuildCell role='rowheader' title={getBuildFamilyName(build.family, t)}>
-                {getBuildFamilyName(build.family, t)}
-              </BuildCell>
-              <NumberCell role='cell'>{build.games}</NumberCell>
-              <NumberCell role='cell'>
-                <RecordText record={build} />
-              </NumberCell>
-            </TableRow>
-          ))}
-          {matchup.unnamed.games ? (
-            <TableRow role='row'>
-              <BuildCell role='rowheader'>
-                <Muted>{t('liveGame.unnamedBuild', 'Unnamed build')}</Muted>
-              </BuildCell>
-              <NumberCell role='cell'>{matchup.unnamed.games}</NumberCell>
-              <NumberCell role='cell'>
-                <RecordText record={matchup.unnamed} />
-              </NumberCell>
-            </TableRow>
-          ) : null}
-        </React.Fragment>
-      ))}
-    </Table>
+    <>
+      <Table role='table' aria-label={t('liveGame.buildsTable', 'Builds by matchup')}>
+        <TableRow role='row'>
+          <HeadCell role='columnheader'>
+            {t('liveGame.matchupAndBuild', 'Matchup and build')}
+          </HeadCell>
+          <HeadCell role='columnheader' $end={true}>
+            {t('liveGame.games', 'Games')}
+          </HeadCell>
+          <HeadCell role='columnheader' $end={true}>
+            {t('liveGame.record', 'Record')}
+          </HeadCell>
+          <HeadCell role='columnheader' $end={true}>
+            {t('liveGame.winRate', 'Win %')}
+          </HeadCell>
+        </TableRow>
+        {matchups.slice(0, all ? undefined : MATCHUPS_SHOWN).map(matchup => {
+          const rows = getBuildRows(matchup, all)
+          return (
+            <React.Fragment
+              key={[
+                matchup.shape,
+                matchup.race,
+                matchup.teammateRaces.join(''),
+                matchup.opponentRaces.join(''),
+                matchup.mapFamily,
+              ].join(' ')}>
+              <TableRow role='row'>
+                <MatchupCell role='rowheader'>{getMatchupLabel(matchup, t)}</MatchupCell>
+                <MatchupCell role='cell' $end={true}>
+                  <Figure>{matchup.games}</Figure>
+                </MatchupCell>
+                <MatchupCell role='cell' $end={true}>
+                  <RecordText record={matchup} />
+                </MatchupCell>
+                <MatchupCell role='cell' $end={true}>
+                  <Figure>{formatPercent(getWinRate(matchup))}</Figure>
+                </MatchupCell>
+              </TableRow>
+              {rows.builds.map(build => (
+                <TableRow role='row' key={build.family}>
+                  <BuildCell role='rowheader' title={getBuildFamilyName(build.family, t)}>
+                    {getBuildFamilyName(build.family, t)}
+                  </BuildCell>
+                  <NumberCell role='cell'>{build.games}</NumberCell>
+                  <NumberCell role='cell'>
+                    <RecordText record={build} />
+                  </NumberCell>
+                  <NumberCell role='cell'>{formatPercent(getWinRate(build))}</NumberCell>
+                </TableRow>
+              ))}
+              {rows.unnamed ? (
+                <TableRow role='row'>
+                  <BuildCell
+                    role='rowheader'
+                    title={t(
+                      'liveGame.unnamedBuildHelp',
+                      "Games whose build couldn't be named, like ones over too soon to tell.",
+                    )}>
+                    <Muted>{t('liveGame.unnamedBuild', 'Unnamed build')}</Muted>
+                  </BuildCell>
+                  <NumberCell role='cell'>{matchup.unnamed.games}</NumberCell>
+                  <NumberCell role='cell'>
+                    <RecordText record={matchup.unnamed} />
+                  </NumberCell>
+                  <NumberCell role='cell'>{formatPercent(getWinRate(matchup.unnamed))}</NumberCell>
+                </TableRow>
+              ) : null}
+            </React.Fragment>
+          )
+        })}
+      </Table>
+      {hiddenRows > 0 || all ? (
+        <div>
+          <TextButton
+            label={
+              all
+                ? t('liveGame.showLess', 'Show less')
+                : t('liveGame.showAll', {
+                    defaultValue: 'Show all ({{count}} more rows)',
+                    defaultValue_one: 'Show all (1 more row)',
+                    count: hiddenRows,
+                  })
+            }
+            onClick={() => setAll(!all)}
+          />
+        </div>
+      ) : null}
+    </>
   )
 }
 
-/** How long ago someone's latest analyzed game was played. */
-function LastPlayed({ ms }: { ms: number }) {
-  const { t } = useTranslation()
-  const nowMs = useCurrentMinuteMs()
-  const format = useFormat(TIME_AGO_FORMAT)
-  const when = format.format(Math.min(toMinute(ms), nowMs), nowMs)
-  return <Muted>{t('liveGame.lastPlayed', 'Last played {{when}}', { when })}</Muted>
-}
-
+/** A player's card shows a small My stats for them, then the builds they went with. */
 function ScoutDetails({ scout }: { scout: PlayerScout }) {
   const { t } = useTranslation()
+  const { totals } = scout
   return (
     <>
-      <Stats>
-        <Stat>
-          <StatLabel>{t('liveGame.games', 'Games')}</StatLabel>
-          <StatValue>{scout.games}</StatValue>
-        </Stat>
-        <Stat>
-          <StatLabel>{t('liveGame.record', 'Record')}</StatLabel>
-          <StatValue>
-            <RecordText record={scout} />
-          </StatValue>
-        </Stat>
-        <Stat>
-          <StatLabel>{t('gameStats.apm', 'APM')}</StatLabel>
-          <StatValue>{scout.apm ? Math.round(scout.apm.value) : '-'}</StatValue>
-        </Stat>
-        <Stat>
-          <StatLabel>{t('gameStats.eapm', 'EAPM')}</StatLabel>
-          <StatValue>{scout.eapm ? Math.round(scout.eapm.value) : '-'}</StatValue>
-        </Stat>
-        {scout.races.length ? (
-          <Stat>
-            <StatLabel>{t('liveGame.plays', 'Plays')}</StatLabel>
-            <StatValue>
-              {scout.races.map(({ race, games }) => (
-                <span key={race}>
-                  <RaceTag race={race} /> {games}
-                </span>
-              ))}
-            </StatValue>
-          </Stat>
-        ) : null}
-      </Stats>
-      {scout.lastPlayedMs ? <LastPlayed ms={scout.lastPlayedMs} /> : null}
+      <Totals stats={totals} compact={true} />
+      {totals.recent.length ? (
+        <SubSection>
+          <SubLabel>{t('liveGame.latestGames', 'Latest games, newest first')}</SubLabel>
+          <RecentGames games={totals.recent} compact={true} />
+        </SubSection>
+      ) : null}
+      {scout.races.length ? (
+        <SubSection>
+          <SubLabel>{t('liveGame.racesPlayed', 'Games as each race')}</SubLabel>
+          <Races>
+            {scout.races.map(({ race, games }) => (
+              <span key={race}>
+                <RaceTag race={race} /> <Figure>{games}</Figure>
+              </span>
+            ))}
+          </Races>
+        </SubSection>
+      ) : null}
       {scout.fromBaseline ? (
         <Muted>
           {t('liveGame.fromBaseline', {
@@ -472,7 +539,7 @@ function ScoutSummary({ scout }: { scout: ScoutState }) {
   if (scout === 'error') {
     return <Muted>{t('liveGame.scoutFailed', "Couldn't look up their games.")}</Muted>
   }
-  if (!scout.games) {
+  if (!scout.totals.games) {
     return <Muted>{t('liveGame.noAnalyzedGames', 'None analyzed yet.')}</Muted>
   }
   return <ScoutDetails scout={scout} />
@@ -553,11 +620,18 @@ function PlayerCard({
       ) : null}
 
       <Section>
-        <SectionLabel>
-          {isMe
-            ? t('liveGame.yourAnalyzedGames', 'Your analyzed games')
-            : t('liveGame.theirAnalyzedGames', 'Their analyzed games')}
-        </SectionLabel>
+        <div>
+          <SectionLabel>
+            {isMe
+              ? t('liveGame.yourAnalyzedGames', 'Your analyzed games')
+              : t('liveGame.theirAnalyzedGames', 'Their analyzed games')}
+          </SectionLabel>
+          <SectionNote>
+            {isMe
+              ? t('liveGame.yourGamesScope', 'Every game of yours that GG Stats analyzed, all time')
+              : t('liveGame.theirGamesScope', 'Every analyzed game they were in, all time')}
+          </SectionNote>
+        </div>
         <SectionErrorBoundary>
           <ScoutSummary scout={scout} />
         </SectionErrorBoundary>
@@ -635,13 +709,17 @@ function LiveGameView({ game }: { game: LiveGame }) {
   const people: Person[] = game.players
     .map(player => {
       const known = findPlayerByAccount(knownPlayers, player.name)
-      const accounts = getAccounts(player, known)
+      const isMe = isMyPlayerName(player.name, myNames)
+      // The user's own card counts every name they play under, without listing them.
+      const accounts = isMe
+        ? Array.from(new Set([player.name, ...myNames]))
+        : getAccounts(player, known)
       return {
         player,
         known,
         accounts,
-        aliases: getAliases(player.name, accounts),
-        isMe: isMyPlayerName(player.name, myNames),
+        aliases: isMe ? [] : getAliases(player.name, accounts),
+        isMe,
       }
     })
     .sort(comparePeople)

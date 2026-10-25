@@ -2,7 +2,7 @@ import { MapFamily } from '../games/map-family'
 import { GameShape, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
-import { Average, DatedGameMetrics, WinLoss } from './my-stats'
+import { computeMyStats, DatedGameMetrics, MyStatsResult, WinLoss } from './my-stats'
 import { getMyResult, getSidesOf, splitsByMap } from './player-games'
 
 /** A build a player went with, and how those games went for them. */
@@ -29,15 +29,19 @@ export interface ScoutMatchup extends WinLoss {
   unnamed: WinLoss
 }
 
-/** What the analyzed games say about another player: how they play and how they've done. */
-export interface PlayerScout extends WinLoss {
-  apm?: Average
-  eapm?: Average
+/** The parts of My stats a player's card shows, worked out the same way as on My stats. */
+export type ScoutTotals = Pick<
+  MyStatsResult,
+  'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'recent'
+>
+
+/** What the analyzed games say about a player: how they've done, and how they play. */
+export interface PlayerScout {
+  totals: ScoutTotals
   /** Every race they played, the one they played most first. */
   races: Array<{ race: AssignedRaceChar; games: number }>
   /** Most games first. */
   matchups: ScoutMatchup[]
-  lastPlayedMs?: number
   /** How many of the games are from the ladder games the app ships, not the user's replays. */
   fromBaseline: number
 }
@@ -51,40 +55,35 @@ function addResult(tally: WinLoss, result: string) {
   }
 }
 
-function addAverage(sums: { total: number; games: number }, value: number | undefined) {
-  if (value !== undefined && Number.isFinite(value)) {
-    sums.total += value
-    sums.games += 1
-  }
-}
-
-function toAverage({ total, games }: { total: number; games: number }): Average | undefined {
-  return games ? { value: total / games, games } : undefined
-}
-
 function byGames<T extends { games: number }>(a: T, b: T) {
   return b.games - a.games
 }
 
 /**
- * Sums up every analyzed game played by someone going by any of `accounts`, from their side. Games
- * with a computer in them are practice, and don't count, the same as for the user's own stats.
+ * Sums up every analyzed game played by someone going by any of `accounts`, from their side: their
+ * totals as My stats would show them, and the builds they went with. Games with a computer in them
+ * are practice, and don't count, the same as for the user's own stats.
  */
 export function computePlayerScout(
   games: ReadonlyArray<DatedGameMetrics>,
   accounts: ReadonlyArray<string>,
+  nowMs = Date.now(),
 ): PlayerScout {
   const lowerAccounts = new Set(accounts.map(a => a.toLowerCase()))
+  const {
+    games: count,
+    record,
+    apm,
+    eapm,
+    durationMs,
+    recent,
+  } = computeMyStats(games, { names: [...accounts], range: 'all' }, nowMs)
   const scout: PlayerScout = {
-    games: 0,
-    wins: 0,
-    losses: 0,
+    totals: { games: count, record, apm, eapm, durationMs, recent },
     races: [],
     matchups: [],
     fromBaseline: 0,
   }
-  const apm = { total: 0, games: 0 }
-  const eapm = { total: 0, games: 0 }
   const races = new Map<AssignedRaceChar, number>()
   const matchups = new Map<string, ScoutMatchup & { familyTallies: Map<string, ScoutBuild> }>()
 
@@ -105,10 +104,6 @@ export function computePlayerScout(
       continue
     }
     const result = getMyResult(game, player, [name])
-    addResult(scout, result)
-    addAverage(apm, player.apm)
-    addAverage(eapm, player.eapm)
-    scout.lastPlayedMs = Math.max(scout.lastPlayedMs ?? 0, game.gameTimeMs)
     scout.fromBaseline += game.ladderBaseline ? 1 : 0
     if (!player.race) {
       continue
@@ -163,8 +158,6 @@ export function computePlayerScout(
     }
   }
 
-  scout.apm = toAverage(apm)
-  scout.eapm = toAverage(eapm)
   scout.races = Array.from(races, ([race, count]) => ({ race, games: count })).sort(byGames)
   scout.matchups = Array.from(matchups.values(), ({ familyTallies, ...matchup }) => ({
     ...matchup,

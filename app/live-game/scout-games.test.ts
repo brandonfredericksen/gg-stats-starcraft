@@ -92,16 +92,19 @@ describe('ScoutGames', () => {
   test("sums up each person's games, across every account they play under", async () => {
     const { scoutGames } = setup([game('Main', 'Me'), game('Me', 'Smurf'), game('Other', 'Me')])
     const [person, stranger] = await scoutGames.scout([['main', 'smurf'], ['Nobody']])
-    expect(person).toMatchObject({ games: 2, wins: 1, losses: 1 })
-    expect(stranger.games).toBe(0)
+    expect(person.totals.record).toMatchObject({ games: 2, wins: 1, losses: 1 })
+    expect(stranger.totals.games).toBe(0)
   })
 
   test("adds the baseline's games once it's been read, but not the user's own copies", async () => {
     const copy = game('Pro', 'Me')
     const { scoutGames, loadBaseline } = setup([copy])
-    expect((await scoutGames.scout([['Pro']]))[0].games).toBe(1)
+    expect((await scoutGames.scout([['Pro']]))[0].totals.games).toBe(1)
     loadBaseline([{ ...copy, gameId: 'baseline-copy' }, game('Pro', 'Someone')])
-    expect((await scoutGames.scout([['Pro']]))[0]).toMatchObject({ games: 2, fromBaseline: 0 })
+    expect((await scoutGames.scout([['Pro']]))[0]).toMatchObject({
+      totals: { games: 2 },
+      fromBaseline: 0,
+    })
   })
 
   test('reads the games once for a while, then again', async () => {

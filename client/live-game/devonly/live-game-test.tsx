@@ -1,4 +1,5 @@
 import { useSetAtom } from 'jotai'
+import { useState } from 'react'
 import styled from 'styled-components'
 import { LiveGame } from '../../../common/live-game'
 import { TextButton } from '../../material/button'
@@ -74,8 +75,25 @@ export function LiveGameTest() {
     push('/live-game')
   }
   const [ladder, lobby, shieldBattery, empty] = getSamples()
+  const [name, setName] = useState('')
+  const withPlayer = (): LiveGame => ({
+    ...ladder,
+    id: `dev-player-${name}`,
+    players: [ladder.players[0], { name: name.trim() }],
+  })
   return (
     <Root>
+      <input
+        value={name}
+        placeholder='A player to look up'
+        aria-label='A player to look up'
+        onChange={event => setName(event.target.value)}
+      />
+      <TextButton
+        label='Ladder match against them'
+        disabled={!name.trim()}
+        onClick={() => show(withPlayer())}
+      />
       <TextButton label='Ladder match' onClick={() => show(ladder)} />
       <TextButton label='Custom lobby' onClick={() => show(lobby)} />
       <TextButton label='ShieldBattery game' onClick={() => show(shieldBattery)} />

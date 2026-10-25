@@ -100,14 +100,13 @@ describe('computePlayerScout', () => {
     ]
     const scout = computePlayerScout(games, ['Opp'])
     expect(scout).toMatchObject({
-      games: 4,
-      wins: 3,
-      losses: 1,
+      totals: { games: 4, record: { games: 4, wins: 3, losses: 1 } },
       races: [{ race: 'p', games: 4 }],
-      lastPlayedMs: games[3].gameTimeMs,
       fromBaseline: 0,
     })
-    expect(scout.apm).toEqual({ value: 200, games: 4 })
+    expect(scout.totals.apm).toEqual({ value: 200, games: 4 })
+    // The latest games, oldest first, the way My stats lists them.
+    expect(scout.totals.recent.map(g => g.gameId)).toEqual(games.map(g => g.gameId))
     expect(scout.matchups.map(m => [m.opponentRaces.join(''), m.games, m.unnamed.games])).toEqual([
       ['t', 3, 1],
       ['z', 1, 0],
@@ -125,7 +124,10 @@ describe('computePlayerScout', () => {
       game('1v1', [player('Smurf', 'z', 0, 'loss'), player('Me', 't', 1, 'win')]),
       game('1v1', [player('Stranger', 'z', 0, 'loss'), player('Me', 't', 1, 'win')]),
     ]
-    expect(computePlayerScout(games, ['main', 'SMURF'])).toMatchObject({ games: 2, wins: 1 })
+    expect(computePlayerScout(games, ['main', 'SMURF']).totals.record).toMatchObject({
+      games: 2,
+      wins: 1,
+    })
   })
 
   test("splits team games by the opposing team's races, and counts team results", () => {
@@ -138,7 +140,7 @@ describe('computePlayerScout', () => {
       ]),
     ]
     const scout = computePlayerScout(games, ['Opp'])
-    expect(scout).toMatchObject({ games: 1, wins: 1 })
+    expect(scout.totals.record).toMatchObject({ games: 1, wins: 1 })
     expect(scout.matchups[0]).toMatchObject({
       shape: '2v2',
       race: 'z',
@@ -189,16 +191,15 @@ describe('computePlayerScout', () => {
         ladderBaseline: true,
       }),
     ]
-    expect(computePlayerScout(games, ['Opp'])).toMatchObject({ games: 1, fromBaseline: 1 })
+    expect(computePlayerScout(games, ['Opp'])).toMatchObject({
+      totals: { games: 1 },
+      fromBaseline: 1,
+    })
   })
 
   test('is empty for someone with no games', () => {
-    expect(computePlayerScout([], ['Nobody'])).toEqual({
-      games: 0,
-      wins: 0,
-      losses: 0,
-      apm: undefined,
-      eapm: undefined,
+    expect(computePlayerScout([], ['Nobody'])).toMatchObject({
+      totals: { games: 0, record: { games: 0, wins: 0, losses: 0 }, recent: [] },
       races: [],
       matchups: [],
       fromBaseline: 0,
