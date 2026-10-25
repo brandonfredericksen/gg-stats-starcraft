@@ -213,6 +213,27 @@ export const THEME_CSS = css`
   --theme-live: ${colorLive};
   --theme-live-container: ${colorLiveContainer};
 
+  /** Where a rating is from, in each service's own colors, the same in both themes. */
+  --theme-source-shieldbattery: #ffc843;
+  --theme-source-shieldbattery-container: #152642;
+  --theme-source-battlenet: #00aeff;
+  --theme-source-battlenet-container: #0b1d3a;
+  /** StarCraft: Remastered's ladder leagues, in the colors the game's own league icons use. */
+  --theme-league-s: #f5c518;
+  --theme-league-a: #f0452e;
+  --theme-league-b: #c25ce8;
+  --theme-league-c: #3d8ef0;
+  --theme-league-d: #2ec4c4;
+  --theme-league-e: #3ddc97;
+  --theme-league-f: #d9d4c3;
+  /** ShieldBattery's divisions, each in the color of its metal or gem. */
+  --theme-division-bronze: #d08a4f;
+  --theme-division-silver: #b8c2cc;
+  --theme-division-gold: #f2c94c;
+  --theme-division-platinum: #4fd1c5;
+  --theme-division-diamond: #7cb8ff;
+  --theme-division-champion: #e879f9;
+
   --theme-positive: ${colorPositive};
   --theme-positive-invert: ${colorPositiveInvert};
   --theme-negative: ${colorNegative};

@@ -1,6 +1,11 @@
 import { ESkillModel } from '../../common/my-stats/eskill'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { computePlayerScout, PlayerScout } from '../../common/my-stats/player-scout'
+import {
+  BuildPopulation,
+  countBuildPopulation,
+  mergeBuildPopulations,
+} from '../../common/my-stats/playstyle'
 import { withoutLibraryCopies } from '../ladder-baseline/load-baseline'
 
 /**
@@ -52,10 +57,20 @@ function gamesOf(index: NameIndex, accounts: ReadonlyArray<string>) {
  * not a pass over every game.
  */
 export class ScoutGames {
-  private own: Promise<{ byName: NameIndex; replayPathKeys: ReadonlyArray<string> }> | undefined
+  private own:
+    | Promise<{
+        byName: NameIndex
+        replayPathKeys: ReadonlyArray<string>
+        population: BuildPopulation
+      }>
+    | undefined
   private forgetTimer: ReturnType<typeof setTimeout> | undefined
   /** The baseline's index, made once: the baseline doesn't change while the app runs. */
-  private baseline: { games: ReadonlyArray<DatedGameMetrics>; byName: NameIndex } | undefined
+  private baseline:
+    | { games: ReadonlyArray<DatedGameMetrics>; byName: NameIndex; population: BuildPopulation }
+    | undefined
+  /** Everyone's builds counted together, made once for the user's games and the baseline. */
+  private population: { from: unknown[]; population: BuildPopulation } | undefined
 
   constructor(private readonly deps: ScoutGamesDeps) {}
 
@@ -64,12 +79,19 @@ export class ScoutGames {
     const baseline = this.getBaselineIndex()
     const eSkillModel = this.deps.loadedESkillModel()
     const nowMs = Date.now()
+    const population = this.getPopulation(own.population, baseline?.population)
     return accountLists.map(accounts => {
       const ownGames = gamesOf(own.byName, accounts)
       const baselineGames = baseline
         ? withoutLibraryCopies(gamesOf(baseline.byName, accounts), own.replayPathKeys, ownGames)
         : []
-      return computePlayerScout([...ownGames, ...baselineGames], accounts, nowMs, eSkillModel)
+      return computePlayerScout(
+        [...ownGames, ...baselineGames],
+        accounts,
+        nowMs,
+        eSkillModel,
+        population,
+      )
     })
   }
 
@@ -85,6 +107,7 @@ export class ScoutGames {
       const loading = this.deps.loadOwnGames().then(({ games, replayPathKeys }) => ({
         byName: indexByName(games),
         replayPathKeys,
+        population: countBuildPopulation(games),
       }))
       this.own = loading
       this.forgetTimer = setTimeout(() => this.forget(), KEEP_GAMES_MS)
@@ -104,8 +127,20 @@ export class ScoutGames {
       return undefined
     }
     if (this.baseline?.games !== games) {
-      this.baseline = { games, byName: indexByName(games) }
+      this.baseline = { games, byName: indexByName(games), population: countBuildPopulation(games) }
     }
     return this.baseline
+  }
+
+  private getPopulation(own: BuildPopulation, baseline: BuildPopulation | undefined) {
+    const from = baseline ? [own, baseline] : [own]
+    const cached = this.population
+    if (cached?.from.length !== from.length || cached.from.some((p, i) => p !== from[i])) {
+      this.population = {
+        from,
+        population: baseline ? mergeBuildPopulations(own, baseline) : own,
+      }
+    }
+    return this.population!.population
   }
 }

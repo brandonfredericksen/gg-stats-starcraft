@@ -1,10 +1,12 @@
 import styled from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
 import { getRankColor } from '../styles/colors'
-import { labelMedium } from '../styles/typography'
+import { labelMedium, segoeUi } from '../styles/typography'
 
 const Badge = styled.span<{ $rank: LadderRank }>`
   ${labelMedium};
+  /* Its own face, whatever it sits in: the centering below is measured for this one. */
+  ${segoeUi};
   flex-shrink: 0;
   width: 20px;
   height: 22px;

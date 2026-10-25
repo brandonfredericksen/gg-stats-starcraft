@@ -4,6 +4,7 @@ import {
   GAME_LOG,
   LogFiles,
   MAX_READ,
+  parseGameSetup,
   parseJoinedPlayers,
   READ_DELAY_MS,
   RETRY_WATCH_MS,
@@ -29,6 +30,30 @@ function joinedLine(names: string[], observers: string[] = []) {
   )
 }
 
+/**
+ * A setupGame message as ShieldBattery's game DLL logs it, cut down to the parts that are read.
+ * The user ids are the ones {@link joinedLine} gives players, from 100.
+ */
+function setupLines(
+  gameType: string,
+  slots: Array<{ race: string; teamId: number }>,
+  ratings: number[] = [],
+) {
+  const json = {
+    gameType,
+    map: { name: 'Big Game Hunters', mapData: { tileset: 4 } },
+    slots: [
+      ...slots.map((slot, i) => ({ type: 'human', playerId: 0, userId: 100 + i, ...slot })),
+      { type: 'observer', race: 'r', teamId: 2, userId: 200 },
+    ],
+    ranks: ratings.map((rating, i) => ({ userId: 100 + i, rating, division: 'gold1' })),
+  }
+  return (
+    "[2026-10-24][19:42:42.680][<redacted>:0][DEBUG] Received message: 'setupGame':\n" +
+    `'${JSON.stringify(json)}'\n`
+  )
+}
+
 const NOISE =
   '[2026-10-24][19:42:45.306][src\\bw_scr.rs:7129][DEBUG] Slot 0 has id 0, player_type 2\n'
 const END =
@@ -51,6 +76,42 @@ describe('parseJoinedPlayers', () => {
 
   test('reads nothing from another line', () => {
     expect(parseJoinedPlayers(NOISE)).toEqual([])
+  })
+})
+
+describe('parseGameSetup', () => {
+  test('reads teams, races and ratings, leaving out who watches', () => {
+    const setup = parseGameSetup(
+      setupLines(
+        'topVBottom',
+        [
+          { race: 'p', teamId: 0 },
+          { race: 'r', teamId: 1 },
+        ],
+        [1500.4],
+      ).split('\n')[1],
+    )
+    expect(setup?.map).toEqual({ mapName: 'Big Game Hunters', tileset: 'jungle' })
+    expect(Object.fromEntries(setup!.players)).toEqual({
+      100: { team: 0, race: 'p', shieldBattery: { rating: 1500, division: 'gold1' } },
+      101: { team: 1, race: 'r', shieldBattery: undefined },
+    })
+  })
+
+  test('puts everyone on their own team in a game without teams', () => {
+    const setup = parseGameSetup(
+      setupLines('melee', [
+        { race: 'z', teamId: 0 },
+        { race: 't', teamId: 0 },
+      ]).split('\n')[1],
+    )
+    expect([...setup!.players.values()].map(p => p.team)).toEqual([0, 1])
+  })
+
+  test("reads nothing from a replay's setup, which has no races", () => {
+    const line = `'${JSON.stringify({ gameType: 'melee', slots: [{ type: 'human', userId: 1 }] })}'`
+    expect(parseGameSetup(line)).toBeUndefined()
+    expect(parseGameSetup(NOISE)).toBeUndefined()
   })
 })
 
@@ -142,6 +203,42 @@ describe('ShieldBatteryLogWatcher', () => {
     logs.append(NOISE + joinedLine(['alpha', 'beta']) + NOISE)
     await settle()
     expect(games.map(g => g.map(p => p.name))).toEqual([['alpha', 'beta']])
+  })
+
+  test("puts the game's setup on its players", async () => {
+    const { logs, watcher } = await setup()
+    const maps: Array<string | undefined> = []
+    watcher.on('players', (_, map) => maps.push(map?.mapName))
+    const games: LiveGamePlayer[][] = []
+    watcher.on('players', p => games.push(p))
+    logs.append(
+      setupLines('topVBottom', [
+        { race: 'p', teamId: 0 },
+        { race: 'z', teamId: 1 },
+      ]) +
+        NOISE +
+        joinedLine(['alpha', 'beta'], ['gamma']),
+    )
+    await settle()
+    expect(maps).toEqual(['Big Game Hunters'])
+    expect(games[0].map(p => [p.name, p.team, p.race])).toEqual([
+      ['alpha', 0, 'p'],
+      ['beta', 1, 'z'],
+      ['gamma', undefined, undefined],
+    ])
+  })
+
+  test('reads a setup split across two reads', async () => {
+    const { logs, games } = await setup()
+    const [first, json] = setupLines('topVBottom', [
+      { race: 't', teamId: 0 },
+      { race: 'p', teamId: 1 },
+    ]).split('\n')
+    logs.append(first + '\n')
+    await settle()
+    logs.append(json + '\n' + joinedLine(['alpha', 'beta']))
+    await settle()
+    expect(games[0].map(p => p.race)).toEqual(['t', 'p'])
   })
 
   test('says when the game ends, but not for a game that started after the end', async () => {

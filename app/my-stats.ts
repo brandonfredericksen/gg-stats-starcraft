@@ -144,5 +144,16 @@ export function setupMyStats(
   return {
     /** Lets go of the games read for looking up players, like when a game was just analyzed. */
     forgetScoutGames: () => scoutGames.forget(),
+    /**
+     * Reads the baseline and fits eSkill ahead of time, so the people in a game the user joins can
+     * be scored against the ladder. Best done while no game is loading.
+     */
+    prepareScouting: () =>
+      loadESkillModel().then(
+        () => {},
+        (err: unknown) => {
+          log.warning(`Couldn't get eSkill ready for looking up players: ${getErrorStack(err)}`)
+        },
+      ),
   }
 }

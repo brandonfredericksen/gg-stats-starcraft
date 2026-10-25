@@ -75,6 +75,8 @@ process
     // Other promise rejections are likely less severe, leave the process up but log it
   })
 
+/** How long after starting, with no game going, the app gets ready to look up players. */
+const PREPARE_SCOUTING_MS = 60_000
 const ipcMain = new TypedIpcMain()
 
 getUserDataPath()
@@ -941,6 +943,26 @@ app.on('ready', () => {
         liveGame.start().catch(err => {
           logger.error(`Error starting the live game watchers: ${getErrorStack(err)}`)
         })
+        // eSkill comes from the ladder baseline, too big a read to start while a game loads, so
+        // it's read a little after the app starts, once no game is going.
+        const prepareScouting = () => {
+          localSettings
+            .get()
+            .then(settings => {
+              if (settings.liveGame === false) {
+                return undefined
+              }
+              if (liveGame.game) {
+                setTimeout(prepareScouting, PREPARE_SCOUTING_MS).unref()
+                return undefined
+              }
+              return myStats.prepareScouting()
+            })
+            .catch(err => {
+              logger.error(`Error getting ready to look up players: ${getErrorStack(err)}`)
+            })
+        }
+        setTimeout(prepareScouting, PREPARE_SCOUTING_MS).unref()
       }
 
       const autoCapture = new AutoCaptureService({

@@ -1,4 +1,6 @@
 import { LadderRank } from './games/ladder'
+import { TilesetId } from './maps'
+import { RaceChar } from './races'
 
 /** How the app saw the game the user joined. */
 export type LiveGameSource = 'ladder' | 'shieldBattery'
@@ -23,6 +25,12 @@ export interface LiveGamePlayer {
   /** Their other accounts on the same Battle.net account, from their ladder profile. */
   otherAccounts?: string[]
   observer?: boolean
+  /** Which side they're on, when the game says. Players with the same team are allies. */
+  team?: number
+  /** The race they picked, which is `r` for random until the game starts. */
+  race?: RaceChar
+  /** Their ShieldBattery matchmaking rating, for a matchmaking game. */
+  shieldBattery?: { rating: number; division?: string }
 }
 
 /** A game the user joined, from the match found or loading screen until it ends. */
@@ -33,6 +41,10 @@ export interface LiveGame {
   /** When the app noticed the game, in Unix ms. */
   noticedMs: number
   players: LiveGamePlayer[]
+  /** The map, when the game says. */
+  mapName?: string
+  /** The map's tileset, when the game says, for a picture of its terrain. */
+  tileset?: TilesetId
 }
 
 /** StarCraft's Battle.net gateways, by id. */

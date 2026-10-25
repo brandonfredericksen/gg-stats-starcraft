@@ -5,6 +5,7 @@ import { getBuildFamily } from './build-family'
 import { ESkillModel } from './eskill'
 import { computeMyStats, DatedGameMetrics, MyStatsResult, WinLoss } from './my-stats'
 import { getMyResult, getSidesOf, splitsByMap } from './player-games'
+import { BuildPopulation, emptyPlaystyleCounts, getGamePlaystyle, Playstyle } from './playstyle'
 
 /** A build a player went with, and how those games went for them. */
 export interface ScoutBuild extends WinLoss {
@@ -30,6 +31,15 @@ export interface ScoutMatchup extends WinLoss {
   unnamed: WinLoss
 }
 
+/** How someone's games of one kind, as one race, went, by {@link Playstyle}. */
+export interface ScoutPlaystyles {
+  shape: GameShape
+  /** In game types that split by map, see `splitsByMap`. */
+  mapFamily?: MapFamily
+  race: AssignedRaceChar
+  counts: Record<Playstyle, number>
+}
+
 /** The parts of My stats a player's card shows, worked out the same way as on My stats. */
 export type ScoutTotals = Pick<
   MyStatsResult,
@@ -43,6 +53,8 @@ export interface PlayerScout {
   races: Array<{ race: AssignedRaceChar; games: number }>
   /** Most games first. */
   matchups: ScoutMatchup[]
+  /** How their builds went, see `playstyle.ts`, most games first. */
+  playstyles: ScoutPlaystyles[]
   /** How many of the games are from the ladder games the app ships, not the user's replays. */
   fromBaseline: number
 }
@@ -70,6 +82,7 @@ export function computePlayerScout(
   accounts: ReadonlyArray<string>,
   nowMs = Date.now(),
   eSkillModel?: ESkillModel,
+  population?: BuildPopulation,
 ): PlayerScout {
   const lowerAccounts = new Set(accounts.map(a => a.toLowerCase()))
   const {
@@ -85,8 +98,10 @@ export function computePlayerScout(
     totals: { games: count, record, apm, eapm, durationMs, eSkill, recent },
     races: [],
     matchups: [],
+    playstyles: [],
     fromBaseline: 0,
   }
+  const playstyles = new Map<string, ScoutPlaystyles>()
   const races = new Map<AssignedRaceChar, number>()
   const matchups = new Map<string, ScoutMatchup & { familyTallies: Map<string, ScoutBuild> }>()
 
@@ -156,6 +171,22 @@ export function computePlayerScout(
         matchup.familyTallies.set(family, build)
       }
       addResult(build, result)
+      const styleKey = `${game.shape} ${mapFamily} ${player.race}`
+      let styles = playstyles.get(styleKey)
+      if (!styles) {
+        styles = {
+          shape: game.shape,
+          mapFamily,
+          race: player.race,
+          counts: emptyPlaystyleCounts(),
+        }
+        playstyles.set(styleKey, styles)
+      }
+      const style = getGamePlaystyle(
+        { family, shape: game.shape, mapFamily: game.mapFamily, race: player.race, player },
+        population,
+      )
+      styles.counts[style] += 1
     } else {
       addResult(matchup.unnamed, result)
     }
@@ -168,5 +199,7 @@ export function computePlayerScout(
       (a, b) => b.games - a.games || a.family.localeCompare(b.family),
     ),
   })).sort(byGames)
+  const total = (styles: ScoutPlaystyles) => Object.values(styles.counts).reduce((a, b) => a + b)
+  scout.playstyles = Array.from(playstyles.values()).sort((a, b) => total(b) - total(a))
   return scout
 }

@@ -112,13 +112,14 @@ export class LiveGameTracker {
   }
 
   /** A ShieldBattery game is loading with these people in it. */
-  shieldBatteryGame(players: LiveGamePlayer[]) {
+  shieldBatteryGame(players: LiveGamePlayer[], map?: Pick<LiveGame, 'mapName' | 'tileset'>) {
     const noticedMs = this.now()
     this.set({
       id: `shieldBattery-${noticedMs}`,
       source: 'shieldBattery',
       noticedMs,
       players,
+      ...map,
     })
   }
 

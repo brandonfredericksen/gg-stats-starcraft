@@ -18,6 +18,8 @@ const Root = styled.span<{ $color: string }>`
   color: ${props => props.$color};
   font-weight: 800;
   line-height: 1;
+  /* The letter lands a little low in the square; this centers it, measured at 4x. */
+  padding-bottom: 1px;
 `
 
 /** A player's race as its letter on a tint of the race's color, sized to sit next to a name. */

@@ -5,6 +5,7 @@ export enum DialogType {
   Simple = 'simple',
   GgStatsHealth = 'ggStatsHealth',
   StarcraftHealth = 'starcraftHealth',
+  LivePlayer = 'livePlayer',
 }
 
 type BaseDialogPayload<D, DataType = undefined> = DataType extends undefined
@@ -42,6 +43,15 @@ type SimpleDialogPayload = BaseDialogPayload<
 >
 type GgStatsHealthDialogPayload = BaseDialogPayload<typeof DialogType.GgStatsHealth>
 type StarcraftHealthDialogPayload = BaseDialogPayload<typeof DialogType.StarcraftHealth>
+type LivePlayerDialogPayload = BaseDialogPayload<
+  typeof DialogType.LivePlayer,
+  {
+    /** The live game the player is in. */
+    gameId: string
+    /** The player's key in the live game, see `getPersonKey`. */
+    personKey: string
+  }
+>
 
 export type DialogPayload =
   | ConfirmDialogPayload
@@ -50,3 +60,4 @@ export type DialogPayload =
   | SimpleDialogPayload
   | GgStatsHealthDialogPayload
   | StarcraftHealthDialogPayload
+  | LivePlayerDialogPayload

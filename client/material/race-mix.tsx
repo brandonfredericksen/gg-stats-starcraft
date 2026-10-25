@@ -26,6 +26,8 @@ const Root = styled.span`
 
 const Segment = styled.span<{ $color: string }>`
   min-width: 0;
+  /* The letter lands a little low in the bar; this centers it, measured at 4x. */
+  padding-bottom: 2px;
 
   display: inline-flex;
   align-items: center;

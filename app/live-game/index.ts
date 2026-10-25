@@ -193,7 +193,9 @@ export class LiveGameService {
     const shieldBatteryWatcher =
       this.options.createShieldBatteryWatcher?.() ??
       new ShieldBatteryLogWatcher(watchedFolderFiles(this.options.shieldBatteryLogFolder))
-    shieldBatteryWatcher.on('players', players => this.tracker.shieldBatteryGame(players))
+    shieldBatteryWatcher.on('players', (players, map) =>
+      this.tracker.shieldBatteryGame(players, map),
+    )
     shieldBatteryWatcher.on('ended', () => this.tracker.gameEnded(this.now()))
     shieldBatteryWatcher.on('error', err => {
       log.warning(`Couldn't read ShieldBattery's log: ${getErrorStack(err)}`)

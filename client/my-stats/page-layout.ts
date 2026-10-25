@@ -29,7 +29,8 @@ export const Title = styled.h1`
 export const Badge = styled.span`
   ${labelSmall};
   height: 20px;
-  padding: 0 var(--space-2);
+  /* The text lands a little low in the pill; the bottom padding centers it, measured at 4x. */
+  padding: 0 var(--space-2) 2px;
 
   display: inline-flex;
   align-items: center;
