@@ -73,9 +73,17 @@ describe('LobbyListener', () => {
     vi.advanceTimersByTime(EMIT_DELAY_MS)
     expect(players).toEqual([
       [
-        { name: 'Me', race: 't', gatewayId: undefined, battleTag: undefined, observer: undefined },
+        {
+          name: 'Me',
+          slot: 0,
+          race: 't',
+          gatewayId: undefined,
+          battleTag: undefined,
+          observer: undefined,
+        },
         {
           name: 'Them',
+          slot: 1,
           race: undefined,
           gatewayId: undefined,
           battleTag: undefined,
@@ -83,6 +91,7 @@ describe('LobbyListener', () => {
         },
         {
           name: 'Watcher',
+          slot: 128,
           race: undefined,
           gatewayId: undefined,
           battleTag: undefined,
@@ -130,6 +139,7 @@ describe('LobbyListener', () => {
     expect(players.at(-1)).toEqual([
       {
         name: 'VLR',
+        slot: 1,
         race: undefined,
         gatewayId: 10,
         battleTag: 'Someone#1234',

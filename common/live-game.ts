@@ -15,6 +15,11 @@ export interface LiveLadderStanding {
 
 export interface LiveGamePlayer {
   name: string
+  /**
+   * Where they are in the lobby, top to bottom, when the game says: their slot in a Battle.net
+   * lobby, or their player number in ShieldBattery.
+   */
+  slot?: number
   /** The race they picked in a lobby, `r` for random. Missing until they pick one. */
   race?: RaceChar
   /** The Battle.net gateway they play on, like 10 for U.S. West, when the game says. */

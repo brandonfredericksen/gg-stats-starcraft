@@ -9,7 +9,7 @@ import { GameShape } from '../../common/games/player-metrics'
 import { isMyPlayerName } from '../../common/games/player-names'
 import { GATEWAY_REGIONS, LiveGame, LiveGamePlayer } from '../../common/live-game'
 import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
-import { AssignedRaceChar, RaceChar, raceCharToLabel } from '../../common/races'
+import { raceCharToLabel } from '../../common/races'
 import { KnownPlayer } from '../../common/settings/local-settings'
 import { getBuildFamilyName } from '../builds/build-shared'
 import { getMapFamilyShortName } from '../coach/coach-shared'
@@ -24,33 +24,62 @@ import { SkeletonText } from '../material/skeleton'
 import { getShapeLabel, Muted, PaddedPanel, RecordText } from '../my-stats/my-stats-panels'
 import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
 import { findPlayerByAccount, useKnownPlayers } from '../players/known-players'
-import { PlayerNameButton, RecordSummary } from '../players/player-card'
+import { PlayerNameButton } from '../players/player-card'
 import { loadPlayerRecord, PlayerRecord } from '../players/player-record'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch, useAppSelector } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
-import { bahnschrift, bodyMedium, bodySmall, labelMedium, titleMedium } from '../styles/typography'
+import {
+  bahnschrift,
+  bodyMedium,
+  bodySmall,
+  labelMedium,
+  labelSmall,
+  titleMedium,
+} from '../styles/typography'
 import { liveGameAtom } from './live-game-atoms'
 import { ScoutState, useScouts } from './live-game-data'
 
 const TIME_AGO_FORMAT = relativeTimeFormat({ numeric: 'auto' })
 
-/**
- * The cards side by side, each a column of the same sections, which line up across a row: every
- * card's ladder line is level with the others', and so on.
- */
+/** The cards side by side, each in the same order and only as tall as what's known. */
 const Cards = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-items: start;
   gap: var(--space-4);
 `
 
-const Card = styled(PaddedPanel)<{ $rows: number }>`
-  grid-row: span ${props => props.$rows};
-  display: grid;
-  grid-template-rows: subgrid;
-  align-content: start;
+const Card = styled(PaddedPanel)`
+  gap: var(--space-4);
+`
+
+/** Numbers with a label over each, read at a glance. */
+const Stats = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+`
+
+const Stat = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
+
+const StatLabel = styled.span`
+  ${labelSmall};
+  color: var(--theme-on-surface-variant);
+`
+
+const StatValue = styled.span`
+  ${titleMedium};
+  ${bahnschrift};
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
 `
 
 const CardHead = styled.div`
@@ -76,12 +105,6 @@ const Name = styled.h2`
   white-space: nowrap;
 `
 
-/** A race the player wasn't seen picking, but plays most. */
-const LikelyRace = styled.span`
-  display: inline-flex;
-  opacity: 0.55;
-`
-
 const Section = styled.section`
   min-width: 0;
   display: flex;
@@ -93,14 +116,6 @@ const SectionLabel = styled.h3`
   ${labelMedium};
   margin: 0;
   color: var(--theme-on-surface-variant);
-`
-
-const Line = styled.div`
-  ${bodyMedium};
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
 `
 
 const Figure = styled.span`
@@ -217,40 +232,19 @@ function getMatchupLabel(matchup: ScoutMatchup, t: TFunction) {
     const side = (races: ReadonlyArray<string>) => races.join('').toUpperCase()
     return `${side(team)}${t('gameStats.matchupSeparator', 'v')}${side(matchup.opponentRaces)}`
   }
-  return [
-    matchup.race.toUpperCase(),
+  const kind = [
     getShapeLabel(matchup.shape, t),
     matchup.mapFamily ? getMapFamilyShortName(matchup.mapFamily, t) : undefined,
   ]
     .filter(Boolean)
-    .join(' · ')
+    .join(' ')
+  return `${raceCharToLabel(matchup.race, t)} · ${kind}`
 }
 
 /** Every account someone plays under: the one they're on, ones the user noted, and alternates. */
 function getAccounts(player: LiveGamePlayer, known: KnownPlayer | undefined) {
   return Array.from(
     new Set([player.name, ...(known?.accounts ?? []), ...(player.otherAccounts ?? [])]),
-  )
-}
-
-/** The race a player picked, or else the one they play most, marked as a guess. */
-function PlayerRace({ race, usualRace }: { race?: RaceChar; usualRace?: AssignedRaceChar }) {
-  const { t } = useTranslation()
-  if (race) {
-    return <RaceTag race={race} />
-  }
-  if (!usualRace) {
-    return null
-  }
-  return (
-    <LikelyRace
-      title={t('liveGame.usualRace', 'Not picked yet. They play this race most.')}
-      aria-label={t('liveGame.likelyRace', 'Likely {{race}}', {
-        race: raceCharToLabel(usualRace, t),
-      })}
-      role='img'>
-      <RaceTag race={usualRace} />
-    </LikelyRace>
   )
 }
 
@@ -265,14 +259,6 @@ function getAliases(name: string, accounts: ReadonlyArray<string>) {
     seen.add(lower)
     return true
   })
-}
-
-/** Which sections the cards have: the same for every card, so they line up. */
-interface Sections {
-  ladder: boolean
-  accounts: boolean
-  note: boolean
-  withYou: boolean
 }
 
 /**
@@ -313,7 +299,42 @@ function RecordWithYou({
   if (record === 'error') {
     return <Muted>{t('players.recordFailed', "Couldn't count your games with them.")}</Muted>
   }
-  return <RecordSummary record={record} t={t} />
+  if (!record) {
+    return <SkeletonText $width='160px' />
+  }
+  const { against, with: together } = record
+  const unknown = against.unknown + together.unknown
+  const games = against.wins + against.losses + together.wins + together.losses + unknown
+  if (!games) {
+    return <Muted>{t('liveGame.neverPlayed', "You haven't played them.")}</Muted>
+  }
+  return (
+    <>
+      <Stats>
+        <Stat>
+          <StatLabel>{t('players.against', 'Against them')}</StatLabel>
+          <StatValue>
+            <RecordText record={against} />
+          </StatValue>
+        </Stat>
+        <Stat>
+          <StatLabel>{t('players.with', 'On your team')}</StatLabel>
+          <StatValue>
+            <RecordText record={together} />
+          </StatValue>
+        </Stat>
+      </Stats>
+      {unknown ? (
+        <Muted>
+          {t('liveGame.withoutResult', {
+            defaultValue: '{{count}} more without a result yet.',
+            defaultValue_one: '1 more without a result yet.',
+            count: unknown,
+          })}
+        </Muted>
+      ) : null}
+    </>
+  )
 }
 
 function BuildsTable({ matchups }: { matchups: ReadonlyArray<ScoutMatchup> }) {
@@ -363,7 +384,7 @@ function BuildsTable({ matchups }: { matchups: ReadonlyArray<ScoutMatchup> }) {
           {matchup.unnamed.games ? (
             <TableRow role='row'>
               <BuildCell role='rowheader'>
-                <Muted>{t('liveGame.unnamed', 'Unnamed')}</Muted>
+                <Muted>{t('liveGame.unnamedBuild', 'Unnamed build')}</Muted>
               </BuildCell>
               <NumberCell role='cell'>{matchup.unnamed.games}</NumberCell>
               <NumberCell role='cell'>
@@ -390,30 +411,39 @@ function ScoutDetails({ scout }: { scout: PlayerScout }) {
   const { t } = useTranslation()
   return (
     <>
-      <Line>
-        <span>
-          {t('myStats.games', {
-            defaultValue: '{{count}} games',
-            defaultValue_one: '{{count}} game',
-            count: scout.games,
-          })}
-        </span>
-        <RecordText record={scout} />
-        {scout.lastPlayedMs ? <LastPlayed ms={scout.lastPlayedMs} /> : null}
-        <span>
-          {t('gameStats.apm', 'APM')}{' '}
-          <Figure>{scout.apm ? Math.round(scout.apm.value) : '-'}</Figure>
-        </span>
-        <span>
-          {t('gameStats.eapm', 'EAPM')}{' '}
-          <Figure>{scout.eapm ? Math.round(scout.eapm.value) : '-'}</Figure>
-        </span>
-        {scout.races.map(({ race, games }) => (
-          <span key={race}>
-            <RaceTag race={race} /> <Figure>{games}</Figure>
-          </span>
-        ))}
-      </Line>
+      <Stats>
+        <Stat>
+          <StatLabel>{t('liveGame.games', 'Games')}</StatLabel>
+          <StatValue>{scout.games}</StatValue>
+        </Stat>
+        <Stat>
+          <StatLabel>{t('liveGame.record', 'Record')}</StatLabel>
+          <StatValue>
+            <RecordText record={scout} />
+          </StatValue>
+        </Stat>
+        <Stat>
+          <StatLabel>{t('gameStats.apm', 'APM')}</StatLabel>
+          <StatValue>{scout.apm ? Math.round(scout.apm.value) : '-'}</StatValue>
+        </Stat>
+        <Stat>
+          <StatLabel>{t('gameStats.eapm', 'EAPM')}</StatLabel>
+          <StatValue>{scout.eapm ? Math.round(scout.eapm.value) : '-'}</StatValue>
+        </Stat>
+        {scout.races.length ? (
+          <Stat>
+            <StatLabel>{t('liveGame.plays', 'Plays')}</StatLabel>
+            <StatValue>
+              {scout.races.map(({ race, games }) => (
+                <span key={race}>
+                  <RaceTag race={race} /> {games}
+                </span>
+              ))}
+            </StatValue>
+          </Stat>
+        ) : null}
+      </Stats>
+      {scout.lastPlayedMs ? <LastPlayed ms={scout.lastPlayedMs} /> : null}
       {scout.fromBaseline ? (
         <Muted>
           {t('liveGame.fromBaseline', {
@@ -437,7 +467,7 @@ function ScoutSummary({ scout }: { scout: ScoutState }) {
     return <Muted>{t('liveGame.scoutFailed', "Couldn't look up their games.")}</Muted>
   }
   if (!scout.games) {
-    return <Muted>{t('liveGame.noGames', "They're not in any analyzed games yet.")}</Muted>
+    return <Muted>{t('liveGame.noAnalyzedGames', 'None analyzed yet.')}</Muted>
   }
   return <ScoutDetails scout={scout} />
 }
@@ -451,29 +481,30 @@ interface Person {
   isMe: boolean
 }
 
+/**
+ * Everything known about one player, the parts that say most first. A part with nothing to say
+ * isn't shown, so a stranger's card is short and says so once.
+ */
 function PlayerCard({
   person: { player, known, accounts, aliases, isMe },
   gameId,
-  sections,
   scout,
   myNames,
 }: {
   person: Person
   gameId: string
-  sections: Sections
   scout: ScoutState
   myNames: ReadonlyArray<string>
 }) {
   const { t } = useTranslation()
   const region = player.gatewayId ? getRegionLabel(player.gatewayId, t) : undefined
   const identity = [player.battleTag, region].filter(Boolean).join(' · ')
-  const usualRace = typeof scout === 'object' ? scout.races[0]?.race : undefined
-  const rows = 2 + Number(sections.ladder) + Number(sections.accounts) + Number(sections.note)
   return (
-    <Card $rows={rows + Number(sections.withYou)}>
+    <Card>
       <CardHead>
         <NameLine>
-          <PlayerRace race={player.race} usualRace={usualRace} />
+          {/* Only a race they picked: a guess here would read as their pick. */}
+          {player.race ? <RaceTag race={player.race} /> : null}
           <Name>
             <PlayerNameButton name={player.name} race={player.race}>
               {player.name}
@@ -482,73 +513,69 @@ function PlayerCard({
           {isMe ? <Badge>{t('liveGame.you', 'You')}</Badge> : null}
           {player.observer ? <Badge>{t('liveGame.observer', 'Observer')}</Badge> : null}
         </NameLine>
-        <Muted>{identity || '-'}</Muted>
+        {identity ? <Muted>{identity}</Muted> : null}
       </CardHead>
 
-      {sections.ladder ? (
+      {!isMe && myNames.length ? (
+        <Section>
+          <SectionLabel>{t('liveGame.youAndThem', 'You and them')}</SectionLabel>
+          <SectionErrorBoundary>
+            <RecordWithYou key={gameId} accounts={accounts} myNames={myNames} />
+          </SectionErrorBoundary>
+        </Section>
+      ) : null}
+
+      {player.ladder ? (
         <Section>
           <SectionLabel>{t('liveGame.ladderSeason', 'Ladder this season')}</SectionLabel>
-          {player.ladder ? (
-            <Line>
-              {player.ladder.rank ? <RankBadge rank={player.ladder.rank} /> : null}
-              {player.ladder.rating ? (
-                <span>
-                  <Figure>{player.ladder.rating}</Figure> {t('liveGame.mmr', 'MMR')}
-                </span>
-              ) : (
-                <Muted>{t('liveGame.unranked', 'Unranked')}</Muted>
-              )}
-              <RecordText record={player.ladder} />
-            </Line>
-          ) : (
-            <Muted>-</Muted>
-          )}
-        </Section>
-      ) : null}
-
-      {sections.accounts ? (
-        <Section>
-          <SectionLabel>{t('liveGame.otherAccounts', 'Also plays as')}</SectionLabel>
-          {aliases.length ? (
-            <Chips>
-              {aliases.map(name => (
-                <Chip key={name}>
-                  <PlayerNameButton name={name}>{name}</PlayerNameButton>
-                </Chip>
-              ))}
-            </Chips>
-          ) : (
-            <Muted>-</Muted>
-          )}
-        </Section>
-      ) : null}
-
-      {sections.note ? (
-        <Section>
-          <SectionLabel>{t('players.note', 'Note')}</SectionLabel>
-          {known?.note ? <Note>{known.note}</Note> : <Muted>-</Muted>}
-        </Section>
-      ) : null}
-
-      {sections.withYou ? (
-        <Section>
-          <SectionLabel>{t('liveGame.yourGamesWith', 'Your games with them')}</SectionLabel>
-          {isMe ? (
-            <Muted>-</Muted>
-          ) : (
-            <SectionErrorBoundary>
-              <RecordWithYou key={gameId} accounts={accounts} myNames={myNames} />
-            </SectionErrorBoundary>
-          )}
+          <Stats>
+            <Stat>
+              <StatLabel>{t('liveGame.mmr', 'MMR')}</StatLabel>
+              <StatValue>
+                {player.ladder.rank ? <RankBadge rank={player.ladder.rank} /> : null}
+                {player.ladder.rating ?? t('liveGame.unranked', 'Unranked')}
+              </StatValue>
+            </Stat>
+            <Stat>
+              <StatLabel>{t('liveGame.record', 'Record')}</StatLabel>
+              <StatValue>
+                <RecordText record={player.ladder} />
+              </StatValue>
+            </Stat>
+          </Stats>
         </Section>
       ) : null}
 
       <Section>
-        <SectionLabel>{t('liveGame.inAnalyzedGames', 'In analyzed games')}</SectionLabel>
+        <SectionLabel>
+          {isMe
+            ? t('liveGame.yourAnalyzedGames', 'Your analyzed games')
+            : t('liveGame.theirAnalyzedGames', 'Their analyzed games')}
+        </SectionLabel>
         <SectionErrorBoundary>
           <ScoutSummary scout={scout} />
         </SectionErrorBoundary>
       </Section>
+
+      {aliases.length ? (
+        <Section>
+          <SectionLabel>{t('liveGame.otherAccounts', 'Also plays as')}</SectionLabel>
+          <Chips>
+            {aliases.map(name => (
+              <Chip key={name}>
+                <PlayerNameButton name={name}>{name}</PlayerNameButton>
+              </Chip>
+            ))}
+          </Chips>
+        </Section>
+      ) : null}
+
+      {known?.note ? (
+        <Section>
+          <SectionLabel>{t('liveGame.yourNote', 'Your note')}</SectionLabel>
+          <Note>{known.note}</Note>
+        </Section>
+      ) : null}
     </Card>
   )
 }
@@ -564,12 +591,20 @@ function getPersonKey(person: Person, index: number, people: ReadonlyArray<Perso
   return shared ? `${name}@${person.player.gatewayId ?? `#${index}`}` : name
 }
 
-/** Who to show first: the people the user is playing, then themselves, then anyone watching. */
-function personOrder(person: Person) {
-  if (person.player.observer) {
-    return 2
+/**
+ * The order the cards go in: the lobby's, top to bottom, so each player is where the user sees them
+ * in the game. Without slots, like on the ladder, the people the user is playing come before
+ * them. Anyone watching comes last.
+ */
+function comparePeople(a: Person, b: Person) {
+  const watching = Number(!!a.player.observer) - Number(!!b.player.observer)
+  if (watching) {
+    return watching
   }
-  return person.isMe ? 1 : 0
+  if (a.player.slot !== undefined && b.player.slot !== undefined) {
+    return a.player.slot - b.player.slot
+  }
+  return Number(a.isMe) - Number(b.isMe)
 }
 
 /** Rounds down to the minute, to say how long ago something was in whole minutes. */
@@ -603,20 +638,24 @@ function LiveGameView({ game }: { game: LiveGame }) {
         isMe: isMyPlayerName(player.name, myNames),
       }
     })
-    .sort((a, b) => personOrder(a) - personOrder(b))
+    .sort(comparePeople)
   const scouts = useScouts(people.map(p => p.accounts))
-  const sections: Sections = {
-    ladder: game.source === 'ladder' || people.some(p => p.player.ladder),
-    accounts: people.some(p => p.aliases.length),
-    note: people.some(p => p.known?.note),
-    withYou: myNames.length > 0,
-  }
+  const playing = people.filter(p => !p.player.observer).length
 
   return (
     <Root>
       <Header>
         <Title>{t('liveGame.title', 'Live game')}</Title>
         <Badge>{getSourceLabel(game, t)}</Badge>
+        {playing ? (
+          <Muted>
+            {t('liveGame.players', {
+              defaultValue: '{{count}} players',
+              defaultValue_one: '{{count}} player',
+              count: playing,
+            })}
+          </Muted>
+        ) : null}
         <Joined noticedMs={game.noticedMs} />
       </Header>
       {myNames.length ? null : (
@@ -642,7 +681,6 @@ function LiveGameView({ game }: { game: LiveGame }) {
               key={getPersonKey(person, i, people)}
               person={person}
               gameId={game.id}
-              sections={sections}
               scout={scouts(person.accounts)}
               myNames={myNames}
             />

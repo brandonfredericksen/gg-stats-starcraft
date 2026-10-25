@@ -41,11 +41,12 @@ function getSamples(): LiveGame[] {
       noticedMs,
       started: false,
       players: [
-        { name: ME, race: 'p' },
-        { name: 'Quarry', race: 'z', gatewayId: 10, battleTag: 'Quarry#2718' },
-        { name: 'Thistle', race: 'r' },
-        { name: 'Ardent' },
-        { name: 'Lookout', observer: true },
+        { name: 'Quarry', slot: 0, race: 'z', gatewayId: 10, battleTag: 'Quarry#2718' },
+        { name: 'Thistle', slot: 1, race: 'r' },
+        { name: ME, slot: 2, race: 'p' },
+        { name: 'Ardent', slot: 4 },
+        { name: 'Bramble', slot: 5, race: 't' },
+        { name: 'Lookout', slot: 128, observer: true },
       ],
     },
     {

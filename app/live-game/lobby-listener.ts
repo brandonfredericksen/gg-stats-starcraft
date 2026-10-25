@@ -262,10 +262,11 @@ export class LobbyListener extends EventEmitter<LobbyListenerEvents> {
   private emitPlayersNow() {
     const players = Array.from(this.slots)
       .sort(([a], [b]) => a - b)
-      .map(([, slot]): LiveGamePlayer => {
+      .map(([id, slot]): LiveGamePlayer => {
         const identity = this.identities.get(slot.name.toLowerCase())
         return {
           name: slot.name,
+          slot: id,
           race: slot.race,
           gatewayId: identity?.gatewayId,
           battleTag: identity?.battleTag,

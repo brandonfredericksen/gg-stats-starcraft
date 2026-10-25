@@ -40,7 +40,7 @@ const MARKER = Buffer.from('Netcode v2 joined players: [', 'latin1')
 const END_MARKER = Buffer.from('Got results from game thread', 'latin1')
 const NEWLINE = 0x0a
 const PLAYER =
-  /JoinedPlayer \{ name: "((?:[^"\\]|\\.)*)", [^}]*?player_id: (Some|None)\b[^}]*?sb_user_id: SbUserId\((\d+)\)/g
+  /JoinedPlayer \{ name: "((?:[^"\\]|\\.)*)", [^}]*?player_id: (?:Some\(BwPlayerId\((\d+)\)\)|None)[^}]*?sb_user_id: SbUserId\((\d+)\)/g
 
 function unescapeRust(text: string) {
   return text.replace(/\\(u\{([0-9a-fA-F]{1,6})\}|.)/g, (_, escape: string, code?: string) => {
@@ -72,7 +72,8 @@ export function parseJoinedPlayers(line: string): LiveGamePlayer[] {
   for (const match of line.matchAll(PLAYER)) {
     const name = unescapeRust(match[1])
     if (name) {
-      players.push({ name, observer: match[2] === 'None' || undefined })
+      const slot = match[2] === undefined ? undefined : Number(match[2])
+      players.push({ name, slot, observer: slot === undefined || undefined })
     }
   }
   return players

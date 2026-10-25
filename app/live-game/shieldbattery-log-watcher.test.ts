@@ -37,16 +37,16 @@ const END =
 describe('parseJoinedPlayers', () => {
   test('reads every player, and who watches', () => {
     expect(parseJoinedPlayers(joinedLine(['alpha', 'beta'], ['gamma']))).toEqual([
-      { name: 'alpha', observer: undefined },
-      { name: 'beta', observer: undefined },
-      { name: 'gamma', observer: true },
+      { name: 'alpha', slot: 0, observer: undefined },
+      { name: 'beta', slot: 1, observer: undefined },
+      { name: 'gamma', slot: undefined, observer: true },
     ])
   })
 
   test("undoes Rust's escapes in names", () => {
     const line =
       'Netcode v2 joined players: [JoinedPlayer { name: "a\\"b\\\\c\\u{e9}", storm_id: StormPlayerId(0), player_id: Some(BwPlayerId(0)), sb_user_id: SbUserId(1) }]'
-    expect(parseJoinedPlayers(line)).toEqual([{ name: 'a"b\\cé', observer: undefined }])
+    expect(parseJoinedPlayers(line)).toEqual([{ name: 'a"b\\cé', slot: 0, observer: undefined }])
   })
 
   test('reads nothing from another line', () => {
