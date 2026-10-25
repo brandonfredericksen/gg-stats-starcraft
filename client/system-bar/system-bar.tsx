@@ -96,7 +96,19 @@ const Nav = styled.nav`
   gap: var(--space-1);
 `
 
-type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'live-game' | 'settings'
+type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'settings'
+
+/**
+ * Marks Match stats while the user is in a game. It stays still: the app is open while they play,
+ * and an animation would keep it drawing.
+ */
+const LiveDot = styled.span`
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--theme-live);
+`
 
 const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
   ${buttonReset};
@@ -421,8 +433,8 @@ export function SystemBar() {
   const isMyStats = section === 'myStats'
   const isCoach = section === 'coach'
   const isBuilds = section === 'builds'
-  const isLastGame = section === 'lastGame'
-  const isLiveGame = section === 'liveGame'
+  // Match stats is both the game being played and the last game's stats.
+  const isMatch = section === 'lastGame' || section === 'liveGame'
   const hasLiveGame = useAtomValue(hasLiveGameAtom)
   const [settingsButton, setSettingsButton] = useState<HTMLButtonElement | null>(null)
   useButtonHotkey({ elem: settingsButton, hotkey: ALT_S })
@@ -437,11 +449,9 @@ export function SystemBar() {
   }, [])
 
   const captureStatus = useCaptureStatus()
-  const showLiveGame = hasLiveGame || isLiveGame
-  // The tab coming and going changes what has to fit.
   const [containerRef, fitLevel] = useFitLevel<HTMLElement>(
     FitLevel.NoWordmark,
-    `${captureStatus.label}|${showLiveGame}`,
+    captureStatus.label,
   )
 
   return (
@@ -464,6 +474,28 @@ export function SystemBar() {
           <MaterialIcon icon='video_library' size={20} />
           {t('replays.activity.library', 'Library')}
         </NavItem>
+        <Tooltip
+          text={
+            hasLiveGame
+              ? t('matchStats.liveTooltip', "Who's in the game you joined (Alt + G)")
+              : t('matchStats.tooltip', 'Stats for your newest game (Alt + G)')
+          }
+          position='bottom'>
+          <NavItem
+            ref={setLastGameButton}
+            type='button'
+            $tab='last-game'
+            $active={isMatch}
+            aria-current={isMatch ? 'page' : undefined}
+            data-testid='last-game-button'
+            onClick={() => (hasLiveGame ? push('/live-game') : dispatch(openLastGame()))}>
+            <MaterialIcon icon='sports_esports' size={20} />
+            {t('matchStats.label', 'Match stats')}
+            {hasLiveGame ? (
+              <LiveDot aria-label={t('matchStats.inGame', 'In a game')} role='img' />
+            ) : null}
+          </NavItem>
+        </Tooltip>
         <NavItem
           type='button'
           $tab='stats'
@@ -491,34 +523,6 @@ export function SystemBar() {
           <MaterialIcon icon='account_tree' size={20} />
           {t('builds.title', 'Builds')}
         </NavItem>
-        <Tooltip
-          text={t('lastGame.tooltip', 'Stats for your newest game (Alt + G)')}
-          position='bottom'>
-          <NavItem
-            ref={setLastGameButton}
-            type='button'
-            $tab='last-game'
-            $active={isLastGame}
-            aria-current={isLastGame ? 'page' : undefined}
-            data-testid='last-game-button'
-            onClick={() => dispatch(openLastGame())}>
-            <MaterialIcon icon='history' size={20} />
-            {t('lastGame.label', 'Last game')}
-          </NavItem>
-        </Tooltip>
-        {showLiveGame ? (
-          <Tooltip text={t('liveGame.tooltip', "Who's in the game you joined")} position='bottom'>
-            <NavItem
-              type='button'
-              $tab='live-game'
-              $active={isLiveGame}
-              aria-current={isLiveGame ? 'page' : undefined}
-              onClick={() => push('/live-game')}>
-              <MaterialIcon icon='sensors' size={20} />
-              {t('liveGame.title', 'Live game')}
-            </NavItem>
-          </Tooltip>
-        ) : null}
       </Nav>
       <Spacer />
       <RestartToUpdateButton />

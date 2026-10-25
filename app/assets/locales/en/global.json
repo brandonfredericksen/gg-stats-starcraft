@@ -719,14 +719,12 @@
   },
   "lastGame": {
     "error": "Couldn't find your last game.",
-    "label": "Last game",
     "openGame": "Open",
-    "overline": "Your last game",
-    "tooltip": "Stats for your newest game (Alt + G)"
+    "overline": "Your last game"
   },
   "liveGame": {
     "buildsTable": "Builds by matchup",
-    "empty": "Join a game on the ladder, in a custom lobby or on ShieldBattery to see who's in it.",
+    "empty": "You're not in a game. Join one on the ladder, in a custom lobby or on ShieldBattery to see who's in it.",
     "fromBaseline_one": "1 is from the ladder games built into GG Stats.",
     "fromBaseline_other": "{{count}} are from the ladder games built into GG Stats.",
     "games": "Games",
@@ -761,7 +759,6 @@
     },
     "theirAnalyzedGames": "Their analyzed games",
     "title": "Live game",
-    "tooltip": "Who's in the game you joined",
     "unnamedBuild": "Unnamed build",
     "unranked": "Unranked",
     "waitingForPlayers": "Waiting to see who's in the game.",
@@ -776,6 +773,13 @@
     "thumbnail": {
       "noMapPreview": "Map preview not available"
     }
+  },
+  "matchStats": {
+    "inGame": "In a game",
+    "label": "Match stats",
+    "lastGame": "Last game's stats",
+    "liveTooltip": "Who's in the game you joined (Alt + G)",
+    "tooltip": "Stats for your newest game (Alt + G)"
   },
   "material": {
     "dialog": {

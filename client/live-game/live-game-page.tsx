@@ -38,10 +38,16 @@ import {
   labelSmall,
   titleMedium,
 } from '../styles/typography'
+import { openLastGame } from '../system-bar/last-game'
 import { liveGameAtom } from './live-game-atoms'
 import { ScoutState, useScouts } from './live-game-data'
 
 const TIME_AGO_FORMAT = relativeTimeFormat({ numeric: 'auto' })
+
+/** Pushes what follows it to the far end of the header. */
+const HeaderEnd = styled.div`
+  margin-left: auto;
+`
 
 /** The cards side by side, each in the same order and only as tall as what's known. */
 const Cards = styled.div`
@@ -657,6 +663,12 @@ function LiveGameView({ game }: { game: LiveGame }) {
           </Muted>
         ) : null}
         <Joined noticedMs={game.noticedMs} />
+        <HeaderEnd>
+          <TextButton
+            label={t('matchStats.lastGame', "Last game's stats")}
+            onClick={() => dispatch(openLastGame())}
+          />
+        </HeaderEnd>
       </Header>
       {myNames.length ? null : (
         <Message>
@@ -711,12 +723,21 @@ export function LiveGamePage() {
       </Header>
       <Message>
         {enabled ? (
-          <Muted>
-            {t(
-              'liveGame.empty',
-              "Join a game on the ladder, in a custom lobby or on ShieldBattery to see who's in it.",
-            )}
-          </Muted>
+          <>
+            <Muted>
+              {t(
+                'liveGame.empty',
+                "You're not in a game. Join one on the ladder, in a custom lobby or on " +
+                  "ShieldBattery to see who's in it.",
+              )}
+            </Muted>
+            <div>
+              <TextButton
+                label={t('matchStats.lastGame', "Last game's stats")}
+                onClick={() => dispatch(openLastGame())}
+              />
+            </div>
+          </>
         ) : (
           <>
             <Muted>{t('liveGame.off', "Showing who's in the games you join is turned off.")}</Muted>
