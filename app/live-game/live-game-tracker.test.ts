@@ -41,7 +41,6 @@ describe('LiveGameTracker', () => {
     expect(tracker.game).toMatchObject({
       id: 'ladder-50072-1009-100000',
       source: 'ladder',
-      started: true,
       players: [
         { name: 'Me', gatewayId: 10 },
         {
@@ -84,35 +83,6 @@ describe('LiveGameTracker', () => {
     expect(reports).toHaveLength(2)
   })
 
-  test('follows a lobby until its game starts, and keeps it after', () => {
-    const { tracker, reports, advance } = setup()
-    tracker.lobby('lobby-1', [{ name: 'Me' }])
-    const noticedMs = tracker.game?.noticedMs
-    advance(1000)
-    tracker.lobby('lobby-1', [{ name: 'Me' }, { name: 'Them', race: 'z' }])
-    tracker.lobby('lobby-1', [{ name: 'Me' }, { name: 'Them', race: 'z' }])
-    tracker.lobbyStarting('lobby-1')
-    tracker.lobbyEnded('lobby-1')
-    expect(reports).toHaveLength(3)
-    expect(tracker.game).toMatchObject({ id: 'lobby-1', started: true, noticedMs })
-  })
-
-  test('has no game once the user leaves a lobby', () => {
-    const { tracker } = setup()
-    tracker.lobby('lobby-1', [{ name: 'Me' }])
-    tracker.lobbyEnded('lobby-1')
-    expect(tracker.game).toBeUndefined()
-  })
-
-  test("ignores a lobby that's no longer the current game", () => {
-    const { tracker } = setup()
-    tracker.lobby('lobby-1', [{ name: 'Me' }])
-    tracker.matchScreen(50072, 1, 100_000, 100_000)
-    tracker.lobbyStarting('lobby-1')
-    tracker.lobbyEnded('lobby-1')
-    expect(tracker.game?.source).toBe('ladder')
-  })
-
   test('keeps a match whose page is used again, and the players it has', () => {
     const { tracker, reports } = setup()
     tracker.matchScreen(50072, 1, 100_000, 100_010)
@@ -122,12 +92,8 @@ describe('LiveGameTracker', () => {
     expect(reports).toHaveLength(2)
   })
 
-  test('ends a game that started when its replay is saved, but not an open lobby', () => {
+  test('ends a game when its replay is saved', () => {
     const { tracker, advance } = setup()
-    tracker.lobby('lobby-1', [{ name: 'Me' }])
-    advance(1000)
-    tracker.gameEnded(1_001_000)
-    expect(tracker.game?.id).toBe('lobby-1')
     tracker.matchScreen(50072, 1, 100_000, 100_000)
     advance(1000)
     tracker.gameEnded(1_002_000)
@@ -167,7 +133,7 @@ describe('LiveGameTracker', () => {
   test('reports a ShieldBattery game, then nothing once cleared', () => {
     const { tracker, reports } = setup()
     tracker.shieldBatteryGame([{ name: 'a' }, { name: 'b' }])
-    expect(tracker.game).toMatchObject({ source: 'shieldBattery', started: true })
+    expect(tracker.game).toMatchObject({ source: 'shieldBattery' })
     tracker.clear()
     expect(reports.at(-1)).toBeUndefined()
     expect(tracker.game).toBeUndefined()

@@ -23,10 +23,11 @@ Analysis runs in a second StarCraft the app starts itself, invisibly (`-backgrou
 reading the game's numbers while the replay fast forwards. The app only ever launches replays
 (`ActiveGameManager.setGameConfig` rejects anything else).
 
-A StarCraft the user started is only ever listened to, never injected into or sent a message. To
-show who's in a game the user joins (`app/live-game/`), the app reads what that game already leaves
-out: its embedded browser's disk cache, its lobby page's local socket and ShieldBattery's log files.
-It never reads the game's memory. All of it must cost nothing the player could notice while they
+A StarCraft the user started is never injected into, connected to or sent a message. To show who's
+in a game the user joins (`app/live-game/`), the app reads what that game already leaves out: its
+embedded browser's disk cache and ShieldBattery's log files. It never reads the game's memory or
+opens its local sockets: a second socket on a lobby page takes the page's updates, which empties and
+freezes the lobby. All of it must cost nothing the player could notice while they
 play: no busy loops, no scanning, nothing that grows without bound.
 
 `game/` started as [ShieldBattery](https://github.com/ShieldBattery/ShieldBattery)'s game DLL

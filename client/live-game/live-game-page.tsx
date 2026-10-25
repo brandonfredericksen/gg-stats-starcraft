@@ -234,10 +234,7 @@ const NumberCell = styled.div`
 `
 
 function getSourceLabel(game: LiveGame, t: TFunction) {
-  if (game.source === 'ladder') {
-    return t('liveGame.source.ladder', 'Ladder')
-  }
-  return game.source === 'lobby' ? t('liveGame.source.lobby', 'Custom game') : 'ShieldBattery'
+  return game.source === 'ladder' ? t('liveGame.source.ladder', 'Ladder') : 'ShieldBattery'
 }
 
 function getRegionLabel(gatewayId: number, t: TFunction) {
@@ -576,12 +573,8 @@ function PlayerCard({
     <Card>
       <CardHead>
         <NameLine>
-          {/* Only a race they picked: a guess here would read as their pick. */}
-          {player.race ? <RaceTag race={player.race} /> : null}
           <Name>
-            <PlayerNameButton name={player.name} race={player.race}>
-              {player.name}
-            </PlayerNameButton>
+            <PlayerNameButton name={player.name}>{player.name}</PlayerNameButton>
           </Name>
           {isMe ? <Badge>{t('liveGame.you', 'You')}</Badge> : null}
           {player.observer ? <Badge>{t('liveGame.observer', 'Observer')}</Badge> : null}
@@ -672,8 +665,8 @@ function getPersonKey(person: Person, index: number, people: ReadonlyArray<Perso
 }
 
 /**
- * The order the cards go in: the lobby's, top to bottom, so each player is where the user sees them
- * in the game. Without slots, like on the ladder, the people the user is playing come before
+ * The order the cards go in: the game's, top to bottom, so each player is where the user sees them
+ * in it. Without slots, like on the ladder, the people the user is playing come before
  * them. Anyone watching comes last.
  */
 function comparePeople(a: Person, b: Person) {
@@ -805,8 +798,8 @@ export function LiveGamePage() {
             <Muted>
               {t(
                 'liveGame.empty',
-                "You're not in a game. Join one on the ladder, in a custom lobby or on " +
-                  "ShieldBattery to see who's in it.",
+                "You're not in a game. Join one on the ladder or on ShieldBattery to see who's " +
+                  'in it.',
               )}
             </Muted>
             <div>

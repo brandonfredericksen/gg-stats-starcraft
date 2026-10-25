@@ -58,7 +58,7 @@ interface PendingBody {
 
 /**
  * Watches StarCraft's embedded browser cache for pages and lookups made when the user joins a game:
- * a lobby's page, the ladder's match screen, and the profiles that screen looks up. Each entry is
+ * the ladder's match screen and the profiles it looks up. Each entry is
  * reported when it's new or used again after the watcher started; what was there already isn't.
  *
  * It only ever reads, and costs next to nothing between games: one small read of a file's header a

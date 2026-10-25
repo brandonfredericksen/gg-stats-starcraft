@@ -6,7 +6,6 @@ import { LiveGame } from '../../common/live-game'
 import { LocalSettings } from '../../common/settings/local-settings'
 import log from '../logger'
 import { LiveGameTracker } from './live-game-tracker'
-import { ConnectLobbySocket, LobbyListener, LobbySocket } from './lobby-listener'
 import { ReplayFolder, ReplaySavedWatcher } from './replay-saved-watcher'
 import { CacheFiles, ScrCacheWatcher } from './scr-cache-watcher'
 import { LogFiles, ShieldBatteryLogWatcher } from './shieldbattery-log-watcher'
@@ -88,26 +87,6 @@ function replayFolderOf(folder: string): ReplayFolder {
   }
 }
 
-/**
- * Connects with Node's own WebSocket. No message is ever sent on it; only the protocol's own
- * handshake, ping replies and closing frame go out.
- */
-const connectLobbySocket: ConnectLobbySocket = url => {
-  const webSocket = new WebSocket(url)
-  const socket: LobbySocket = {
-    onopen: null,
-    onmessage: null,
-    onclose: null,
-    onerror: null,
-    close: () => webSocket.close(),
-  }
-  webSocket.onopen = () => socket.onopen?.()
-  webSocket.onmessage = event => socket.onmessage?.({ data: event.data })
-  webSocket.onclose = () => socket.onclose?.()
-  webSocket.onerror = () => socket.onerror?.()
-  return socket
-}
-
 interface SettingsSource {
   get: () => Promise<Partial<LocalSettings>>
   on: (event: 'change', listener: (settings: Partial<LocalSettings>) => void) => unknown
@@ -122,11 +101,10 @@ export interface LiveGameServiceOptions {
   /** StarCraft's replay folder in Documents, where it saves the replay of every game. */
   replayFolder: string
   onChange: (game: LiveGame | undefined) => void
-  /** For tests: what reads the files and opens the socket, instead of the real ones. */
+  /** For tests: what reads the files, instead of the real ones. */
   createCacheWatcher?: () => ScrCacheWatcher
   createShieldBatteryWatcher?: () => ShieldBatteryLogWatcher
   createReplaySavedWatcher?: () => ReplaySavedWatcher
-  connectLobby?: ConnectLobbySocket
   now?: () => number
 }
 
@@ -134,16 +112,15 @@ export interface LiveGameServiceOptions {
 const EXPIRE_CHECK_MS = 60_000
 
 /**
- * Shows who's in a game the user joins: ladder matches and lobbies on Battle.net from what StarCraft
- * leaves in its browser cache, and ShieldBattery games from its logs. Runs while the `liveGame`
- * setting is on, and lets go of everything when it's turned off.
+ * Shows who's in a game the user joins: ladder matches on Battle.net from what StarCraft leaves in
+ * its browser cache, and ShieldBattery games from its logs. Runs while the `liveGame` setting is
+ * on, and lets go of everything when it's turned off.
  */
 export class LiveGameService {
   private readonly tracker: LiveGameTracker
   private cacheWatcher: ScrCacheWatcher | undefined
   private shieldBatteryWatcher: ShieldBatteryLogWatcher | undefined
   private replaySavedWatcher: ReplaySavedWatcher | undefined
-  private lobby: { id: string; listener: LobbyListener } | undefined
   private expireTimer: ReturnType<typeof setInterval> | undefined
   private enabled = false
   /** Set once stopped for good, like when the app quits, so a setting arriving late can't restart it. */
@@ -191,12 +168,7 @@ export class LiveGameService {
       new ScrCacheWatcher(folderFiles(this.options.browserCacheFolder))
     cacheWatcher.on('sighting', sighting => {
       switch (sighting.kind) {
-        case 'lobbyPage':
-          this.listenToLobby(sighting.port, sighting.panelId, sighting.createdMs)
-          break
         case 'matchPage':
-          // A game the user joined replaces any lobby they were in.
-          this.stopLobby()
           this.tracker.matchScreen(
             sighting.port,
             sighting.panelId,
@@ -221,10 +193,7 @@ export class LiveGameService {
     const shieldBatteryWatcher =
       this.options.createShieldBatteryWatcher?.() ??
       new ShieldBatteryLogWatcher(watchedFolderFiles(this.options.shieldBatteryLogFolder))
-    shieldBatteryWatcher.on('players', players => {
-      this.stopLobby()
-      this.tracker.shieldBatteryGame(players)
-    })
+    shieldBatteryWatcher.on('players', players => this.tracker.shieldBatteryGame(players))
     shieldBatteryWatcher.on('ended', () => this.tracker.gameEnded(this.now()))
     shieldBatteryWatcher.on('error', err => {
       log.warning(`Couldn't read ShieldBattery's log: ${getErrorStack(err)}`)
@@ -255,37 +224,6 @@ export class LiveGameService {
     this.replaySavedWatcher = undefined
     clearInterval(this.expireTimer)
     this.expireTimer = undefined
-    this.stopLobby()
     this.tracker.clear()
-  }
-
-  private stopLobby() {
-    this.lobby?.listener.stop()
-    this.lobby?.listener.removeAllListeners()
-    this.lobby = undefined
-  }
-
-  /** Listens to the lobby whose page was made at `createdMs`, which tells it from another. */
-  private listenToLobby(port: number, panelId: number, createdMs: number) {
-    const id = `lobby-${port}-${panelId}-${createdMs}`
-    if (this.lobby?.id === id) {
-      return
-    }
-    this.stopLobby()
-    const listener = new LobbyListener(
-      port,
-      panelId,
-      this.options.connectLobby ?? connectLobbySocket,
-    )
-    this.lobby = { id, listener }
-    listener.on('players', players => this.tracker.lobby(id, players))
-    listener.on('starting', () => this.tracker.lobbyStarting(id))
-    listener.on('end', () => {
-      this.tracker.lobbyEnded(id)
-      if (this.lobby?.listener === listener) {
-        this.stopLobby()
-      }
-    })
-    listener.start()
   }
 }

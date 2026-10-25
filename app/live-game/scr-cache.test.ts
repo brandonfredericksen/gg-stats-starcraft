@@ -3,16 +3,6 @@ import { toServerJson } from './chromium-cache-test-files'
 import { parseLadderProfile, readCacheKey } from './scr-cache'
 
 describe('readCacheKey', () => {
-  test('reads a lobby page', () => {
-    expect(
-      readCacheKey(
-        'http://127.0.0.1:50072/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.html?locale=enUS&port=50072&guid=12382',
-        4,
-        5,
-      ),
-    ).toEqual({ kind: 'lobbyPage', port: 50072, panelId: 12382, createdMs: 4, atMs: 5 })
-  })
-
   test("reads the ladder's match screen", () => {
     expect(
       readCacheKey(
@@ -58,12 +48,13 @@ describe('readCacheKey', () => {
 
   test('ignores other pages and lookups', () => {
     for (const key of [
-      'http://127.0.0.1:50072/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.js',
+      'http://127.0.0.1:50072/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.html?locale=enUS&port=50072&guid=12382',
+      'http://127.0.0.1:50072/gamedata/webui/dist/MatchmakingGameLoadingPanel/MatchmakingGameLoadingPanel.js',
       'http://127.0.0.1:50072/gamedata/webui/dist/ChatPanel/ChatPanel.html?locale=enUS&port=50072&guid=9961',
       'http://127.0.0.1:50072/web-api/v2/aurora-profile-by-toon/44.44/10?request_flags=scr_tooninfo',
-      'http://127.0.0.1:50072/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.html?locale=enUS&port=0&guid=1',
-      'http://127.0.0.1:50072/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.html?locale=enUS&port=50072',
-      'https://example.com/gamedata/webui/dist/GameLobbyPanel/GameLobbyPanel.html?port=50072&guid=1',
+      'http://127.0.0.1:50072/gamedata/webui/dist/MatchmakingGameLoadingPanel/MatchmakingGameLoadingPanel.html?locale=enUS&port=0&guid=1',
+      'http://127.0.0.1:50072/gamedata/webui/dist/MatchmakingGameLoadingPanel/MatchmakingGameLoadingPanel.html?locale=enUS&port=50072',
+      'https://example.com/gamedata/webui/dist/MatchmakingGameLoadingPanel/MatchmakingGameLoadingPanel.html?port=50072&guid=1',
     ]) {
       expect(readCacheKey(key, 4, 5)).toBeUndefined()
     }

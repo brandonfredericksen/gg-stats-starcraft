@@ -1,8 +1,7 @@
 import { LadderRank } from './games/ladder'
-import { RaceChar } from './races'
 
 /** How the app saw the game the user joined. */
-export type LiveGameSource = 'ladder' | 'lobby' | 'shieldBattery'
+export type LiveGameSource = 'ladder' | 'shieldBattery'
 
 /** A player's season on StarCraft's 1v1 ladder, as the match screen looked it up. */
 export interface LiveLadderStanding {
@@ -15,13 +14,8 @@ export interface LiveLadderStanding {
 
 export interface LiveGamePlayer {
   name: string
-  /**
-   * Where they are in the lobby, top to bottom, when the game says: their slot in a Battle.net
-   * lobby, or their player number in ShieldBattery.
-   */
+  /** Where they are in the game, top to bottom, when it says: their player number in ShieldBattery. */
   slot?: number
-  /** The race they picked in a lobby, `r` for random. Missing until they pick one. */
-  race?: RaceChar
   /** The Battle.net gateway they play on, like 10 for U.S. West, when the game says. */
   gatewayId?: number
   battleTag?: string
@@ -31,15 +25,13 @@ export interface LiveGamePlayer {
   observer?: boolean
 }
 
-/** A game the user joined, from a lobby or the match found screen to after it starts. */
+/** A game the user joined, from the match found or loading screen until it ends. */
 export interface LiveGame {
   /** Different for every game, so a new game can be told from an update to the same one. */
   id: string
   source: LiveGameSource
   /** When the app noticed the game, in Unix ms. */
   noticedMs: number
-  /** Whether the game was seen starting, like a lobby counting down. */
-  started: boolean
   players: LiveGamePlayer[]
 }
 

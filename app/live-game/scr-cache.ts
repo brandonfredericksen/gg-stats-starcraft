@@ -2,26 +2,24 @@ import { rankFromBucket } from '../../common/games/ladder'
 import { LiveLadderStanding } from '../../common/live-game'
 
 /**
- * What StarCraft's embedded browser caches that tells about a game the user joined. Every UI page
- * is cached under its URL, which carries the port of StarCraft's local server and the page's panel
- * id, and the ladder's match screen looks up each player's profile by name and gateway. `atMs` is
+ * What StarCraft's embedded browser caches that tells about a ladder game the user joined. The match
+ * screen's page is cached under its URL, which carries the port of StarCraft's local server and the
+ * page's panel id, and the screen looks up each player's profile by name and gateway. `atMs` is
  * when the entry was last used, and `createdMs` when it was made, which never changes, so it tells
  * one page from another.
  */
 export type ScrCacheSighting =
-  | { kind: 'lobbyPage'; port: number; panelId: number; createdMs: number; atMs: number }
   | { kind: 'matchPage'; port: number; panelId: number; createdMs: number; atMs: number }
   | { kind: 'ladderProfile'; name: string; gatewayId: number; createdMs: number; atMs: number }
 
 /** Bytes found in the keys of every entry {@link readCacheKey} reads, to find them quickly. */
 export const SCR_CACHE_MARKERS: ReadonlyArray<Uint8Array> = [
-  Buffer.from('GameLobbyPanel.html?', 'latin1'),
   Buffer.from('MatchmakingGameLoadingPanel.html?', 'latin1'),
   Buffer.from('request_flags=scr_mmgameloading', 'latin1'),
 ]
 
 const PAGE_KEY =
-  /^http:\/\/127\.0\.0\.1:\d+\/gamedata\/webui\/dist\/(GameLobbyPanel|MatchmakingGameLoadingPanel)\/\1\.html\?(.*)$/
+  /^http:\/\/127\.0\.0\.1:\d+\/gamedata\/webui\/dist\/MatchmakingGameLoadingPanel\/MatchmakingGameLoadingPanel\.html\?(.*)$/
 const PROFILE_KEY =
   /^http:\/\/127\.0\.0\.1:\d+\/web-api\/v2\/aurora-profile-by-toon\/([^/?]+)\/(\d+)\?request_flags=scr_mmgameloading$/
 
@@ -38,15 +36,13 @@ export function readCacheKey(
 ): ScrCacheSighting | undefined {
   const page = PAGE_KEY.exec(key)
   if (page) {
-    const params = new URLSearchParams(page[2])
+    const params = new URLSearchParams(page[1])
     const port = toPort(params.get('port'))
     const guid = params.get('guid')
     if (port === undefined || !guid || !/^\d{1,9}$/.test(guid)) {
       return undefined
     }
-    const panelId = Number(guid)
-    const kind = page[1] === 'GameLobbyPanel' ? 'lobbyPage' : 'matchPage'
-    return { kind, port, panelId, createdMs, atMs }
+    return { kind: 'matchPage', port, panelId: Number(guid), createdMs, atMs }
   }
   const profile = PROFILE_KEY.exec(key)
   if (profile) {

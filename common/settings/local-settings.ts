@@ -177,7 +177,7 @@ export interface LocalSettings extends GgStatsAppSettings {
   autoCaptureNotifications?: boolean
   /**
    * Whether to show who's in a game the user joins, from what StarCraft and ShieldBattery leave on
-   * disk and the lobby's page socket. Missing means on.
+   * disk. Missing means on.
    */
   liveGame?: boolean
   /** Whether to check GitHub for new versions and install them. Missing means on. */

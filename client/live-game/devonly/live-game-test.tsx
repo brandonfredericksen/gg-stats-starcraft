@@ -24,7 +24,6 @@ function getSamples(): LiveGame[] {
       id: `dev-ladder-${noticedMs}`,
       source: 'ladder',
       noticedMs,
-      started: true,
       players: [
         { name: ME, gatewayId: 10, ladder: { rating: 1075, rank: 'f', wins: 3, losses: 6 } },
         {
@@ -37,31 +36,15 @@ function getSamples(): LiveGame[] {
       ],
     },
     {
-      id: `dev-lobby-${noticedMs}`,
-      source: 'lobby',
-      noticedMs,
-      started: false,
-      players: [
-        { name: 'Quarry', slot: 0, race: 'z', gatewayId: 10, battleTag: 'Quarry#2718' },
-        { name: 'Thistle', slot: 1, race: 'r' },
-        { name: ME, slot: 2, race: 'p' },
-        { name: 'Ardent', slot: 4 },
-        { name: 'Bramble', slot: 5, race: 't' },
-        { name: 'Lookout', slot: 128, observer: true },
-      ],
-    },
-    {
       id: `dev-shieldbattery-${noticedMs}`,
       source: 'shieldBattery',
       noticedMs,
-      started: true,
       players: [{ name: ME }, { name: 'Bramble' }, { name: 'Cinder' }, { name: 'Dovetail' }],
     },
     {
       id: `dev-empty-ladder-${noticedMs}`,
       source: 'ladder',
       noticedMs,
-      started: true,
       players: [],
     },
   ]
@@ -74,7 +57,7 @@ export function LiveGameTest() {
     setLiveGame(game)
     push('/live-game')
   }
-  const [ladder, lobby, shieldBattery, empty] = getSamples()
+  const [ladder, shieldBattery, empty] = getSamples()
   const [name, setName] = useState('')
   const withPlayer = (): LiveGame => ({
     ...ladder,
@@ -95,7 +78,6 @@ export function LiveGameTest() {
         onClick={() => show(withPlayer())}
       />
       <TextButton label='Ladder match' onClick={() => show(ladder)} />
-      <TextButton label='Custom lobby' onClick={() => show(lobby)} />
       <TextButton label='ShieldBattery game' onClick={() => show(shieldBattery)} />
       <TextButton label='Match found, no players yet' onClick={() => show(empty)} />
       <TextButton label='No game' onClick={() => show(undefined)} />

@@ -6,7 +6,7 @@ import logger from '../logging/logger'
 
 const ipcRenderer = new TypedIpcRenderer()
 
-/** People are looked up a little after a lobby changes, so a burst of joins is one request. */
+/** People are looked up a little after a game's players change, so a burst of them is one request. */
 const LOAD_DELAY_MS = 300
 /** How many people's stats are kept, the latest looked up. */
 const MAX_CACHED = 64

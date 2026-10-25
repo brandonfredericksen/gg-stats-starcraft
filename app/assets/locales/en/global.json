@@ -734,7 +734,7 @@
   },
   "liveGame": {
     "buildsTable": "Builds by matchup",
-    "empty": "You're not in a game. Join one on the ladder, in a custom lobby or on ShieldBattery to see who's in it.",
+    "empty": "You're not in a game. Join one on the ladder or on ShieldBattery to see who's in it.",
     "fromBaseline_one": "1 is from the ladder games built into GG Stats.",
     "fromBaseline_other": "{{count}} are from the ladder games built into GG Stats.",
     "games": "Games",
@@ -767,8 +767,7 @@
     "showAll_other": "Show all ({{count}} more rows)",
     "showLess": "Show less",
     "source": {
-      "ladder": "Ladder",
-      "lobby": "Custom game"
+      "ladder": "Ladder"
     },
     "theirAnalyzedGames": "Their analyzed games",
     "theirGamesScope": "Every analyzed game they were in, all time",
@@ -1600,7 +1599,7 @@
         "foldersDescription": "Removing a folder takes its replays and their bookmarks out of the library.",
         "foldersTitle": "Replay folders",
         "liveGame": "Show who's in the games you join",
-        "liveGameDescription": "When you join a game, Live game shows who you play with and against, from what StarCraft and ShieldBattery keep on your computer. It only reads and listens, so your game isn't affected.",
+        "liveGameDescription": "When you join a game, Live game shows who you play with and against, from what StarCraft and ShieldBattery keep on your computer. It only reads files, so your game isn't affected.",
         "liveGameTitle": "Games you join",
         "openingTitle": "Opening replays",
         "quickOpen": "Skip the preview when opening a replay file",

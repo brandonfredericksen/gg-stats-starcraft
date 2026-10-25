@@ -63,7 +63,7 @@ export class LiveGameTracker {
       .filter(p => p.atMs >= atMs - PROFILE_LEAD_MS)
       .map(p => this.toPlayer(p))
     this.waitingProfiles = []
-    this.set({ id, source: 'ladder', noticedMs: this.now(), started: true, players })
+    this.set({ id, source: 'ladder', noticedMs: this.now(), players })
   }
 
   /** The match screen looked up someone's profile. */
@@ -111,27 +111,6 @@ export class LiveGameTracker {
     })
   }
 
-  /** The user is in a lobby, with these people in it so far. */
-  lobby(id: string, players: LiveGamePlayer[]) {
-    const started = this.current?.id === id && this.current.started
-    const noticedMs = this.current?.id === id ? this.current.noticedMs : this.now()
-    this.set({ id, source: 'lobby', noticedMs, started, players })
-  }
-
-  /** The lobby's host started the game. */
-  lobbyStarting(id: string) {
-    if (this.current?.id === id && !this.current.started) {
-      this.set({ ...this.current, started: true })
-    }
-  }
-
-  /** The lobby's page is gone. Unless its game started, the user left, and there's no game. */
-  lobbyEnded(id: string) {
-    if (this.current?.id === id && !this.current.started) {
-      this.set(undefined)
-    }
-  }
-
   /** A ShieldBattery game is loading with these people in it. */
   shieldBatteryGame(players: LiveGamePlayer[]) {
     const noticedMs = this.now()
@@ -139,18 +118,16 @@ export class LiveGameTracker {
       id: `shieldBattery-${noticedMs}`,
       source: 'shieldBattery',
       noticedMs,
-      started: true,
       players,
     })
   }
 
   /**
-   * A game ended at `endedMs`, like when its replay was saved. Only a started game noticed before
-   * then can be the one that ended: a lobby that hasn't started is still open, and a game noticed
-   * after is the next one.
+   * A game ended at `endedMs`, like when its replay was saved. Only a game noticed before then can
+   * be the one that ended: a game noticed after is the next one.
    */
   gameEnded(endedMs: number) {
-    if (this.current?.started && this.current.noticedMs < endedMs) {
+    if (this.current && this.current.noticedMs < endedMs) {
       this.set(undefined)
     }
   }
@@ -186,7 +163,7 @@ export class LiveGameTracker {
       this.ladder = undefined
     }
     this.current = game
-    // A lobby resends the same thing often; only a change is worth telling the window.
+    // Only a change is worth telling the window.
     const reported = JSON.stringify(game ?? null)
     if (reported !== this.reported) {
       this.reported = reported

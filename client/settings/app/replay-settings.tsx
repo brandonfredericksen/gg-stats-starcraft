@@ -247,8 +247,8 @@ export function AppReplaySettings() {
           {t(
             'settings.app.replays.liveGameDescription',
             'When you join a game, Live game shows who you play with and against, from what ' +
-              'StarCraft and ShieldBattery keep on your computer. It only reads and listens, so ' +
-              "your game isn't affected.",
+              'StarCraft and ShieldBattery keep on your computer. It only reads files, so your ' +
+              "game isn't affected.",
           )}
         </SettingsSectionDescription>
         <CheckBox
