@@ -42,18 +42,30 @@ export function withoutLibraryCopies(
 }
 
 /**
- * The ladder games shipped with the app, each marked as from the baseline. None if there's no
- * baseline, or it was built with other metrics than these and so can't be compared with them.
+ * The ladder games of the first of `filePaths` with a baseline the app can use, each marked as from
+ * the baseline. None if there's no baseline, or each was built with other metrics than these and so
+ * can't be compared with them.
  */
 export async function loadLadderBaseline(
-  filePath = LADDER_BASELINE_PATH,
+  filePaths: ReadonlyArray<string> = [LADDER_BASELINE_PATH],
 ): Promise<DatedGameMetrics[]> {
+  for (const filePath of filePaths) {
+    const games = await readBaseline(filePath)
+    if (games) {
+      log.info(`Loaded ${games.length} ladder baseline games from ${filePath}`)
+      return games.map(game => ({ ...game, ladderBaseline: true }))
+    }
+  }
+  return []
+}
+
+async function readBaseline(filePath: string): Promise<DatedGameMetrics[] | undefined> {
   let data: Buffer
   try {
     data = await readFile(filePath)
   } catch {
     log.verbose(`No ladder baseline at ${filePath}`)
-    return []
+    return undefined
   }
   try {
     const baseline = parseLadderBaseline(JSON.parse((await gunzipAsync(data)).toString('utf8')))
@@ -62,12 +74,10 @@ export async function loadLadderBaseline(
         `The ladder baseline at ${filePath} was built with other metrics, so it's left out. ` +
           'Build it again with `pnpm run ladder-baseline --skip-fetch`.',
       )
-      return []
     }
-    log.info(`Loaded ${baseline.games.length} ladder baseline games`)
-    return baseline.games.map(game => ({ ...game, ladderBaseline: true }))
+    return baseline?.games
   } catch (err) {
     log.error(`Couldn't read the ladder baseline at ${filePath}: ${getErrorStack(err)}`)
-    return []
+    return undefined
   }
 }

@@ -220,9 +220,7 @@ function makeAnonymizer() {
 }
 
 function anonymize(player: PlayerMetrics, idOf: (name: string) => string): PlayerMetrics {
-  // Moments point to times in a replay that doesn't ship with the baseline.
-  const { moments: _moments, ...rest } = player
-  return { ...rest, names: [idOf(player.names[0] ?? '')] }
+  return { ...player, names: [idOf(player.names[0] ?? '')] }
 }
 
 /** The kinds of game the ladders play, which a baseline keeps. */
@@ -232,15 +230,18 @@ const LADDER_SHAPES: ReadonlySet<GameShape> = new Set(['1v1', '2v2', '3v3'])
  * Writes the ladder games analyzed from folders of ladder replays, with each player's MMR and rank
  * from the ladder manifest next to them, as a baseline the app ships: 1v1 games from StarCraft's
  * ladder, and 2v2 and 3v3 games from ShieldBattery's, whose players have a rating but no rank.
- * Games without a ladder game in a manifest are left out.
+ * Games without a ladder game in a manifest are left out. The same games with the players' real
+ * names go to each of `namedExportPaths`, which must be on this computer only.
  */
 export async function exportLadderBaseline({
   folders,
   exportPath,
+  namedExportPaths = [],
   gameStatsStore,
 }: {
   folders: ReadonlyArray<string>
   exportPath: string
+  namedExportPaths?: ReadonlyArray<string>
   gameStatsStore: GameStatsStore
 }) {
   const folderKeys = folders.map(folder => path.resolve(folder).toLowerCase() + path.sep)
@@ -250,7 +251,6 @@ export async function exportLadderBaseline({
       LADDER_SHAPES.has(l.metrics.shape),
   )
   const ladderGames = await new LadderManifests().getGames(listings.map(l => l.replayPathKey!))
-  const idOf = makeAnonymizer()
   const games: DatedGameMetrics[] = []
   for (const { replayPathKey, metrics } of listings) {
     const ladder = ladderGames.get(replayPathKey!)
@@ -268,19 +268,31 @@ export async function exportLadderBaseline({
       ...withRanks,
       gameId: getBaselineGameId(replayPathKey!),
       gameTimeMs,
-      players: withRanks.players.map(p => anonymize(p, idOf)),
+      // Moments point to times in a replay that doesn't ship with the baseline.
+      players: withRanks.players.map(({ moments: _moments, ...player }) => player),
     })
   }
   games.sort((a, b) => a.gameTimeMs - b.gameTimeMs)
+  const createdMs = Date.now()
+  for (const namedPath of namedExportPaths) {
+    await writeBaseline(namedPath, games, createdMs)
+  }
+  const idOf = makeAnonymizer()
+  await writeBaseline(
+    exportPath,
+    games.map(game => ({ ...game, players: game.players.map(p => anonymize(p, idOf)) })),
+    createdMs,
+  )
+}
+
+async function writeBaseline(filePath: string, games: DatedGameMetrics[], createdMs: number) {
   const baseline: LadderBaseline = {
     version: LADDER_BASELINE_VERSION,
     metricsVersion: GAME_METRICS_VERSION,
-    createdMs: Date.now(),
+    createdMs,
     games,
   }
   const compressed = gzipSync(JSON.stringify(baseline), { level: 9 })
-  await writeFile(exportPath, compressed)
-  report(
-    `Wrote ${games.length} games to ${exportPath} (${Math.round(compressed.length / 1024)} KB).`,
-  )
+  await writeFile(filePath, compressed)
+  report(`Wrote ${games.length} games to ${filePath} (${Math.round(compressed.length / 1024)} KB).`)
 }

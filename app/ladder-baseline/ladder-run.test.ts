@@ -169,6 +169,38 @@ describe('app/ladder-baseline/ladder-run', () => {
       expect(JSON.stringify(baseline)).not.toMatch(/kestrel|wren/i)
     })
 
+    test('writes the same games with real names to the named paths', async () => {
+      const listings: MetricsListing[] = [
+        {
+          replayPathKey: keyOf('abc.rep'),
+          savedAt: 0,
+          metrics: metrics('g1', '1v1', [player('Kestrel', 'p'), player('Wren', 'z')]),
+        },
+      ]
+      const store = { listMetrics: async () => listings } as unknown as GameStatsStore
+      const exportPath = path.join(dir, 'baseline.json.gz')
+      const namedPath = path.join(dir, 'named.json.gz')
+      await exportLadderBaseline({
+        folders: [replays],
+        exportPath,
+        namedExportPaths: [namedPath],
+        gameStatsStore: store,
+      })
+
+      const read = async (filePath: string) =>
+        parseLadderBaseline(JSON.parse(gunzipSync(await readFile(filePath)).toString('utf8')))!
+      const [shipped, named] = await Promise.all([read(exportPath), read(namedPath)])
+      expect(named.createdMs).toBe(shipped.createdMs)
+      expect(named.games).toHaveLength(1)
+      const [game] = named.games
+      expect(game).toMatchObject({ gameId: 'ladder-abc', gameTimeMs: LADDER_GAME.createdMs })
+      expect(game.players.map(p => [p.names, p.mmr, p.moments])).toEqual([
+        [['Kestrel'], 1850, undefined],
+        [['Wren'], 1790, undefined],
+      ])
+      expect(JSON.stringify(shipped)).not.toMatch(/kestrel|wren/i)
+    })
+
     test("adds another folder's team games, with ratings and no ranks", async () => {
       const team = path.join(dir, 'team')
       await mkdir(team, { recursive: true })

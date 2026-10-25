@@ -11,6 +11,13 @@ import { GAME_METRICS_VERSION } from './player-metrics'
 export const LADDER_BASELINE_FILE = 'ladder-baseline.json.gz'
 
 /**
+ * The baseline's games with every player's real name, so the players in it can be looked up by
+ * name. Building the baseline writes it into the app data of the computer it's built on, and never
+ * anywhere it would ship. An app that finds it in its app data uses it instead of the shipped one.
+ */
+export const NAMED_LADDER_BASELINE_FILE = 'ladder-baseline-named.json.gz'
+
+/**
  * While this file is in the folder of ladder replays, building the baseline waits: no more calls to
  * StarCraft or downloads, and no replay started after the one being analyzed.
  */

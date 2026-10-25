@@ -12,6 +12,7 @@ import {
 } from 'electron'
 import isDev from 'electron-is-dev'
 import localShortcut from 'electron-localshortcut'
+import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import path from 'node:path'
 import { container } from 'tsyringe'
@@ -19,6 +20,7 @@ import { URL } from 'url'
 import swallowNonBuiltins from '../common/async/swallow-non-builtins'
 import { getErrorStack } from '../common/errors'
 import { GameIconsManifest } from '../common/game-icons'
+import { NAMED_LADDER_BASELINE_FILE } from '../common/games/ladder-baseline'
 import { TypedIpcMain, TypedIpcSender } from '../common/ipc'
 import { DEFAULT_LOCAL_SETTINGS } from '../common/settings/default-settings'
 import { LocalSettings } from '../common/settings/local-settings'
@@ -41,6 +43,7 @@ import {
   getLadderRunArgs,
   readMissingCommands,
 } from './ladder-baseline/ladder-run'
+import { LADDER_BASELINE_PATH, loadLadderBaseline } from './ladder-baseline/load-baseline'
 import { getLaunchReplayPaths } from './launch-args'
 import { LiveGameService } from './live-game'
 import logger from './logger'
@@ -178,6 +181,17 @@ function resolveReplayFolders(settings: Readonly<Partial<LocalSettings>>): strin
     return [defaultReplayFolder()]
   }
   return configured.map(folder => path.normalize(folder)).filter(folder => folder.length > 0)
+}
+
+/**
+ * Where building the baseline puts the copy with real names: this app's data, and an installed GG
+ * Stats' if this computer has one, since baselines are built by the dev app.
+ */
+function getNamedBaselinePaths() {
+  const folders = new Set([getUserDataPath(), path.join(app.getPath('appData'), 'GG Stats')])
+  return [...folders]
+    .filter(folder => existsSync(folder))
+    .map(folder => path.join(folder, NAMED_LADDER_BASELINE_FILE))
 }
 
 async function createLocalSettings() {
@@ -906,6 +920,11 @@ app.on('ready', () => {
       const myStats = setupMyStats(
         gameStatsStore,
         pathKeys => replayLibrary?.getGameTimes(pathKeys) ?? new Map(),
+        () =>
+          loadLadderBaseline([
+            path.join(getUserDataPath(), NAMED_LADDER_BASELINE_FILE),
+            LADDER_BASELINE_PATH,
+          ]),
       )
       const commandStatsBackfill = new CommandStatsBackfill(
         gameStatsStore,
@@ -1027,6 +1046,7 @@ app.on('ready', () => {
           await exportLadderBaseline({
             folders: ladderRun.folders,
             exportPath: ladderRun.exportPath,
+            namedExportPaths: getNamedBaselinePaths(),
             gameStatsStore,
           })
         }

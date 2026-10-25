@@ -46,7 +46,7 @@ describe('app/ladder-baseline/load-baseline', () => {
       createdMs: 1,
       games: [GAME],
     })
-    expect(await loadLadderBaseline(filePath)).toEqual([{ ...GAME, ladderBaseline: true }])
+    expect(await loadLadderBaseline([filePath])).toEqual([{ ...GAME, ladderBaseline: true }])
   })
 
   test('leaves out a baseline built with other metrics', async () => {
@@ -56,13 +56,43 @@ describe('app/ladder-baseline/load-baseline', () => {
       createdMs: 1,
       games: [GAME],
     })
-    expect(await loadLadderBaseline(filePath)).toEqual([])
+    expect(await loadLadderBaseline([filePath])).toEqual([])
   })
 
   test('has no games without a baseline, or with a broken one', async () => {
-    expect(await loadLadderBaseline(filePath)).toEqual([])
+    expect(await loadLadderBaseline([filePath])).toEqual([])
     await writeFile(filePath, 'not gzip')
-    expect(await loadLadderBaseline(filePath)).toEqual([])
+    expect(await loadLadderBaseline([filePath])).toEqual([])
+  })
+
+  test('loads the first baseline it can use', async () => {
+    const named = path.join(dir, 'named.json.gz')
+    const newer = { ...GAME, gameId: 'ladder-named' }
+    await writeFile(
+      named,
+      gzipSync(
+        JSON.stringify({
+          version: LADDER_BASELINE_VERSION,
+          metricsVersion: GAME_METRICS_VERSION,
+          createdMs: 2,
+          games: [newer],
+        }),
+      ),
+    )
+    await write({
+      version: LADDER_BASELINE_VERSION,
+      metricsVersion: GAME_METRICS_VERSION,
+      createdMs: 1,
+      games: [GAME],
+    })
+    expect(await loadLadderBaseline([named, filePath])).toEqual([
+      { ...newer, ladderBaseline: true },
+    ])
+    expect(await loadLadderBaseline([path.join(dir, 'missing.json.gz'), filePath])).toEqual([
+      { ...GAME, ladderBaseline: true },
+    ])
+    await writeFile(named, 'not gzip')
+    expect(await loadLadderBaseline([named, filePath])).toEqual([{ ...GAME, ladderBaseline: true }])
   })
 
   test('leaves out the games made from a replay in the library', () => {

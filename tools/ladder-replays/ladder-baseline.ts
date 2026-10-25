@@ -23,7 +23,9 @@
  *    analyzed before and fetching nothing.
  * 4. Has the app write the analyzed games, with each player's MMR and rank, or rating for
  *    ShieldBattery's, and every name replaced by a made up id, to
- *    `app/assets/ladder-baseline.json.gz`.
+ *    `app/assets/ladder-baseline.json.gz`. A copy with the real names goes into the app data of the
+ *    dev app and of an installed GG Stats, so the apps on this computer can look up the players in
+ *    it by name.
  *
  * While it runs, P pauses it and goes on again, and Q (or Ctrl+C) stops it once what it's in the
  * middle of is done, like the replay being analyzed. Q again stops it right away.
