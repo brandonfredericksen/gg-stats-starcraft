@@ -3,7 +3,7 @@ import { MIN_GAME_LENGTH_MS } from '../common/games/game-filters'
 import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
-import { ESkill, ESkillModel, fitESkillModel, getESkill } from '../common/my-stats/eskill'
+import { ESkillModel, fitESkillModel } from '../common/my-stats/eskill'
 import { computeMetaBuilds } from '../common/my-stats/meta-builds'
 import { computeMyStatsSummary, DatedGameMetrics } from '../common/my-stats/my-stats'
 import { GameStatsStore } from './game/game-stats-store'
@@ -110,19 +110,6 @@ export function setupMyStats(
   ipcMain.handle('myStatsQuery', async (_event, query) => {
     const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
     return computeMyStatsSummary(games, query, Date.now(), model)
-  })
-  ipcMain.handle('gameESkill', async (_event, gameId) => {
-    const [found, model] = await Promise.all([gameStatsStore.getMetrics(gameId), loadESkillModel()])
-    const scores: Record<number, ESkill> = {}
-    if (found && model) {
-      found.metrics.players.forEach((player, i) => {
-        const eSkill = getESkill(model, found.metrics, player)
-        if (eSkill) {
-          scores[found.playerIds[i]] = eSkill
-        }
-      })
-    }
-    return scores
   })
   ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
   ipcMain.handle('metaBuildsQuery', async (_event, query) =>
