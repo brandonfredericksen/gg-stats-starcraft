@@ -5,9 +5,11 @@ import { getErrorStack } from '../../common/errors'
 import { LiveGame } from '../../common/live-game'
 import { LocalSettings } from '../../common/settings/local-settings'
 import log from '../logger'
+import { CacheFiles } from './cache-watcher'
 import { LiveGameTracker } from './live-game-tracker'
 import { ReplayFolder, ReplaySavedWatcher } from './replay-saved-watcher'
-import { CacheFiles, ScrCacheWatcher } from './scr-cache-watcher'
+import { ShieldBatteryCacheWatcher } from './sb-cache'
+import { ScrCacheWatcher } from './scr-cache-watcher'
 import { LogFiles, ShieldBatteryLogWatcher } from './shieldbattery-log-watcher'
 
 /** Reads part of a file into `into`, or undefined if it isn't there. */
@@ -98,12 +100,15 @@ export interface LiveGameServiceOptions {
   browserCacheFolder: string
   /** Where ShieldBattery writes its logs. */
   shieldBatteryLogFolder: string
+  /** Where ShieldBattery's own browser keeps its cache. */
+  shieldBatteryCacheFolder: string
   /** StarCraft's replay folder in Documents, where it saves the replay of every game. */
   replayFolder: string
   onChange: (game: LiveGame | undefined) => void
   /** For tests: what reads the files, instead of the real ones. */
   createCacheWatcher?: () => ScrCacheWatcher
   createShieldBatteryWatcher?: () => ShieldBatteryLogWatcher
+  createShieldBatteryCacheWatcher?: () => ShieldBatteryCacheWatcher
   createReplaySavedWatcher?: () => ReplaySavedWatcher
   now?: () => number
 }
@@ -113,13 +118,15 @@ const EXPIRE_CHECK_MS = 60_000
 
 /**
  * Shows who's in a game the user joins: ladder matches on Battle.net from what StarCraft leaves in
- * its browser cache, and ShieldBattery games from its logs. Runs while the `liveGame` setting is
- * on, and lets go of everything when it's turned off.
+ * its browser cache, and ShieldBattery games from its logs, with the profiles the user opens in it
+ * from its browser cache. Runs while the `liveGame` setting is on, and lets go of everything when
+ * it's turned off.
  */
 export class LiveGameService {
   private readonly tracker: LiveGameTracker
   private cacheWatcher: ScrCacheWatcher | undefined
   private shieldBatteryWatcher: ShieldBatteryLogWatcher | undefined
+  private shieldBatteryCacheWatcher: ShieldBatteryCacheWatcher | undefined
   private replaySavedWatcher: ReplaySavedWatcher | undefined
   private expireTimer: ReturnType<typeof setInterval> | undefined
   private enabled = false
@@ -181,9 +188,11 @@ export class LiveGameService {
           break
       }
     })
-    cacheWatcher.on('profile', (name, gatewayId, profile) =>
-      this.tracker.profileRead(name, gatewayId, profile),
-    )
+    cacheWatcher.on('body', (sighting, profile) => {
+      if (sighting.kind === 'ladderProfile') {
+        this.tracker.profileRead(sighting.name, sighting.gatewayId, profile)
+      }
+    })
     cacheWatcher.on('error', err => {
       log.warning(`Couldn't read StarCraft's browser cache: ${getErrorStack(err)}`)
     })
@@ -206,6 +215,18 @@ export class LiveGameService {
     shieldBatteryWatcher.start()
     this.shieldBatteryWatcher = shieldBatteryWatcher
 
+    const shieldBatteryCacheWatcher =
+      this.options.createShieldBatteryCacheWatcher?.() ??
+      new ShieldBatteryCacheWatcher(folderFiles(this.options.shieldBatteryCacheFolder))
+    shieldBatteryCacheWatcher.on('body', (sighting, profile) =>
+      this.tracker.shieldBatteryProfile(profile, sighting.atMs),
+    )
+    shieldBatteryCacheWatcher.on('error', err => {
+      log.warning(`Couldn't read ShieldBattery's browser cache: ${getErrorStack(err)}`)
+    })
+    shieldBatteryCacheWatcher.start()
+    this.shieldBatteryCacheWatcher = shieldBatteryCacheWatcher
+
     const replaySavedWatcher =
       this.options.createReplaySavedWatcher?.() ??
       new ReplaySavedWatcher(replayFolderOf(this.options.replayFolder))
@@ -224,6 +245,9 @@ export class LiveGameService {
     this.shieldBatteryWatcher?.stop()
     this.shieldBatteryWatcher?.removeAllListeners()
     this.shieldBatteryWatcher = undefined
+    this.shieldBatteryCacheWatcher?.stop()
+    this.shieldBatteryCacheWatcher?.removeAllListeners()
+    this.shieldBatteryCacheWatcher = undefined
     this.replaySavedWatcher?.stop()
     this.replaySavedWatcher?.removeAllListeners()
     this.replaySavedWatcher = undefined

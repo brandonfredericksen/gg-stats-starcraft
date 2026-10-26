@@ -7,6 +7,7 @@ import {
   PROFILE_LAG_MS,
   PROFILE_LEAD_MS,
 } from './live-game-tracker'
+import { ShieldBatteryProfile } from './sb-cache'
 import { LadderProfile } from './scr-cache'
 
 const PROFILE: LadderProfile = {
@@ -186,4 +187,81 @@ describe('LiveGameTracker', () => {
     tracker.expire()
     expect(tracker.game).toBeUndefined()
   })
+
+  test('shows the players opened in ShieldBattery while a match loads, then their records', () => {
+    const { tracker, advance } = setup()
+    tracker.shieldBatteryProfile(sbProfile(1, 'before'), 1_000_000)
+    advance(60_000)
+    tracker.shieldBatteryMatchFound({ playerCount: 6, accepted: 6, phase: 'drafting' })
+    expect(tracker.game?.players).toEqual([])
+    tracker.shieldBatteryProfile(sbProfile(2, 'teammate'), 1_065_000)
+    expect(tracker.game?.players).toEqual([
+      {
+        name: 'teammate',
+        shieldBatteryId: 2,
+        shieldBattery: { rating: 1600, record: { mode: '3v3bgh', wins: 20, losses: 10 } },
+      },
+    ])
+
+    tracker.shieldBatteryGame([
+      { name: 'before', shieldBatteryId: 1, team: 0 },
+      {
+        name: 'teammate',
+        shieldBatteryId: 2,
+        team: 0,
+        shieldBattery: { rating: 1650, division: 'gold1' },
+      },
+      { name: 'stranger', shieldBatteryId: 3, team: 1 },
+      { name: 'a', team: 1 },
+      { name: 'b', team: 1 },
+      { name: 'c', team: 0 },
+      { name: 'watcher', shieldBatteryId: 4, observer: true },
+    ])
+    const players = tracker.game!.players
+    // Looked up before the match, filled in once it loads.
+    expect(players[0].shieldBattery?.record).toEqual({ mode: '3v3bgh', wins: 20, losses: 10 })
+    // The game's rating and division go over the profile's.
+    expect(players[1].shieldBattery).toEqual({
+      rating: 1650,
+      division: 'gold1',
+      record: { mode: '3v3bgh', wins: 20, losses: 10 },
+    })
+    expect(players[2].shieldBattery).toBeUndefined()
+
+    tracker.shieldBatteryProfile(sbProfile(3, 'stranger'), 1_200_000)
+    expect(tracker.game!.players[2].shieldBattery?.record?.wins).toBe(20)
+  })
+
+  test('takes the mode for the game size the player played last', () => {
+    const { tracker } = setup()
+    tracker.shieldBatteryMatchFound({ playerCount: 6, accepted: 0, phase: 'accepting' })
+    tracker.shieldBatteryProfile(
+      {
+        userId: 1,
+        name: 'p',
+        seasons: {
+          '2v2bgh': { rating: 1, wins: 1, losses: 1, lastPlayedMs: 9 },
+          '3v3': { rating: 2, wins: 2, losses: 2, lastPlayedMs: 5 },
+          '3v3bgh': { rating: 3, wins: 3, losses: 3, lastPlayedMs: 7 },
+        },
+      },
+      1_000_000,
+    )
+    expect(tracker.game?.players[0].shieldBattery?.record?.mode).toBe('3v3bgh')
+  })
+
+  test("leaves out profiles opened during someone else's game", () => {
+    const { tracker } = setup()
+    tracker.matchScreen(50072, 1, 100_000, 100_000)
+    tracker.shieldBatteryProfile(sbProfile(1, 'p'), 1_000_000)
+    expect(tracker.game?.players).toEqual([])
+  })
 })
+
+function sbProfile(userId: number, name: string): ShieldBatteryProfile {
+  return {
+    userId,
+    name,
+    seasons: { '3v3bgh': { rating: 1600, wins: 20, losses: 10, lastPlayedMs: 1 } },
+  }
+}

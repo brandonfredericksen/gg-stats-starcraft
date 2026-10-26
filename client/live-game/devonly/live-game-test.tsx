@@ -28,7 +28,12 @@ function teamGame(names: string[]): LiveGamePlayer[] {
     slot: i,
     team: i < size ? 0 : 1,
     race: RACES[i % RACES.length],
-    shieldBattery: { rating: 1300 + ((i * 137) % 500), division: DIVISIONS[i % DIVISIONS.length] },
+    shieldBattery: {
+      rating: 1300 + ((i * 137) % 500),
+      division: DIVISIONS[i % DIVISIONS.length],
+      // Some players were opened in ShieldBattery, so their records are known.
+      record: i % 2 ? undefined : { mode: '3v3bgh', wins: 40 + i * 7, losses: 35 + i * 3 },
+    },
   }))
 }
 
@@ -76,6 +81,19 @@ function getSamples(): LiveGame[] {
       noticedMs,
       players: [],
     },
+    {
+      id: `dev-match-found-${noticedMs}`,
+      source: 'shieldBattery',
+      noticedMs,
+      matchFound: { playerCount: 6, accepted: 6, phase: 'drafting' },
+      players: ['Bramble', 'Cinder'].map((name, i) => ({
+        name,
+        shieldBattery: {
+          rating: 1500 + i * 90,
+          record: { mode: '3v3bgh', wins: 60 + i * 20, losses: 50 + i * 4 },
+        },
+      })),
+    },
   ]
 }
 
@@ -86,7 +104,7 @@ export function LiveGameTest() {
     setLiveGame(game)
     push('/live-game')
   }
-  const [ladder, shieldBattery, fourVFour, empty] = getSamples()
+  const [ladder, shieldBattery, fourVFour, empty, matchFound] = getSamples()
   const [teamNames, setTeamNames] = useState('')
   const typedNames = teamNames
     .split(',')
@@ -134,6 +152,14 @@ export function LiveGameTest() {
       <TextButton label='ShieldBattery 3v3' onClick={() => show(shieldBattery)} />
       <TextButton label='ShieldBattery 4v4' onClick={() => show(fourVFour)} />
       <TextButton label='Match found, no players yet' onClick={() => show(empty)} />
+      <TextButton
+        label='ShieldBattery match found, two players opened'
+        onClick={() => show(matchFound)}
+      />
+      <TextButton
+        label='ShieldBattery match found, none opened'
+        onClick={() => show({ ...matchFound, id: `${matchFound.id}-none`, players: [] })}
+      />
       <TextButton label='No game' onClick={() => show(undefined)} />
     </Root>
   )

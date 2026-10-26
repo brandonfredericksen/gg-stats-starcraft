@@ -13,7 +13,7 @@ export interface TestCacheEntry {
   /** Missing leaves the entry without a rankings node. */
   lastUsedMs?: number
   /** The response body, put in its own `f_` file. */
-  body?: string
+  body?: string | Uint8Array
   /** An evicted or doomed entry. */
   state?: number
 }
@@ -47,7 +47,8 @@ export function buildTestCache(entries: ReadonlyArray<TestCacheEntry>) {
     data1.writeBigUInt64LE(toChromiumTime(entry.createdMs), start + 24)
     data1.writeInt32LE(entry.key.length, start + 32)
     if (entry.body !== undefined) {
-      const body = Buffer.from(entry.body, 'utf8')
+      const body =
+        typeof entry.body === 'string' ? Buffer.from(entry.body, 'utf8') : Buffer.from(entry.body)
       const fileNumber = i + 1
       files[`f_${fileNumber.toString(16).padStart(6, '0')}`] = body
       data1.writeInt32LE(body.length, start + 44)

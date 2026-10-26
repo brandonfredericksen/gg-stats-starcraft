@@ -4,6 +4,7 @@ import { LiveGame } from '../../common/live-game'
 import { LocalSettings } from '../../common/settings/local-settings'
 import { LiveGameService } from './index'
 import { ReplaySavedWatcher } from './replay-saved-watcher'
+import { ShieldBatteryCacheWatcher } from './sb-cache'
 import { ScrCacheWatcher } from './scr-cache-watcher'
 import { ShieldBatteryLogWatcher } from './shieldbattery-log-watcher'
 
@@ -26,12 +27,14 @@ function setup() {
     localSettings: settings,
     browserCacheFolder: '',
     shieldBatteryLogFolder: '',
+    shieldBatteryCacheFolder: '',
     replayFolder: '',
     onChange: game => games.push(game),
     createCacheWatcher: () => {
       cacheWatcher = new ScrCacheWatcher(NO_FILES)
       return cacheWatcher
     },
+    createShieldBatteryCacheWatcher: () => new ShieldBatteryCacheWatcher(NO_FILES),
     createShieldBatteryWatcher: () => {
       shieldBatteryWatcher = new ShieldBatteryLogWatcher({
         stat: async () => undefined,

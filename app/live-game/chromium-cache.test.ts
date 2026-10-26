@@ -105,6 +105,16 @@ describe('findCacheEntries', () => {
     ).toEqual([2000, 1000, 3000])
   })
 
+  test('finds a key with a little before its URL, but not one with a lot', () => {
+    const { data1 } = buildTestCache([
+      { key: `1/0/${LOBBY_KEY}`, createdMs: 1000 },
+      { key: `something else entirely ${LOBBY_KEY}`, createdMs: 2000 },
+    ])
+    expect(findCacheEntries(data1, data1.length, undefined, 0, MARKERS)).toEqual([
+      expect.objectContaining({ key: `1/0/${LOBBY_KEY}`, createdMs: 1000 }),
+    ])
+  })
+
   test("ignores a marker that isn't in a key", () => {
     const { data1 } = buildTestCache([{ key: IMAGE_KEY, createdMs: 1000 }])
     // The marker's bytes in the entry's fields before its key.

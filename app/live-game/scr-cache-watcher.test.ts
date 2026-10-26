@@ -1,12 +1,7 @@
 import { describe, expect, test } from 'vitest'
+import { ACTIVE_MS, CacheFiles, MISSING_POLL_MS, STALE_MS } from './cache-watcher'
 import { buildTestCache, TestCacheEntry, toServerJson } from './chromium-cache-test-files'
-import {
-  ACTIVE_MS,
-  CacheFiles,
-  MISSING_POLL_MS,
-  ScrCacheWatcher,
-  STALE_MS,
-} from './scr-cache-watcher'
+import { ScrCacheWatcher } from './scr-cache-watcher'
 
 const MATCH_PAGE = (guid: number) =>
   `http://127.0.0.1:50072/gamedata/webui/dist/MatchmakingGameLoadingPanel/MatchmakingGameLoadingPanel.html?locale=enUS&port=50072&guid=${guid}`
@@ -51,7 +46,11 @@ function setup(entries: ReadonlyArray<TestCacheEntry>) {
   const watcher = new ScrCacheWatcher(cache, () => now)
   const events: unknown[] = []
   watcher.on('sighting', s => events.push(s))
-  watcher.on('profile', (name, gatewayId, profile) => events.push({ name, gatewayId, profile }))
+  watcher.on('body', (sighting, profile) => {
+    if (sighting.kind === 'ladderProfile') {
+      events.push({ name: sighting.name, gatewayId: sighting.gatewayId, profile })
+    }
+  })
   watcher.on('error', err => {
     throw err
   })

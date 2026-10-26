@@ -17,6 +17,11 @@ const MAX_ENTRY_BLOCKS = 4
 /** Longer keys are kept elsewhere, which this doesn't read. */
 const MAX_INLINE_KEY = MAX_ENTRY_BLOCKS * ENTRY_SIZE - KEY_OFFSET - 1
 const HTTP = Buffer.from('http', 'latin1')
+/**
+ * Newer Chromiums put a little before a key's URL, like `1/0/` for a request sent with credentials.
+ * A key's `http` can start this many bytes in.
+ */
+const MAX_KEY_PREFIX = 8
 /** Chromium keeps times as microseconds since 1601. */
 const WINDOWS_EPOCH_US = 11644473600000000n
 /** An entry that's neither evicted nor doomed. */
@@ -105,8 +110,8 @@ function readLastUsed(
 }
 
 /**
- * The entry starting at `start`, if one does: a normal entry whose key is `http` something, kept in
- * the entry itself.
+ * The entry starting at `start`, if one does: a normal entry whose key is `http` something, maybe
+ * after a short prefix, kept in the entry itself.
  */
 function readEntry(
   data1: Buffer,
@@ -125,9 +130,12 @@ function readEntry(
     longKey !== 0 ||
     keyLength < HTTP.length ||
     keyLength > MAX_INLINE_KEY ||
-    keyStart + keyLength > length ||
-    data1.compare(HTTP, 0, HTTP.length, keyStart, keyStart + HTTP.length) !== 0
+    keyStart + keyLength > length
   ) {
+    return undefined
+  }
+  const httpAt = data1.indexOf(HTTP, keyStart)
+  if (httpAt === -1 || httpAt - keyStart > Math.min(MAX_KEY_PREFIX, keyLength - HTTP.length)) {
     return undefined
   }
   const createdMs = chromiumTimeToMs(data1.readBigUInt64LE(start + 24))

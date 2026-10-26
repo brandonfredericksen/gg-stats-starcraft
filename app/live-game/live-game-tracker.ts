@@ -1,4 +1,5 @@
 import { LiveGame, LiveGamePlayer, LiveMatchFound } from '../../common/live-game'
+import { ShieldBatteryProfile } from './sb-cache'
 import { LadderProfile } from './scr-cache'
 
 /**
@@ -28,6 +29,36 @@ function playerKey(name: string, gatewayId: number | undefined) {
   return `${name.toLowerCase()}@${gatewayId ?? ''}`
 }
 
+/** How many players a side has in a game of two even sides of `playerCount`, if it is one. */
+function teamSizeOf(playerCount: number) {
+  return playerCount >= 2 && playerCount % 2 === 0 ? playerCount / 2 : undefined
+}
+
+/**
+ * A player's ShieldBattery rating and record in the mode for sides of `teamSize`, like 3v3 or
+ * 3v3bgh, from their profile: the one they played last, since the game doesn't say which. What the
+ * game said, in `fromGame`, goes over the profile's rating, which can be older.
+ */
+function toShieldBatteryStanding(
+  profile: ShieldBatteryProfile,
+  teamSize: number | undefined,
+  fromGame: LiveGamePlayer['shieldBattery'],
+): LiveGamePlayer['shieldBattery'] {
+  const prefix = `${teamSize}v${teamSize}`
+  const [mode, season] =
+    Object.entries(profile.seasons)
+      .filter(([mode]) => teamSize !== undefined && mode.startsWith(prefix))
+      .sort(([, a], [, b]) => b.lastPlayedMs - a.lastPlayedMs)[0] ?? []
+  if (!mode || !season) {
+    return fromGame
+  }
+  return {
+    rating: fromGame?.rating ?? season.rating,
+    division: fromGame?.division,
+    record: { mode, wins: season.wins, losses: season.losses },
+  }
+}
+
 /**
  * Keeps track of the game the user is in from what the watchers see, and reports it whenever it
  * changes. A new game replaces the one before.
@@ -44,6 +75,11 @@ export class LiveGameTracker {
    * a rematch the profile is there at once, until a fresh one is read.
    */
   private profiles = new Map<string, LadderProfile>()
+  /**
+   * ShieldBattery profiles read, by user id, the most recently read last. Kept across games, so a
+   * player looked up before the match is filled in once their game loads.
+   */
+  private shieldBatteryProfiles = new Map<number, ShieldBatteryProfile>()
 
   constructor(
     private readonly onChange: (game: LiveGame | undefined) => void,
@@ -153,8 +189,59 @@ export class LiveGameTracker {
       id: match?.id ?? `shieldBattery-${noticedMs}`,
       source: 'shieldBattery',
       noticedMs,
-      players,
+      players: this.withShieldBatteryRecords(players),
       ...map,
+    })
+  }
+
+  /**
+   * ShieldBattery looked up someone's profile at `atMs`, like when the user opened it. During a
+   * match that hasn't loaded, they're shown, since who's in it isn't known yet. In a game, it goes
+   * on the player it's about.
+   */
+  shieldBatteryProfile(profile: ShieldBatteryProfile, atMs: number) {
+    this.shieldBatteryProfiles.delete(profile.userId)
+    this.shieldBatteryProfiles.set(profile.userId, profile)
+    if (this.shieldBatteryProfiles.size > MAX_WAITING_PROFILES * 2) {
+      this.shieldBatteryProfiles.delete(this.shieldBatteryProfiles.keys().next().value!)
+    }
+    const game = this.current
+    if (game?.source !== 'shieldBattery') {
+      return
+    }
+    if (game.matchFound) {
+      if (atMs < game.noticedMs - PROFILE_LEAD_MS) {
+        return
+      }
+      const player: LiveGamePlayer = {
+        name: profile.name,
+        shieldBatteryId: profile.userId,
+        shieldBattery: toShieldBatteryStanding(
+          profile,
+          teamSizeOf(game.matchFound.playerCount),
+          undefined,
+        ),
+      }
+      const at = game.players.findIndex(p => p.shieldBatteryId === profile.userId)
+      this.set({
+        ...game,
+        players: at === -1 ? [...game.players, player] : game.players.with(at, player),
+      })
+    } else if (game.players.some(p => p.shieldBatteryId === profile.userId)) {
+      this.set({ ...game, players: this.withShieldBatteryRecords(game.players) })
+    }
+  }
+
+  /** The players, with their records from the ShieldBattery profiles read for them. */
+  private withShieldBatteryRecords(players: LiveGamePlayer[]) {
+    const size = teamSizeOf(players.filter(p => !p.observer).length)
+    return players.map(player => {
+      const profile =
+        player.shieldBatteryId === undefined
+          ? undefined
+          : this.shieldBatteryProfiles.get(player.shieldBatteryId)
+      const standing = profile && toShieldBatteryStanding(profile, size, player.shieldBattery)
+      return standing ? { ...player, shieldBattery: standing } : player
     })
   }
 
@@ -181,6 +268,7 @@ export class LiveGameTracker {
     this.ladder = undefined
     this.waitingProfiles = []
     this.profiles.clear()
+    this.shieldBatteryProfiles.clear()
     this.set(undefined)
   }
 

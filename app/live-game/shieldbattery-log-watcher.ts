@@ -157,8 +157,15 @@ export function parseJoinedPlayers(line: string, setup?: GameSetup): LiveGamePla
     const name = unescapeRust(match[1])
     if (name) {
       const slot = match[2] === undefined ? undefined : Number(match[2])
-      const fromSetup = slot === undefined ? undefined : setup?.players.get(Number(match[3]))
-      players.push({ name, slot, observer: slot === undefined || undefined, ...fromSetup })
+      const shieldBatteryId = Number(match[3])
+      const fromSetup = slot === undefined ? undefined : setup?.players.get(shieldBatteryId)
+      players.push({
+        name,
+        slot,
+        shieldBatteryId,
+        observer: slot === undefined || undefined,
+        ...fromSetup,
+      })
     }
   }
   return players

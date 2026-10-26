@@ -29,8 +29,21 @@ export interface LiveGamePlayer {
   team?: number
   /** The race they picked, which is `r` for random until the game starts. */
   race?: RaceChar
-  /** Their ShieldBattery matchmaking rating, for a matchmaking game. */
-  shieldBattery?: { rating: number; division?: string }
+  /** Their ShieldBattery user id, which their profile goes by. */
+  shieldBatteryId?: number
+  /**
+   * Their ShieldBattery matchmaking rating, for a matchmaking game or when the user opened their
+   * profile, and their record this season from that profile.
+   */
+  shieldBattery?: { rating: number; division?: string; record?: LiveShieldBatteryRecord }
+}
+
+/** A player's season in one of ShieldBattery's matchmaking modes, from their profile. */
+export interface LiveShieldBatteryRecord {
+  /** The mode, like `3v3bgh`. */
+  mode: string
+  wins: number
+  losses: number
 }
 
 /**

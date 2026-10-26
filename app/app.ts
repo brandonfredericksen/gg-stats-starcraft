@@ -953,6 +953,14 @@ app.on('ready', () => {
         localSettings,
         browserCacheFolder: path.join(app.getPath('temp'), 'blizzard_browser_cache'),
         shieldBatteryLogFolder: path.join(app.getPath('appData'), 'ShieldBattery', 'logs'),
+        shieldBatteryCacheFolder: path.join(
+          app.getPath('appData'),
+          'ShieldBattery',
+          'Partitions',
+          'session',
+          'Cache',
+          'Cache_Data',
+        ),
         replayFolder: defaultReplayFolder(),
         onChange: game =>
           TypedIpcSender.from(mainWindow?.webContents).send('liveGameChanged', game),

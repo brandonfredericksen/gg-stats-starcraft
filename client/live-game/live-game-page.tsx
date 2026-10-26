@@ -422,6 +422,12 @@ const Division = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
+/** A season's wins and losses next to the rating, smaller than it. */
+const RatingRecord = styled.span`
+  ${labelMedium};
+  cursor: help;
+`
+
 /** ShieldBattery's own icon for a division, from its repository. */
 const DivisionIcon = styled.img`
   width: 22px;
@@ -737,6 +743,20 @@ export function TileRating({ player }: { player: LiveGamePlayer }) {
           </>
         ) : null}
         {shieldBattery.rating}
+        {shieldBattery.record ? (
+          <Tooltip
+            text={t(
+              'liveGame.shieldBatteryRecordHelp',
+              'Their wins and losses in {{mode}} this season, from their ShieldBattery profile.',
+              { mode: shieldBattery.record.mode },
+            )}
+            tabIndex={-1}
+            position='top'>
+            <RatingRecord>
+              <RecordText record={shieldBattery.record} />
+            </RatingRecord>
+          </Tooltip>
+        ) : null}
       </Rating>
     )
   }
@@ -1059,7 +1079,8 @@ function LiveGameView({ game }: { game: LiveGame }) {
   const userPlaying = people.some(p => p.isMe && !p.player.observer)
   const watching = people.filter(p => p.player.observer)
   const keyOf = (person: Person) => getPersonKey(person, people.indexOf(person), people)
-  const versus = sides.length === 2
+  // Who the players opened during a match are playing with isn't known until it loads.
+  const versus = !game.matchFound && sides.length === 2
   const art = useMapArt(game.mapName ?? '', game.tileset)
   const gameLine = [
     versus && kind.shape !== 'other' ? getShapeLabel(kind.shape, t) : undefined,
@@ -1134,8 +1155,11 @@ function LiveGameView({ game }: { game: LiveGame }) {
         </GameInfo>
       ) : null}
       <MyNamesStrip />
+      {game.matchFound ? (
+        <MatchFoundMessage match={game.matchFound} opened={people.length > 0} />
+      ) : null}
       {sides.length ? (
-        <Versus $sides={sides.length}>
+        <Versus $sides={versus ? 2 : 1}>
           {versus ? (
             <>
               {renderSide(sides[0], 0)}
@@ -1149,9 +1173,12 @@ function LiveGameView({ game }: { game: LiveGame }) {
             renderAll()
           )}
         </Versus>
-      ) : (
-        <NoPlayersMessage match={game.matchFound} />
-      )}
+      ) : null}
+      {!sides.length && !game.matchFound ? (
+        <Message>
+          <Muted>{t('liveGame.waitingForPlayers', "Waiting to see who's in the game.")}</Muted>
+        </Message>
+      ) : null}
       {watching.length ? (
         <Watching>
           {t('liveGame.watching', {
@@ -1178,18 +1205,11 @@ const MatchFoundTitle = styled.div`
 `
 
 /**
- * Stands in for the players until they're known, saying where a ShieldBattery match is before its
- * game loads.
+ * Where a ShieldBattery match is before its game loads, which is when its players are known. Until
+ * then, only the players the user opens in ShieldBattery show, under this.
  */
-function NoPlayersMessage({ match }: { match?: LiveMatchFound }) {
+function MatchFoundMessage({ match, opened }: { match: LiveMatchFound; opened: boolean }) {
   const { t } = useTranslation()
-  if (!match) {
-    return (
-      <Message>
-        <Muted>{t('liveGame.waitingForPlayers', "Waiting to see who's in the game.")}</Muted>
-      </Message>
-    )
-  }
   let title: string
   switch (match.phase) {
     case 'accepting':
@@ -1210,10 +1230,16 @@ function NoPlayersMessage({ match }: { match?: LiveMatchFound }) {
     <Message>
       <MatchFoundTitle>{title}</MatchFoundTitle>
       <Muted>
-        {t(
-          'liveGame.matchFound.names',
-          "ShieldBattery doesn't say who's in the match until the game loads.",
-        )}
+        {opened
+          ? t(
+              'liveGame.matchFound.opened',
+              "The players you've opened in ShieldBattery. Everyone shows once the game loads.",
+            )
+          : t(
+              'liveGame.matchFound.names',
+              "ShieldBattery doesn't say who's in the match until the game loads. Open a " +
+                'player in it to see them here now.',
+            )}
       </Muted>
     </Message>
   )
