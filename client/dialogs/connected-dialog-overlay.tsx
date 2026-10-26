@@ -31,8 +31,8 @@ const GgStatsHealthDialog = React.lazy(async () => ({
 const StarcraftHealthCheckupDialog = React.lazy(async () => ({
   default: (await import('../starcraft/starcraft-health')).StarcraftHealthCheckupDialog,
 }))
-const LivePlayerDialog = React.lazy(async () => ({
-  default: (await import('../live-game/live-player-details')).LivePlayerDialog,
+const PlayerDialog = React.lazy(async () => ({
+  default: (await import('../players/player-dialog')).PlayerDialog,
 }))
 
 const Scrim = styled(m.div)`
@@ -68,8 +68,8 @@ function getDialog(dialogType: DialogType): {
       return { component: GgStatsHealthDialog }
     case DialogType.StarcraftHealth:
       return { component: StarcraftHealthCheckupDialog }
-    case DialogType.LivePlayer:
-      return { component: LivePlayerDialog }
+    case DialogType.Player:
+      return { component: PlayerDialog }
     default:
       return dialogType satisfies never
   }

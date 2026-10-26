@@ -5,7 +5,7 @@ import styled from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { GameStatsResult } from '../../common/games/game-stats'
 import { RaceTag } from '../material/race-tag'
-import { PlayerNameButton } from '../players/player-card'
+import { PlayerNameButton } from '../players/player-name-button'
 import { bahnschrift, bodyMedium, bodySmall, labelSmall, singleLine } from '../styles/typography'
 import { getSideTotals, Side, toFinishingOrder } from './game-stats-model'
 import {

@@ -177,3 +177,14 @@ export function getPlaystyle(
   const asRace = race ? scout.playstyles.filter(p => p.race === race) : scout.playstyles
   return sum(asRace.filter(p => isKind(p, kind))) ?? sum(asRace)
 }
+
+/** Races someone on the other sides picked, random left out, for the builds against them. */
+export function getEnemyRaces<T extends { player: LiveGamePlayer }>(
+  sides: ReadonlyArray<ReadonlyArray<T>>,
+  mine: ReadonlyArray<T>,
+): AssignedRaceChar[] {
+  return sides
+    .filter(side => side !== mine)
+    .flat()
+    .flatMap(p => (p.player.race && p.player.race !== 'r' ? [p.player.race] : []))
+}

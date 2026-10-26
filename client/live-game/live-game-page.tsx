@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
 import { getMapDisplayName } from '../../common/games/map-family'
-import { LiveGame } from '../../common/live-game'
+import { LiveGame, LiveGamePlayer } from '../../common/live-game'
 import { Playstyle } from '../../common/my-stats/playstyle'
 import { AssignedRaceChar, RaceChar } from '../../common/races'
 import { getBuildFamilyName } from '../builds/build-shared'
@@ -50,6 +50,7 @@ import { ScoutState, useScouts } from './live-game-data'
 import {
   BuildScope,
   GameKind,
+  getEnemyRaces,
   getGameKind,
   getKindRecord,
   getPlaystyle,
@@ -481,7 +482,7 @@ const StatsNote = styled.span`
  * league's color over a dark tint of it. For a player's Battle.net rank and the rank their eSkill
  * falls in, which is a ladder rank too.
  */
-const LeagueTag = styled.span<{ $rank: LadderRank }>`
+export const LeagueTag = styled.span<{ $rank: LadderRank }>`
   ${labelMedium};
   width: 20px;
   height: 20px;
@@ -705,9 +706,9 @@ function getScopeLabel(
 }
 
 /** Their rating: on ShieldBattery, their matchmaking rating, on the ladder, this season's MMR. */
-function TileRating({ person }: { person: Person }) {
+export function TileRating({ player }: { player: LiveGamePlayer }) {
   const { t } = useTranslation()
-  const { shieldBattery, ladder } = person.player
+  const { shieldBattery, ladder } = player
   if (shieldBattery) {
     const division = shieldBattery.division
       ? getDivisionLabel(shieldBattery.division, t)
@@ -995,7 +996,12 @@ function PlayerTile({
       aria-labelledby={nameId}
       aria-describedby={statsId}
       onClick={() =>
-        dispatch(openDialog({ type: DialogType.LivePlayer, initData: { gameId, personKey } }))
+        dispatch(
+          openDialog({
+            type: DialogType.Player,
+            initData: { name: player.name, race, live: { gameId, personKey } },
+          }),
+        )
       }>
       <TileBody
         $glow={getFlair(scout) === 's'}
@@ -1008,7 +1014,7 @@ function PlayerTile({
         <NameRow>
           <Name id={nameId}>{player.name}</Name>
           {isMe ? <Badge>{t('liveGame.you', 'You')}</Badge> : null}
-          <TileRating person={person} />
+          <TileRating player={person.player} />
         </NameRow>
         <TileStats
           scout={scout}
@@ -1041,14 +1047,6 @@ function Joined({ noticedMs }: { noticedMs: number }) {
   const format = useFormat(TIME_AGO_FORMAT)
   const when = format.format(Math.min(toMinute(noticedMs), nowMs), nowMs)
   return <Muted>{t('liveGame.joined', 'Joined {{when}}', { when })}</Muted>
-}
-
-/** Races someone on the other sides picked, random left out, for the builds against them. */
-function getEnemyRaces(sides: Person[][], mine: Person[]): AssignedRaceChar[] {
-  return sides
-    .filter(side => side !== mine)
-    .flat()
-    .flatMap(p => (p.player.race && p.player.race !== 'r' ? [p.player.race] : []))
 }
 
 function LiveGameView({ game }: { game: LiveGame }) {

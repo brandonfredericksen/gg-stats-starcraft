@@ -12,7 +12,7 @@ import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
 import { panelSurface } from '../material/panel'
 import { RaceTag } from '../material/race-tag'
-import { PlayerNameButton } from '../players/player-card'
+import { PlayerNameButton } from '../players/player-name-button'
 import { getRaceColor } from '../styles/colors'
 import {
   bodyMedium,

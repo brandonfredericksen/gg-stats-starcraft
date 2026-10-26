@@ -14,7 +14,7 @@ import { MaterialIcon } from '../icons/material/material-icon'
 import { PLAY_BUTTON_SIZE, PlayButton } from '../material/play-button'
 import { AnalysisStatus, STATUS_PILL_WIDTH, StatusPill } from '../material/status-pill'
 import { TeamLine } from '../material/team-line'
-import { PlayerNameButton } from '../players/player-card'
+import { PlayerNameButton } from '../players/player-name-button'
 import {
   bahnschrift,
   bodyMedium,

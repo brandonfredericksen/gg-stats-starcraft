@@ -1,3 +1,5 @@
+import { RaceChar } from '../../common/races'
+
 export enum DialogType {
   Confirm = 'confirm',
   ReplayInfo = 'replayInfo',
@@ -5,7 +7,7 @@ export enum DialogType {
   Simple = 'simple',
   GgStatsHealth = 'ggStatsHealth',
   StarcraftHealth = 'starcraftHealth',
-  LivePlayer = 'livePlayer',
+  Player = 'player',
 }
 
 type BaseDialogPayload<D, DataType = undefined> = DataType extends undefined
@@ -43,13 +45,18 @@ type SimpleDialogPayload = BaseDialogPayload<
 >
 type GgStatsHealthDialogPayload = BaseDialogPayload<typeof DialogType.GgStatsHealth>
 type StarcraftHealthDialogPayload = BaseDialogPayload<typeof DialogType.StarcraftHealth>
-type LivePlayerDialogPayload = BaseDialogPayload<
-  typeof DialogType.LivePlayer,
+type PlayerDialogPayload = BaseDialogPayload<
+  typeof DialogType.Player,
   {
-    /** The live game the player is in. */
-    gameId: string
-    /** The player's key in the live game, see `getPersonKey`. */
-    personKey: string
+    name: string
+    /** The race they played where they were clicked on. */
+    race?: RaceChar
+    /** Where they are in the live game, when they were clicked on there. */
+    live?: {
+      gameId: string
+      /** The player's key in the live game, see `getPersonKey`. */
+      personKey: string
+    }
   }
 >
 
@@ -60,4 +67,4 @@ export type DialogPayload =
   | SimpleDialogPayload
   | GgStatsHealthDialogPayload
   | StarcraftHealthDialogPayload
-  | LivePlayerDialogPayload
+  | PlayerDialogPayload

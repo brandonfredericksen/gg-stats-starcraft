@@ -39,7 +39,7 @@ import { RaceTag } from '../material/race-tag'
 import { Segmented, SegmentOption } from '../material/segmented'
 import { Tooltip } from '../material/tooltip'
 import { push } from '../navigation/routing'
-import { PlayerNameButton } from '../players/player-card'
+import { PlayerNameButton } from '../players/player-name-button'
 import { getGameStatsUrl } from '../replays/action-creators'
 import {
   bahnschrift,
