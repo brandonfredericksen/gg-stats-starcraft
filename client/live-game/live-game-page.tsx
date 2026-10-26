@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
 import { getMapDisplayName } from '../../common/games/map-family'
-import { LiveGame, LiveGamePlayer } from '../../common/live-game'
+import { LiveGame, LiveGamePlayer, LiveMatchFound } from '../../common/live-game'
 import { Playstyle } from '../../common/my-stats/playstyle'
 import { AssignedRaceChar, RaceChar } from '../../common/races'
 import { getBuildFamilyName } from '../builds/build-shared'
@@ -1063,6 +1063,7 @@ function LiveGameView({ game }: { game: LiveGame }) {
   const art = useMapArt(game.mapName ?? '', game.tileset)
   const gameLine = [
     versus && kind.shape !== 'other' ? getShapeLabel(kind.shape, t) : undefined,
+    game.matchFound ? getMatchShape(game.matchFound.playerCount) : undefined,
     game.mapName ? getMapDisplayName(game.mapName) : undefined,
   ]
     .filter(Boolean)
@@ -1149,9 +1150,7 @@ function LiveGameView({ game }: { game: LiveGame }) {
           )}
         </Versus>
       ) : (
-        <Message>
-          <Muted>{t('liveGame.waitingForPlayers', "Waiting to see who's in the game.")}</Muted>
-        </Message>
+        <NoPlayersMessage match={game.matchFound} />
       )}
       {watching.length ? (
         <Watching>
@@ -1163,6 +1162,60 @@ function LiveGameView({ game }: { game: LiveGame }) {
         </Watching>
       ) : null}
     </LiveRoot>
+  )
+}
+
+/** A ShieldBattery match is two even teams, so its size gives its shape, like 3v3 for 6. */
+function getMatchShape(playerCount: number) {
+  return playerCount >= 2 && playerCount % 2 === 0
+    ? `${playerCount / 2}v${playerCount / 2}`
+    : undefined
+}
+
+const MatchFoundTitle = styled.div`
+  ${titleMedium};
+  color: var(--theme-on-surface);
+`
+
+/**
+ * Stands in for the players until they're known, saying where a ShieldBattery match is before its
+ * game loads.
+ */
+function NoPlayersMessage({ match }: { match?: LiveMatchFound }) {
+  const { t } = useTranslation()
+  if (!match) {
+    return (
+      <Message>
+        <Muted>{t('liveGame.waitingForPlayers', "Waiting to see who's in the game.")}</Muted>
+      </Message>
+    )
+  }
+  let title: string
+  switch (match.phase) {
+    case 'accepting':
+      title = t('liveGame.matchFound.accepting', {
+        defaultValue: 'Match found. {{accepted}} of {{count}} accepted.',
+        accepted: match.accepted,
+        count: match.playerCount,
+      })
+      break
+    case 'drafting':
+      title = t('liveGame.matchFound.drafting', 'Match found. Picking races.')
+      break
+    case 'starting':
+      title = t('liveGame.matchFound.starting', 'Match found. Starting the game.')
+      break
+  }
+  return (
+    <Message>
+      <MatchFoundTitle>{title}</MatchFoundTitle>
+      <Muted>
+        {t(
+          'liveGame.matchFound.names',
+          "ShieldBattery doesn't say who's in the match until the game loads.",
+        )}
+      </Muted>
+    </Message>
   )
 }
 

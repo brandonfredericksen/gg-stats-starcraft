@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LiveGamePlayer } from '../../common/live-game'
 import {
+  APP_LOG,
   GAME_LOG,
   LogFiles,
   MAX_READ,
   parseGameSetup,
   parseJoinedPlayers,
+  parseMatchmakingLine,
   READ_DELAY_MS,
   RETRY_WATCH_MS,
   ShieldBatteryLogWatcher,
@@ -53,6 +55,15 @@ function setupLines(
     `'${JSON.stringify(json)}'\n`
   )
 }
+
+/** A line of ShieldBattery's own log. */
+function appLine(message: string) {
+  return `[2026-10-26T06:20:00.769Z]\t<debug>\t${message}\n`
+}
+
+const MATCH_FOUND = appLine(
+  'Match found, showing accept dialog. 59998.77278599143ms left, 0 / 6 accepted. Self accepted: false',
+)
 
 const NOISE =
   '[2026-10-24][19:42:45.306][src\\bw_scr.rs:7129][DEBUG] Slot 0 has id 0, player_type 2\n'
@@ -115,6 +126,42 @@ describe('parseGameSetup', () => {
   })
 })
 
+describe('parseMatchmakingLine', () => {
+  test('reads how far a match got', () => {
+    expect(parseMatchmakingLine(MATCH_FOUND)).toEqual({
+      kind: 'found',
+      accepted: 0,
+      playerCount: 6,
+    })
+    expect(parseMatchmakingLine(appLine('Player accepted, 4 players now ready'))).toEqual({
+      kind: 'accepted',
+      accepted: 4,
+    })
+    expect(parseMatchmakingLine(appLine('Draft started'))).toEqual({ kind: 'drafting' })
+    expect(parseMatchmakingLine(appLine('Match is now ready, closing accept dialog'))).toEqual({
+      kind: 'starting',
+    })
+  })
+
+  test('reads every way a match falls through', () => {
+    for (const message of [
+      'Timed out accepting match, showing failure dialog',
+      'Draft canceled: playerLeft',
+      'Match loading canceled',
+      'Re-entered matchmaking queue',
+    ]) {
+      expect(parseMatchmakingLine(appLine(message))).toEqual({ kind: 'canceled' })
+    }
+  })
+
+  test('reads nothing from other lines, or the words anywhere but the start of one', () => {
+    expect(parseMatchmakingLine(appLine('Matchmaking search started'))).toBeUndefined()
+    expect(parseMatchmakingLine(appLine('Accepted match successfully'))).toBeUndefined()
+    expect(parseMatchmakingLine(appLine('Error: Draft started twice'))).toBeUndefined()
+    expect(parseMatchmakingLine('Draft started')).toBeUndefined()
+  })
+})
+
 class FakeLogs implements LogFiles {
   content: Buffer | undefined = Buffer.alloc(0)
   watching = false
@@ -122,27 +169,41 @@ class FakeLogs implements LogFiles {
   onChange: ((file: string) => void) | undefined
   bytesRead = 0
 
+  /** ShieldBattery's own log, missing unless a test writes to it. */
+  appContent: Buffer | undefined
+
   append(text: string) {
     this.content = Buffer.concat([this.content ?? Buffer.alloc(0), Buffer.from(text)])
     this.onChange?.(GAME_LOG)
   }
 
+  appendApp(text: string) {
+    this.appContent = Buffer.concat([this.appContent ?? Buffer.alloc(0), Buffer.from(text)])
+    this.onChange?.(APP_LOG)
+  }
+
   /** Changes when the log rotates to a new file. */
   fileId = 'first'
 
-  stat = async () => {
-    if (this.statFails) {
+  private contentOf(file: string) {
+    return file === APP_LOG ? this.appContent : this.content
+  }
+
+  stat = async (file: string) => {
+    if (file === GAME_LOG && this.statFails) {
       this.statFails = false
       return undefined
     }
-    return this.content ? { size: this.content.length, id: this.fileId } : undefined
+    const content = this.contentOf(file)
+    return content ? { size: content.length, id: this.fileId } : undefined
   }
 
-  read = async (_file: string, position: number, length: number, into: Uint8Array) => {
-    if (!this.content) {
+  read = async (file: string, position: number, length: number, into: Uint8Array) => {
+    const content = this.contentOf(file)
+    if (!content) {
       return undefined
     }
-    const part = this.content.subarray(position, position + length)
+    const part = content.subarray(position, position + length)
     into.set(part)
     this.bytesRead += part.length
     return part.length
@@ -256,6 +317,58 @@ describe('ShieldBatteryLogWatcher', () => {
     logs.append(NOISE + END)
     await settle()
     expect(events).toEqual(['players', 'ended'])
+    watcher.stop()
+  })
+
+  test('follows a match from when it is found until its game loads', async () => {
+    const { logs, watcher } = await setup()
+    const events: unknown[] = []
+    watcher.on('matchFound', match => events.push(['found', match]))
+    watcher.on('matchChanged', match => events.push(['changed', match]))
+    watcher.on('players', players => events.push(['players', players.length]))
+    logs.appendApp(MATCH_FOUND + appLine('Player accepted, 3 players now ready'))
+    await settle()
+    logs.appendApp(appLine('Draft started'))
+    await settle()
+    // Ready just before its game loads, in the same read.
+    logs.appendApp(appLine('Match is now ready, closing accept dialog'))
+    logs.append(joinedLine(['alpha', 'beta']))
+    await settle()
+    expect(events).toEqual([
+      ['found', { playerCount: 6, accepted: 3, phase: 'accepting' }],
+      ['changed', { playerCount: 6, accepted: 6, phase: 'drafting' }],
+      ['changed', { playerCount: 6, accepted: 6, phase: 'starting' }],
+      ['players', 2],
+    ])
+  })
+
+  test('says when a match falls through', async () => {
+    const { logs, watcher } = await setup()
+    const events: string[] = []
+    watcher.on('matchFound', () => events.push('found'))
+    watcher.on('matchCanceled', () => events.push('canceled'))
+    logs.appendApp(MATCH_FOUND)
+    await settle()
+    logs.appendApp(appLine('Draft canceled: playerLeft'))
+    await settle()
+    // Found and fallen through within one read, there's nothing to tell.
+    logs.appendApp(MATCH_FOUND + appLine('Timed out accepting match, showing failure dialog'))
+    await settle()
+    expect(events).toEqual(['found', 'canceled'])
+  })
+
+  test('ignores matches logged before it started, and updates to a match it never saw', async () => {
+    const logs = new FakeLogs()
+    logs.appContent = Buffer.from(MATCH_FOUND)
+    const watcher = new ShieldBatteryLogWatcher(logs)
+    const events: string[] = []
+    watcher.on('matchFound', () => events.push('found'))
+    watcher.on('matchChanged', () => events.push('changed'))
+    watcher.start()
+    await settle()
+    logs.appendApp(appLine('Draft started'))
+    await settle()
+    expect(events).toEqual([])
     watcher.stop()
   })
 

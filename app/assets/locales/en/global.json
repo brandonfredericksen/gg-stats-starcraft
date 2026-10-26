@@ -755,6 +755,13 @@
     "eSkill": "eSkill",
     "eSkillHelp": "The 1v1 ladder MMR and rank of players who play the way they do: their speed, hotkeys and macro over their latest games. Nothing an opponent decides counts in it.",
     "joined": "Joined {{when}}",
+    "matchFound": {
+      "accepting_one": "Match found. {{accepted}} of {{count}} accepted.",
+      "accepting_other": "Match found. {{accepted}} of {{count}} accepted.",
+      "drafting": "Match found. Picking races.",
+      "names": "ShieldBattery doesn't say who's in the match until the game loads.",
+      "starting": "Match found. Starting the game."
+    },
     "needsNames": "Add your names to see which player is you.",
     "noAnalyzedGamesYet": "No analyzed games with them yet.",
     "noNamedBuild": "No named build yet.",

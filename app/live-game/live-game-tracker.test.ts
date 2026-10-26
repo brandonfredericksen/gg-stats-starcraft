@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 import { LiveGame } from '../../common/live-game'
-import { LiveGameTracker, MAX_GAME_MS, PROFILE_LAG_MS, PROFILE_LEAD_MS } from './live-game-tracker'
+import {
+  LiveGameTracker,
+  MAX_GAME_MS,
+  MAX_MATCH_FOUND_MS,
+  PROFILE_LAG_MS,
+  PROFILE_LEAD_MS,
+} from './live-game-tracker'
 import { LadderProfile } from './scr-cache'
 
 const PROFILE: LadderProfile = {
@@ -136,6 +142,48 @@ describe('LiveGameTracker', () => {
     expect(tracker.game).toMatchObject({ source: 'shieldBattery' })
     tracker.clear()
     expect(reports.at(-1)).toBeUndefined()
+    expect(tracker.game).toBeUndefined()
+  })
+
+  test('turns a ShieldBattery match into its game when it loads, as the same game', () => {
+    const { tracker, advance } = setup()
+    tracker.shieldBatteryMatchFound({ playerCount: 6, accepted: 0, phase: 'accepting' })
+    const found = tracker.game!
+    expect(found.players).toEqual([])
+    tracker.shieldBatteryMatchChanged({ playerCount: 6, accepted: 6, phase: 'drafting' })
+    expect(tracker.game?.matchFound?.phase).toBe('drafting')
+    advance(60_000)
+    tracker.shieldBatteryGame([{ name: 'a' }, { name: 'b' }], { mapName: 'Fighting Spirit' })
+    expect(tracker.game).toEqual({
+      id: found.id,
+      source: 'shieldBattery',
+      noticedMs: found.noticedMs,
+      players: [{ name: 'a' }, { name: 'b' }],
+      mapName: 'Fighting Spirit',
+    })
+    // Too late to change a game that loaded.
+    tracker.shieldBatteryMatchChanged({ playerCount: 6, accepted: 6, phase: 'starting' })
+    expect(tracker.game?.matchFound).toBeUndefined()
+  })
+
+  test('drops a ShieldBattery match that fell through, but not a ladder game', () => {
+    const { tracker } = setup()
+    tracker.shieldBatteryMatchFound({ playerCount: 2, accepted: 1, phase: 'accepting' })
+    tracker.shieldBatteryMatchCanceled()
+    expect(tracker.game).toBeUndefined()
+    tracker.matchScreen(50072, 1, 100_000, 100_000)
+    tracker.shieldBatteryMatchCanceled()
+    expect(tracker.game?.source).toBe('ladder')
+  })
+
+  test('forgets a match found long ago whose game never loaded', () => {
+    const { tracker, advance } = setup()
+    tracker.shieldBatteryMatchFound({ playerCount: 4, accepted: 4, phase: 'starting' })
+    advance(MAX_MATCH_FOUND_MS)
+    tracker.expire()
+    expect(tracker.game).toBeDefined()
+    advance(1)
+    tracker.expire()
     expect(tracker.game).toBeUndefined()
   })
 })

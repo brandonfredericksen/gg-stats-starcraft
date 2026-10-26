@@ -1,4 +1,4 @@
-import { LiveGame, LiveGamePlayer } from '../../common/live-game'
+import { LiveGame, LiveGamePlayer, LiveMatchFound } from '../../common/live-game'
 import { LadderProfile } from './scr-cache'
 
 /**
@@ -10,6 +10,11 @@ export const PROFILE_LEAD_MS = 5000
 export const PROFILE_LAG_MS = 60_000
 /** A game is forgotten this long after it was noticed, if nothing said it ended. */
 export const MAX_GAME_MS = 2 * 60 * 60_000
+/**
+ * A match found is forgotten this long after, if its game never loaded and nothing said it fell
+ * through. Accepting and the draft take a couple of minutes at most.
+ */
+export const MAX_MATCH_FOUND_MS = 10 * 60_000
 /** Profiles kept while waiting for a match screen they might belong to. */
 const MAX_WAITING_PROFILES = 8
 
@@ -111,11 +116,41 @@ export class LiveGameTracker {
     })
   }
 
-  /** A ShieldBattery game is loading with these people in it. */
-  shieldBatteryGame(players: LiveGamePlayer[], map?: Pick<LiveGame, 'mapName' | 'tileset'>) {
+  /** A ShieldBattery match was found. Who's in it is only known once its game loads. */
+  shieldBatteryMatchFound(matchFound: LiveMatchFound) {
     const noticedMs = this.now()
     this.set({
       id: `shieldBattery-${noticedMs}`,
+      source: 'shieldBattery',
+      noticedMs,
+      players: [],
+      matchFound,
+    })
+  }
+
+  /** The ShieldBattery match that was found got further along. */
+  shieldBatteryMatchChanged(matchFound: LiveMatchFound) {
+    if (this.current?.matchFound) {
+      this.set({ ...this.current, matchFound })
+    }
+  }
+
+  /** The ShieldBattery match fell through before its game started, or while it loaded. */
+  shieldBatteryMatchCanceled() {
+    if (this.current?.source === 'shieldBattery') {
+      this.set(undefined)
+    }
+  }
+
+  /**
+   * A ShieldBattery game is loading with these people in it. The match it came from, if it was
+   * found, is the same game.
+   */
+  shieldBatteryGame(players: LiveGamePlayer[], map?: Pick<LiveGame, 'mapName' | 'tileset'>) {
+    const match = this.current?.matchFound ? this.current : undefined
+    const noticedMs = match?.noticedMs ?? this.now()
+    this.set({
+      id: match?.id ?? `shieldBattery-${noticedMs}`,
       source: 'shieldBattery',
       noticedMs,
       players,
@@ -135,7 +170,8 @@ export class LiveGameTracker {
 
   /** Forgets a game noticed long ago, in case nothing said it ended. */
   expire() {
-    if (this.current && this.now() - this.current.noticedMs > MAX_GAME_MS) {
+    const limit = this.current?.matchFound ? MAX_MATCH_FOUND_MS : MAX_GAME_MS
+    if (this.current && this.now() - this.current.noticedMs > limit) {
       this.set(undefined)
     }
   }

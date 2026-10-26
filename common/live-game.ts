@@ -33,6 +33,19 @@ export interface LiveGamePlayer {
   shieldBattery?: { rating: number; division?: string }
 }
 
+/**
+ * A ShieldBattery matchmaking game from when it's found until it loads, as far as ShieldBattery's
+ * own log says, which never names the players.
+ */
+export interface LiveMatchFound {
+  /** How many players the match is for, both teams together. */
+  playerCount: number
+  /** How many of them have accepted it. */
+  accepted: number
+  /** Waiting for everyone to accept, picking races in the draft, or starting the game. */
+  phase: 'accepting' | 'drafting' | 'starting'
+}
+
 /** A game the user joined, from the match found or loading screen until it ends. */
 export interface LiveGame {
   /** Different for every game, so a new game can be told from an update to the same one. */
@@ -45,6 +58,8 @@ export interface LiveGame {
   mapName?: string
   /** The map's tileset, when the game says, for a picture of its terrain. */
   tileset?: TilesetId
+  /** Set for a ShieldBattery match that's been found but hasn't loaded, so has no players yet. */
+  matchFound?: LiveMatchFound
 }
 
 /** StarCraft's Battle.net gateways, by id. */
