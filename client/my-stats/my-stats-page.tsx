@@ -14,7 +14,7 @@ import { PageLoadingIndicator } from '../progress/page-loading'
 import { useAppDispatch } from '../redux-hooks'
 import { openSettings } from '../settings/action-creators'
 import { AppSettingsPage } from '../settings/settings-page'
-import { bodyMedium, headlineMedium, labelLarge } from '../styles/typography'
+import { bodyMedium, headlineMedium, labelLarge, titleLarge } from '../styles/typography'
 import { AnalyzeMine } from './analyze-mine'
 import { useStatsPlayerNames } from './demo-player'
 import {
@@ -31,6 +31,7 @@ import {
   ByMatchup,
   MacroAveragesPanel,
   Maps,
+  PaddedPanel,
   People,
   RecentGames,
   TeamGames,
@@ -55,6 +56,19 @@ const Header = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
+`
+
+/** Who the page is about and where they stand, apart from the stats under it. */
+const IdentityPanel = styled(PaddedPanel)`
+  gap: var(--space-4);
+`
+
+const StatsHeading = styled.h2`
+  ${titleLarge};
+  margin: var(--space-2) 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const Title = styled.h1`
@@ -359,26 +373,39 @@ export function MyStatsView({ player }: { player?: OtherPlayer }) {
   return (
     <OtherPlayerContext value={other}>
       <Root>
+        <IdentityPanel>
+          {player ? (
+            <PlayerHeader name={player.name} accounts={player.accounts} />
+          ) : (
+            <Header>
+              <Title>{t('myStats.label', 'My stats')}</Title>
+              <PlayingAs>
+                {t('myStats.playingAs', 'Playing as')}
+                {names.map(name => (
+                  <NameChip key={name}>{name}</NameChip>
+                ))}
+                <TextButton
+                  label={t('myStats.editNames', 'Edit names')}
+                  onClick={() => dispatch(openSettings(AppSettingsPage.PlayerNames))}
+                />
+              </PlayingAs>
+            </Header>
+          )}
+          <SectionErrorBoundary>
+            <RanksRow
+              accounts={names}
+              isMe={!other}
+              shape={filters.shape}
+              fromGame={data?.ladder}
+            />
+          </SectionErrorBoundary>
+        </IdentityPanel>
+        {/* Another player's stats start under their name, so they can't be taken for the user's. */}
         {player ? (
-          <PlayerHeader name={player.name} accounts={player.accounts} />
-        ) : (
-          <Header>
-            <Title>{t('myStats.label', 'My stats')}</Title>
-            <PlayingAs>
-              {t('myStats.playingAs', 'Playing as')}
-              {names.map(name => (
-                <NameChip key={name}>{name}</NameChip>
-              ))}
-              <TextButton
-                label={t('myStats.editNames', 'Edit names')}
-                onClick={() => dispatch(openSettings(AppSettingsPage.PlayerNames))}
-              />
-            </PlayingAs>
-          </Header>
-        )}
-        <SectionErrorBoundary>
-          <RanksRow accounts={names} isMe={!other} shape={filters.shape} fromGame={data?.ladder} />
-        </SectionErrorBoundary>
+          <StatsHeading>
+            {t('players.statsHeading', "{{name}}'s stats", { name: player.name })}
+          </StatsHeading>
+        ) : null}
         <FilterBar
           autoRank={data?.stats.autoRank}
           rankMmr={data?.stats.rankMmr}
