@@ -4,14 +4,15 @@
  * [--reanalyze] [--skip-analysis]`, with the fetch options of
  * `fetch-ladder-replays.ts` passed on, and `--team-top`, `--team-per-player` and
  * `--team-since-days` passed to `fetch-shieldbattery-replays.ts` as `--top`, `--per-player` and
- * `--since-days`.
+ * `--since-days` for 2v2.
  *
  * 1. Downloads 1v1 ladder replays into `--dir` with `fetch-ladder-replays.ts`, which asks a logged
  *    in StarCraft: Remastered, starting it through Battle.net when it isn't running or crashes.
- * 2. With `--team-dir`, downloads 2v2 and 3v3 replays of ShieldBattery's best rated players into
- *    its `2v2` and `3v3` folders with `fetch-shieldbattery-replays.ts`. `--skip-fetch` skips both
- *    downloads and uses the replays already there, and `--skip-ladder-fetch` only the first, which
- *    needs StarCraft.
+ * 2. With `--team-dir`, downloads ShieldBattery replays into its `2v2` and `3v3` folders with
+ *    `fetch-shieldbattery-replays.ts`: every ranked 3v3 game the site has, and 2v2 games of the
+ *    best rated players, since 2v2 has years of games and 3v3 a few thousand. `--skip-fetch` skips
+ *    both downloads and uses the replays already there, and `--skip-ladder-fetch` only the first,
+ *    which needs StarCraft.
  * 3. Starts the app with no window and its own data files (the `ladder` session) to analyze every
  *    replay in the folders, one at a time in a hidden StarCraft, the way it analyzes replays in the
  *    background. This is the slow part. Replays analyzed before are skipped, so it can be stopped
@@ -47,8 +48,14 @@ import {
 const ROOT = path.resolve(import.meta.dirname, '..', '..')
 const SESSION = 'ladder'
 const DLL_PATH = path.join(ROOT, 'game', 'dist', 'ggstats_64.dll')
-/** The ShieldBattery ladders' formats, each in its own folder of `--team-dir`. */
-const TEAM_FORMATS = ['2v2', '3v3']
+/**
+ * The ShieldBattery ladders' formats, each in its own folder of `--team-dir`, and whether to take
+ * every ranked game of it rather than the best players' games.
+ */
+const TEAM_FORMATS = [
+  { format: '2v2', everyone: false },
+  { format: '3v3', everyone: true },
+]
 const EXPORT_PATH = path.join(ROOT, 'app', 'assets', LADDER_BASELINE_FILE)
 
 const { values: args } = parseArgs({
@@ -163,7 +170,7 @@ async function main() {
   }
   const dir = path.resolve(args.dir)
   const teamDirs = args['team-dir']
-    ? TEAM_FORMATS.map(format => path.join(path.resolve(args['team-dir']!), format))
+    ? TEAM_FORMATS.map(({ format }) => path.join(path.resolve(args['team-dir']!), format))
     : []
   const skipAnalysis = args['skip-analysis']
   // Replays fetched now couldn't get into a baseline that analyzes nothing.
@@ -212,8 +219,10 @@ async function main() {
         '--out',
         teamDir,
         '--format',
-        TEAM_FORMATS[i],
-        ...teamPassed,
+        TEAM_FORMATS[i].format,
+        '--control',
+        dir,
+        ...(TEAM_FORMATS[i].everyone ? ['--everyone'] : teamPassed),
       ])
       if (stopped()) {
         return

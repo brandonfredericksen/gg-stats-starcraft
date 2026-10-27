@@ -1,21 +1,29 @@
 /**
  * Downloads team game replays from ShieldBattery's best players, for the ladder baseline the app
  * ships: `pnpm run fetch-shieldbattery-replays --out <folder> [--format 3v3] [--type 3v3bgh]
- * [--top 50] [--per-player 40] [--since-days 180] [--max <replays>]`. `pnpm run ladder-baseline
- * --team-dir <folder>` runs it for 2v2 and 3v3, then analyzes what it got.
+ * [--top 50] [--per-player 40] [--since-days 180] [--everyone [--source ranked] [--pages <n>]]
+ * [--max <replays>] [--control <folder>]`. `pnpm run ladder-baseline --team-dir <folder>` runs it
+ * for 2v2 and 3v3, then analyzes what it got.
  *
  * For each of the format's ladders, like 3v3 on Big Game Hunters, Hunters and Fastest, it takes the
  * `--top` players by rating and saves up to `--per-player` of their ranked games on that ladder it
  * doesn't have yet, newest first, going back as far as `--since-days`. Running it again goes on
  * further back, and picks up games played since, so each run adds more. Matchmaking puts players
  * of about the same rating together, so their teammates and opponents are strong too. `--type`
- * keeps to one ladder. `--everyone` instead pages through the newest games of every player,
- * `--pages` of 40, from ranked games or, with `--source all`, public lobby games too.
+ * keeps to one ladder.
+ *
+ * `--everyone` instead pages through every player's games, newest first, 40 a page, from ranked
+ * games or, with `--source all`, public lobby games too. It goes until the list ends, or for
+ * `--pages`. Players on the ladder's current season get their rating there. Once a run has been
+ * through to the end, later runs only go back as far as the games it looked at.
  *
  * Each replay is saved as `<sha256>.rep`. `shieldbattery-manifest.json` next to them records each
  * one's game, ladder, start time, and players with their ladder rating when the replay was saved.
  * The rated players also go in a `ladder-manifest.json`, which gives them their MMR in the
  * baseline. Games seen before are skipped.
+ *
+ * It waits while `--control` (the `--out` folder unless given) has a pause file, and stops where
+ * it is when it has a stop file, the same files `ladder-baseline` uses.
  *
  * ShieldBattery's terms allow downloading for personal, non-commercial use. It's paced well under
  * the site's limits and waits when the site asks it to. Download links are only good for a day, so
@@ -32,6 +40,7 @@ import {
   LadderGame,
   LadderManifest,
 } from '../../common/games/ladder'
+import { LADDER_PAUSE_FILE, LADDER_STOP_FILE } from '../../common/games/ladder-baseline'
 import { AssignedRaceChar } from '../../common/races'
 
 const API = 'https://shieldbattery.net/api/1'
@@ -114,6 +123,11 @@ interface Manifest {
   version: typeof MANIFEST_VERSION
   /** By replay file name. */
   games: Record<string, ManifestGame>
+  /**
+   * By `--everyone` list, the start time in milliseconds since the epoch that every game in it
+   * started at or before has been looked at.
+   */
+  listedThrough?: Record<string, number>
 }
 
 const { values: args } = parseArgs({
@@ -126,8 +140,9 @@ const { values: args } = parseArgs({
     'since-days': { type: 'string', default: '180' },
     everyone: { type: 'boolean', default: false },
     source: { type: 'string', default: 'ranked' },
-    pages: { type: 'string', default: '10' },
+    pages: { type: 'string' },
     max: { type: 'string' },
+    control: { type: 'string' },
   },
 })
 
@@ -226,9 +241,34 @@ async function downloadReplay(url: string): Promise<Buffer | undefined> {
   return bytes.subarray(12, 16).toString('latin1') === REPLAY_MAGIC ? bytes : undefined
 }
 
+/**
+ * Waits while the folder has a pause file, and says whether it has a stop file, which ends the run
+ * where it is. Everything up to here is saved, so running again picks up from it.
+ */
+async function shouldStop(dir: string): Promise<boolean> {
+  let paused = false
+  while (
+    existsSync(path.join(dir, LADDER_PAUSE_FILE)) &&
+    !existsSync(path.join(dir, LADDER_STOP_FILE))
+  ) {
+    if (!paused) {
+      console.log('Paused.')
+      paused = true
+    }
+    await sleep(1000)
+  }
+  const stop = existsSync(path.join(dir, LADDER_STOP_FILE))
+  if (paused && !stop) {
+    console.log('Going on.')
+  }
+  return stop
+}
+
 /** Saves the replays of games not seen before, keeping count of them. */
 class ReplaySaver {
   kept = 0
+  /** Whether the control folder asked to stop. */
+  stopped = false
   private seenGames: Set<string>
   private manifestPath: string
 
@@ -236,13 +276,27 @@ class ReplaySaver {
     private outDir: string,
     private manifest: Manifest,
     readonly max: number,
+    private controlDir: string,
   ) {
     this.manifestPath = path.join(outDir, MANIFEST_FILE)
     this.seenGames = new Set(Object.values(manifest.games).map(game => game.gameId))
   }
 
-  get full() {
-    return this.kept >= this.max
+  /** Whether it has kept `max` replays or was asked to stop, after waiting out a pause. */
+  async done() {
+    if (!this.stopped && this.kept < this.max) {
+      this.stopped = await shouldStop(this.controlDir)
+    }
+    return this.stopped || this.kept >= this.max
+  }
+
+  listedThrough(key: string): number | undefined {
+    return this.manifest.listedThrough?.[key]
+  }
+
+  async setListedThrough(key: string, startMs: number) {
+    this.manifest.listedThrough = { ...this.manifest.listedThrough, [key]: startMs }
+    await writeJson(this.manifestPath, this.manifest)
   }
 
   /** Writes the ladder manifest for every replay saved so far. */
@@ -252,19 +306,17 @@ class ReplaySaver {
 
   /**
    * Saves up to `limit` of a page's games' replays, each game's players named from `names` and
-   * rated from `ratings` when they're there, and returns how many it saved.
+   * rated from its ladder's `ratings` when they're there, and returns how many it saved.
    */
   async savePage(
     list: GamesResponse,
     keep: (game: ShieldBatteryGame) => boolean,
     names: ReadonlyMap<number, string>,
     {
-      ratings = new Map(),
-      season,
+      ladders = new Map(),
       limit = Infinity,
     }: {
-      ratings?: ReadonlyMap<number, number>
-      season?: number
+      ladders?: ReadonlyMap<string, LadderRatings>
       limit?: number
     } = {},
   ) {
@@ -272,7 +324,7 @@ class ReplaySaver {
     let saved = 0
     for (const game of list.games ?? []) {
       const replay = replays.get(game.id)
-      if (this.full || saved >= limit) {
+      if (saved >= limit || (await this.done())) {
         break
       }
       if (this.seenGames.has(game.id) || !replay || !keep(game)) {
@@ -289,6 +341,9 @@ class ReplaySaver {
         continue
       }
       const type = game.config?.gameSourceExtra?.type
+      const ladder = type ? ladders.get(type) : undefined
+      const ratings = ladder?.ratings ?? new Map<number, number>()
+      const season = ladder?.season
       const players = (game.config?.teams ?? []).flatMap((team, i) =>
         team
           .filter(p => !p.isComputer)
@@ -321,6 +376,26 @@ class ReplaySaver {
   }
 }
 
+/** A ladder's rated players this season. */
+interface LadderRatings {
+  /** By user id. */
+  ratings: Map<number, number>
+  names: Map<number, string>
+  season?: number
+}
+
+async function getLadder(type: string): Promise<LadderRatings> {
+  const ladder = await getJson<LadderResponse>(`${API}/ladder/${type}`)
+  await sleep(HISTORY_INTERVAL_MS)
+  return {
+    ratings: new Map(
+      (ladder.players ?? []).filter(p => p.rating > 0).map(p => [p.userId, p.rating]),
+    ),
+    names: new Map((ladder.users ?? []).map(user => [user.id, user.name])),
+    season: ladder.season?.id,
+  }
+}
+
 /** Saves ranked games of each ladder's best players that aren't saved yet. */
 async function fetchFromLadders(saver: ReplaySaver, format: string, types: ReadonlyArray<string>) {
   const top = Number(args.top)
@@ -330,13 +405,10 @@ async function fetchFromLadders(saver: ReplaySaver, format: string, types: Reado
     fail('--top, --per-player and --since-days are how many players, games and days to take.')
   }
   for (const type of types) {
-    const ladder = await getJson<LadderResponse>(`${API}/ladder/${type}`)
-    await sleep(HISTORY_INTERVAL_MS)
-    const ratings = new Map(
-      (ladder.players ?? []).filter(p => p.rating > 0).map(p => [p.userId, p.rating]),
-    )
-    const names = new Map((ladder.users ?? []).map(user => [user.id, user.name]))
-    const best = Array.from(ratings)
+    const ladder = await getLadder(type)
+    const ladders = new Map([[type, ladder]])
+    const names = ladder.names
+    const best = Array.from(ladder.ratings)
       .sort(([, a], [, b]) => b - a)
       .slice(0, top)
     if (!best.length) {
@@ -349,7 +421,10 @@ async function fetchFromLadders(saver: ReplaySaver, format: string, types: Reado
     )
     for (const [userId] of best) {
       let saved = 0
-      for (let offset = 0; saved < perPlayer && !saver.full && offset <= MAX_OFFSET;) {
+      for (let offset = 0; saved < perPlayer && offset <= MAX_OFFSET;) {
+        if (await saver.done()) {
+          return
+        }
         const query = new URLSearchParams({
           ranked: 'true',
           custom: 'false',
@@ -369,7 +444,7 @@ async function fetchFromLadders(saver: ReplaySaver, format: string, types: Reado
           history,
           game => game.config?.gameSourceExtra?.type === type,
           names,
-          { ratings, season: ladder.season?.id, limit: perPlayer - saved },
+          { ladders, limit: perPlayer - saved },
         )
         if (!history.hasMoreGames || !games.length) {
           break
@@ -380,18 +455,34 @@ async function fetchFromLadders(saver: ReplaySaver, format: string, types: Reado
   }
 }
 
-/** Saves the newest games of every player, page by page. */
-async function fetchEveryone(saver: ReplaySaver, format: string) {
+/** Saves every player's games, newest first, page by page. */
+async function fetchEveryone(saver: ReplaySaver, format: string, types: ReadonlyArray<string>) {
   const source = args.source!
-  const pages = Number(args.pages)
+  const pages = args.pages !== undefined ? Number(args.pages) : Infinity
   if (!SOURCES.includes(source)) {
     fail(`--source is one of ${SOURCES.join(', ')}.`)
   }
   if (!(pages > 0)) {
     fail('--pages is how many pages of 40 games to look through.')
   }
+  // Lobby games have no ladder, so only ranked games get ratings.
+  const ladders = new Map<string, LadderRatings>()
+  if (source !== 'custom') {
+    for (const type of types) {
+      ladders.set(type, await getLadder(type))
+    }
+  }
+  const keep = (game: ShieldBatteryGame) =>
+    !args.type || game.config?.gameSourceExtra?.type === args.type
+  const listKey = [format, source, args.type ?? ''].join('/')
+  const listedThrough = saver.listedThrough(listKey)
+  /** The newest game's start time, which this run looks at every game up to once it's done. */
+  let newestMs: number | undefined
   let offset = 0
-  for (let page = 0; page < pages && !saver.full; page++) {
+  for (let page = 0; page < pages; page++) {
+    if (await saver.done()) {
+      return
+    }
     const query = new URLSearchParams({
       sort: 'latest',
       format,
@@ -400,15 +491,25 @@ async function fetchEveryone(saver: ReplaySaver, format: string) {
     })
     const list = await getJson<GamesResponse>(`${API}/games/list?${query}`)
     const names = new Map((list.users ?? []).map(user => [user.id, user.name]))
-    await saver.savePage(
-      list,
-      game => !args.type || game.config?.gameSourceExtra?.type === args.type,
-      names,
-    )
-    if (!list.hasMoreGames || !list.games?.length) {
+    const games = list.games ?? []
+    newestMs ??= games[0]?.startTime
+    await saver.savePage(list, keep, names, { ladders })
+    if (saver.stopped) {
+      return
+    }
+    const oldestMs = games.at(-1)?.startTime
+    const reachedListed =
+      listedThrough !== undefined && oldestMs !== undefined && oldestMs <= listedThrough
+    if (!list.hasMoreGames || !games.length || reachedListed) {
+      if (reachedListed) {
+        console.log('Reached the games a run before looked at.')
+      }
+      if (newestMs !== undefined) {
+        await saver.setListedThrough(listKey, newestMs)
+      }
       break
     }
-    offset += list.games.length
+    offset += games.length
     await sleep(LIST_INTERVAL_MS)
   }
 }
@@ -426,19 +527,27 @@ async function main() {
   }
   await mkdir(outDir, { recursive: true })
   const manifest = await readManifest(path.join(outDir, MANIFEST_FILE))
-  const saver = new ReplaySaver(outDir, manifest, args.max ? Number(args.max) : Infinity)
+  const saver = new ReplaySaver(
+    outDir,
+    manifest,
+    args.max ? Number(args.max) : Infinity,
+    args.control ? path.resolve(args.control) : outDir,
+  )
   // Written first too, for replays saved before the ladder manifest was.
   await saver.writeLadderManifest()
   try {
     if (args.everyone) {
-      await fetchEveryone(saver, format)
+      await fetchEveryone(saver, format, types)
     } else {
       await fetchFromLadders(saver, format, types)
     }
   } finally {
     await saver.writeLadderManifest()
   }
-  console.log(`\nKept ${saver.kept} new replays, ${Object.keys(manifest.games).length} in all.`)
+  console.log(
+    `\n${saver.stopped ? 'Stopped. ' : ''}Kept ${saver.kept} new replays, ` +
+      `${Object.keys(manifest.games).length} in all.`,
+  )
 }
 
 main().catch(err => {
