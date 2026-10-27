@@ -28,9 +28,29 @@ describe('client/navigation/section-history', () => {
   test("lights a player's tab on their page and the games opened from it", () => {
     const sections = new EntrySections()
     sections.visit('a', '/players/Sommelier', 'reload')
-    expect(sections.section).toBe('player')
+    expect(sections.section).toBe('players')
     sections.visit('b', '/replays/stats/g1', 'push')
-    expect(sections.section).toBe('player')
+    expect(sections.section).toBe('players')
+    expect(sections.parentPathname).toBe('/players/Sommelier')
+  })
+
+  test('keeps a game opened from the library in the library', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/replays', 'reload')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('library')
+  })
+
+  test('remembers what a page was opened from, through a replace and going back to it', () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/players/Sommelier', 'reload')
+    expect(sections.parentPathname).toBeUndefined()
+    sections.visit('b', '/live-game', 'push')
+    sections.visit('c', '/replays/stats/g1', 'replace')
+    expect(sections.parentPathname).toBe('/players/Sommelier')
+    sections.visit('a', '/players/Sommelier', 'traverse')
+    sections.visit('c', '/replays/stats/g1', 'traverse')
+    expect(sections.parentPathname).toBe('/players/Sommelier')
   })
 
   test('puts a game in the section asked for, like the last game', () => {
@@ -54,19 +74,16 @@ describe('client/navigation/section-history', () => {
     expect(sections.section).toBe('myStats')
   })
 
-  test('puts a game opened from the library, settings or a notification in Match stats', () => {
+  test('puts a game opened from settings or on its own in Last game', () => {
     const sections = new EntrySections()
-    sections.visit('a', '/replays', 'reload')
-    sections.visit('b', '/replays/stats/g1', 'push')
-    expect(sections.section).toBe('lastGame')
-    sections.visit('c', '/settings', 'push')
+    sections.visit('c', '/settings', 'reload')
     sections.visit('d', '/replays/stats/g2', 'push')
     expect(sections.section).toBe('lastGame')
     sections.visit('e', '/replays/stats/g3', 'reload')
     expect(sections.section).toBe('lastGame')
   })
 
-  test('keeps the library lit only for the library', () => {
+  test('keeps the library lit going back to it from one of its games', () => {
     const sections = new EntrySections()
     sections.visit('a', '/replays', 'reload')
     expect(sections.section).toBe('library')

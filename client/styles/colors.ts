@@ -304,6 +304,9 @@ export const THEME_CSS = css`
   --theme-tab-stats: #a78bfa;
   --theme-tab-stats-tint: rgb(167 139 250 / 0.16);
   --theme-tab-stats-ring: rgb(167 139 250 / 0.3);
+  --theme-tab-players: #fb923c;
+  --theme-tab-players-tint: rgb(251 146 60 / 0.14);
+  --theme-tab-players-ring: rgb(251 146 60 / 0.28);
   --theme-tab-coach: #34d399;
   --theme-tab-coach-tint: rgb(52 211 153 / 0.14);
   --theme-tab-coach-ring: rgb(52 211 153 / 0.28);
@@ -451,6 +454,9 @@ export const LIGHT_THEME_CSS = css`
   --theme-tab-stats: #6d28d9;
   --theme-tab-stats-tint: #ede9fe;
   --theme-tab-stats-ring: #ddd6fe;
+  --theme-tab-players: #c2410c;
+  --theme-tab-players-tint: #ffedd5;
+  --theme-tab-players-ring: #fed7aa;
   --theme-tab-coach: #047857;
   --theme-tab-coach-tint: #d1fae5;
   --theme-tab-coach-ring: #a7f3d0;

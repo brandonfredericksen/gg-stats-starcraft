@@ -13,6 +13,10 @@ import { EntrySections, Section, VisitType } from './section-history'
 export interface Crumb {
   label: string
   href?: string
+  /** What clicking it does, for a step that isn't a plain address, like the newest game. */
+  onClick?: () => void
+  /** More than the label says, shown on hover, like the replay's file name. */
+  title?: string
 }
 
 const Root = styled.nav`
@@ -193,6 +197,11 @@ export function useCurrentSection() {
   return useSyncExternalStore(subscribeToHistory, () => entrySections.section)
 }
 
+/** The pathname of the page the one showing now was opened from, if it's known. */
+export function useParentPathname() {
+  return useSyncExternalStore(subscribeToHistory, () => entrySections.parentPathname)
+}
+
 /** Makes the next page the app goes to belong to `section`, like a game opened from its tab. */
 export function openNextPageIn(section: Section) {
   entrySections.openNextIn(section)
@@ -226,12 +235,15 @@ export function PageNav({
         {crumbs.map((crumb, i) => (
           <CrumbItem key={i}>
             {i > 0 ? <Separator aria-hidden={true} /> : null}
-            {crumb.href ? (
-              <CrumbLink type='button' onClick={() => push(crumb.href!)}>
+            {crumb.href || crumb.onClick ? (
+              <CrumbLink
+                type='button'
+                title={crumb.title}
+                onClick={crumb.onClick ?? (() => push(crumb.href!))}>
                 {crumb.label}
               </CrumbLink>
             ) : (
-              <CurrentCrumb aria-current='page' title={crumb.label}>
+              <CurrentCrumb aria-current='page' title={crumb.title ?? crumb.label}>
                 {crumb.label}
               </CurrentCrumb>
             )}

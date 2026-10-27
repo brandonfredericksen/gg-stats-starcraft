@@ -9,6 +9,7 @@ import {
 } from '../../common/games/game-stats'
 import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
+import { isMyPlayerName } from '../../common/games/player-names'
 import { RaceChar } from '../../common/races'
 
 /** A team, or a single player when the game had no teams. */
@@ -85,6 +86,43 @@ export function getMatchup(sides: ReadonlyArray<Side>, t: TFunction) {
     : sides
         .map(side => side.players.map(raceLetter).join(''))
         .join(t('gameStats.teamMatchupSeparator', ' vs '))
+}
+
+/**
+ * A game named by what happened, for its crumb: from the user's side when they played, like
+ * "TvZ vs Sommelier · Polypoid · Win" or "3v3 PPT vs PZZ · Fighting Spirit · Loss", and otherwise
+ * the races and the map.
+ */
+export function getGameCrumbLabel(
+  sides: ReadonlyArray<Side>,
+  myNames: ReadonlyArray<string> | undefined,
+  mapName: string,
+  t: TFunction,
+) {
+  const mine = sides.find(side =>
+    side.players.some(p => p.names.some(name => isMyPlayerName(name, myNames))),
+  )
+  if (!mine || sides.length !== 2) {
+    return sides.length ? [getMatchup(sides, t), mapName].join(' · ') : mapName
+  }
+  const theirs = sides.find(side => side !== mine)!
+  const matchup = getMatchup([mine, theirs], t)
+  const solo = mine.players.length === 1 && theirs.players.length === 1
+  const parts = [
+    solo
+      ? t('gameStats.crumbVs', '{{matchup}} vs {{name}}', {
+          matchup,
+          name: theirs.players[0].name,
+        })
+      : `${mine.players.length}v${theirs.players.length} ${matchup}`,
+    mapName,
+  ]
+  if (mine.result === 'win') {
+    parts.push(t('gameStats.crumbWin', 'Win'))
+  } else if (mine.result === 'loss') {
+    parts.push(t('gameStats.crumbLoss', 'Loss'))
+  }
+  return parts.join(' · ')
 }
 
 export interface UnitEntry {

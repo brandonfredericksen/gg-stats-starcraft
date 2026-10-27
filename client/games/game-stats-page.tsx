@@ -37,7 +37,8 @@ import {
   loadSavedGameStats,
   ReplayAnalysisFailure,
 } from './game-stats-atoms'
-import { getMatchup, groupSides, Side } from './game-stats-model'
+import { getGameCrumbLabel, getMatchup, groupSides, Side } from './game-stats-model'
+import { useSectionCrumbs } from '../navigation/section-crumbs'
 import { GameStatsView } from './game-stats-view'
 import { MapArt, useMapArt } from './map-art'
 import { useMyPlayerNames } from './my-player-names'
@@ -589,6 +590,7 @@ function StatsHeader({
   const myNames = useMyPlayerNames()
   const replay = useAnalyzableReplay(gameId, source)
   const sides = groupSides(withAssumedResults(stats.players, stats.complete, myNames))
+  const sectionCrumbs = useSectionCrumbs({ fromPlayer: true })
   const mapArt = useMapArt(stats.mapName, tileset)
   // The game's own picture of the map, in case another version of the map has the same name.
   const art = stats.minimap ? { url: getMinimapUrl(stats.minimap), isMap: true } : mapArt
@@ -616,9 +618,9 @@ function StatsHeader({
       {art ? <MapArtBackdrop $art={art} aria-hidden={true} /> : null}
       <PageNav
         crumbs={[
-          { label: t('gameStats.libraryCrumb', 'Library'), href: '/replays' },
-          // The replay's file name, as it is on disk.
-          { label: replay ? replay.name : mapName },
+          ...sectionCrumbs,
+          // Named by what happened; the replay's file name, as it is on disk, shows on hover.
+          { label: getGameCrumbLabel(sides, myNames, mapName, t), title: replay?.name },
         ]}
         actions={
           replay ? (

@@ -38,6 +38,8 @@ import {
   Totals,
   Trends,
 } from './my-stats-panels'
+import { PageNav } from '../navigation/page-nav'
+import { useSectionCrumbs } from '../navigation/section-crumbs'
 import { PlayerHeader } from './player-header'
 import { RanksRow } from './ranks-row'
 
@@ -282,6 +284,7 @@ export function MyStatsView({ player }: { player?: OtherPlayer }) {
   const other = !!player
   const filters = useAtomValue(myStatsFiltersAtom)
   const load = useMyStats(names, other)
+  const sectionCrumbs = useSectionCrumbs()
   const { data } = load
 
   let content: React.ReactNode
@@ -373,6 +376,7 @@ export function MyStatsView({ player }: { player?: OtherPlayer }) {
   return (
     <OtherPlayerContext value={other}>
       <Root>
+        {player ? <PageNav crumbs={[...sectionCrumbs, { label: player.name }]} /> : null}
         <IdentityPanel>
           {player ? (
             <PlayerHeader name={player.name} accounts={player.accounts} />

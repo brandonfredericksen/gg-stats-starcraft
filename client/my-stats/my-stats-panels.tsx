@@ -1734,12 +1734,12 @@ function usePaged<T>(rows: ReadonlyArray<T>) {
   return { shown, pager }
 }
 
-function PersonName({ person }: { person: PersonRow }) {
+function PersonName({ person, opensPage }: { person: PersonRow; opensPage: boolean }) {
   return (
     <>
       <RaceMix races={person.races} />
       <ListNameText>
-        <PlayerNameButton name={person.name} race={person.races[0]?.race}>
+        <PlayerNameButton name={person.name} race={person.races[0]?.race} opensPage={opensPage}>
           {person.name}
         </PlayerNameButton>
       </ListNameText>
@@ -1747,7 +1747,16 @@ function PersonName({ person }: { person: PersonRow }) {
   )
 }
 
-export function People({ title, people }: { title: string; people: ReadonlyArray<PersonRow> }) {
+/** People and the user's record with each. `opensPage` makes a name open their page, not their card. */
+export function People({
+  title,
+  people,
+  opensPage = false,
+}: {
+  title: string
+  people: ReadonlyArray<PersonRow>
+  opensPage?: boolean
+}) {
   const { shown, pager } = usePaged(people)
   return (
     <PaddedPanel>
@@ -1758,7 +1767,7 @@ export function People({ title, people }: { title: string; people: ReadonlyArray
       {shown.map(person => (
         <ListRow key={person.name}>
           <ListName>
-            <PersonName person={person} />
+            <PersonName person={person} opensPage={opensPage} />
           </ListName>
           <RightAligned>
             <Muted>

@@ -1,16 +1,33 @@
-import { atom, useAtomValue } from 'jotai'
 import { isMyPlayerName } from '../../common/games/player-names'
+import { ThunkAction } from '../dispatch-registry'
 import { useMyPlayerNames } from '../games/my-player-names'
+import { useAppSelector } from '../redux-hooks'
+import { mergeLocalSettings } from '../settings/action-creators'
 import { findPlayerByAccount, useKnownPlayers } from './known-players'
 
-/**
- * The other player whose page has its own tab in the bar, after My stats: the last one opened,
- * until the tab is closed. One at a time, so opening another player takes the tab over.
- */
-export const openPlayerAtom = atom<string | undefined>(undefined)
+/** How many players the Players page lists as opened lately. */
+export const MAX_RECENT_PLAYERS = 12
 
-export function useOpenPlayer() {
-  return useAtomValue(openPlayerAtom)
+const NO_PLAYERS: ReadonlyArray<string> = []
+
+/** The other players whose pages the user opened, the latest first. */
+export function useRecentPlayers(): ReadonlyArray<string> {
+  return useAppSelector(s => s.settings.local.recentPlayers) ?? NO_PLAYERS
+}
+
+/** Puts `name` first among the players opened lately. */
+export function rememberRecentPlayer(name: string): ThunkAction {
+  return (dispatch, getState) => {
+    const before = getState().settings.local.recentPlayers ?? []
+    if (before[0] === name) {
+      return
+    }
+    const recentPlayers = [
+      name,
+      ...before.filter(other => other.toLowerCase() !== name.toLowerCase()),
+    ].slice(0, MAX_RECENT_PLAYERS)
+    dispatch(mergeLocalSettings({ recentPlayers }, { onSuccess: () => {}, onError: () => {} }))
+  }
 }
 
 /** Every account `name` goes by: the user's names if it's one of theirs, or a known player's. */

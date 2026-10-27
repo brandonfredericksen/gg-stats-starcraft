@@ -10,20 +10,13 @@ import { RaceMix } from '../material/race-mix'
 import { usePlayerRecord } from '../players/player-record-hooks'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch } from '../redux-hooks'
-import { bodyMedium, headlineMedium, labelMedium } from '../styles/typography'
+import { bodyMedium, headlineMedium } from '../styles/typography'
 import { RecordText } from './my-stats-panels'
 
 const Root = styled.div`
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-`
-
-const Eyebrow = styled.div`
-  ${labelMedium};
-  color: var(--theme-on-surface-variant);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 `
 
 const TitleRow = styled.div`
@@ -137,7 +130,6 @@ export function PlayerHeader({
   const others = accounts.filter(a => a.toLowerCase() !== name.toLowerCase())
   return (
     <Root>
-      <Eyebrow>{t('players.eyebrow', 'Player')}</Eyebrow>
       <TitleRow>
         {races.length ? <RaceMix races={races} /> : null}
         <Title>{name}</Title>

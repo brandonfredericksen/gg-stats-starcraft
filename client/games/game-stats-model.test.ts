@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { describe, expect, test } from 'vitest'
 import { GamePlayerStats } from '../../common/games/game-stats'
 import {
+  getGameCrumbLabel,
   getMatchup,
   getRatePerMinute,
   getSideTotals,
@@ -236,5 +237,36 @@ describe('client/games/game-stats-model', () => {
       player(3, { result: 'win' }),
     ])
     expect(toFinishingOrder(sides).map(side => side.key)).toEqual([3, 2, 0, 1])
+  })
+
+  describe('getGameCrumbLabel', () => {
+    test("names a 1v1 from the user's side, with the opponent and the result", () => {
+      const sides = groupSides([
+        player(1, { name: 'Sommelier', names: ['Sommelier'], race: 'z', result: 'win' }),
+        player(2, { name: 'Me', names: ['Me'], race: 't', result: 'loss' }),
+      ])
+      expect(getGameCrumbLabel(sides, ['me'], 'Polypoid', t)).toBe(
+        'TvZ vs Sommelier · Polypoid · Loss',
+      )
+    })
+
+    test('names a team game by its size and races, and a game without the user by its races', () => {
+      const team = (id: number, race: 'p' | 't' | 'z', side: number, name = `player${id}`) =>
+        player(id, { name, names: [name], race, team: side, result: side ? 'loss' : 'win' })
+      const sides = groupSides([
+        team(1, 'p', 0, 'Me'),
+        team(2, 'p', 0),
+        team(3, 't', 0),
+        team(4, 'p', 1),
+        team(5, 'z', 1),
+        team(6, 'z', 1),
+      ])
+      expect(getGameCrumbLabel(sides, ['Me'], 'Fighting Spirit', t)).toBe(
+        '3v3 PPT vs PZZ · Fighting Spirit · Win',
+      )
+      expect(getGameCrumbLabel(sides, ['Nobody'], 'Fighting Spirit', t)).toBe(
+        'PPT vs PZZ · Fighting Spirit',
+      )
+    })
   })
 })

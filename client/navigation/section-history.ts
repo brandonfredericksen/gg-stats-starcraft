@@ -2,7 +2,7 @@
 export type Section =
   | 'library'
   | 'myStats'
-  | 'player'
+  | 'players'
   | 'coach'
   | 'builds'
   | 'lastGame'
@@ -17,8 +17,8 @@ export function getSection(pathname: string): Section {
   if (pathname.startsWith('/my-stats')) {
     return 'myStats'
   }
-  if (pathname.startsWith('/players/')) {
-    return 'player'
+  if (pathname === '/players' || pathname.startsWith('/players/')) {
+    return 'players'
   }
   if (pathname.startsWith('/coach')) {
     return 'coach'
@@ -42,13 +42,19 @@ export function getSection(pathname: string): Section {
 export type VisitType = 'push' | 'replace' | 'reload' | 'traverse'
 
 /**
- * Where a game's page belongs unless it was opened from one of {@link OPENS_GAMES_IN_PLACE}: Match
- * stats, whose tab covers a game, before and after. The Library's tab is for the library itself.
+ * Where a game's page belongs unless it was opened from one of {@link OPENS_GAMES_IN_PLACE}: the
+ * Last game tab, like a game a notification or Alt + G opened.
  */
 const GAME_SECTION: Section = 'lastGame'
 
 /** Sections whose games stay in them, so going to one of their games keeps their tab lit. */
-const OPENS_GAMES_IN_PLACE: ReadonlySet<Section> = new Set(['myStats', 'player', 'coach', 'builds'])
+const OPENS_GAMES_IN_PLACE: ReadonlySet<Section> = new Set([
+  'library',
+  'myStats',
+  'players',
+  'coach',
+  'builds',
+])
 
 /** A single game's page, which can be opened from any section, not just the library. */
 function isGamePage(pathname: string) {
@@ -69,12 +75,21 @@ function pathnameOf(url: string) {
  */
 export class EntrySections {
   private sections = new Map<string, Section>()
+  /** The page each entry was opened from, by its pathname. */
+  private parents = new Map<string, string>()
   private current: Section = 'other'
+  private currentKey = ''
+  private currentPathname = ''
   private pending: Section | undefined
 
   /** The section the app is showing now. */
   get section(): Section {
     return this.current
+  }
+
+  /** The pathname of the page the one showing now was opened from, if it's known. */
+  get parentPathname(): string | undefined {
+    return this.parents.get(this.currentKey)
   }
 
   /**
@@ -106,5 +121,18 @@ export class EntrySections {
     }
     this.sections.set(key, section)
     this.current = section
+
+    if (type === 'push' && !this.parents.has(key) && this.currentPathname) {
+      this.parents.set(key, this.currentPathname)
+    } else if (type === 'replace' && !this.parents.has(key)) {
+      // A page that stands in for another, like a game for the live game once it's over, came
+      // from where that one did.
+      const parent = this.parents.get(this.currentKey)
+      if (parent) {
+        this.parents.set(key, parent)
+      }
+    }
+    this.currentKey = key
+    this.currentPathname = pathname
   }
 }

@@ -9,6 +9,15 @@ import { getGameStatsUrl } from '../replays/action-creators'
 import { externalShowSnackbar } from '../snackbars/snackbar-controller-registry'
 import { DURATION_LONG } from '../snackbars/snackbar-durations'
 
+/**
+ * Opens a game the app pointed to, like from a notification, under the Last game tab whatever page
+ * was showing: it's the game just played, not one of that page's.
+ */
+function openInLastGame(gameId: string) {
+  openNextPageIn('lastGame')
+  push(getGameStatsUrl(gameId))
+}
+
 export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcRenderer }) {
   ipcRenderer
     .on('autoCaptureAnalysisStarted', (_, gameId, source) => {
@@ -39,10 +48,10 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
           tone: 'success',
           action: {
             label: i18n.t('autoCapture.viewStats', 'View stats'),
-            onClick: () => push(getGameStatsUrl(gameId)),
+            onClick: () => openInLastGame(gameId),
           },
         },
       )
     })
-    .on('autoCaptureOpenStats', (_, gameId) => push(getGameStatsUrl(gameId)))
+    .on('autoCaptureOpenStats', (_, gameId) => openInLastGame(gameId))
 }

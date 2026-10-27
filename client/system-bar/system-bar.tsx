@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import keycode from 'keycode'
 import * as React from 'react'
 import { useLayoutEffect, useState } from 'react'
@@ -7,25 +7,21 @@ import styled from 'styled-components'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { DEV_INDICATOR } from '../../common/flags'
 import { TypedIpcRenderer } from '../../common/ipc'
-import { urlPath } from '../../common/urls'
 import { SYSTEM_BAR_HEIGHT } from '../../common/window-layout'
 import { useFitLevel } from '../dom/use-fit-level'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { hasLiveGameAtom } from '../live-game/live-game-atoms'
-import { useScouts } from '../live-game/live-game-data'
 import logo from '../logos/logo.png'
 import { useButtonHotkey } from '../material/button'
 import { buttonReset } from '../material/button-reset'
 import { MenuItem } from '../material/menu/item'
 import { MenuList } from '../material/menu/menu'
 import { Popover, usePopoverController, useRefAnchorPosition } from '../material/popover'
-import { RaceTag } from '../material/race-tag'
 import { Tooltip } from '../material/tooltip'
 import { zIndexSystemBar } from '../material/zindex'
 import { HistoryButtons, useCurrentSection } from '../navigation/page-nav'
 import { push } from '../navigation/routing'
-import { openPlayerAtom, useOpenPlayer, usePlayerAccounts } from '../players/open-player'
 import { useAppDispatch } from '../redux-hooks'
 import { clearWaitingAnalyses, setAnalysisPaused } from '../replays/analyze-latest'
 import { closeSettings, openSettings, useIsSettingsOpen } from '../settings/action-creators'
@@ -100,7 +96,7 @@ const Nav = styled.nav`
   gap: var(--space-1);
 `
 
-type NavTab = 'library' | 'stats' | 'coach' | 'builds' | 'last-game' | 'settings'
+type NavTab = 'library' | 'stats' | 'players' | 'coach' | 'builds' | 'last-game' | 'settings'
 
 /**
  * Marks Match stats while the user is in a game. It stays still: the app is open while they play,
@@ -155,91 +151,6 @@ const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
     outline-offset: 2px;
   }
 `
-
-/** A player's tab: the tab itself, with a button to close it inside its end. */
-const PlayerTabRoot = styled.span`
-  position: relative;
-  flex-shrink: 0;
-  display: flex;
-`
-
-const PlayerTabButton = styled(NavItem)`
-  padding-right: 34px;
-  gap: var(--space-2);
-`
-
-const PlayerTabName = styled.span`
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
-
-const PlayerTabClose = styled.button`
-  ${buttonReset};
-  position: absolute;
-  top: 50%;
-  right: 5px;
-  width: 22px;
-  height: 22px;
-  translate: 0 -50%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: var(--radius-full);
-  color: var(--theme-on-surface-variant);
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-
-  &:hover {
-    background-color: var(--theme-container-highest);
-    color: var(--theme-on-surface);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
-  }
-`
-
-/**
- * The tab of the other player whose page was opened last, after My stats, so the bar says whose
- * stats are showing. Closing it goes to the user's own stats if it was showing.
- */
-function PlayerTab({ name, active }: { name: string; active: boolean }) {
-  const { t } = useTranslation()
-  const setOpenPlayer = useSetAtom(openPlayerAtom)
-  const { accounts } = usePlayerAccounts(name)
-  const scout = useScouts([accounts])(accounts)
-  const race = typeof scout === 'object' ? scout.races[0]?.race : undefined
-  return (
-    <PlayerTabRoot>
-      <PlayerTabButton
-        type='button'
-        $tab='stats'
-        $active={active}
-        aria-current={active ? 'page' : undefined}
-        title={name}
-        onClick={() => push(urlPath`/players/${name}`)}>
-        {/* Wrapped, so the tab's icon color doesn't reach the race's. */}
-        <span>{race ? <RaceTag race={race} /> : <MaterialIcon icon='person' size={20} />}</span>
-        <PlayerTabName>{name}</PlayerTabName>
-      </PlayerTabButton>
-      <PlayerTabClose
-        type='button'
-        aria-label={t('players.closeTab', 'Close {{name}}', { name })}
-        onClick={() => {
-          setOpenPlayer(undefined)
-          if (active) {
-            push('/my-stats')
-          }
-        }}>
-        <MaterialIcon icon='close' size={16} />
-      </PlayerTabClose>
-    </PlayerTabRoot>
-  )
-}
 
 /** Settings, as just its gear at the end of the bar. */
 const SettingsButton = styled(NavItem)`
@@ -520,7 +431,7 @@ export function SystemBar() {
   const section = useCurrentSection()
   const isReplays = section === 'library'
   const isMyStats = section === 'myStats'
-  const openPlayer = useOpenPlayer()
+  const isPlayers = section === 'players'
   const isCoach = section === 'coach'
   const isBuilds = section === 'builds'
   // Match stats is both the game being played and the last game's stats.
@@ -541,7 +452,7 @@ export function SystemBar() {
   const captureStatus = useCaptureStatus()
   const [containerRef, fitLevel] = useFitLevel<HTMLElement>(
     FitLevel.NoWordmark,
-    `${captureStatus.label} ${openPlayer ?? ''}`,
+    `${captureStatus.label} ${hasLiveGame}`,
   )
 
   return (
@@ -580,7 +491,9 @@ export function SystemBar() {
             data-testid='last-game-button'
             onClick={() => (hasLiveGame ? push('/live-game') : dispatch(openLastGame()))}>
             <MaterialIcon icon='sports_esports' size={20} />
-            {t('matchStats.label', 'Match stats')}
+            {hasLiveGame
+              ? t('matchStats.liveLabel', 'Live game')
+              : t('matchStats.lastLabel', 'Last game')}
             {hasLiveGame ? (
               <LiveDot aria-label={t('matchStats.inGame', 'In a game')} role='img' />
             ) : null}
@@ -595,7 +508,15 @@ export function SystemBar() {
           <MaterialIcon icon='bar_chart' size={20} />
           {t('myStats.label', 'My stats')}
         </NavItem>
-        {openPlayer ? <PlayerTab name={openPlayer} active={section === 'player'} /> : null}
+        <NavItem
+          type='button'
+          $tab='players'
+          $active={isPlayers}
+          aria-current={isPlayers ? 'page' : undefined}
+          onClick={() => push('/players')}>
+          <MaterialIcon icon='group' size={20} />
+          {t('navigation.players', 'Players')}
+        </NavItem>
         <NavItem
           type='button'
           $tab='coach'

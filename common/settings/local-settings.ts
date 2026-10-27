@@ -189,6 +189,8 @@ export interface LocalSettings extends GgStatsAppSettings {
   myPlayerNames?: ReadonlyArray<string>
   /** Other people the user knows, with every account they play under. */
   knownPlayers?: ReadonlyArray<KnownPlayer>
+  /** The other players whose pages the user opened, the latest first. */
+  recentPlayers?: ReadonlyArray<string>
   starcraftPath: string
   gameWinX?: number
   gameWinY?: number

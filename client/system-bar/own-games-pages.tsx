@@ -1,4 +1,3 @@
-import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -11,7 +10,7 @@ import { FilledButton } from '../material/button'
 import { panelSurface } from '../material/panel'
 import { useDemoPlayer } from '../my-stats/demo-player'
 import { MyStatsView } from '../my-stats/my-stats-page'
-import { openPlayerAtom, usePlayerAccounts } from '../players/open-player'
+import { rememberRecentPlayer, usePlayerAccounts } from '../players/open-player'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -130,13 +129,13 @@ export function MyStatsPage() {
 export function PlayerStatsPage({ params }: { params: { name: string } }) {
   const { name } = params
   const { accounts, isMe } = usePlayerAccounts(name)
-  const setOpenPlayer = useSetAtom(openPlayerAtom)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (!isMe) {
-      setOpenPlayer(name)
+      dispatch(rememberRecentPlayer(name))
     }
-  }, [name, isMe, setOpenPlayer])
+  }, [name, isMe, dispatch])
 
   if (isMe) {
     return <Redirect to='/my-stats' replace={true} />
