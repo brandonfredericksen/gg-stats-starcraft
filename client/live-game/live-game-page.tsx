@@ -59,6 +59,7 @@ import { ScoutState, useScouts } from './live-game-data'
 import {
   BuildScope,
   GameKind,
+  getCheeseRate,
   getEnemyRaces,
   getGameKind,
   getKindRecord,
@@ -78,7 +79,8 @@ const FULL_TILE_HEIGHT = 160
 /** A win rate shows from this many games with a result. Fewer is a coin flip, not a rate. */
 const MIN_RATE_GAMES = 5
 /** The stat columns, the same in every tile, so each stat sits under the one above it. */
-const STAT_COLUMNS = 'minmax(76px, 0.8fr) minmax(124px, 1fr) minmax(132px, 1.3fr) minmax(0, 1fr)'
+const STAT_COLUMNS =
+  'minmax(112px, 1fr) minmax(76px, 0.8fr) minmax(124px, 1fr) minmax(132px, 1.3fr) minmax(0, 1fr)'
 
 /**
  * Centers a Bahnschrift capital in a small badge by the capital's own height, not the font's. That
@@ -713,9 +715,25 @@ function TileStats({
       <HintLabel>{t('liveGame.eSkill', 'eSkill')}</HintLabel>
     </Tooltip>
   )
+  const cheeseLabel = (
+    <Tooltip
+      text={t(
+        'liveGame.cheeseHelp',
+        'How many of their games with a named build were rushes and all ins, like a BBS, a 4 ' +
+          'pool or a cannon rush. As this race in this kind of game when they have a few of those.',
+      )}
+      tabIndex={-1}
+      position='top'>
+      <HintLabel>{t('liveGame.cheese', 'Cheese')}</HintLabel>
+    </Tooltip>
+  )
   if (scout === 'loading') {
     return (
       <StatsRow id={id}>
+        <Stat>
+          {cheeseLabel}
+          <SkeletonText $width='48px' />
+        </Stat>
         <Stat>
           {eapmLabel}
           <SkeletonText $width='32px' />
@@ -742,11 +760,28 @@ function TileStats({
   }
   const { totals } = scout
   const style = getPlaystyle(scout, race, kind)
+  const cheese = getCheeseRate(scout, race, kind)
   const record = getKindRecord(scout, kind)
   const decided = record.wins + record.losses
   const winRate = decided >= MIN_RATE_GAMES ? getWinRate(record) : undefined
   return (
     <StatsRow id={id}>
+      <Stat>
+        {cheeseLabel}
+        <StatValue>
+          {cheese ? (
+            <>
+              {cheese.cheeser ? <MaterialIcon icon={PLAYSTYLE_ICONS.cheese} size={16} /> : null}
+              {Math.round((cheese.cheese / cheese.games) * 100)}%
+              <Dim>
+                {cheese.cheese}/{cheese.games}
+              </Dim>
+            </>
+          ) : (
+            '-'
+          )}
+        </StatValue>
+      </Stat>
       <Stat>
         {eapmLabel}
         <StatValue>{totals.eapm ? format.format(totals.eapm.value) : '-'}</StatValue>
@@ -783,7 +818,7 @@ function TileStats({
           {winRate !== undefined ? <Dim>{Math.round(winRate * 100)}%</Dim> : null}
         </StatValue>
       </Stat>
-      {style && style.style !== 'standard' ? (
+      {style && style.style !== 'standard' && style.style !== 'cheese' ? (
         <StyleChip>
           <MaterialIcon icon={PLAYSTYLE_ICONS[style.style]} size={16} />
           {getPlaystyleLabel(style.style, t)}

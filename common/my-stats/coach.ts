@@ -1,7 +1,7 @@
 import { GameStatsResult } from '../games/game-stats'
 import { LADDER_RANKS, LadderRank } from '../games/ladder'
 import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
-import { CHECKPOINT_MINUTES, PlayerMetrics } from '../games/player-metrics'
+import { CHECKPOINT_MINUTES, GameMetrics, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
 import {
@@ -1443,6 +1443,31 @@ function getPairBuilds(
   return { buildsAgainst, teamBuilds: summarizeTeamBuilds(Array.from(teams.values())) }
 }
 
+/**
+ * The kind of game the coach puts one of `player`'s games in, or undefined for one it doesn't
+ * coach, like a 1v1 against a random whose race never showed.
+ */
+export function getGameScope(
+  game: GameMetrics,
+  player: PlayerMetrics,
+): Omit<CoachScope, 'games'> | undefined {
+  if (!player.race || game.shape === 'other') {
+    return undefined
+  }
+  const { teammates, opponents } = getSidesOf(game, player)
+  const opponentRace = game.shape === '1v1' ? opponents[0]?.race : undefined
+  if (game.shape === '1v1' && !opponentRace) {
+    return undefined
+  }
+  return {
+    shape: game.shape,
+    race: player.race,
+    opponentRace,
+    allyRace: game.shape === '2v2' ? teammates[0]?.race : undefined,
+    mapFamily: splitsByMap(game.shape) ? game.mapFamily : undefined,
+  }
+}
+
 function getScopes(
   allGames: ReadonlyArray<DatedGameMetrics>,
   names: ReadonlyArray<string>,
@@ -1450,25 +1475,13 @@ function getScopes(
   const scopes = new Map<string, CoachScope>()
   for (const game of allGames) {
     const me = findMe(game, names)
-    if (!me?.race || game.shape === 'other' || !isComparable(game, me)) {
+    const found = me && isComparable(game, me) ? getGameScope(game, me) : undefined
+    if (!found) {
       continue
     }
-    const { teammates, opponents } = getSidesOf(game, me)
-    const opponentRace = game.shape === '1v1' ? opponents[0]?.race : undefined
-    if (game.shape === '1v1' && !opponentRace) {
-      continue
-    }
-    const allyRace = game.shape === '2v2' ? teammates[0]?.race : undefined
-    const mapFamily = splitsByMap(game.shape) ? game.mapFamily : undefined
-    const key = `${game.shape}:${me.race}:${opponentRace ?? ''}:${allyRace ?? ''}:${mapFamily ?? ''}`
-    const scope = scopes.get(key) ?? {
-      shape: game.shape,
-      race: me.race,
-      opponentRace,
-      allyRace,
-      mapFamily,
-      games: 0,
-    }
+    const { shape, race, opponentRace, allyRace, mapFamily } = found
+    const key = `${shape}:${race}:${opponentRace ?? ''}:${allyRace ?? ''}:${mapFamily ?? ''}`
+    const scope = scopes.get(key) ?? { ...found, games: 0 }
     scope.games += 1
     scopes.set(key, scope)
   }

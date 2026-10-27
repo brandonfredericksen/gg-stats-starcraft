@@ -28,6 +28,7 @@ import { ScoutState, useScouts } from '../live-game/live-game-data'
 import { TileRating } from '../live-game/live-game-page'
 import {
   GameKind,
+  getCheeseRate,
   getEnemyRaces,
   getGameKind,
   getPlaystyle,
@@ -232,6 +233,12 @@ const LineLabel = styled.span`
 
 const Strong = styled.span`
   font-weight: 700;
+`
+
+const CheeseValue = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 `
 
 // Builds table
@@ -676,11 +683,27 @@ interface Profile {
 // Overview
 
 /** The few numbers that sum someone up, and how their latest games went. */
-function Overview({ scout, isMe }: { scout: PlayerScout; isMe: boolean }) {
+function Overview({
+  scout,
+  isMe,
+  showCheese,
+}: {
+  scout: PlayerScout
+  isMe: boolean
+  /** Whether to lead with how often they cheese, which a live game's box shows otherwise. */
+  showCheese: boolean
+}) {
   const { t } = useTranslation()
   const format = useStatFormat()
   const { totals } = scout
   const noResult = totals.games - totals.record.wins - totals.record.losses
+  const styles = emptyPlaystyleCounts()
+  for (const row of scout.playstyles) {
+    for (const style of PLAYSTYLES) {
+      styles[style] += row.counts[style]
+    }
+  }
+  const styleGames = PLAYSTYLES.reduce((sum, style) => sum + styles[style], 0)
   return (
     <Group>
       <Heading>
@@ -688,6 +711,31 @@ function Overview({ scout, isMe }: { scout: PlayerScout; isMe: boolean }) {
           ? t('players.allYourGames', 'All your games')
           : t('players.allTheirGames', 'All their games')}
       </Heading>
+      {showCheese ? (
+        <Callout $color='var(--theme-outline-strong)'>
+          <CalloutLine>
+            <LineLabel>
+              <HelpLabel
+                label={t('players.cheese', 'Cheese')}
+                help={t(
+                  'players.cheeseAllHelp',
+                  'Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.',
+                )}
+              />
+            </LineLabel>
+            {styleGames ? (
+              <CheeseValue>
+                <Figure>{formatPercent(styles.cheese / styleGames)}</Figure>
+                <Muted>
+                  {styles.cheese}/{styleGames}
+                </Muted>
+              </CheeseValue>
+            ) : (
+              <Muted>{t('players.noNamedBuild', 'No named build')}</Muted>
+            )}
+          </CalloutLine>
+        </Callout>
+      ) : null}
       <Tiles>
         <Tile>
           <TileValue>
@@ -820,6 +868,7 @@ function ThisGame({ scout, live }: { scout: PlayerScout; live: NonNullable<Profi
   const { player, kind, enemyRaces } = live
   const race = getKnownRace(player.race)
   const style = getPlaystyle(scout, race, kind)
+  const cheese = getCheeseRate(scout, race, kind)
   const kindLabel = getKindLabel(kind, t)
   const enemies = [...enemyRaces].sort().join('').toUpperCase()
   const raceRecord = getRaceKindRecord(scout, kind, race)
@@ -873,8 +922,30 @@ function ThisGame({ scout, live }: { scout: PlayerScout; live: NonNullable<Profi
             })
           : t('players.thisGame', 'This game: {{kind}}', { kind: kindLabel })}
       </Heading>
+      <CalloutLine>
+        <LineLabel>
+          <HelpLabel
+            label={t('players.cheese', 'Cheese')}
+            help={t(
+              'players.cheeseHelp',
+              'Rushes and all ins, out of their games with a named build. As this race in this kind of game when they have a few of those.',
+            )}
+          />
+        </LineLabel>
+        {cheese ? (
+          <CheeseValue>
+            {cheese.cheeser ? <MaterialIcon icon='bolt' size={16} /> : null}
+            <Figure>{formatPercent(cheese.cheese / cheese.games)}</Figure>
+            <Muted>
+              {cheese.cheese}/{cheese.games}
+            </Muted>
+          </CheeseValue>
+        ) : (
+          <Muted>{t('players.noNamedBuild', 'No named build')}</Muted>
+        )}
+      </CalloutLine>
       {buildLines}
-      {style && style.style !== 'standard' ? (
+      {style && style.style !== 'standard' && style.style !== 'cheese' ? (
         <CalloutLine>
           <LineLabel>{t('players.watchFor', 'Watch for')}</LineLabel>
           <span>
@@ -1417,7 +1488,7 @@ function ScoutSections({
   return (
     <>
       {profile.live ? <ThisGame scout={scout} live={profile.live} /> : null}
-      <Overview scout={scout} isMe={profile.isMe} />
+      <Overview scout={scout} isMe={profile.isMe} showCheese={!profile.live} />
       {between}
       <Group>
         <Accordion

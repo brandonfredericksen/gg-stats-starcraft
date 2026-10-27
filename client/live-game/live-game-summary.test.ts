@@ -3,6 +3,7 @@ import { LiveGamePlayer } from '../../common/live-game'
 import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
 import { emptyPlaystyleCounts } from '../../common/my-stats/playstyle'
 import {
+  getCheeseRate,
   getGameKind,
   getKindRecord,
   getPlaystyle,
@@ -134,5 +135,33 @@ describe('client/live-game/live-game-summary', () => {
     )
     expect(getPlaystyle(player, 'z', { shape: '3v3', mapFamily: 'bgh' })?.style).toBe('standard')
     expect(getPlaystyle(player, 'z', { shape: '3v3', mapFamily: 'fastest' })?.style).toBe('cheese')
+  })
+
+  test('counts cheese in this kind of game, or as the race anywhere with too few of them', () => {
+    const counts = (cheese: number, standard: number) => ({
+      ...emptyPlaystyleCounts(),
+      cheese,
+      standard,
+    })
+    const player = scout(
+      [],
+      [
+        { shape: '1v1', race: 'z', counts: counts(1, 9) },
+        { shape: '2v2', race: 'z', counts: counts(2, 0) },
+        { shape: '1v1', race: 't', counts: counts(5, 0) },
+      ],
+    )
+    expect(getCheeseRate(player, 'z', { shape: '1v1' })).toEqual({
+      cheese: 1,
+      games: 10,
+      cheeser: false,
+    })
+    expect(getCheeseRate(player, 'z', { shape: '2v2' })).toEqual({
+      cheese: 3,
+      games: 12,
+      cheeser: true,
+    })
+    expect(getCheeseRate(player, 't', { shape: '1v1' })?.cheeser).toBe(true)
+    expect(getCheeseRate(player, 'p', { shape: '1v1' })).toBeUndefined()
   })
 })

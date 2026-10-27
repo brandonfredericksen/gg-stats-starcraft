@@ -14,8 +14,13 @@ import {
   ReplayStatsSource,
 } from '../../common/games/game-stats'
 import { GameStatusString } from '../../common/games/game-status'
+import { computeGameMetrics } from '../../common/games/player-metrics'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { TilesetId } from '../../common/maps'
+import { getGameScope } from '../../common/my-stats/coach'
+import { findMe } from '../../common/my-stats/player-games'
+import { coachLockedShapeAtom, coachMapAtom, coachScopeAtom } from '../coach/coach-data'
+import { getScopeName } from '../coach/coach-shared'
 import { useFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { jotaiStore } from '../jotai-store'
@@ -645,6 +650,54 @@ function StatsHeader({
         <MapName>{mapName}</MapName>
         <Meta>{meta.join(' · ')}</Meta>
       </TitleRow>
+      <ScopeLinks gameId={gameId} stats={stats} />
     </Header>
+  )
+}
+
+const ScopeRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+`
+
+const ScopeName = styled.span`
+  ${bodyLarge};
+  font-size: 15px;
+  margin-right: var(--space-1);
+  color: var(--theme-on-surface-variant);
+`
+
+/** Opens Builds or Coach on the kind of game this was, as the user played it. */
+function ScopeLinks({ gameId, stats }: { gameId: string; stats: GameStats }) {
+  const { t } = useTranslation()
+  const myNames = useMyPlayerNames()
+  const game = computeGameMetrics(gameId, stats)
+  const me = myNames ? findMe(game, myNames) : undefined
+  const scope = me ? getGameScope(game, me) : undefined
+  if (!scope) {
+    return null
+  }
+  const open = (path: '/builds' | '/coach') => {
+    jotaiStore.set(coachLockedShapeAtom, undefined)
+    jotaiStore.set(coachMapAtom, undefined)
+    jotaiStore.set(coachScopeAtom, scope)
+    push(path)
+  }
+  return (
+    <ScopeRow>
+      <ScopeName>
+        {t('gameStats.scopeLinks', '{{scope}}:', { scope: getScopeName(scope, t) })}
+      </ScopeName>
+      <LitButton type='button' onClick={() => open('/builds')}>
+        <MaterialIcon icon='account_tree' size={18} />
+        {t('builds.title', 'Builds')}
+      </LitButton>
+      <LitButton type='button' onClick={() => open('/coach')}>
+        <MaterialIcon icon='query_stats' size={18} />
+        {t('myStats.coach.title', 'Coach')}
+      </LitButton>
+    </ScopeRow>
   )
 }

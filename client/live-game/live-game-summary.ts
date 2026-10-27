@@ -6,6 +6,8 @@ import { splitsByMap } from '../../common/my-stats/player-games'
 import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
 import {
   emptyPlaystyleCounts,
+  MIN_STYLE_GAMES,
+  Playstyle,
   PLAYSTYLES,
   PlaystyleSummary,
   summarizePlaystyle,
@@ -156,15 +158,20 @@ export function getKindRecord(scout: PlayerScout, kind: GameKind): WinLoss & { a
   return { ...scout.totals.record, allGames: true }
 }
 
+function countStyleGames(counts: Record<Playstyle, number>) {
+  return PLAYSTYLES.reduce((sum, style) => sum + counts[style], 0)
+}
+
 /**
- * How someone tends to play: as `race` in this kind of game if there are enough of those games,
- * or else as `race` in any game, or else in all their games when the race isn't known yet.
+ * How many of someone's games went each way: as `race` in this kind of game if there are enough of
+ * those games, or else as `race` in any game, or else in all their games when the race isn't known
+ * yet.
  */
-export function getPlaystyle(
+function getStyleCounts(
   scout: PlayerScout,
   race: AssignedRaceChar | undefined,
   kind: GameKind,
-): PlaystyleSummary | undefined {
+): Record<Playstyle, number> {
   const sum = (rows: PlayerScout['playstyles']) => {
     const counts = emptyPlaystyleCounts()
     for (const row of rows) {
@@ -172,10 +179,41 @@ export function getPlaystyle(
         counts[style] += row.counts[style]
       }
     }
-    return summarizePlaystyle(counts)
+    return counts
   }
   const asRace = race ? scout.playstyles.filter(p => p.race === race) : scout.playstyles
-  return sum(asRace.filter(p => isKind(p, kind))) ?? sum(asRace)
+  const inKind = sum(asRace.filter(p => isKind(p, kind)))
+  return countStyleGames(inKind) >= MIN_STYLE_GAMES ? inKind : sum(asRace)
+}
+
+/** How someone tends to play, from the games {@link getStyleCounts} picks. */
+export function getPlaystyle(
+  scout: PlayerScout,
+  race: AssignedRaceChar | undefined,
+  kind: GameKind,
+): PlaystyleSummary | undefined {
+  return summarizePlaystyle(getStyleCounts(scout, race, kind))
+}
+
+/**
+ * How many of someone's games, out of the ones {@link getStyleCounts} picks, they cheesed in, and
+ * whether that's often enough to call them a cheeser. Undefined without a game with a build.
+ */
+export function getCheeseRate(
+  scout: PlayerScout,
+  race: AssignedRaceChar | undefined,
+  kind: GameKind,
+): { cheese: number; games: number; cheeser: boolean } | undefined {
+  const counts = getStyleCounts(scout, race, kind)
+  const games = countStyleGames(counts)
+  if (!games) {
+    return undefined
+  }
+  return {
+    cheese: counts.cheese,
+    games,
+    cheeser: summarizePlaystyle(counts)?.style === 'cheese',
+  }
 }
 
 /** Races someone on the other sides picked, random left out, for the builds against them. */

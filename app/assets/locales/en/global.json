@@ -692,6 +692,7 @@
     "resourceSupply": "Supply",
     "resourceUnspent": "Unspent",
     "resourceWorkers": "Workers",
+    "scopeLinks": "{{scope}}:",
     "scoreboard": "Scoreboard",
     "scoreboardHighlightNote": "Ranked by total score. The best in each column is highlighted. Hover a column for what it counts.",
     "sectionFailed": "Couldn't show this part of the stats.",
@@ -733,6 +734,8 @@
       "otherModesGames_one": "1 game, other modes",
       "otherModesGames_other": "{{count}} games, other modes"
     },
+    "cheese": "Cheese",
+    "cheeseHelp": "How many of their games with a named build were rushes and all ins, like a BBS, a 4 pool or a cannon rush. As this race in this kind of game when they have a few of those.",
     "division": {
       "bronze": "Bronze",
       "champion": "Champion",
@@ -1432,6 +1435,9 @@
     "buildShareHelp": "Out of {{of}} games with a named build",
     "buildsSummary": "Most played: {{build}}",
     "buildsTable": "Builds by matchup",
+    "cheese": "Cheese",
+    "cheeseAllHelp": "Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.",
+    "cheeseHelp": "Rushes and all ins, out of their games with a named build. As this race in this kind of game when they have a few of those.",
     "eapm": "eAPM",
     "eapmHelp": "Effective actions per minute, on average. APM without spam, such as the same order clicked twice in a row.",
     "editNote": "Edit your note or their accounts",
