@@ -8,6 +8,10 @@ import {
   ShieldBatteryProfile,
 } from './sb-cache'
 
+const SEASON_START_MS = 1790000000000
+/** Two weeks into the season, when its bonus pool is 400. */
+const AT_MS = SEASON_START_MS + 14 * 24 * 60 * 60_000
+
 const PROFILE_KEY = (userId: number) =>
   `1/0/https://shieldbattery.net/api/1/users/${userId}/profile`
 
@@ -22,15 +26,23 @@ function profileJson(userId: number, name: string) {
           userId,
           matchmakingType: '3v3bgh',
           rating: 1623.3499,
+          points: 4300,
           wins: 113,
           losses: 98,
           lastPlayedDate: 1792992343957,
         },
         '2v2bgh': { rating: 1824.1, wins: 33, losses: 12 },
+        '1v1': { rating: 2100, points: 8500, wins: 40, losses: 2 },
+        '1v1fastest': { rating: 1500, points: 0, wins: 0, losses: 0 },
         broken: null,
       },
+      seasonId: 12,
       userStats: { rWins: 146, rLosses: 110 },
     },
+    seasons: [
+      { id: 11, startDate: SEASON_START_MS - 1e10, endDate: SEASON_START_MS, name: 'Old' },
+      { id: 12, startDate: SEASON_START_MS, name: 'Now' },
+    ],
   })
 }
 
@@ -57,22 +69,41 @@ describe('parseShieldBatteryProfile', () => {
     userId: 15293,
     name: 'alpha',
     seasons: {
-      '3v3bgh': { rating: 1623, wins: 113, losses: 98, lastPlayedMs: 1792992343957 },
-      '2v2bgh': { rating: 1824, wins: 33, losses: 12, lastPlayedMs: 0 },
+      // With a pool of 400, team Silver 3 runs from 3620 to 4320 points.
+      '3v3bgh': {
+        rating: 1623,
+        wins: 113,
+        losses: 98,
+        lastPlayedMs: 1792992343957,
+        division: 'silver3',
+      },
+      '2v2bgh': { rating: 1824, wins: 33, losses: 12, lastPlayedMs: 0, division: 'bronze1' },
+      // Solo Champion starts at 8000 points plus the whole pool.
+      '1v1': { rating: 2100, wins: 40, losses: 2, lastPlayedMs: 0, division: 'champion' },
+      '1v1fastest': { rating: 1500, wins: 0, losses: 0, lastPlayedMs: 0, division: 'unrated' },
     },
   }
 
   test('reads a body kept with zstd, gzip or none', () => {
     const json = profileJson(15293, 'alpha')
-    expect(parseShieldBatteryProfile(zstdCompressSync(json), 15293)).toEqual(expected)
-    expect(parseShieldBatteryProfile(gzipSync(json), 15293)).toEqual(expected)
-    expect(parseShieldBatteryProfile(Buffer.from(json), 15293)).toEqual(expected)
+    expect(parseShieldBatteryProfile(zstdCompressSync(json), 15293, AT_MS)).toEqual(expected)
+    expect(parseShieldBatteryProfile(gzipSync(json), 15293, AT_MS)).toEqual(expected)
+    expect(parseShieldBatteryProfile(Buffer.from(json), 15293, AT_MS)).toEqual(expected)
   })
 
   test("reads nothing from a body that isn't whole yet, or is about someone else", () => {
     const body = zstdCompressSync(profileJson(15293, 'alpha'))
-    expect(parseShieldBatteryProfile(body.subarray(0, body.length - 8), 15293)).toBeUndefined()
-    expect(parseShieldBatteryProfile(body, 1)).toBeUndefined()
+    expect(
+      parseShieldBatteryProfile(body.subarray(0, body.length - 8), 15293, AT_MS),
+    ).toBeUndefined()
+    expect(parseShieldBatteryProfile(body, 1, AT_MS)).toBeUndefined()
+  })
+
+  test("leaves divisions out when the profile doesn't say when its season started", () => {
+    const json = JSON.parse(profileJson(15293, 'alpha'))
+    delete json.seasons
+    const profile = parseShieldBatteryProfile(Buffer.from(JSON.stringify(json)), 15293, AT_MS)
+    expect(profile?.seasons['3v3bgh'].division).toBeUndefined()
   })
 })
 

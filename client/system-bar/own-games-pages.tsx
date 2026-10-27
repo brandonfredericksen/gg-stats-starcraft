@@ -2,12 +2,15 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
 import { FASTEST_MS_PER_FRAME } from '../../common/games/game-stats'
+import { isMyPlayerName } from '../../common/games/player-names'
 import { filterColorCodes } from '../../common/maps'
+import { useMyPlayerNames } from '../games/my-player-names'
 import { useFormatLocale } from '../i18n/locale-formats'
 import { FilledButton } from '../material/button'
 import { panelSurface } from '../material/panel'
 import { useDemoPlayer } from '../my-stats/demo-player'
 import { MyStatsView } from '../my-stats/my-stats-page'
+import { findPlayerByAccount, useKnownPlayers } from '../players/known-players'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -120,4 +123,18 @@ export function MyStatsPage() {
     return <OwnGamesNeeded state={newest.state} onRetry={newest.retry} />
   }
   return <MyStatsView />
+}
+
+/** Another player's stats, the same as the user's own, from every analyzed game they were in. */
+export function PlayerStatsPage({ params }: { params: { name: string } }) {
+  const { name } = params
+  const knownPlayers = useKnownPlayers()
+  const myNames = useMyPlayerNames() ?? []
+  if (isMyPlayerName(name, myNames)) {
+    return <MyStatsPage />
+  }
+  const accounts = Array.from(
+    new Set([name, ...(findPlayerByAccount(knownPlayers, name)?.accounts ?? [])]),
+  )
+  return <MyStatsView key={name} player={{ name, accounts }} />
 }

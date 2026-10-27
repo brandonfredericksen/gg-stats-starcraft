@@ -46,6 +46,7 @@ import {
 import { LADDER_BASELINE_PATH, loadLadderBaseline } from './ladder-baseline/load-baseline'
 import { getLaunchReplayPaths } from './launch-args'
 import { LiveGameService } from './live-game'
+import { PlayerRanksStore } from './live-game/player-ranks-store'
 import logger from './logger'
 import { setupMyStats } from './my-stats'
 import { ReplayLibraryService, setupReplayLibrary } from './replay-library'
@@ -949,6 +950,16 @@ app.on('ready', () => {
         })
         .on('replaySaved', () => commandStatsBackfill.schedule(5000))
 
+      const playerRanks = new PlayerRanksStore(
+        path.join(
+          getUserDataPath(),
+          process.env.GGSTATS_SESSION
+            ? `player-ranks-${process.env.GGSTATS_SESSION}.json`
+            : 'player-ranks.json',
+        ),
+        () => TypedIpcSender.from(mainWindow?.webContents).send('playerRanksChanged'),
+      )
+      ipcMain.handle('playerRanksGet', async (_event, accounts) => playerRanks.get(accounts))
       const liveGame = new LiveGameService({
         localSettings,
         browserCacheFolder: path.join(app.getPath('temp'), 'blizzard_browser_cache'),
@@ -964,6 +975,7 @@ app.on('ready', () => {
         replayFolder: defaultReplayFolder(),
         onChange: game =>
           TypedIpcSender.from(mainWindow?.webContents).send('liveGameChanged', game),
+        ranks: playerRanks,
       })
       ipcMain.handle('liveGameGet', async () => liveGame.game)
       if (!ladderRun) {
@@ -1088,6 +1100,7 @@ app.on('ready', () => {
       app.on('will-quit', () => {
         autoCapture.stop()
         liveGame.stop()
+        playerRanks.flush().catch(() => {})
         replayLibrary?.stop()
         localSettings.saveSettingsToDiskSync()
         scrSettings.saveSettingsToDiskSync()

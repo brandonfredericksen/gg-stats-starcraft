@@ -26,7 +26,7 @@ import { STUCK_EDGE_PX, stuckBarBottomAtom, stuckEdgeGradient } from './stuck-ba
 import GlobalStyle from './styles/global'
 import ResetStyle from './styles/reset'
 import { applyThemeMode } from './styles/theme-mode'
-import { LastGamePage, MyStatsPage } from './system-bar/own-games-pages'
+import { LastGamePage, MyStatsPage, PlayerStatsPage } from './system-bar/own-games-pages'
 import { SystemBar } from './system-bar/system-bar'
 import { WindowControls } from './system-bar/window-controls'
 
@@ -254,6 +254,7 @@ function Layout() {
                 <Route path='/last-game' component={LastGamePage} />
                 <Route path='/live-game' component={LiveGamePage} />
                 <Route path='/my-stats' component={MyStatsPage} />
+                <Route path='/my-stats/player/:name' component={PlayerStatsPage} />
                 <Route path='/coach' component={CoachPage} />
                 <Route path='/builds' component={BuildsPage} />
                 <Route>

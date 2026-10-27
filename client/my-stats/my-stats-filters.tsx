@@ -12,7 +12,7 @@ import { AssignedRaceChar } from '../../common/races'
 import { useFitLevel } from '../dom/use-fit-level'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { labelMedium } from '../styles/typography'
-import { myStatsFiltersAtom } from './my-stats-data'
+import { myStatsFiltersAtom, useShowsOtherPlayer } from './my-stats-data'
 import { RankMenu } from './rank-menu'
 
 /**
@@ -173,7 +173,9 @@ export function FilterBar({
 
   const gameTypeLabel = t('myStats.filters.gameType', 'Game type')
   const mapLabel = t('myStats.filters.map', 'Map')
-  const raceLabel = t('myStats.filters.you', 'You')
+  const raceLabel = useShowsOtherPlayer()
+    ? t('myStats.filters.them', 'Them')
+    : t('myStats.filters.you', 'You')
   const opponentLabel = t('myStats.filters.vs', 'Against')
   const rangeLabel = t('myStats.filters.range', 'Time')
   const floorLabel = t('myStats.filters.floor', 'Compared with')

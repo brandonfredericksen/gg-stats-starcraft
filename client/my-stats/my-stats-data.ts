@@ -1,6 +1,6 @@
 import { atom, useAtomValue } from 'jotai'
 import { debounce } from 'lodash-es'
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { getErrorStack } from '../../common/errors'
 import { TypedIpcRenderer } from '../../common/ipc'
 import {
@@ -12,7 +12,7 @@ import {
 } from '../../common/my-stats/my-stats'
 import { ReplayLibraryFilters } from '../../common/replays-library'
 import logger from '../logging/logger'
-import { getDemoGames, useDemoPlayer, useStatsPlayerNames } from './demo-player'
+import { getDemoGames, useDemoPlayer } from './demo-player'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -20,6 +20,13 @@ const ipcRenderer = new TypedIpcRenderer()
 const REFRESH_DELAY_MS = 500
 
 export type MyStatsFilters = Omit<MyStatsQuery, 'names'>
+
+/** Set while My stats shows another player's games, so its words say them rather than you. */
+export const OtherPlayerContext = createContext(false)
+
+export function useShowsOtherPlayer() {
+  return useContext(OtherPlayerContext)
+}
 
 /** The filters picked on My stats, kept while the user looks at other pages. */
 export const myStatsFiltersAtom = atom<MyStatsFilters>({ range: 'all' })
@@ -62,6 +69,9 @@ export interface MyStatsData {
    * are left out, since the library can't tell the user's race from an opponent's.
    */
   scope: { analyzed: number; total: number }
+  /** Their eSkill and latest 1v1 ladder rank, whatever the filters. */
+  eSkill: MyStatsSummary['eSkill']
+  ladder: MyStatsSummary['ladder']
 }
 
 async function fetchMyStats(names: string[], filters: MyStatsFilters): Promise<MyStatsData> {
@@ -84,6 +94,8 @@ function toMyStatsData(summary: MyStatsSummary, libraryTotal: number): MyStatsDa
       analyzed: summary.scopedGames,
       total: Math.max(libraryTotal, summary.scopedGames),
     },
+    eSkill: summary.eSkill,
+    ladder: summary.ladder,
   }
 }
 
@@ -104,30 +116,33 @@ export interface MyStatsLoad {
 }
 
 /**
- * Sums up the user's games for the picked filters, again whenever games are analyzed or the
- * library changes.
+ * Sums up the games of whoever goes by `names` for the picked filters, again whenever games are
+ * analyzed or the library changes. Another player's are never the made up player's.
  */
-export function useMyStats(): MyStatsLoad {
-  const names = useStatsPlayerNames()
+export function useMyStats(names: ReadonlyArray<string> | undefined, other = false): MyStatsLoad {
   const filters = useAtomValue(myStatsFiltersAtom)
-  const demo = useDemoPlayer()
-  const [loaded, setLoaded] = useState<{ data: MyStatsData; filters: MyStatsFilters }>()
+  const demo = useDemoPlayer() && !other
+  const namesKey = names?.join('\n') ?? ''
+  const [loaded, setLoaded] = useState<{
+    data: MyStatsData
+    filters: MyStatsFilters
+    namesKey: string
+  }>()
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (!names?.length) {
+    if (!namesKey) {
       return undefined
     }
+    const names = namesKey.split('\n')
     let current = true
     const load = () => {
       Promise.resolve()
-        .then(() =>
-          demo ? computeDemoStats([...names], filters) : fetchMyStats([...names], filters),
-        )
+        .then(() => (demo ? computeDemoStats(names, filters) : fetchMyStats(names, filters)))
         .then(result => {
           if (current) {
-            setLoaded({ data: result, filters })
+            setLoaded({ data: result, filters, namesKey })
             setFailed(false)
           }
         })
@@ -151,11 +166,13 @@ export function useMyStats(): MyStatsLoad {
       ipcRenderer.removeListener('replayLibraryChanged', refresh)
       ipcRenderer.removeListener('myStatsChanged', refresh)
     }
-  }, [names, filters, demo, attempt])
+  }, [namesKey, filters, demo, attempt])
 
+  // Someone else's stats are never shown in place of these, not even while these load.
+  const ours = loaded?.namesKey === namesKey ? loaded : undefined
   return {
-    data: loaded?.data,
-    current: loaded?.filters === filters,
+    data: ours?.data,
+    current: ours?.filters === filters,
     failed,
     retry: () => {
       setFailed(false)

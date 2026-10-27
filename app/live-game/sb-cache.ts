@@ -1,5 +1,6 @@
 import { brotliDecompressSync, gunzipSync, zstdDecompressSync } from 'node:zlib'
 import { CacheFiles, CacheWatcher } from './cache-watcher'
+import { getBonusPool, getShieldBatteryDivision } from './sb-divisions'
 
 /** ShieldBattery looked up someone's profile, like when the user opened it, at `atMs`. */
 export interface ShieldBatteryProfileSighting {
@@ -14,6 +15,11 @@ export interface ShieldBatteryModeSeason {
   losses: number
   /** When they last played in it, in Unix ms, or 0 if the profile doesn't say. */
   lastPlayedMs: number
+  /**
+   * Their division, like `gold2`, or `unrated` before their first game. Missing when the profile
+   * doesn't say when its season started, which the division depends on.
+   */
+  division?: string
 }
 
 /** What a profile ShieldBattery looked up says about the player. */
@@ -66,16 +72,37 @@ function toCount(value: unknown) {
 }
 
 /**
- * Reads a profile ShieldBattery's server sent for `userId`. Undefined when it isn't whole yet,
- * like while the browser is still writing it, or is about someone else.
+ * The bonus pool of the profile's season at `atMs`, which the divisions depend on, or undefined if
+ * the profile doesn't say when its season started.
+ */
+function getProfileBonusPool(
+  seasonId: unknown,
+  seasons: unknown,
+  atMs: number,
+): number | undefined {
+  const season = (Array.isArray(seasons) ? seasons : []).find(
+    (s: { id?: unknown } | null) => !!s && s.id === seasonId,
+  ) as { startDate?: unknown; endDate?: unknown } | undefined
+  if (typeof season?.startDate !== 'number') {
+    return undefined
+  }
+  const endMs = typeof season.endDate === 'number' ? season.endDate : undefined
+  return getBonusPool(atMs, season.startDate, endMs)
+}
+
+/**
+ * Reads a profile ShieldBattery's server sent for `userId`, looked up at `atMs`. Undefined when it
+ * isn't whole yet, like while the browser is still writing it, or is about someone else.
  */
 export function parseShieldBatteryProfile(
   body: Uint8Array,
   userId: number,
+  atMs: number,
 ): ShieldBatteryProfile | undefined {
   let json: {
     user?: { id?: unknown; name?: unknown }
-    profile?: { ladder?: Record<string, unknown> }
+    profile?: { ladder?: Record<string, unknown>; seasonId?: unknown }
+    seasons?: unknown
   }
   try {
     json = JSON.parse(new TextDecoder().decode(decompress(body)))
@@ -86,17 +113,25 @@ export function parseShieldBatteryProfile(
   if (json?.user?.id !== userId || typeof name !== 'string' || !name) {
     return undefined
   }
+  const bonusPool = getProfileBonusPool(json.profile?.seasonId, json.seasons, atMs)
   const seasons: Record<string, ShieldBatteryModeSeason> = {}
   for (const [mode, value] of Object.entries(json.profile?.ladder ?? {})) {
     const season = value as Record<string, unknown> | null
     if (!season || typeof season !== 'object' || typeof season.rating !== 'number') {
       continue
     }
+    const wins = toCount(season.wins)
+    const losses = toCount(season.losses)
+    const points = typeof season.points === 'number' ? season.points : 0
     seasons[mode] = {
       rating: Math.round(season.rating),
-      wins: toCount(season.wins),
-      losses: toCount(season.losses),
+      wins,
+      losses,
       lastPlayedMs: toCount(season.lastPlayedDate),
+      division:
+        bonusPool === undefined
+          ? undefined
+          : getShieldBatteryDivision(mode, { points, wins, losses }, bonusPool),
     }
   }
   return { userId, name, seasons }
@@ -114,7 +149,8 @@ export class ShieldBatteryCacheWatcher extends CacheWatcher<
         markers: SB_CACHE_MARKERS,
         readKey: readShieldBatteryCacheKey,
         hasBody: () => true,
-        readBody: (body, sighting) => parseShieldBatteryProfile(body, sighting.userId),
+        readBody: (body, sighting) =>
+          parseShieldBatteryProfile(body, sighting.userId, sighting.atMs),
       },
       now,
     )

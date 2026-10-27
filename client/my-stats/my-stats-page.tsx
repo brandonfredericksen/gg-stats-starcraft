@@ -6,6 +6,8 @@ import { DEFAULT_EAPM_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsResult } from '../../common/my-stats/my-stats'
 import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
 import { Comparison } from '../coach/coach-page'
+import { openDialog } from '../dialogs/action-creators'
+import { DialogType } from '../dialogs/dialog-type'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
 import { LoadingIndicatorArea } from '../progress/loading-indicator'
@@ -16,7 +18,14 @@ import { AppSettingsPage } from '../settings/settings-page'
 import { bodyMedium, headlineMedium, labelLarge } from '../styles/typography'
 import { AnalyzeMine } from './analyze-mine'
 import { useStatsPlayerNames } from './demo-player'
-import { MyStatsData, MyStatsFilters, myStatsFiltersAtom, useMyStats } from './my-stats-data'
+import {
+  MyStatsData,
+  MyStatsFilters,
+  myStatsFiltersAtom,
+  OtherPlayerContext,
+  useMyStats,
+  useShowsOtherPlayer,
+} from './my-stats-data'
 import { FilterBar } from './my-stats-filters'
 import {
   ByLength,
@@ -29,6 +38,7 @@ import {
   Totals,
   Trends,
 } from './my-stats-panels'
+import { RanksRow } from './ranks-row'
 
 const Root = styled.div`
   width: 100%;
@@ -146,13 +156,27 @@ const Content = styled.div<{ $stale: boolean }>`
  * How many of the user's games of the picked game type and time range are analyzed, naming that
  * scope so the numbers can't be mistaken for every game.
  */
-function getCoverageText(data: MyStatsData, filters: MyStatsFilters, t: TFunction) {
+function getCoverageText(data: MyStatsData, filters: MyStatsFilters, other: boolean, t: TFunction) {
   const scope = [
     filters.shape === 'ffa' ? t('myStats.ffa', 'FFA') : filters.shape,
     filters.range === '7d' ? t('myStats.coverageWeek', 'last 7 days') : undefined,
     filters.range === '30d' ? t('myStats.coverageMonth', 'last 30 days') : undefined,
   ].filter(Boolean)
   const counts = { count: data.scope.analyzed, total: data.scope.total }
+  if (other) {
+    return scope.length
+      ? t('myStats.coverageScopeTheirs', {
+          defaultValue: '{{count}} of their {{total}} games ({{scope}}) are analyzed.',
+          defaultValue_one: '{{count}} of their {{total}} games ({{scope}}) is analyzed.',
+          ...counts,
+          scope: scope.join(', '),
+        })
+      : t('myStats.coverageAllTheirs', {
+          defaultValue: '{{count}} of their {{total}} games are analyzed.',
+          defaultValue_one: '{{count}} of their {{total}} games is analyzed.',
+          ...counts,
+        })
+  }
   return scope.length
     ? t('myStats.coverageScope', {
         defaultValue: '{{count}} of your {{total}} games ({{scope}}) are analyzed.',
@@ -174,7 +198,9 @@ function getCoverageText(data: MyStatsData, filters: MyStatsFilters, t: TFunctio
 function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFilters }) {
   const { t } = useTranslation()
   const coach = useFilteredCoach()
-  const oneKind = picksOneKind(filters)
+  const other = useShowsOtherPlayer()
+  // The coach only knows the user's games.
+  const oneKind = picksOneKind(filters) && !other
   const buckets =
     oneKind && coach && coach !== 'error' && coach.status === 'ready'
       ? coach.buckets.filter(
@@ -227,20 +253,30 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
   )
 }
 
-/** The user's own stats across their analyzed games. */
-export function MyStatsView() {
+/** Another player My stats can show in place of the user: their name, and every account they use. */
+export interface OtherPlayer {
+  name: string
+  accounts: ReadonlyArray<string>
+}
+
+/** The user's own stats across their analyzed games, or with `player`, that player's. */
+export function MyStatsView({ player }: { player?: OtherPlayer }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const names = useStatsPlayerNames() ?? []
+  const myNames = useStatsPlayerNames() ?? []
+  const names = player?.accounts ?? myNames
+  const other = !!player
   const filters = useAtomValue(myStatsFiltersAtom)
-  const load = useMyStats()
+  const load = useMyStats(names, other)
   const { data } = load
 
   let content: React.ReactNode
   if (load.failed && !data) {
     content = (
       <Message role='alert'>
-        {t('myStats.loadFailed', "Your stats couldn't be loaded.")}
+        {other
+          ? t('myStats.loadFailedTheirs', "Their stats couldn't be loaded.")
+          : t('myStats.loadFailed', "Your stats couldn't be loaded.")}
         <TextButton label={t('myStats.tryAgain', 'Try again')} onClick={load.retry} />
       </Message>
     )
@@ -249,10 +285,15 @@ export function MyStatsView() {
   } else if (!data.analyzedGames) {
     content = (
       <Message>
-        {t(
-          'myStats.noAnalyzedGames',
-          "None of your games are analyzed yet. Analyze some and they'll show up here.",
-        )}
+        {other
+          ? t(
+              'myStats.noAnalyzedGamesTheirs',
+              "None of their games are analyzed yet. Analyze some and they'll show up here.",
+            )
+          : t(
+              'myStats.noAnalyzedGames',
+              "None of your games are analyzed yet. Analyze some and they'll show up here.",
+            )}
       </Message>
     )
   } else if (!data.stats.games) {
@@ -316,34 +357,48 @@ export function MyStatsView() {
   }
 
   return (
-    <Root>
-      <Header>
-        <Title>{t('myStats.label', 'My stats')}</Title>
-        <PlayingAs>
-          {t('myStats.playingAs', 'Playing as')}
-          {names.map(name => (
-            <NameChip key={name}>{name}</NameChip>
-          ))}
-          <TextButton
-            label={t('myStats.editNames', 'Edit names')}
-            onClick={() => dispatch(openSettings(AppSettingsPage.PlayerNames))}
-          />
-        </PlayingAs>
-      </Header>
-      <FilterBar
-        autoRank={data?.stats.autoRank}
-        rankMmr={data?.stats.rankMmr}
-        autoMapFamily={data?.stats.mapFamily}
-      />
-      {data ? (
-        <Coverage>
-          {data.analyzedGames ? <span>{getCoverageText(data, filters, t)}</span> : null}
-          <AnalyzeMine names={names} filters={filters} compact={true} />
-        </Coverage>
-      ) : null}
-      <Content $stale={!!data && !load.current} aria-busy={!!data && !load.current}>
-        {content}
-      </Content>
-    </Root>
+    <OtherPlayerContext value={other}>
+      <Root>
+        <Header>
+          <Title>{player ? player.name : t('myStats.label', 'My stats')}</Title>
+          <PlayingAs>
+            {player ? t('myStats.accounts', 'Accounts') : t('myStats.playingAs', 'Playing as')}
+            {names.map(name => (
+              <NameChip key={name}>{name}</NameChip>
+            ))}
+            {player ? (
+              <TextButton
+                label={t('myStats.playerDetails', 'Note and accounts')}
+                onClick={() =>
+                  dispatch(openDialog({ type: DialogType.Player, initData: { name: player.name } }))
+                }
+              />
+            ) : (
+              <TextButton
+                label={t('myStats.editNames', 'Edit names')}
+                onClick={() => dispatch(openSettings(AppSettingsPage.PlayerNames))}
+              />
+            )}
+          </PlayingAs>
+        </Header>
+        <SectionErrorBoundary>
+          <RanksRow accounts={names} isMe={!other} eSkill={data?.eSkill} fromGame={data?.ladder} />
+        </SectionErrorBoundary>
+        <FilterBar
+          autoRank={data?.stats.autoRank}
+          rankMmr={data?.stats.rankMmr}
+          autoMapFamily={data?.stats.mapFamily}
+        />
+        {data ? (
+          <Coverage>
+            {data.analyzedGames ? <span>{getCoverageText(data, filters, other, t)}</span> : null}
+            <AnalyzeMine names={names} filters={filters} compact={true} />
+          </Coverage>
+        ) : null}
+        <Content $stale={!!data && !load.current} aria-busy={!!data && !load.current}>
+          {content}
+        </Content>
+      </Root>
+    </OtherPlayerContext>
   )
 }

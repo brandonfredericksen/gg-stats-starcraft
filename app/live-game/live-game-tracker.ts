@@ -54,7 +54,8 @@ function toShieldBatteryStanding(
   }
   return {
     rating: fromGame?.rating ?? season.rating,
-    division: fromGame?.division,
+    // The game's rating and division go together, so the profile's division only stands alone.
+    division: fromGame ? fromGame.division : season.division,
     record: { mode, wins: season.wins, losses: season.losses },
   }
 }

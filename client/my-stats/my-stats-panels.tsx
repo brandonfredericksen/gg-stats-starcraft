@@ -40,6 +40,7 @@ import { Segmented, SegmentOption } from '../material/segmented'
 import { Tooltip } from '../material/tooltip'
 import { push } from '../navigation/routing'
 import { PlayerNameButton } from '../players/player-name-button'
+import { LeagueTag } from '../players/rank-tags'
 import { getGameStatsUrl } from '../replays/action-creators'
 import {
   bahnschrift,
@@ -51,6 +52,7 @@ import {
   singleLine,
   titleSmall,
 } from '../styles/typography'
+import { useShowsOtherPlayer } from './my-stats-data'
 import { getPoolSource, getScriptedNote } from './pool-source'
 
 export const PanelTitle = styled.h2`
@@ -281,16 +283,15 @@ const TileNote = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
-const RankLetter = styled.span`
+const ESkillTag = styled(LeagueTag)`
   margin-left: var(--space-2);
-  color: var(--theme-on-surface-variant);
 `
 
 function ESkillValue({ value, rank }: { value: string; rank?: LadderRank }) {
   return (
     <>
       {value}
-      {rank ? <RankLetter>{rank.toUpperCase()}</RankLetter> : null}
+      {rank ? <ESkillTag $rank={rank}>{rank.toUpperCase()}</ESkillTag> : null}
     </>
   )
 }
@@ -308,12 +309,15 @@ export function Totals({
 }) {
   const { t } = useTranslation()
   const format = useStatFormat()
+  const other = useShowsOtherPlayer()
   const noResult = stats.games - stats.record.wins - stats.record.losses
   const tiles: Array<[value: ReactNode, label: string, help: string, note?: string]> = [
     [
       format.format(stats.games),
       t('myStats.totals.games', 'Games'),
-      t('myStats.help.games', 'Your analyzed games that match the filters.'),
+      other
+        ? t('myStats.help.gamesTheirs', 'Their analyzed games that match the filters.')
+        : t('myStats.help.games', 'Your analyzed games that match the filters.'),
     ],
     [
       <RecordText key='record' record={stats.record} />,
@@ -1420,6 +1424,7 @@ export function MacroAveragesPanel({
   extraNote?: string
 }) {
   const { t } = useTranslation()
+  const other = useShowsOtherPlayer()
   const format = useStatFormat()
   const row = (
     label: string,
@@ -1434,10 +1439,19 @@ export function MacroAveragesPanel({
     value: macro[key] ? show(macro[key].value) : '-',
     otherValue: others[key] ? show(others[key].value) : '-',
     comparison: compareValues(macro[key], others[key], higherIsBetter, minDiff),
-    sources: t('myStats.macro.sources', 'From {{mine}} of your games and {{theirs}} of theirs', {
-      mine: macro[key]?.games ?? 0,
-      theirs: others[key]?.games ?? 0,
-    }),
+    sources: other
+      ? t(
+          'myStats.macro.sourcesTheirs',
+          'From {{mine}} of their games and {{theirs}} of the others',
+          {
+            mine: macro[key]?.games ?? 0,
+            theirs: others[key]?.games ?? 0,
+          },
+        )
+      : t('myStats.macro.sources', 'From {{mine}} of your games and {{theirs}} of theirs', {
+          mine: macro[key]?.games ?? 0,
+          theirs: others[key]?.games ?? 0,
+        }),
   })
   const whole = (value: number) => format.format(value)
   const perMinute = (value: number) =>
@@ -1561,7 +1575,7 @@ export function MacroAveragesPanel({
           <MacroGroup key={title}>
             <MacroGroupHeader $others={hasOthers}>
               <h3>{title}</h3>
-              <span>{t('myStats.macro.you', 'You')}</span>
+              <span>{other ? t('myStats.macro.them', 'Them') : t('myStats.macro.you', 'You')}</span>
               {hasOthers ? (
                 <span>
                   <HelpLabel
@@ -1929,6 +1943,7 @@ export function TeamGames({
   initialRace?: AssignedRaceChar
 }) {
   const { t } = useTranslation()
+  const other = useShowsOtherPlayer()
   const [race, setRace] = useState<TeamRace>(initialRace ?? 'any')
   const team = byRace[race]
   const teammateSlots = Math.max(1, ...(team?.byTeamRaces.map(row => row.races.length) ?? []))
@@ -1943,7 +1958,11 @@ export function TeamGames({
       <PanelHead $spread={true}>
         <PanelTitle>{t('myStats.team.title', 'Team games')}</PanelTitle>
         <Segmented
-          label={t('myStats.team.race', 'Your race in team games')}
+          label={
+            other
+              ? t('myStats.team.raceTheirs', 'Their race in team games')
+              : t('myStats.team.race', 'Your race in team games')
+          }
           options={options}
           value={race}
           onChange={setRace}
@@ -1999,7 +2018,11 @@ export function TeamGames({
           <TeamRaces>
             <TeamSubtitle>
               <HelpLabel
-                label={t('myStats.team.byTeammates', "By your teammates' races")}
+                label={
+                  other
+                    ? t('myStats.team.byTeammatesTheirs', "By their teammates' races")
+                    : t('myStats.team.byTeammates', "By your teammates' races")
+                }
                 help={t(
                   'myStats.help.byTeammates',
                   'Your record in team games, grouped by the races your teammates played.',

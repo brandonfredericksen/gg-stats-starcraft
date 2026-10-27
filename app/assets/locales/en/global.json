@@ -818,6 +818,7 @@
     }
   },
   "myStats": {
+    "accounts": "Accounts",
     "analyzeMine": {
       "button_one": "Analyze the newest unanalyzed replay",
       "button_other": "Analyze {{count}} newest unanalyzed replays",
@@ -1179,8 +1180,10 @@
       "yourGames": "Your games"
     },
     "coverageAll": "{{count}} of your {{total}} games are analyzed.",
+    "coverageAllTheirs": "{{count}} of their {{total}} games are analyzed.",
     "coverageMonth": "last 30 days",
     "coverageScope": "{{count}} of your {{total}} games ({{scope}}) are analyzed.",
+    "coverageScopeTheirs": "{{count}} of their {{total}} games ({{scope}}) are analyzed.",
     "coverageWeek": "last 7 days",
     "editNames": "Edit names",
     "ffa": "FFA",
@@ -1208,12 +1211,15 @@
       "rankAnyDetail": "Ranked or not",
       "rankAuto": "Auto",
       "rankAutoDetail": "Your latest rank, {{rank}}",
+      "rankAutoDetailTheirs": "Their latest rank, {{rank}}",
       "rankAutoNone": "Any rank, until you have a ranked game",
+      "rankAutoNoneTheirs": "Any rank, until they have a ranked game",
       "rankMmr": "{{low}} to {{high}} MMR",
       "rankMmrDown": "Up to {{high}} MMR",
       "rankMmrUp": "{{low}} MMR and up",
       "rankOption": "Rank {{rank}}",
       "terran": "Terran",
+      "them": "Them",
       "vs": "Against",
       "you": "You",
       "zerg": "Zerg"
@@ -1230,6 +1236,7 @@
       "eSkill": "The 1v1 ladder MMR and rank of players who play the way you do: your speed, hotkeys and macro, ranked against players of your race in the same kind of game. Nothing an opponent decides counts in it.",
       "firstOut": "Team losses where you were the first on your team to leave or be defeated.",
       "games": "Your analyzed games that match the filters.",
+      "gamesTheirs": "Their analyzed games that match the filters.",
       "incomeShare": "Your part of the minerals and gas your team mined, on average.",
       "killShare": "Your part of the enemy army your team killed, by the game's score, on average.",
       "length": "How long your games lasted, on average.",
@@ -1248,6 +1255,7 @@
     },
     "label": "My stats",
     "loadFailed": "Your stats couldn't be loaded.",
+    "loadFailedTheirs": "Their stats couldn't be loaded.",
     "macro": {
       "armyKilled": "Army killed",
       "armyLost": "Army lost",
@@ -1266,10 +1274,12 @@
       "pickForAll": "Pick your race, and in 1v1 your opponent's, to see every number.",
       "pickTypeToCompare": "Pick a game type to compare with other players.",
       "sources": "From {{mine}} of your games and {{theirs}} of theirs",
+      "sourcesTheirs": "From {{mine}} of their games and {{theirs}} of the others",
       "spending": "Spending",
       "supply100": "Reached 100 supply",
       "supply150": "Reached 150 supply",
       "supplyBlocked": "Time supply blocked",
+      "them": "Them",
       "title": "Macro, on average",
       "workers": "Workers",
       "you": "You"
@@ -1280,6 +1290,7 @@
       "title": "Maps"
     },
     "noAnalyzedGames": "None of your games are analyzed yet. Analyze some and they'll show up here.",
+    "noAnalyzedGamesTheirs": "None of their games are analyzed yet. Analyze some and they'll show up here.",
     "noMatches": "No analyzed games match these filters.",
     "otherShape": "Other",
     "pageNext": "Next",
@@ -1289,6 +1300,7 @@
       "opponents": "Opponents",
       "teammates": "Teammates"
     },
+    "playerDetails": "Note and accounts",
     "playingAs": "Playing as",
     "poolSource": {
       "both": "in your replays and recent ladder games",
@@ -1298,6 +1310,20 @@
       "yours": "in your replays"
     },
     "rankOnly": "Only players who were rank {{rank}} going into the game count.",
+    "ranks": {
+      "battleNetSeenHelp": "This season on the ladder, from when StarCraft last looked up their profile for a match you were in.",
+      "battleNetSeenHelpMe": "This season on the ladder, from when StarCraft last looked up your profile for a match.",
+      "fromGame": "Latest ranked game, {{when}}",
+      "ladder": "1v1 ladder",
+      "modeBgh": "{{size}} BGH",
+      "modeFastest": "{{size}} Fastest",
+      "modeHunters": "{{size}} Hunters",
+      "seen": "Seen {{when}}",
+      "shieldBatterySeenHelp": "This season in this mode, from when you last opened their ShieldBattery profile.",
+      "shieldBatterySeenHelpMe": "This season in this mode, from when your ShieldBattery profile was last opened.",
+      "unranked": "Unranked",
+      "unrated": "Unrated"
+    },
     "recent": {
       "loss": "L",
       "lossWord": "Loss",
@@ -1311,12 +1337,14 @@
     },
     "team": {
       "byTeammates": "By your teammates' races",
+      "byTeammatesTheirs": "By their teammates' races",
       "firstOut": "Out first in losses",
       "firstOutValue": "{{firstOut}} of {{losses}}",
       "incomeShare": "Mining share",
       "killShare": "Kill share",
       "noGames": "No team games as this race.",
       "race": "Your race in team games",
+      "raceTheirs": "Their race in team games",
       "title": "Team games",
       "with": "With"
     },
@@ -1427,6 +1455,8 @@
     "notePlaceholder": "Anything to remember about them",
     "observer": "Observer",
     "openCard": "About {{name}}",
+    "openMyStats": "Open My stats",
+    "openStats": "Open their full stats",
     "opponent": "Opponent",
     "playStyle": "Play style",
     "playStyleAs": "Play style as {{race}}",

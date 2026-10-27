@@ -7,6 +7,7 @@ import { LocalSettings } from '../../common/settings/local-settings'
 import log from '../logger'
 import { CacheFiles } from './cache-watcher'
 import { LiveGameTracker } from './live-game-tracker'
+import { PlayerRanksStore } from './player-ranks-store'
 import { ReplayFolder, ReplaySavedWatcher } from './replay-saved-watcher'
 import { ShieldBatteryCacheWatcher } from './sb-cache'
 import { ScrCacheWatcher } from './scr-cache-watcher'
@@ -105,6 +106,8 @@ export interface LiveGameServiceOptions {
   /** StarCraft's replay folder in Documents, where it saves the replay of every game. */
   replayFolder: string
   onChange: (game: LiveGame | undefined) => void
+  /** Remembers the ranks in the profiles the watchers read, for players' pages. */
+  ranks?: Pick<PlayerRanksStore, 'ladderProfile' | 'shieldBatteryProfile'>
   /** For tests: what reads the files, instead of the real ones. */
   createCacheWatcher?: () => ScrCacheWatcher
   createShieldBatteryWatcher?: () => ShieldBatteryLogWatcher
@@ -191,6 +194,7 @@ export class LiveGameService {
     cacheWatcher.on('body', (sighting, profile) => {
       if (sighting.kind === 'ladderProfile') {
         this.tracker.profileRead(sighting.name, sighting.gatewayId, profile)
+        this.options.ranks?.ladderProfile(sighting.name, sighting.gatewayId, profile, sighting.atMs)
       }
     })
     cacheWatcher.on('error', err => {
@@ -218,9 +222,10 @@ export class LiveGameService {
     const shieldBatteryCacheWatcher =
       this.options.createShieldBatteryCacheWatcher?.() ??
       new ShieldBatteryCacheWatcher(folderFiles(this.options.shieldBatteryCacheFolder))
-    shieldBatteryCacheWatcher.on('body', (sighting, profile) =>
-      this.tracker.shieldBatteryProfile(profile, sighting.atMs),
-    )
+    shieldBatteryCacheWatcher.on('body', (sighting, profile) => {
+      this.tracker.shieldBatteryProfile(profile, sighting.atMs)
+      this.options.ranks?.shieldBatteryProfile(profile, sighting.atMs)
+    })
     shieldBatteryCacheWatcher.on('error', err => {
       log.warning(`Couldn't read ShieldBattery's browser cache: ${getErrorStack(err)}`)
     })

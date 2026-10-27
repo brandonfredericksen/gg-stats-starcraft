@@ -27,6 +27,7 @@ import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
 import { PlayerScout } from './my-stats/player-scout'
+import { SeenPlayerRanks } from './player-ranks'
 import {
   ReplayBackfillProgress,
   ReplayLibraryFilters,
@@ -176,6 +177,8 @@ interface IpcInvokeables {
   myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsSummary>
   /** What the analyzed games say about each person, given every account each plays under. */
   liveGameScout: (accountLists: string[][]) => Promise<PlayerScout[]>
+  /** The ranks the app has seen in the profiles of whoever goes by any of `accounts`. */
+  playerRanksGet: (accounts: string[]) => Promise<SeenPlayerRanks[]>
   /** The game the user joined, if they're in one. */
   liveGameGet: () => Promise<LiveGame | undefined>
   /** Compares the user's games of one kind with other players', for the Coach page. */
@@ -265,6 +268,8 @@ interface IpcMainSendables {
 
   /** Sent when the user joins a game, when who's in it changes, and when they leave a lobby. */
   liveGameChanged: (game: LiveGame | undefined) => void
+  /** Sent when a profile with someone's ranks was seen. */
+  playerRanksChanged: () => void
 
   /** Sent whenever the replay index changes (files added/removed/updated). */
   replayLibraryChanged: () => void

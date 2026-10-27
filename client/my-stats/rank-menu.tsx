@@ -5,7 +5,7 @@ import { RankMmr } from '../../common/my-stats/coach'
 import { useStatFormat } from '../games/game-stats-shared'
 import { RankBadge } from '../ladder/rank-badge'
 import { SegmentMenu, SegmentOption } from '../material/segmented'
-import { myStatsFiltersAtom } from './my-stats-data'
+import { myStatsFiltersAtom, useShowsOtherPlayer } from './my-stats-data'
 
 /**
  * The 1v1 ladder rank other players need to be compared with, for My stats and the coach alike,
@@ -26,6 +26,7 @@ export function RankMenu({
   const { t } = useTranslation()
   const format = useStatFormat()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
+  const other = useShowsOtherPlayer()
 
   const describeMmr = (rank: LadderRank) => {
     const range = rankMmr?.[rank]
@@ -42,6 +43,20 @@ export function RankMenu({
     }
     return t('myStats.filters.rankMmr', '{{low}} to {{high}} MMR', { low, high })
   }
+  const describeAuto = () => {
+    if (autoRank) {
+      return other
+        ? t('myStats.filters.rankAutoDetailTheirs', 'Their latest rank, {{rank}}', {
+            rank: autoRank.toUpperCase(),
+          })
+        : t('myStats.filters.rankAutoDetail', 'Your latest rank, {{rank}}', {
+            rank: autoRank.toUpperCase(),
+          })
+    }
+    return other
+      ? t('myStats.filters.rankAutoNoneTheirs', 'Any rank, until they have a ranked game')
+      : t('myStats.filters.rankAutoNone', 'Any rank, until you have a ranked game')
+  }
   const rankName = (rank: LadderRank) =>
     t('myStats.filters.rankOption', 'Rank {{rank}}', { rank: rank.toUpperCase() })
 
@@ -49,11 +64,7 @@ export function RankMenu({
     {
       value: undefined,
       label: t('myStats.filters.rankAuto', 'Auto'),
-      menuDetail: autoRank
-        ? t('myStats.filters.rankAutoDetail', 'Your latest rank, {{rank}}', {
-            rank: autoRank.toUpperCase(),
-          })
-        : t('myStats.filters.rankAutoNone', 'Any rank, until you have a ranked game'),
+      menuDetail: describeAuto(),
       icon: autoRank ? <RankBadge rank={autoRank} /> : undefined,
     },
     {

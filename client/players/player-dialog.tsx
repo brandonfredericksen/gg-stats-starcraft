@@ -15,6 +15,7 @@ import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
 import { emptyPlaystyleCounts, Playstyle, PLAYSTYLES } from '../../common/my-stats/playstyle'
 import { AssignedRaceChar, RaceChar, raceCharToLabel } from '../../common/races'
 import { KnownPlayer } from '../../common/settings/local-settings'
+import { urlPath } from '../../common/urls'
 import { getBuildFamilyName } from '../builds/build-shared'
 import { getMapFamilyShortName } from '../coach/coach-shared'
 import { CommonDialogProps } from '../dialogs/common-dialog-props'
@@ -24,7 +25,7 @@ import { relativeTimeFormat, useFormat } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { liveGameAtom } from '../live-game/live-game-atoms'
 import { ScoutState, useScouts } from '../live-game/live-game-data'
-import { LeagueTag, TileRating } from '../live-game/live-game-page'
+import { TileRating } from '../live-game/live-game-page'
 import {
   GameKind,
   getEnemyRaces,
@@ -77,6 +78,7 @@ import {
   useKnownPlayers,
 } from './known-players'
 import { loadPlayerRecord, PlayerRecord } from './player-record'
+import { LeagueTag } from './rank-tags'
 
 const StyledDialog = styled(Dialog)`
   max-width: 640px;
@@ -1516,6 +1518,22 @@ function PlayerView({
       }
       onCancel={onCancel}
       showCloseButton={true}
+      buttons={[
+        <TextButton
+          key='stats'
+          label={
+            isMe
+              ? t('players.openMyStats', 'Open My stats')
+              : t('players.openStats', 'Open their full stats')
+          }
+          iconStart={<MaterialIcon icon='query_stats' size={18} />}
+          onClick={() => {
+            push(isMe ? '/my-stats' : urlPath`/my-stats/player/${name}`)
+            close()
+          }}
+          testName='player-open-stats'
+        />,
+      ]}
       testName='player-dialog'>
       <Content>
         {gone ? <Muted>{gone}</Muted> : null}

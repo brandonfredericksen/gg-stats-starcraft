@@ -7,7 +7,7 @@ import {
   PlayerMetrics,
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { computeMyStats, DatedGameMetrics } from './my-stats'
+import { computeMyStats, DatedGameMetrics, getLatestLadder } from './my-stats'
 
 const NOW = Date.UTC(2026, 9, 5)
 const DAY = 24 * 60 * 60_000
@@ -401,3 +401,27 @@ describe('common/my-stats', () => {
 function share(income: number) {
   return { income, armyProduced: income, armyKilled: income }
 }
+
+describe('getLatestLadder', () => {
+  test('takes the ladder rank from the latest game that says', () => {
+    const ranked = (mmr: number, gameTimeMs: number) =>
+      game(
+        '1v1',
+        [player(me, 'p', 0, 'win', { mmr, rank: 'a' }), player('Mordant', 'z', 1, 'loss')],
+        { gameTimeMs },
+      )
+    const games = [
+      ranked(2100, 5000),
+      ranked(1900, 1000),
+      game('1v1', [player(me, 'p', 0, 'win'), player('Mordant', 'z', 1, 'loss')], {
+        gameTimeMs: 9000,
+      }),
+    ]
+    expect(getLatestLadder(games, [me.toLowerCase()])).toEqual({
+      mmr: 2100,
+      rank: 'a',
+      gameTimeMs: 5000,
+    })
+    expect(getLatestLadder(games, ['Mordant'])).toBeUndefined()
+  })
+})

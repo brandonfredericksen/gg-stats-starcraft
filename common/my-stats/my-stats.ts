@@ -61,6 +61,36 @@ export interface MyStatsSummary {
   analyzedGames: number
   /** How many analyzed games of the query's game type and time range the user has, any race. */
   scopedGames: number
+  /** The user's eSkill over their latest games of any kind, whatever the query. */
+  eSkill?: MyStatsResult['eSkill']
+  /** The user's 1v1 ladder MMR and rank going into their latest game that says. */
+  ladder?: LatestLadder
+}
+
+/** Where a player stood on the 1v1 ladder going into a game. */
+export interface LatestLadder {
+  mmr?: number
+  rank?: LadderRank
+  gameTimeMs: number
+}
+
+/** The 1v1 ladder MMR and rank of whoever goes by `names`, from their latest game that says. */
+export function getLatestLadder(
+  games: ReadonlyArray<DatedGameMetrics>,
+  names: ReadonlyArray<string>,
+): LatestLadder | undefined {
+  let latest: LatestLadder | undefined
+  for (const game of games) {
+    const me = findMe(game, names)
+    if (
+      me &&
+      (me.mmr !== undefined || me.rank) &&
+      game.gameTimeMs > (latest?.gameTimeMs ?? -Infinity)
+    ) {
+      latest = { mmr: me.mmr, rank: me.rank, gameTimeMs: game.gameTimeMs }
+    }
+  }
+  return latest
 }
 
 /** Sums up the user's games for My stats, along with the counts it shows next to them. */
@@ -71,10 +101,13 @@ export function computeMyStatsSummary(
   eSkillModel?: ESkillModel,
 ): MyStatsSummary {
   const { names, range, shape } = query
+  const all = computeMyStats(games, { names, range: 'all' }, nowMs, eSkillModel)
   return {
     stats: computeMyStats(games, query, nowMs, eSkillModel),
-    analyzedGames: computeMyStats(games, { names, range: 'all' }, nowMs).games,
+    analyzedGames: all.games,
     scopedGames: computeMyStats(games, { names, range, shape }, nowMs).games,
+    eSkill: all.eSkill,
+    ladder: getLatestLadder(games, names),
   }
 }
 
