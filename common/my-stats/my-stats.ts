@@ -61,8 +61,6 @@ export interface MyStatsSummary {
   analyzedGames: number
   /** How many analyzed games of the query's game type and time range the user has, any race. */
   scopedGames: number
-  /** The user's eSkill over their latest games of any kind, whatever the query. */
-  eSkill?: MyStatsResult['eSkill']
   /** The user's 1v1 ladder MMR and rank going into their latest game that says. */
   ladder?: LatestLadder
 }
@@ -101,12 +99,10 @@ export function computeMyStatsSummary(
   eSkillModel?: ESkillModel,
 ): MyStatsSummary {
   const { names, range, shape } = query
-  const all = computeMyStats(games, { names, range: 'all' }, nowMs, eSkillModel)
   return {
     stats: computeMyStats(games, query, nowMs, eSkillModel),
-    analyzedGames: all.games,
+    analyzedGames: computeMyStats(games, { names, range: 'all' }, nowMs).games,
     scopedGames: computeMyStats(games, { names, range, shape }, nowMs).games,
-    eSkill: all.eSkill,
     ladder: getLatestLadder(games, names),
   }
 }

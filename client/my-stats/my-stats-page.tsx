@@ -6,8 +6,7 @@ import { DEFAULT_EAPM_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsResult } from '../../common/my-stats/my-stats'
 import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
 import { Comparison } from '../coach/coach-page'
-import { openDialog } from '../dialogs/action-creators'
-import { DialogType } from '../dialogs/dialog-type'
+
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
 import { LoadingIndicatorArea } from '../progress/loading-indicator'
@@ -38,6 +37,7 @@ import {
   Totals,
   Trends,
 } from './my-stats-panels'
+import { PlayerHeader } from './player-header'
 import { RanksRow } from './ranks-row'
 
 const Root = styled.div`
@@ -359,30 +359,25 @@ export function MyStatsView({ player }: { player?: OtherPlayer }) {
   return (
     <OtherPlayerContext value={other}>
       <Root>
-        <Header>
-          <Title>{player ? player.name : t('myStats.label', 'My stats')}</Title>
-          <PlayingAs>
-            {player ? t('myStats.accounts', 'Accounts') : t('myStats.playingAs', 'Playing as')}
-            {names.map(name => (
-              <NameChip key={name}>{name}</NameChip>
-            ))}
-            {player ? (
-              <TextButton
-                label={t('myStats.playerDetails', 'Note and accounts')}
-                onClick={() =>
-                  dispatch(openDialog({ type: DialogType.Player, initData: { name: player.name } }))
-                }
-              />
-            ) : (
+        {player ? (
+          <PlayerHeader name={player.name} accounts={player.accounts} />
+        ) : (
+          <Header>
+            <Title>{t('myStats.label', 'My stats')}</Title>
+            <PlayingAs>
+              {t('myStats.playingAs', 'Playing as')}
+              {names.map(name => (
+                <NameChip key={name}>{name}</NameChip>
+              ))}
               <TextButton
                 label={t('myStats.editNames', 'Edit names')}
                 onClick={() => dispatch(openSettings(AppSettingsPage.PlayerNames))}
               />
-            )}
-          </PlayingAs>
-        </Header>
+            </PlayingAs>
+          </Header>
+        )}
         <SectionErrorBoundary>
-          <RanksRow accounts={names} isMe={!other} eSkill={data?.eSkill} fromGame={data?.ladder} />
+          <RanksRow accounts={names} isMe={!other} shape={filters.shape} fromGame={data?.ladder} />
         </SectionErrorBoundary>
         <FilterBar
           autoRank={data?.stats.autoRank}

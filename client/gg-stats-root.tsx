@@ -254,7 +254,7 @@ function Layout() {
                 <Route path='/last-game' component={LastGamePage} />
                 <Route path='/live-game' component={LiveGamePage} />
                 <Route path='/my-stats' component={MyStatsPage} />
-                <Route path='/my-stats/player/:name' component={PlayerStatsPage} />
+                <Route path='/players/:name' component={PlayerStatsPage} />
                 <Route path='/coach' component={CoachPage} />
                 <Route path='/builds' component={BuildsPage} />
                 <Route>

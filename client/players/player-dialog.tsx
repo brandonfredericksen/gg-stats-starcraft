@@ -4,11 +4,11 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { getErrorStack } from '../../common/errors'
+
 import { getGameDurationString } from '../../common/games/game-duration'
 import { MapFamily } from '../../common/games/map-family'
 import { GameShape } from '../../common/games/player-metrics'
-import { isMyPlayerName } from '../../common/games/player-names'
+
 import { LiveGamePlayer } from '../../common/live-game'
 import { MyStatsGame, WinLoss } from '../../common/my-stats/my-stats'
 import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
@@ -40,7 +40,7 @@ import {
   getRegionLabel,
   usePeople,
 } from '../live-game/live-player-details'
-import logger from '../logging/logger'
+
 import { Accordion } from '../material/accordion'
 import { TextButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -77,7 +77,8 @@ import {
   savePlayer,
   useKnownPlayers,
 } from './known-players'
-import { loadPlayerRecord, PlayerRecord } from './player-record'
+import { usePlayerAccounts } from './open-player'
+import { usePlayerRecord } from './player-record-hooks'
 import { LeagueTag } from './rank-tags'
 
 const StyledDialog = styled(Dialog)`
@@ -921,28 +922,7 @@ function ThisGame({ scout, live }: { scout: PlayerScout; live: NonNullable<Profi
 function YouAndThem({ accounts, myNames }: { accounts: string[]; myNames: ReadonlyArray<string> }) {
   const { t } = useTranslation()
   const timeAgo = useTimeAgo()
-  const [record, setRecord] = useState<PlayerRecord | 'error'>()
-  const accountsKey = accounts.join('\n')
-  const namesKey = myNames.join('\n')
-
-  useEffect(() => {
-    let cancelled = false
-    loadPlayerRecord(accountsKey.split('\n'), namesKey.split('\n'))
-      .then(loaded => {
-        if (!cancelled) {
-          setRecord(loaded)
-        }
-      })
-      .catch(err => {
-        logger.error(`Error counting the games with ${accountsKey}: ${getErrorStack(err)}`)
-        if (!cancelled) {
-          setRecord('error')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [accountsKey, namesKey])
+  const record = usePlayerRecord(accounts, myNames)
 
   let body: React.ReactNode
   if (record === 'error') {
@@ -1528,7 +1508,7 @@ function PlayerView({
           }
           iconStart={<MaterialIcon icon='query_stats' size={18} />}
           onClick={() => {
-            push(isMe ? '/my-stats' : urlPath`/my-stats/player/${name}`)
+            push(isMe ? '/my-stats' : urlPath`/players/${name}`)
             close()
           }}
           testName='player-open-stats'
@@ -1600,16 +1580,8 @@ function NamedPlayerDialog({
   onCancel: () => void
   close: () => void
 }) {
-  const knownPlayers = useKnownPlayers()
-  const myNames = useMyPlayerNames() ?? []
-  const isMe = isMyPlayerName(name, myNames)
   // The user's own details count every name they play under.
-  const accounts = Array.from(
-    new Set([
-      name,
-      ...(isMe ? myNames : (findPlayerByAccount(knownPlayers, name)?.accounts ?? [])),
-    ]),
-  )
+  const { accounts, isMe } = usePlayerAccounts(name)
   return <PlayerView profile={{ name, race, accounts, isMe }} onCancel={onCancel} close={close} />
 }
 

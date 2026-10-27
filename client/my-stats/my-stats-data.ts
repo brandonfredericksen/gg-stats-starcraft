@@ -69,8 +69,7 @@ export interface MyStatsData {
    * are left out, since the library can't tell the user's race from an opponent's.
    */
   scope: { analyzed: number; total: number }
-  /** Their eSkill and latest 1v1 ladder rank, whatever the filters. */
-  eSkill: MyStatsSummary['eSkill']
+  /** Their latest 1v1 ladder rank, whatever the filters. */
   ladder: MyStatsSummary['ladder']
 }
 
@@ -94,7 +93,6 @@ function toMyStatsData(summary: MyStatsSummary, libraryTotal: number): MyStatsDa
       analyzed: summary.scopedGames,
       total: Math.max(libraryTotal, summary.scopedGames),
     },
-    eSkill: summary.eSkill,
     ladder: summary.ladder,
   }
 }

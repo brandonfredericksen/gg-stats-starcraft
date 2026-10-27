@@ -818,7 +818,6 @@
     }
   },
   "myStats": {
-    "accounts": "Accounts",
     "analyzeMine": {
       "button_one": "Analyze the newest unanalyzed replay",
       "button_other": "Analyze {{count}} newest unanalyzed replays",
@@ -1311,16 +1310,18 @@
     },
     "rankOnly": "Only players who were rank {{rank}} going into the game count.",
     "ranks": {
-      "battleNetSeenHelp": "This season on the ladder, from when StarCraft last looked up their profile for a match you were in.",
-      "battleNetSeenHelpMe": "This season on the ladder, from when StarCraft last looked up your profile for a match.",
-      "fromGame": "Latest ranked game, {{when}}",
+      "battleNetHelp": "Their 1v1 ladder season, from when StarCraft last looked up their profile for a match you were in.",
+      "battleNetHelpMe": "Your 1v1 ladder season, from when StarCraft last looked up your profile for a match.",
+      "fromGame": "From the latest ranked game, {{when}}.",
       "ladder": "1v1 ladder",
       "modeBgh": "{{size}} BGH",
       "modeFastest": "{{size}} Fastest",
       "modeHunters": "{{size}} Hunters",
+      "none": "No ranks seen yet",
+      "noneHelp": "Their ranks show here once StarCraft looks up their profile for a ladder match you're in, or you open their ShieldBattery profile.",
       "seen": "Seen {{when}}",
-      "shieldBatterySeenHelp": "This season in this mode, from when you last opened their ShieldBattery profile.",
-      "shieldBatterySeenHelpMe": "This season in this mode, from when your ShieldBattery profile was last opened.",
+      "shieldBatteryHelp": "Their season in each ShieldBattery mode, from when you last opened their profile in ShieldBattery.",
+      "shieldBatteryHelpMe": "Your season in each ShieldBattery mode, from when your profile was last opened in ShieldBattery.",
       "unranked": "Unranked",
       "unrated": "Unrated"
     },
@@ -1415,6 +1416,7 @@
     "against": "Against them",
     "allTheirGames": "All their games",
     "allYourGames": "All your games",
+    "alsoPlaysAs": "Also plays as {{names}}",
     "apmNote": "APM {{apm}}",
     "builds": "Builds by matchup",
     "buildScope": {
@@ -1424,6 +1426,7 @@
     "buildShareHelp": "Out of {{of}} games with a named build",
     "buildsSummary": "Most played: {{build}}",
     "buildsTable": "Builds by matchup",
+    "closeTab": "Close {{name}}",
     "eapm": "eAPM",
     "eapmHelp": "Effective actions per minute, on average. APM without spam, such as the same order clicked twice in a row.",
     "editNote": "Edit your note or their accounts",
@@ -1432,6 +1435,7 @@
     "eSkillGames_other": "Estimate, {{count}} games",
     "eSkillHelp": "An estimate, not a ladder rating: the 1v1 ladder MMR and rank that this speed, hotkeys and macro match, over the latest games. Results don't count.",
     "eSkillNone": "Needs longer games",
+    "eyebrow": "Player",
     "fewGames": "Too few games to tell",
     "fromBaseline_one": "1 is a ladder game that comes with GG Stats.",
     "fromBaseline_other": "{{count}} are ladder games that come with GG Stats.",

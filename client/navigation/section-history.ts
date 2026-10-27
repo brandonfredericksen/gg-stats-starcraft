@@ -2,6 +2,7 @@
 export type Section =
   | 'library'
   | 'myStats'
+  | 'player'
   | 'coach'
   | 'builds'
   | 'lastGame'
@@ -15,6 +16,9 @@ export function getSection(pathname: string): Section {
   }
   if (pathname.startsWith('/my-stats')) {
     return 'myStats'
+  }
+  if (pathname.startsWith('/players/')) {
+    return 'player'
   }
   if (pathname.startsWith('/coach')) {
     return 'coach'
@@ -44,7 +48,7 @@ export type VisitType = 'push' | 'replace' | 'reload' | 'traverse'
 const GAME_SECTION: Section = 'lastGame'
 
 /** Sections whose games stay in them, so going to one of their games keeps their tab lit. */
-const OPENS_GAMES_IN_PLACE: ReadonlySet<Section> = new Set(['myStats', 'coach', 'builds'])
+const OPENS_GAMES_IN_PLACE: ReadonlySet<Section> = new Set(['myStats', 'player', 'coach', 'builds'])
 
 /** A single game's page, which can be opened from any section, not just the library. */
 function isGamePage(pathname: string) {

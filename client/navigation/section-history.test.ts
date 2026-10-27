@@ -25,6 +25,14 @@ describe('client/navigation/section-history', () => {
     expect(sections.section).toBe('myStats')
   })
 
+  test("lights a player's tab on their page and the games opened from it", () => {
+    const sections = new EntrySections()
+    sections.visit('a', '/players/Sommelier', 'reload')
+    expect(sections.section).toBe('player')
+    sections.visit('b', '/replays/stats/g1', 'push')
+    expect(sections.section).toBe('player')
+  })
+
   test('puts a game in the section asked for, like the last game', () => {
     const sections = new EntrySections()
     sections.visit('a', '/coach', 'reload')
