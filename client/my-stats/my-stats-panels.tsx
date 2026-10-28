@@ -250,6 +250,7 @@ const TotalsGrid = styled.div<{ $compact?: boolean }>`
 `
 
 const TotalTile = styled(StatsPanel)`
+  container-type: inline-size;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -266,6 +267,7 @@ const BigNumber = styled.span<{ $compact?: boolean }>`
 
 /** A total without a panel of its own, for inside another panel. */
 const CompactTile = styled.div`
+  container-type: inline-size;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -281,6 +283,17 @@ const TileNote = styled.span`
   ${bodySmall};
   margin-top: -4px;
   color: var(--theme-on-surface-variant);
+`
+
+/**
+ * Keeps a record on one line, shrunk to the tile's width when it doesn't fit. A Bahnschrift digit
+ * is 0.467em wide and the dash with its margins 1.09em.
+ */
+const FitRecord = styled.span<{ $digits: number }>`
+  /* A block, so the smaller font keeps the tile's line height and its labels line up. */
+  display: block;
+  white-space: nowrap;
+  font-size: min(1em, calc(100cqi / ${props => props.$digits * 0.47 + 1.1}));
 `
 
 /** Centers the rank on the digits rather than leaving it on their baseline. */
@@ -323,7 +336,11 @@ export function Totals({
         : t('myStats.help.games', 'Your analyzed games that match the filters.'),
     ],
     [
-      <RecordText key='record' record={stats.record} />,
+      <FitRecord
+        key='record'
+        $digits={String(stats.record.wins).length + String(stats.record.losses).length}>
+        <RecordText record={stats.record} />
+      </FitRecord>,
       t('myStats.totals.record', 'Wins and losses'),
       t(
         'myStats.help.record',
