@@ -740,7 +740,9 @@
       "accepting_one": "Match found. {{accepted}} of {{count}} accepted.",
       "accepting_other": "Match found. {{accepted}} of {{count}} accepted.",
       "drafting": "Match found. Picking races.",
-      "names": "ShieldBattery doesn't say who's in the match until the game loads. Open a player in it to see them here now.",
+      "draftNames": "Click a player's name in the draft to see them here. Everyone shows once the game loads.",
+      "draftOpened": "The players you clicked in the draft. Click the others to see them too.",
+      "names": "ShieldBattery doesn't say who's in the match until the game loads. Once you're in the draft, click a player's name to see them here.",
       "opened": "The players you've opened in ShieldBattery. Everyone shows once the game loads.",
       "starting": "Match found. Starting the game."
     },

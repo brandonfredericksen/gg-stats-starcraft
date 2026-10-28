@@ -1155,21 +1155,34 @@ function MatchFoundMessage({ match, opened }: { match: LiveMatchFound; opened: b
       title = t('liveGame.matchFound.starting', 'Match found. Starting the game.')
       break
   }
+  let hint: string
+  if (match.phase === 'drafting') {
+    hint = opened
+      ? t(
+          'liveGame.matchFound.draftOpened',
+          'The players you clicked in the draft. Click the others to see them too.',
+        )
+      : t(
+          'liveGame.matchFound.draftNames',
+          "Click a player's name in the draft to see them here. Everyone shows once the game " +
+            'loads.',
+        )
+  } else {
+    hint = opened
+      ? t(
+          'liveGame.matchFound.opened',
+          "The players you've opened in ShieldBattery. Everyone shows once the game loads.",
+        )
+      : t(
+          'liveGame.matchFound.names',
+          "ShieldBattery doesn't say who's in the match until the game loads. Once you're in " +
+            "the draft, click a player's name to see them here.",
+        )
+  }
   return (
     <Message>
       <MatchFoundTitle>{title}</MatchFoundTitle>
-      <Muted>
-        {opened
-          ? t(
-              'liveGame.matchFound.opened',
-              "The players you've opened in ShieldBattery. Everyone shows once the game loads.",
-            )
-          : t(
-              'liveGame.matchFound.names',
-              "ShieldBattery doesn't say who's in the match until the game loads. Open a " +
-                'player in it to see them here now.',
-            )}
-      </Muted>
+      <Muted>{hint}</Muted>
     </Message>
   )
 }
