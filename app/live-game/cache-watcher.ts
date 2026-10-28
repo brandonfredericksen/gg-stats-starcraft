@@ -46,12 +46,19 @@ export interface CacheEntryReader<Sighting, Body> {
   readBody: (body: Uint8Array, sighting: Sighting) => Body | undefined
   /** Whether an entry for `sighting` has a body worth reading. */
   hasBody: (sighting: Sighting) => boolean
+  /**
+   * Whether the bodies of entries that aren't about a game being joined, the ones there already
+   * when it started and the ones last used too long ago, are read too, as `pastBody`.
+   */
+  readsPast?: boolean
 }
 
 export type CacheWatcherEvents<Sighting, Body> = {
   sighting: [sighting: Sighting]
   /** What was read from the body of an entry for `sighting`, emitted after the sighting. */
   body: [sighting: Sighting, body: Body]
+  /** What was read from the body of an entry that isn't about a game being joined. */
+  pastBody: [sighting: Sighting, body: Body]
   error: [err: unknown]
 }
 
@@ -63,7 +70,7 @@ interface PendingBody<Sighting> {
 /**
  * Watches an embedded browser's disk cache for pages and lookups made when the user joins a game.
  * Each entry `reader` reads is reported when it's new or used again after the watcher started;
- * what was there already isn't.
+ * what was there already isn't, unless the reader asks for that too.
  *
  * It only ever reads, and costs next to nothing between games: one small read of a file's header a
  * second. Only when that header changes is the whole file read, for a little while.
@@ -218,11 +225,24 @@ export class CacheWatcher<Sighting, Body> extends EventEmitter<CacheWatcherEvent
       this.lastUsed.set(entry.key, entry.lastUsedMs)
       // An old entry can look new when a read caught it mid write and it was forgotten. A game
       // being joined is only ever seconds old.
-      if (!this.baselineTaken || entry.lastUsedMs < this.now() - STALE_MS) {
+      const past = !this.baselineTaken || entry.lastUsedMs < this.now() - STALE_MS
+      if (past && !this.reader.readsPast) {
         continue
       }
       const sighting = this.reader.readKey(entry.key, entry.createdMs, entry.lastUsedMs)
       if (sighting === undefined) {
+        continue
+      }
+      if (past) {
+        const body = this.reader.hasBody(sighting)
+          ? await this.readBody(entry, sighting)
+          : undefined
+        if (generation !== this.generation) {
+          return
+        }
+        if (body !== undefined) {
+          this.emit('pastBody', sighting, body)
+        }
         continue
       }
       this.emit('sighting', sighting)

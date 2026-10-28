@@ -941,9 +941,14 @@ app.on('ready', () => {
       })
       ipcMain.handle('liveGameGet', async () => liveGame.game)
       if (!ladderRun) {
-        liveGame.start().catch(err => {
-          logger.error(`Error starting the live game watchers: ${getErrorStack(err)}`)
-        })
+        // The ranks already kept come first, so the profiles still in ShieldBattery's cache only
+        // count when they're newer.
+        playerRanks
+          .load()
+          .then(() => liveGame.start())
+          .catch(err => {
+            logger.error(`Error starting the live game watchers: ${getErrorStack(err)}`)
+          })
         // eSkill comes from the ladder baseline, too big a read to start while a game loads, so
         // it's read a little after the app starts, once no game is going.
         const prepareScouting = () => {

@@ -39,9 +39,21 @@ export class PlayerRanksStore {
         const saved = JSON.parse(text) as Partial<SavedRanks>
         for (const player of Array.isArray(saved.players) ? saved.players : []) {
           const key = typeof player?.name === 'string' ? player.name.toLowerCase() : undefined
-          // A profile seen while the file was read is newer than what the file has.
-          if (key && Array.isArray(player.battleNet) && !this.players.has(key)) {
+          if (!key || !Array.isArray(player.battleNet)) {
+            continue
+          }
+          const seen = this.players.get(key)
+          if (!seen) {
             this.players.set(key, player)
+            continue
+          }
+          // A profile seen while the file was read is newer than what the file has for it, but the
+          // file still has the rest.
+          seen.battleNet.push(
+            ...player.battleNet.filter(s => !seen.battleNet.some(b => b.gatewayId === s.gatewayId)),
+          )
+          if (player.shieldBattery && !seen.shieldBattery) {
+            seen.shieldBattery = player.shieldBattery
           }
         }
       })
@@ -81,6 +93,11 @@ export class PlayerRanksStore {
 
   /** ShieldBattery looked up a profile at `atMs`. */
   shieldBatteryProfile(profile: ShieldBatteryProfile, atMs: number) {
+    const seen = this.players.get(profile.name.toLowerCase())?.shieldBattery
+    // ShieldBattery's cache is read again each time the app starts.
+    if (seen && seen.userId === profile.userId && seen.seenMs >= atMs) {
+      return
+    }
     const modes = Object.entries(profile.seasons)
       .map(([mode, season]) => ({ mode, ...season }))
       .filter(mode => mode.wins + mode.losses > 0)

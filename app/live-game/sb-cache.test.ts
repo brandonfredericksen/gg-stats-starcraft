@@ -147,4 +147,38 @@ describe('ShieldBatteryCacheWatcher', () => {
     await watcher.poll()
     expect(read).toEqual([['clicked', now]])
   })
+
+  test('reports the profiles from before as past ones', async () => {
+    const now = 100_000
+    const { files } = buildTestCache([
+      {
+        key: PROFILE_KEY(1),
+        createdMs: 10_000,
+        lastUsedMs: 20_000,
+        body: zstdCompressSync(profileJson(1, 'old')),
+      },
+    ])
+    const watcher = new ShieldBatteryCacheWatcher(
+      {
+        size: async file => files[file]?.length,
+        read: async (file, position, length, into) => {
+          const part = files[file]?.subarray(position, position + length)
+          if (!part) {
+            return undefined
+          }
+          into.set(part)
+          return part.length
+        },
+      },
+      () => now,
+    )
+    const live: string[] = []
+    const past: Array<[string, number]> = []
+    watcher.on('body', (_sighting, profile) => live.push(profile.name))
+    watcher.on('pastBody', (sighting, profile) => past.push([profile.name, sighting.atMs]))
+    await watcher.poll()
+    await watcher.poll()
+    expect(live).toEqual([])
+    expect(past).toEqual([['old', 20_000]])
+  })
 })

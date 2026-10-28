@@ -137,7 +137,10 @@ export function parseShieldBatteryProfile(
   return { userId, name, seasons }
 }
 
-/** Watches ShieldBattery's own browser cache for the profiles it looks up. */
+/**
+ * Watches ShieldBattery's own browser cache for the profiles it looks up. The ones it looked up
+ * before, still in the cache, are reported as `pastBody`, for the ranks they show.
+ */
 export class ShieldBatteryCacheWatcher extends CacheWatcher<
   ShieldBatteryProfileSighting,
   ShieldBatteryProfile
@@ -149,6 +152,7 @@ export class ShieldBatteryCacheWatcher extends CacheWatcher<
         markers: SB_CACHE_MARKERS,
         readKey: readShieldBatteryCacheKey,
         hasBody: () => true,
+        readsPast: true,
         readBody: (body, sighting) =>
           parseShieldBatteryProfile(body, sighting.userId, sighting.atMs),
       },

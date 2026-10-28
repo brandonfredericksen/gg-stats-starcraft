@@ -226,6 +226,9 @@ export class LiveGameService {
       this.tracker.shieldBatteryProfile(profile, sighting.atMs)
       this.options.ranks?.shieldBatteryProfile(profile, sighting.atMs)
     })
+    shieldBatteryCacheWatcher.on('pastBody', (sighting, profile) => {
+      this.options.ranks?.shieldBatteryProfile(profile, sighting.atMs)
+    })
     shieldBatteryCacheWatcher.on('error', err => {
       log.warning(`Couldn't read ShieldBattery's browser cache: ${getErrorStack(err)}`)
     })
