@@ -1,0 +1,47 @@
+name: Release cache
+
+# A tag's run can only restore caches saved by that tag or by main, so a release can't reuse an
+# earlier release's Rust cache. This builds what the release builds, on main, and saves it under
+# the key the release restores. The weekly run keeps it from expiring and picks up new toolchains.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/release-cache.yml'
+      - 'game/**'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: i686-pc-windows-msvc, x86_64-pc-windows-msvc
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./game
+          shared-key: release
+
+      - name: Build what the release builds
+        shell: bash
+        run: |
+          cargo clippy --all-targets --workspace --target i686-pc-windows-msvc
+          cargo clippy --all-targets --workspace --target x86_64-pc-windows-msvc
+          cargo test --all-targets --no-run --target i686-pc-windows-msvc
+          cargo test --all-targets --no-run --target x86_64-pc-windows-msvc
+          cargo build --release --target i686-pc-windows-msvc
+          cargo build --release --target x86_64-pc-windows-msvc
+        working-directory: ./game

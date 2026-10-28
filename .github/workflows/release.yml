@@ -44,9 +44,13 @@ jobs:
           targets: i686-pc-windows-msvc, x86_64-pc-windows-msvc
           components: clippy, rustfmt
 
+      # Restores what release-cache.yml saves on main. Saving here would be wasted: no other tag can
+      # read a tag's cache.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ./game
+          shared-key: release
+          save-if: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
