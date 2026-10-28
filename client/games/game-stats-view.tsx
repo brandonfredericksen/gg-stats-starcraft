@@ -150,6 +150,7 @@ export function GameStatsView({
   source,
   replayPath,
   header,
+  footer,
   onAnalyzeAgain,
 }: {
   gameId: string
@@ -157,6 +158,8 @@ export function GameStatsView({
   source: GameStatsSource
   replayPath?: string
   header?: React.ReactNode
+  /** Goes below everything else. */
+  footer?: React.ReactNode
   /** Analyzes the game's replay again, if there's one to analyze. */
   onAnalyzeAgain?: () => void
 }) {
@@ -257,6 +260,8 @@ export function GameStatsView({
         teamsByPlayer={teamsByPlayer}
         durationMs={stats.durationMs}
       />
+
+      {footer}
     </Root>
   )
 }

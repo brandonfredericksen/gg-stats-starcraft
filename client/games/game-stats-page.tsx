@@ -537,6 +537,7 @@ function StatsView({
           tileset={tileset}
         />
       }
+      footer={<ScopeLinks gameId={gameId} stats={stats} />}
     />
   )
 }
@@ -645,7 +646,6 @@ function StatsHeader({
         <MapName>{mapName}</MapName>
         <Meta>{meta.join(' · ')}</Meta>
       </TitleRow>
-      <ScopeLinks gameId={gameId} stats={stats} />
     </Header>
   )
 }
@@ -683,7 +683,7 @@ function ScopeLinks({ gameId, stats }: { gameId: string; stats: GameStats }) {
   return (
     <ScopeRow>
       <ScopeName>
-        {t('gameStats.scopeLinks', '{{scope}}:', { scope: getScopeName(scope, t) })}
+        {t('gameStats.youPlayedScope', 'You played {{scope}}:', { scope: getScopeName(scope, t) })}
       </ScopeName>
       <LitButton type='button' onClick={() => open('/builds')}>
         <MaterialIcon icon='account_tree' size={18} />
