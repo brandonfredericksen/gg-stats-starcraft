@@ -36,18 +36,18 @@ const MAX_TURN_FRAMES = 12
 const TURN_GAP_SHARE = 0.02
 
 /** BW's hotkey commands: assigning a group, selecting it, and adding to it. */
-const HOTKEY_ASSIGN = 0
-const HOTKEY_RECALL = 1
-const HOTKEY_ADD = 2
+export const HOTKEY_ASSIGN = 0
+export const HOTKEY_RECALL = 1
+export const HOTKEY_ADD = 2
 
 /**
  * Recalling the same group twice this many frames apart or closer is a double tap, which centers
  * the screen on the group.
  */
-const DOUBLE_TAP_FRAMES = 12
+export const DOUBLE_TAP_FRAMES = 12
 
 /** Commands that pick units. */
-const SELECTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
+export const SELECTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
   'select',
   'selectAdd',
   'selectRemove',
@@ -141,7 +141,7 @@ function phaseIndex(ms: number) {
  * How many frames a network turn lasts in a game, from the frames the players' commands ran on:
  * the shortest gap between them that's common, since no command runs between turns.
  */
-function estimateTurnFrames(frames: Iterable<number>): number {
+export function estimateTurnFrames(frames: Iterable<number>): number {
   const sorted = Array.from(new Set(frames)).sort((a, b) => a - b)
   const gaps = new Map<number, number>()
   let total = 0
@@ -321,7 +321,7 @@ export function summarizeCommands(
 }
 
 /** Commands that aren't the player acting in the game, which APM leaves out. */
-const NOT_ACTIONS: ReadonlySet<CommandKind> = new Set<CommandKind>([
+export const NOT_ACTIONS: ReadonlySet<CommandKind> = new Set<CommandKind>([
   'vision',
   'alliance',
   'gameSpeed',

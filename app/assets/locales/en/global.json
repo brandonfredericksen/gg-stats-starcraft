@@ -1411,6 +1411,18 @@
     "addAccountPlaceholder": "Another name they play as",
     "addNote": "Add a note or their other accounts",
     "against": "Against them",
+    "aliases": {
+      "chipTooltip_one": "Plays a lot like {{name}}, compared over 1 of their games. A lead, not proof.",
+      "chipTooltip_other": "Plays a lot like {{name}}, compared over {{count}} of their games. A lead, not proof.",
+      "likely": "Likely",
+      "noGames": "Not enough of their games in your replays to tell how they play.",
+      "none": "No other name in your replays plays like them.",
+      "playsLike": "Plays like",
+      "possible": "Possible",
+      "reading_one": "Still reading 1 replay.",
+      "reading_other": "Still reading {{count}} replays.",
+      "strong": "Strong"
+    },
     "allTheirGames": "All their games",
     "allYourGames": "All your games",
     "alsoPlaysAs": "Also plays as {{names}}",

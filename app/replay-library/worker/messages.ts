@@ -1,6 +1,7 @@
 import { ReplayCommandStats } from '../../../common/games/command-stats'
 import { TilesetId } from '../../../common/maps'
 import {
+  PlayerAliases,
   ReplayBackfillProgress,
   ReplayLibraryFilters,
   ReplayLibraryStatus,
@@ -35,6 +36,8 @@ export interface ReplayDbCalls {
   /** Returns the ids whose bookmark state actually changed (not already in that state). */
   setBookmarked: (replayIds: number[], bookmarked: boolean) => number[]
   suggestOwnNames: (knownNames: string[]) => SuggestedOwnName[]
+  /** The other names the player who plays as `names` may play under. See `AliasFinder.find`. */
+  findAliases: (names: string[], excludeNames: string[]) => PlayerAliases
   getFrequentMaps: (limit: number) => string[]
   getMapTilesets: () => Record<string, TilesetId>
   /** When each of the given replays was played, for the ones indexed, by path key. */

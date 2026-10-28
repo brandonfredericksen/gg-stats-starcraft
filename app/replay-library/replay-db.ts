@@ -5,6 +5,7 @@ import type { Database as SqliteDatabase, Statement } from 'better-sqlite3'
 // addon dynamically, so a build would silently drop it and the packaged app would fail to load.
 import Database from 'better-sqlite3/win32-x64'
 import path from 'node:path'
+import { GameFingerprint } from '../../common/games/fingerprint'
 import { getMapKey, tilesetFromEra, TilesetId } from '../../common/maps'
 import { RaceChar } from '../../common/races'
 import {
@@ -17,7 +18,7 @@ import {
 import { deriveTeamLayout, IndexedReplay } from './replay-parser'
 import { buildReplaySqlQuery, escapeLike } from './replay-queries'
 
-const SCHEMA_VERSION = 13
+const SCHEMA_VERSION = 14
 
 /** Max number of bind parameters per statement; keeps `IN (...)` lists within SQLite limits. */
 const MAX_IN_PARAMS = 900
@@ -50,6 +51,16 @@ interface DbPlayerRow {
   name: string | null
   race: string | null
   is_computer: number | null
+}
+
+/** A player's fingerprint from one replay, with what's needed to compare it to others'. */
+export interface StoredFingerprint {
+  replayId: number
+  name: string
+  nameKey: string
+  race: RaceChar
+  features: Float32Array
+  gameTime: number
 }
 
 type ExistingReplayRow = Pick<
@@ -93,11 +104,17 @@ export class ReplayDb {
   private readonly deletePlayersByReplayIdStmt: Statement
   private readonly updateReplayFileStmt: Statement
   private readonly bookmarkStmt: Statement
+  private readonly deleteFingerprintsStmt: Statement
   private readonly unbookmarkStmt: Statement
 
   private readonly upsertTxn: (record: IndexedReplay) => void
   private readonly deleteTxn: (paths: string[]) => void
   private readonly setBookmarkedTxn: (replayIds: number[], bookmarked: boolean) => number[]
+  private readonly saveFingerprintsTxn: (
+    replayId: number,
+    version: number,
+    prints: ReadonlyArray<GameFingerprint>,
+  ) => void
 
   constructor(dbPath: string) {
     this.db = new Database(dbPath)
@@ -155,6 +172,9 @@ export class ReplayDb {
     this.unbookmarkStmt = this.db.prepare(
       'UPDATE replays SET bookmarked_at = NULL WHERE id = ? AND bookmarked_at IS NOT NULL',
     )
+    this.deleteFingerprintsStmt = this.db.prepare(
+      'DELETE FROM replay_fingerprints WHERE replay_id = ?',
+    )
 
     // Every write transaction here uses BEGIN IMMEDIATE (`.immediate`). The index file can be
     // open in several app instances at once (they all watch the same replay folders), and a
@@ -190,6 +210,8 @@ export class ReplayDb {
           id,
         )
         this.deletePlayersByReplayIdStmt.run(id)
+        // The file changed, so how its players played is read again from what's in it now.
+        this.deleteFingerprintsStmt.run(id)
       } else {
         const info = this.insertReplayStmt.run(
           record.path,
@@ -231,6 +253,30 @@ export class ReplayDb {
         }
       }
     }).immediate
+
+    const insertPrintStmt = this.db.prepare(`
+      INSERT INTO player_fingerprints (replay_id, name, name_key, race, features)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    const markPrintedStmt = this.db.prepare(
+      'INSERT INTO replay_fingerprints (replay_id, version) VALUES (?, ?)',
+    )
+    this.saveFingerprintsTxn = this.db.transaction(
+      (replayId: number, version: number, prints: ReadonlyArray<GameFingerprint>) => {
+        this.deleteFingerprintsStmt.run(replayId)
+        markPrintedStmt.run(replayId, version)
+        for (const print of prints) {
+          const features = Float32Array.from(print.features)
+          insertPrintStmt.run(
+            replayId,
+            print.name,
+            print.name.toLowerCase(),
+            print.race,
+            Buffer.from(features.buffer, features.byteOffset, features.byteLength),
+          )
+        }
+      },
+    ).immediate
 
     this.setBookmarkedTxn = this.db.transaction((replayIds: number[], bookmarked: boolean) => {
       const now = Date.now()
@@ -387,6 +433,27 @@ export class ReplayDb {
         if (version < 13) {
           // For a replay without a tileset to find another replay of its map that has one.
           this.db.exec('CREATE INDEX idx_replays_map_name_tileset ON replays (map_name, tileset)')
+        }
+
+        if (version < 14) {
+          // How each player played each replay, read from its commands after it's indexed. A replay
+          // with a row in replay_fingerprints has been read, at that version of the features, even
+          // if no player in it did enough to have a fingerprint.
+          this.db.exec(`
+          CREATE TABLE replay_fingerprints (
+            replay_id INTEGER PRIMARY KEY REFERENCES replays (id) ON DELETE CASCADE,
+            version INTEGER NOT NULL
+          );
+
+          CREATE TABLE player_fingerprints (
+            replay_id INTEGER NOT NULL REFERENCES replay_fingerprints (replay_id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            name_key TEXT NOT NULL,
+            race TEXT NOT NULL,
+            features BLOB NOT NULL
+          );
+          CREATE INDEX idx_player_fingerprints_replay_id ON player_fingerprints (replay_id);
+        `)
         }
 
         if (version < SCHEMA_VERSION) {
@@ -551,6 +618,91 @@ export class ReplayDb {
       known.push(next.name.toLowerCase())
     }
     return found
+  }
+
+  /**
+   * Readable replays whose players' fingerprints haven't been read at `version` yet, the newest
+   * first, at most `limit` of them.
+   */
+  listUnfingerprinted(version: number, limit: number): Array<{ id: number; path: string }> {
+    return this.db
+      .prepare(
+        `SELECT r.id, r.path FROM replays r
+        LEFT JOIN replay_fingerprints f ON f.replay_id = r.id
+        WHERE r.parse_error = 0 AND (f.version IS NULL OR f.version != ?)
+        ORDER BY r.game_time DESC
+        LIMIT ?`,
+      )
+      .all(version, limit) as Array<{ id: number; path: string }>
+  }
+
+  /** How many readable replays {@link listUnfingerprinted} would list without a limit. */
+  countUnfingerprinted(version: number): number {
+    return (
+      this.db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM replays r
+          LEFT JOIN replay_fingerprints f ON f.replay_id = r.id
+          WHERE r.parse_error = 0 AND (f.version IS NULL OR f.version != ?)`,
+        )
+        .get(version) as { count: number }
+    ).count
+  }
+
+  /**
+   * Saves the fingerprints of a replay's players, read at `version`, in place of any it had. An
+   * empty list marks the replay read, like one no player did enough in, or one that couldn't be.
+   */
+  saveFingerprints(
+    replayId: number,
+    version: number,
+    prints: ReadonlyArray<GameFingerprint>,
+  ): void {
+    this.saveFingerprintsTxn(replayId, version, prints)
+  }
+
+  /** Every player fingerprint read at `version`, the oldest game first. */
+  getFingerprints(version: number): StoredFingerprint[] {
+    const rows = this.db
+      .prepare(
+        `SELECT p.replay_id AS replayId, p.name, p.name_key AS nameKey, p.race, p.features,
+          r.game_time AS gameTime
+        FROM player_fingerprints p
+        JOIN replay_fingerprints f ON f.replay_id = p.replay_id
+        JOIN replays r ON r.id = p.replay_id
+        WHERE f.version = ?
+        ORDER BY r.game_time, p.replay_id`,
+      )
+      .all(version) as Array<Omit<StoredFingerprint, 'features'> & { features: Buffer }>
+    return rows.map(row => ({
+      ...row,
+      // Copied out of the row's buffer, which may not be aligned for a Float32Array over it.
+      features: new Float32Array(new Uint8Array(row.features).buffer),
+    }))
+  }
+
+  /**
+   * The names of the people in each fingerprinted replay, lowercased, which tells who can't be
+   * whom: no one plays two players in one game.
+   */
+  getFingerprintedPlayerNames(version: number): Map<number, string[]> {
+    const rows = this.db
+      .prepare(
+        `SELECT p.replay_id AS replayId, p.name_key AS nameKey
+        FROM replay_players p JOIN replay_fingerprints f ON f.replay_id = p.replay_id
+        WHERE f.version = ? AND p.is_computer = 0 AND p.name_key IS NOT NULL`,
+      )
+      .all(version) as Array<{ replayId: number; nameKey: string }>
+    const names = new Map<number, string[]>()
+    for (const { replayId, nameKey } of rows) {
+      const list = names.get(replayId)
+      if (list) {
+        list.push(nameKey)
+      } else {
+        names.set(replayId, [nameKey])
+      }
+    }
+    return names
   }
 
   /** The maps with the most readable replays, most first. */

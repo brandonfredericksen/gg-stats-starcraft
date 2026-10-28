@@ -29,6 +29,7 @@ import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
 import { PlayerScout, PlayerSummary } from './my-stats/player-scout'
 import { SeenPlayerRanks } from './player-ranks'
 import {
+  PlayerAliases,
   ReplayBackfillProgress,
   ReplayLibraryFilters,
   ReplayLibraryStatus,
@@ -146,6 +147,7 @@ interface IpcInvokeables {
   replayLibrarySetBookmarked: (replayIds: number[], bookmarked: boolean) => Promise<number[]>
   /** Names that look like the user's own, besides the ones they've already said are. */
   replayLibrarySuggestOwnNames: (knownNames: string[]) => Promise<SuggestedOwnName[]>
+  replayLibraryFindAliases: (names: string[], excludeNames: string[]) => Promise<PlayerAliases>
   /** The maps with the most replays, for picking one to filter by. */
   replayLibraryGetFrequentMaps: () => Promise<string[]>
   /** The tileset of each map the library has a replay of, by `getMapKey`. */

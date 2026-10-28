@@ -2,6 +2,8 @@ import { rmSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import { getErrorStack } from '../../../common/errors'
+import { AliasFinder } from '../alias-finder'
+import { FingerprintBackfill } from '../fingerprint-backfill'
 import { ReplayDb } from '../replay-db'
 import {
   hashReplayContents,
@@ -10,6 +12,7 @@ import {
   parseReplayBuffer,
   parseReplayContents,
   readReplayCommandStats,
+  readReplayFingerprints,
   ReplayFileInfo,
 } from '../replay-parser'
 import { ReplayLibraryLogger, ReplayWatcher } from '../replay-watcher'
@@ -83,10 +86,22 @@ function openReplayDb(path: string): ReplayDb {
 }
 
 const db = openReplayDb(dbPath)
+const aliasFinder = new AliasFinder(db)
 const watcher = new ReplayWatcher(watchedFolders, db, logger, {
   onProgress: progress => post({ type: 'backfillProgress', progress }),
-  onChange: () => post({ type: 'changed' }),
+  onChange: () => {
+    aliasFinder.invalidate()
+    fingerprints.schedule()
+    post({ type: 'changed' })
+  },
 })
+const fingerprints = new FingerprintBackfill(
+  db,
+  readReplayFingerprints,
+  () => !!watcher.getBackfillProgress(),
+  () => aliasFinder.invalidate(),
+  logger,
+)
 
 function getStatus(): WorkerLibraryStatus {
   return {
@@ -144,6 +159,7 @@ const calls: ReplayDbCalls = {
   status: () => getStatus(),
   setBookmarked: (replayIds, bookmarked) => db.setBookmarked(replayIds, bookmarked),
   suggestOwnNames: knownNames => db.suggestOwnNames(knownNames),
+  findAliases: (names, excludeNames) => aliasFinder.find(names, excludeNames),
   getFrequentMaps: limit => db.getFrequentMaps(limit),
   getMapTilesets: () => db.getMapTilesets(),
   getGameTimes: pathKeys => db.getGameTimes(pathKeys),
@@ -166,4 +182,5 @@ parentPort.on('message', ({ data: message }: { data: ToWorkerMessage }) => {
 })
 
 watcher.start()
+fingerprints.schedule()
 post({ type: 'ready' })

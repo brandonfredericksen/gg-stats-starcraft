@@ -1,3 +1,4 @@
+import { AliasConfidence } from './games/fingerprint-match'
 import {
   EncodedMatchupString,
   GameDurationFilter,
@@ -28,6 +29,27 @@ export interface ReplayLibraryPlayer {
 export interface SuggestedOwnName {
   name: string
   games: number
+}
+
+/** Another name someone may play under, found by how its player plays. */
+export interface PlayerAlias {
+  name: string
+  /** The race both names were compared playing. */
+  race: RaceChar
+  confidence: AliasConfidence
+  /** How far above a stranger's likeness theirs is. See `AliasCandidate.score`. */
+  score: number
+  /** Games of the other name compared. */
+  games: number
+}
+
+/** The other names a player may also play under. */
+export interface PlayerAliases {
+  aliases: PlayerAlias[]
+  /** The player's own games with a fingerprint, which the aliases were found from. */
+  games: number
+  /** Replays still to be read for fingerprints, which may hold more. */
+  pendingReplays: number
 }
 
 export interface ReplayLibraryEntry {

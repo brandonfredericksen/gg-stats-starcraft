@@ -3,6 +3,7 @@ import { init, parseReplay } from '@shieldbattery/broodrep'
 import { createHash } from 'node:crypto'
 import { open, readFile } from 'node:fs/promises'
 import { ReplayCommandStats, summarizeCommands } from '../../common/games/command-stats'
+import { fingerprintReplay, GameFingerprint } from '../../common/games/fingerprint'
 import { computeMatchupString } from '../../common/games/matchups'
 import { getReplayChat, ReplayChat } from '../../common/games/replay-chat'
 import { filterColorCodes } from '../../common/maps'
@@ -224,6 +225,21 @@ export async function readReplayCommandStats(filePath: string): Promise<ReplayCo
     const replay = parseReplay(buffer)
     try {
       return summarizeCommands(replay.players(), replay.getCommands() ?? [], replay.header.frames)
+    } finally {
+      replay.free()
+    }
+  } catch (err) {
+    throw err instanceof Error ? err : new Error(String(err))
+  }
+}
+
+/** Reads how each player played from a replay's commands. Rejects if the file can't be parsed. */
+export async function readReplayFingerprints(filePath: string): Promise<GameFingerprint[]> {
+  const buffer = await readFile(filePath)
+  try {
+    const replay = parseReplay(buffer)
+    try {
+      return fingerprintReplay(replay.players(), replay.getCommands() ?? [], replay.header.frames)
     } finally {
       replay.free()
     }

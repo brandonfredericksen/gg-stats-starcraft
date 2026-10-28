@@ -7,6 +7,7 @@ import { relativeTimeFormat, useFormat } from '../i18n/locale-formats'
 import { useScouts } from '../live-game/live-game-data'
 import { TextButton } from '../material/button'
 import { RaceMix } from '../material/race-mix'
+import { PlayerAliasesLine } from '../players/player-aliases'
 import { usePlayerRecord } from '../players/player-record-hooks'
 import { useCurrentMinuteMs } from '../react/date-hooks'
 import { useAppDispatch } from '../redux-hooks'
@@ -114,7 +115,7 @@ function YouAndThem({ accounts }: { accounts: ReadonlyArray<string> }) {
 
 /**
  * The top of another player's page: that it's a player's, their races and name, their other
- * accounts, and the user's record with them.
+ * accounts, the user's record with them, and the names that play like them.
  */
 export function PlayerHeader({
   name,
@@ -145,6 +146,7 @@ export function PlayerHeader({
         />
       </TitleRow>
       <YouAndThem accounts={accounts} />
+      <PlayerAliasesLine accounts={accounts} />
     </Root>
   )
 }

@@ -81,6 +81,9 @@ export class ReplayLibraryService {
     ipcMain.handle('replayLibrarySuggestOwnNames', async (_event, knownNames) =>
       this.call('suggestOwnNames', knownNames),
     )
+    ipcMain.handle('replayLibraryFindAliases', async (_event, names, excludeNames) =>
+      this.call('findAliases', names, excludeNames),
+    )
     ipcMain.handle('replayLibraryGetFrequentMaps', async () => this.call('getFrequentMaps', 12))
     ipcMain.handle('replayLibraryGetMapTilesets', async () => this.call('getMapTilesets'))
     ipcMain.handle('replayLibraryTrashReplays', async (_event, filePaths) =>

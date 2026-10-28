@@ -141,12 +141,55 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     expect(db.getGameTimes([oldKey, newKey])).toEqual([[newKey, 5000]])
   })
 
+  test('keeps the fingerprints of each replay until its file changes or goes', async () => {
+    const db = await open()
+    addGames(db)
+    const gamePath = (i: number) => path.win32.join(AUTOSAVE, `Game ${i}.rep`)
+    const unread = () => db.listUnfingerprinted(1, 100).map(r => r.path)
+    expect(db.countUnfingerprinted(1)).toBe(13)
+    // The newest first.
+    expect(unread()[0]).toBe(path.win32.join(AUTOSAVE, 'Other.rep'))
+
+    const features = [0.5, Number.NaN, -2]
+    db.saveFingerprints(db.getIdByPath(gamePath(1))!, 1, [
+      { name: 'Ärger', race: 't', features, actions: 300 },
+    ])
+    db.saveFingerprints(db.getIdByPath(gamePath(2))!, 1, [])
+    expect(db.countUnfingerprinted(1)).toBe(11)
+    expect(db.countUnfingerprinted(2)).toBe(13)
+    expect(unread()).not.toContain(gamePath(2))
+
+    const [stored] = db.getFingerprints(1)
+    expect(stored).toMatchObject({ name: 'Ärger', nameKey: 'ärger', race: 't', gameTime: 1001 })
+    expect(Array.from(stored.features)).toEqual(features)
+    expect(db.getFingerprints(2)).toEqual([])
+    expect(Array.from(db.getFingerprintedPlayerNames(1))).toEqual([
+      [db.getIdByPath(gamePath(1)), ['ärger', 'foe1']],
+      [db.getIdByPath(gamePath(2)), ['ärger', 'foe2']],
+    ])
+
+    // Read again, its fingerprints are replaced rather than added to.
+    db.saveFingerprints(db.getIdByPath(gamePath(1))!, 1, [
+      { name: 'Ärger', race: 'z', features, actions: 300 },
+    ])
+    expect(db.getFingerprints(1).map(f => f.race)).toEqual(['z'])
+
+    // A changed file is read again, and a removed one takes its fingerprints with it.
+    db.upsertReplay({ ...makeReplay('Game 1.rep', ['Ärger', 'Foe1'], 1001), fileMtime: 2 })
+    expect(db.getFingerprints(1)).toEqual([])
+    expect(unread()).toContain(gamePath(1))
+    db.deleteByPaths([gamePath(2)])
+    expect(db.getFingerprintedPlayerNames(1).size).toBe(0)
+  })
+
   test('fills in the keys of an index made before they existed', async () => {
     addGames(await open())
     opened.pop()!.close()
     const { default: Database } = await import('better-sqlite3/win32-x64')
     const raw = new Database(dbPath)
     raw.exec(`
+      DROP TABLE player_fingerprints;
+      DROP TABLE replay_fingerprints;
       ALTER TABLE replays DROP COLUMN path_key;
       ALTER TABLE replay_players DROP COLUMN name_key;
       DROP INDEX idx_replays_map_name_tileset;
