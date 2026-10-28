@@ -283,16 +283,19 @@ const TileNote = styled.span`
   color: var(--theme-on-surface-variant);
 `
 
-const ESkillTag = styled(LeagueTag)`
-  margin-left: var(--space-2);
+/** Centers the rank on the digits rather than leaving it on their baseline. */
+const ESkillRow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 `
 
 function ESkillValue({ value, rank }: { value: string; rank?: LadderRank }) {
   return (
-    <>
+    <ESkillRow>
       {value}
-      {rank ? <ESkillTag $rank={rank}>{rank.toUpperCase()}</ESkillTag> : null}
-    </>
+      {rank ? <LeagueTag $rank={rank}>{rank.toUpperCase()}</LeagueTag> : null}
+    </ESkillRow>
   )
 }
 
