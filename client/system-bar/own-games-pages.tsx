@@ -10,6 +10,7 @@ import { FilledButton } from '../material/button'
 import { panelSurface } from '../material/panel'
 import { useDemoPlayer } from '../my-stats/demo-player'
 import { MyStatsView } from '../my-stats/my-stats-page'
+import { getPlayerFromPathname } from '../navigation/section-crumbs'
 import { rememberRecentPlayer, usePlayerAccounts } from '../players/open-player'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { useCurrentMinuteMs } from '../react/date-hooks'
@@ -127,7 +128,9 @@ export function MyStatsPage() {
 
 /** Another player's stats, the same as the user's own, from every analyzed game they were in. */
 export function PlayerStatsPage({ params }: { params: { name: string } }) {
-  const { name } = params
+  // The router leaves the name as it is in the path, where names with characters like spaces or
+  // Korean ones are encoded.
+  const name = getPlayerFromPathname(`/players/${params.name}`) ?? params.name
   const { accounts, isMe } = usePlayerAccounts(name)
   const dispatch = useAppDispatch()
 
