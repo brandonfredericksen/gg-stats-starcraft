@@ -107,9 +107,6 @@ export function registerReplayStatsStatusHandlers() {
       loadReplaySummaries([replayPath], true).catch(swallowNonBuiltins)
     }
   })
-  ipcRenderer.on('activeGameReplaySaved', (_, _gameId, replayPath) => {
-    loadReplaySummaries([replayPath], true).catch(swallowNonBuiltins)
-  })
   ipcRenderer
     .invoke('autoCaptureGetStatus')
     ?.then(status => jotaiStore.set(autoCaptureStatusAtom, status))

@@ -1,6 +1,5 @@
 import { TypedIpcRenderer } from '../../common/ipc'
 import { dispatch } from '../dispatch-registry'
-import { addRecentReplayPathAtom } from '../games/game-atoms'
 import {
   failReplayAnalysisAtom,
   showGameStatsAtom,
@@ -27,9 +26,6 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
       } else if (status.state === 'unknown' || status.state === 'finished') {
         jotaiStore.set(failReplayAnalysisAtom, { gameId: status.id, reason: 'stopped' })
       }
-    })
-    .on('activeGameReplaySaved', (_, gameId, path) => {
-      jotaiStore.set(addRecentReplayPathAtom, { gameId, path })
     })
     .on('activeGameStats', (_, gameId, stats, source) => {
       jotaiStore.set(showGameStatsAtom, { gameId, source, stats })

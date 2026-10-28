@@ -1,7 +1,6 @@
 use std::ptr::null_mut;
 
 use crate::bw;
-use crate::bw_scr::scr;
 
 pub struct LinkedList<T> {
     pub start: *mut *mut T,
@@ -116,14 +115,6 @@ impl<T: BwListEntry> Allocation<T> {
         self.value
     }
 
-    pub unsafe fn move_to(self, dest: &LinkedList<T>) {
-        unsafe {
-            let value = self.value;
-            std::mem::forget(self);
-            dest.add(value);
-        }
-    }
-
     pub unsafe fn append_to(self, dest: &LinkedList<T>) {
         unsafe {
             let value = self.value;
@@ -146,27 +137,7 @@ pub trait BwListEntry {
     unsafe fn prev(this: *mut Self) -> *mut *mut Self;
 }
 
-impl BwListEntry for scr::Sprite {
-    unsafe fn next(this: *mut Self) -> *mut *mut Self {
-        unsafe { &mut (*this).next }
-    }
-
-    unsafe fn prev(this: *mut Self) -> *mut *mut Self {
-        unsafe { &mut (*this).prev }
-    }
-}
-
 impl BwListEntry for bw::Image {
-    unsafe fn next(this: *mut Self) -> *mut *mut Self {
-        unsafe { &mut (*this).next }
-    }
-
-    unsafe fn prev(this: *mut Self) -> *mut *mut Self {
-        unsafe { &mut (*this).prev }
-    }
-}
-
-impl BwListEntry for bw::FowSprite {
     unsafe fn next(this: *mut Self) -> *mut *mut Self {
         unsafe { &mut (*this).next }
     }

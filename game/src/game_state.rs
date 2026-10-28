@@ -1,6 +1,4 @@
-use std::ffi::CStr;
 use std::io;
-use std::mem;
 use std::path::{Path, PathBuf};
 use std::pin::{Pin, pin};
 use std::sync::Arc;
@@ -16,7 +14,6 @@ use crate::app_messages::{
     GAME_STATUS_ERROR, GameSetupInfo, PlayerInfo, SbUser, SbUserId, Settings, SetupProgress,
 };
 use crate::app_socket;
-use crate::bw::players::BwPlayerId;
 use crate::bw::{self, Bw, BwGameType, UserLatency, get_bw};
 use crate::cancel_token::{CancelToken, Canceler, SharedCanceler};
 use crate::forge;
@@ -38,22 +35,17 @@ pub struct GameState {
 
 enum InitState {
     WaitingForInput(IncompleteInit),
-    Started(InitInProgress),
+    Started,
 }
 
 struct IncompleteInit {
     local_user: Option<SbUser>,
-    /// SbUserIds the local user has blocked; their in-game chat is hidden. Not required for init,
-    /// so it defaults to empty if the app never sends it.
-    blocked_users: Vec<SbUserId>,
     settings_set: bool,
 }
 
 impl IncompleteInit {
-    fn init_if_ready(
-        &mut self,
-        info: &Arc<GameSetupInfo>,
-    ) -> Result<InitInProgress, GameInitError> {
+    /// Takes the local user once everything init needs has been received.
+    fn init_if_ready(&mut self) -> Result<SbUser, GameInitError> {
         if !self.settings_set {
             return Err(GameInitError::SettingsNotSet);
         }
@@ -61,11 +53,7 @@ impl IncompleteInit {
             return Err(GameInitError::LocalUserNotSet);
         }
 
-        Ok(InitInProgress::new(
-            info.clone(),
-            self.local_user.take().unwrap(),
-            mem::take(&mut self.blocked_users),
-        ))
+        Ok(self.local_user.take().unwrap())
     }
 }
 
@@ -74,7 +62,6 @@ pub enum GameStateMessage {
     /// Boxed because it is large and sent once per game.
     SetSettings(Box<Settings>),
     SetLocalUser(SbUser),
-    SetBlockedUsers(Vec<SbUserId>),
     SetupGame(Box<GameSetupInfo>),
     GameSetupDone,
     GameThread(GameThreadMessage),
@@ -132,7 +119,6 @@ impl GameState {
     fn set_settings(&mut self, settings: &Settings) {
         if let InitState::WaitingForInput(ref mut state) = self.init_state {
             forge::init(&settings.local, &settings.scr, settings.monitor_bounds);
-            crate::replay_name::set_template(settings.replay_name_template.clone());
             get_bw().set_settings(settings);
             state.settings_set = true;
         } else {
@@ -145,14 +131,6 @@ impl GameState {
             state.local_user = Some(user);
         } else {
             error!("Received local user after game was started");
-        }
-    }
-
-    fn set_blocked_users(&mut self, users: Vec<SbUserId>) {
-        if let InitState::WaitingForInput(ref mut state) = self.init_state {
-            state.blocked_users = users;
-        } else {
-            error!("Received blocked users after game was started");
         }
     }
 
@@ -180,20 +158,16 @@ impl GameState {
         };
 
         let info = Arc::new(info);
-        // The complete initialization logic is split between the future in this function and
-        // InitInProgress, both places poking bw's state as well.. It may probably be better to move
-        // everything to InitInProgress and have this function just initialize it?
-        let init_state = match self.init_state {
-            InitState::WaitingForInput(ref mut state) => match state.init_if_ready(&info) {
+        let local_user = match self.init_state {
+            InitState::WaitingForInput(ref mut state) => match state.init_if_ready() {
                 Ok(o) => o,
                 Err(e) => return future::err(e).boxed(),
             },
-            InitState::Started(_) => {
+            InitState::Started => {
                 return future::err(GameInitError::InitInProgress).boxed();
             }
         };
-        let local_user = init_state.local_user.clone();
-        self.init_state = InitState::Started(init_state);
+        self.init_state = InitState::Started;
 
         let send_messages_to_state = self.internal_send.clone();
         let game_request_send = self.send_main_thread_requests.clone();
@@ -330,7 +304,7 @@ impl GameState {
 
     /// Future finishes after the game has ended and the app has been told
     fn run_game(&mut self) -> impl Future<Output = Result<(), GameInitError>> + use<> {
-        if !matches!(self.init_state, InitState::Started(_)) {
+        if !matches!(self.init_state, InitState::Started) {
             return future::err(GameInitError::GameInitNotInProgress).boxed();
         }
 
@@ -363,9 +337,6 @@ impl GameState {
             }
             SetLocalUser(user) => {
                 self.set_local_user(user);
-            }
-            SetBlockedUsers(users) => {
-                self.set_blocked_users(users);
             }
             SetupGame(info) => {
                 let ws_send = self.ws_send.clone();
@@ -487,47 +458,7 @@ impl GameState {
         use crate::game_thread::GameThreadMessage::*;
         match message {
             WindowMove(..) => (),
-            ReplaySaved(..) => (),
             GameStats(..) | GameStatsFailed => (),
-            MinimapSettings { color_mode } => {
-                // The game thread queues this after the game loop ends, before it completes the
-                // StartGame request whose completion sends `/game/finished`. The two reach the app
-                // over different tasks, so this isn't strictly ordered before `/game/finished`.
-                return app_socket::send_message(
-                    &self.ws_send,
-                    "/game/minimapSettings",
-                    crate::app_messages::MinimapSettings { color_mode },
-                )
-                .map(|_| ())
-                .boxed();
-            }
-            PlayersRandomized => {
-                if let InitState::Started(ref mut state) = self.init_state {
-                    // The launch config only carries the local viewer, so the players come from
-                    // the SB user ids recorded in the replay's Sbat section. This is what lets the
-                    // chat manager hide blocked players' chat.
-                    state.joined_players = build_replay_joined_players();
-
-                    get_bw().init_chat_manager(
-                        &state.joined_players,
-                        state.local_user.id,
-                        &state.blocked_users,
-                        state.setup_info.is_chat_restricted.unwrap_or_default(),
-                    );
-
-                    let mapping = state
-                        .joined_players
-                        .iter()
-                        .map(|player| game_thread::PlayerIdMapping {
-                            game_id: player.player_id,
-                            sb_user_id: player.sb_user_id,
-                        })
-                        .collect();
-                    game_thread::set_player_id_mapping(mapping, state.local_user.id);
-                } else {
-                    warn!("Player randomization received too early");
-                }
-            }
             GameStarting => {
                 return app_socket::send_message(&self.ws_send, "/game/start", ())
                     .map(|_| ())
@@ -547,37 +478,6 @@ async fn expect_quit(async_stop: &SharedCanceler) {
     // succesfully even if the app didn't end up replying to us?
     warn!("Didn't receive close command, exiting automatically");
     async_stop.cancel();
-}
-
-struct InitInProgress {
-    setup_info: Arc<GameSetupInfo>,
-    local_user: SbUser,
-    blocked_users: Vec<SbUserId>,
-
-    joined_players: Vec<JoinedPlayer>,
-}
-
-#[derive(Clone, Debug)]
-pub struct JoinedPlayer {
-    pub name: String,
-    pub player_id: Option<BwPlayerId>,
-    pub sb_user_id: SbUserId,
-}
-
-impl InitInProgress {
-    fn new(
-        setup_info: Arc<GameSetupInfo>,
-        local_user: SbUser,
-        blocked_users: Vec<SbUserId>,
-    ) -> InitInProgress {
-        InitInProgress {
-            setup_info,
-            local_user,
-            blocked_users,
-
-            joined_players: Vec::new(),
-        }
-    }
 }
 
 unsafe fn create_lobby(info: &GameSetupInfo) -> Result<(), GameInitError> {
@@ -708,49 +608,6 @@ unsafe fn setup_slots(
     }
 }
 
-/// Builds the joined-player list for a replay from the SB user ids recorded in its Sbat section,
-/// so the chat manager can hide blocked players' chat. The launch config only names the local
-/// viewer, but the replay records each player's SB user id keyed by BW player id, which is exactly
-/// the id the chat manager matches incoming chat against.
-///
-/// Note we deliberately don't use the storm player list here: in a replay the only storm player is
-/// the local viewer, not the recorded players. `user_ids` is indexed by BW player id (and covers
-/// only the 8 playing slots), so we map it straight across — observers and empty slots (which have
-/// a 0 user id) are skipped and won't have their chat hidden.
-///
-/// Returns an empty list for replays without the Sbat section (e.g. non-ShieldBattery replays), in
-/// which case no chat is hidden.
-fn build_replay_joined_players() -> Vec<JoinedPlayer> {
-    let Some(replay_data) = game_thread::sbat_replay_data() else {
-        return Vec::new();
-    };
-    let players = unsafe { get_bw().players() };
-    let joined_players = replay_data
-        .user_ids
-        .iter()
-        .enumerate()
-        .filter_map(|(player_id, &sb_user_id)| {
-            if sb_user_id.0 == 0 {
-                return None;
-            }
-            // The BW player array is indexed by BW player id too, so it lines up with user_ids.
-            let name = unsafe {
-                CStr::from_ptr((*players.add(player_id)).name.as_ptr() as *const i8)
-                    .to_str()
-                    .unwrap_or("")
-                    .to_string()
-            };
-            Some(JoinedPlayer {
-                name,
-                player_id: Some(BwPlayerId(player_id as u8)),
-                sb_user_id,
-            })
-        })
-        .collect::<Vec<_>>();
-    debug!("Built replay joined players: {joined_players:?}");
-    joined_players
-}
-
 pub async fn create_future(
     ws_send: app_socket::SendMessages,
     async_stop: SharedCanceler,
@@ -762,7 +619,6 @@ pub async fn create_future(
     let mut game_state = GameState {
         init_state: InitState::WaitingForInput(IncompleteInit {
             local_user: None,
-            blocked_users: Vec::new(),
             settings_set: false,
         }),
         ws_send,

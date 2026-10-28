@@ -36,7 +36,6 @@ import { useAppDispatch, useAppSelector } from '../redux-hooks'
 import { analyzeReplay, startReplay } from '../replays/action-creators'
 import { getPlayedDayLabel } from '../replays/replay-days'
 import { bahnschrift, bodyLarge, labelLarge, titleLarge } from '../styles/typography'
-import { recentReplayPathsAtom } from './game-atoms'
 import {
   cancelReplayAnalysisAtom,
   gameStatsByIdAtom,
@@ -517,9 +516,7 @@ function StatsView({
   tileset?: TilesetId
 }) {
   const dispatch = useAppDispatch()
-  const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
-  const replayPath =
-    source.kind === 'replay' ? source.path : (source.replayPath ?? recentReplayPath)
+  const replayPath = source.kind === 'replay' ? source.path : source.replayPath
   const replay = useAnalyzableReplay(gameId, source)
   return (
     <GameStatsView
@@ -550,9 +547,7 @@ function getFileName(filePath: string) {
 
 /** The replay a game's stats can be analyzed again from, and watched with, if there is one. */
 function useAnalyzableReplay(gameId: string, source: GameStatsSource) {
-  const recentReplayPath = useAtomValue(recentReplayPathsAtom).get(gameId)
-  const playedReplayPath =
-    source.kind === 'game' ? (source.replayPath ?? recentReplayPath) : undefined
+  const playedReplayPath = source.kind === 'game' ? source.replayPath : undefined
   if (source.kind === 'replay') {
     return source
   }

@@ -7,10 +7,6 @@ export enum AppSettingsPage {
 
 export enum GameSettingsPage {
   StarCraft = 'GameStarCraft',
-  Input = 'GameInput',
-  Sound = 'GameSound',
-  Video = 'GameVideo',
-  Gameplay = 'GameGameplay',
 }
 
 export type SettingsPage = AppSettingsPage | GameSettingsPage

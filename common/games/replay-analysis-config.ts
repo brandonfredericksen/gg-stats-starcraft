@@ -55,7 +55,6 @@ export function makeReplayAnalysisConfig({
 
   return {
     localUser: LOCAL_USER,
-    blockedUsers: [],
     setup: {
       gameId,
       name,

@@ -1,6 +1,5 @@
 import { Link, Route, Switch } from 'wouter'
 import { ButtonsTest } from './buttons-test'
-import { ColorPickerTest } from './color-picker-test'
 import { GamePartsTest } from './game-parts-test'
 import { MenuTest } from './menu-test'
 import DevPopover from './popover-test'
@@ -18,9 +17,6 @@ function DevMaterialDashboard() {
     <ul>
       <li>
         <Link href={`${BASE_URL}/button`}>Button component</Link>
-      </li>
-      <li>
-        <Link href={`${BASE_URL}/color-picker`}>Color picker component</Link>
       </li>
       <li>
         <Link href={`${BASE_URL}/game-parts`}>Game list parts</Link>
@@ -57,7 +53,6 @@ export default function DevMaterialRoutes() {
   return (
     <Switch>
       <Route path={`${BASE_URL}/button`} component={ButtonsTest} />
-      <Route path={`${BASE_URL}/color-picker`} component={ColorPickerTest} />
       <Route path={`${BASE_URL}/game-parts`} component={GamePartsTest} />
       <Route path={`${BASE_URL}/menu`} component={MenuTest} />
       <Route path={`${BASE_URL}/popover`} component={DevPopover} />

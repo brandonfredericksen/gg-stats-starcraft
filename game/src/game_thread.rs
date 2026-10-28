@@ -3,24 +3,19 @@
 mod lobby_init;
 mod pathing;
 
-use std::cell::RefCell;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bw_dat::dialog::Dialog;
-use bw_dat::{Unit, UnitId};
+use bw_dat::Unit;
 use byteorder::{ByteOrder, LittleEndian};
-use fxhash::FxHashSet;
 use lazy_static::lazy_static;
-use libc::c_void;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::app_messages::{GameSetupInfo, MapInfo, MinimapColorMode, SbUserId, StartingFog};
-use crate::bw::players::{BwPlayerId, StormPlayerId};
+use crate::app_messages::GameSetupInfo;
+use crate::bw::players::StormPlayerId;
 use crate::bw::{Bw, get_bw};
 use crate::bw_scr::BwScr;
 use crate::forge::TRACK_WINDOW_POS;
@@ -42,19 +37,6 @@ static SETUP_INFO: OnceLock<GameSetupInfo> = OnceLock::new();
 /// Global for shieldbattery-specific replay data.
 /// Will not be initialized outside replays. (Or if the replay doesn't have that data)
 static SBAT_REPLAY_DATA: OnceLock<replay::SbatReplayData> = OnceLock::new();
-/// Contains game id, shieldbattery user id pairs after the slots have been randomized,
-/// human player slots / obeservers only.
-/// Once this is set it is expected to be valid for the entire game.
-/// Could also be easily extended to have storm ids if mapping between them is needed.
-static PLAYER_ID_MAPPING: OnceLock<Vec<PlayerIdMapping>> = OnceLock::new();
-/// The ShieldBattery user playing (or observing) on this client, set alongside the player id
-/// mapping.
-static LOCAL_USER_ID: OnceLock<SbUserId> = OnceLock::new();
-pub struct PlayerIdMapping {
-    /// None at least for observers
-    pub game_id: Option<BwPlayerId>,
-    pub sb_user_id: SbUserId,
-}
 
 pub fn set_sbat_replay_data(data: replay::SbatReplayData) {
     if SBAT_REPLAY_DATA.set(data).is_err() {
@@ -94,20 +76,11 @@ pub enum GameThreadRequestType {
 // Game thread sends something to async tasks
 pub enum GameThreadMessage {
     WindowMove(i32, i32, i32, i32),
-    /// BW has assigned the final game player ids. Any game player ids used so far should be
-    /// considered invalid.
-    PlayersRandomized,
     GameStarting,
-    ReplaySaved(PathBuf),
     /// Each player's stats, sent once the game ends.
     GameStats(crate::game_stats::GameStats),
     /// The game ended but its stats couldn't be collected.
     GameStatsFailed,
-    /// Current minimap color toggle value, read once when the game loop ends so it can be
-    /// persisted to settings.
-    MinimapSettings {
-        color_mode: MinimapColorMode,
-    },
 }
 
 /// Sends a message from game thread to the async system.
@@ -218,10 +191,6 @@ unsafe fn handle_game_request(request: GameThreadRequestType) {
                     forge::fix_clip_cursor();
                 }
                 forge::game_started();
-                bw.fix_zoom_ignoring_effect_sounds();
-                if !in_background {
-                    bw.play_sound("GLUSND_SWISH_OUT");
-                }
                 bw.set_game_started();
                 if !in_background {
                     // The loading screen has handed off to the game, so this is where the
@@ -234,7 +203,6 @@ unsafe fn handle_game_request(request: GameThreadRequestType) {
 
                 debug!("Game loop ended");
                 TRACK_WINDOW_POS.store(false, Ordering::Release);
-                save_minimap_settings();
                 forge::hide_window();
             }
             // Saves registry settings etc.
@@ -242,42 +210,6 @@ unsafe fn handle_game_request(request: GameThreadRequestType) {
                 get_bw().clean_up_for_exit();
             }
         }
-    }
-}
-
-pub fn set_player_id_mapping(mapping: Vec<PlayerIdMapping>, local_user_id: SbUserId) {
-    if PLAYER_ID_MAPPING.set(mapping).is_err() {
-        warn!("Player id mapping set twice");
-    }
-    if LOCAL_USER_ID.set(local_user_id).is_err() {
-        warn!("Local user id set twice");
-    }
-}
-
-pub fn local_user_id() -> Option<SbUserId> {
-    LOCAL_USER_ID.get().copied()
-}
-
-pub fn player_id_mapping() -> &'static [PlayerIdMapping] {
-    PLAYER_ID_MAPPING.get().map(|x| &**x).unwrap_or_else(|| {
-        warn!("Tried to access player id mapping before it was set");
-        &[]
-    })
-}
-
-/// Reads the current minimap color toggle value and forwards it to the async thread so it can be
-/// persisted to settings. Nothing is sent when the game global wasn't located, so the previously
-/// saved value is left untouched. Should only be called from the game thread, after the game loop
-/// has ended (while the globals are still valid).
-fn save_minimap_settings() {
-    let bw = get_bw();
-    // With custom team colors active the real global is pinned per mode, so persist the virtual
-    // mode the user actually sees; otherwise read BW's real global exactly as before.
-    let color_mode = bw
-        .team_color_virtual_mode()
-        .or_else(|| bw.read_minimap_color_mode());
-    if let Some(color_mode) = color_mode {
-        send_game_msg_to_async(GameThreadMessage::MinimapSettings { color_mode });
     }
 }
 
@@ -339,8 +271,6 @@ pub unsafe fn after_init_game_data() {
         }
 
         let game_data = bw.game_data();
-        let had_allies_enabled = (*game_data).game_template.allies_enabled != 0;
-        bw::set_had_allies_enabled(had_allies_enabled);
         if setup_info()
             .and_then(|s| s.disable_alliance_changes)
             .unwrap_or(false)
@@ -348,29 +278,8 @@ pub unsafe fn after_init_game_data() {
             (*game_data).game_template.allies_enabled = 0;
         }
 
-        send_game_msg_to_async(GameThreadMessage::PlayersRandomized);
-
         // The game's data is loaded now, which says which icon each upgrade and tech uses.
         crate::game_icons::save_captured();
-
-        // Now that alliances are finalized, build the custom team-color assignment (a no-op unless
-        // the feature is active). Must run before the minimap dialog inits so colors are correct
-        // from the first frame.
-        bw.init_team_colors();
-
-        // Create fog-of-war sprites for any neutral buildings
-        if !is_ums()
-            && matches!(
-                bw.starting_fog(),
-                StartingFog::Transparent | StartingFog::ShowResources
-            )
-        {
-            for unit in bw.active_units() {
-                if unit.player() == 11 && unit.is_landed_building() {
-                    bw.create_fow_sprite(unit);
-                }
-            }
-        }
     }
 }
 
@@ -402,26 +311,6 @@ pub fn setup_info() -> Option<&'static GameSetupInfo> {
     SETUP_INFO.get()
 }
 
-/// Returns map name (Title, or something else the uploader has renamed it to in SB),
-/// without any color chars (Even if the app also filters them out),
-/// or characters illegal in filenames on Windows.
-pub fn map_name_for_filename() -> String {
-    let mut name: String = SETUP_INFO
-        .get()
-        .and_then(|x| match &x.map {
-            MapInfo::Game(map) => Some(map.name.as_str()),
-            MapInfo::Replay(_) => None,
-        })
-        .unwrap_or("(Unknown map name)")
-        .into();
-    name.retain(|c| match c {
-        '/' | '\\' | '"' | '*' | '?' | '<' | '>' | ':' | '|' => false,
-        x if x < (0x20 as char) => false,
-        _ => true,
-    });
-    name
-}
-
 /// Bw impl is expected to call this after step_game,
 /// the function that progresses game objects by a tick/frame/step.
 /// In other words, if the game isn't paused/lagging, this gets ran 24 times in second
@@ -431,61 +320,7 @@ pub fn map_name_for_filename() -> String {
 /// isn't too useful to us unless we end up having a need to change game rules.
 pub unsafe fn after_step_game() {
     unsafe {
-        let bw = get_bw();
-        add_fow_sprites_for_replay_vision_change(bw);
         crate::game_stats::after_step();
-    }
-}
-
-thread_local! {
-    /// Scratch set for [`add_fow_sprites_for_replay_vision_change`], reused across calls to
-    /// avoid reallocating on every simulation step. Only ever touched from the game thread,
-    /// same as the function itself.
-    static FOW_SPRITE_POSITIONS: RefCell<FxHashSet<(i16, i16, UnitId)>> =
-        RefCell::new(FxHashSet::with_capacity_and_hasher(256, Default::default()));
-}
-
-pub unsafe fn add_fow_sprites_for_replay_vision_change(bw: &BwScr) {
-    unsafe {
-        if is_replay() && !is_ums() && bw.starting_fog() != StartingFog::Legacy {
-            // One thing BW's step_game does is that it removes any fog sprites that were
-            // no longer in fog. Unfortunately now that we show fog sprites for unexplored
-            // resources as well, removing those fog sprites ends up being problematic if
-            // the user switches vision off from a player who had those resources explored.
-            // In such case the unexplored fog sprites would not appear and some of the
-            // expansions would show up as empty while other unexplored bases keep their
-            // fog sprites as usual.
-            // To get around this issue, check which neutral buildings don't have fog
-            // sprites and add them back.
-
-            FOW_SPRITE_POSITIONS.with_borrow_mut(|fow_sprites| {
-                fow_sprites.clear();
-                for fow in bw.fow_sprites() {
-                    let sprite = (*fow).sprite;
-                    let pos = bw.sprite_position(sprite);
-                    fow_sprites.insert((pos.x, pos.y, UnitId((*fow).unit_id)));
-                }
-                let replay_visions = bw.replay_visions();
-                for unit in bw.active_units() {
-                    if unit.player() == 11 && unit.is_landed_building() {
-                        // This currently adds fow sprites even for buildings that became
-                        // neutral after player left. It's probably fine, but if it wasn't
-                        // desired, checking that `sprite.player == 11` should only include
-                        // buildings that existed from map start
-                        if let Some(sprite) = unit.sprite() {
-                            let is_visible = replay_visions.show_entire_map
-                                || sprite.visibility_mask() & replay_visions.players != 0;
-                            if !is_visible {
-                                let pos = bw.sprite_position(*sprite as *mut c_void);
-                                if fow_sprites.insert((pos.x, pos.y, unit.id())) {
-                                    bw.create_fow_sprite(unit);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
     }
 }
 
@@ -624,61 +459,6 @@ pub unsafe fn before_init_unit_data(bw: &BwScr) {
                         // This value is twice the displayed, so 200 max supply for each
                         // player in team. (Or 200 if none)
                         (*game).supplies[race].max[main_player] = count * 400;
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub unsafe fn after_status_screen_update(bw: &BwScr, status_screen: Dialog, unit: Unit) {
-    unsafe {
-        // Show "Stacked (n)" text for stacked buildings
-        if unit.is_landed_building() {
-            fn normalize_id(id: UnitId) -> UnitId {
-                use bw_dat::unit;
-                // For mineral fields, consider any mineral field unit as equivalent.
-                // May be useful in some fastest maps.
-                match id {
-                    unit::MINERAL_FIELD_2 | unit::MINERAL_FIELD_3 => unit::MINERAL_FIELD_1,
-                    x => x,
-                }
-            }
-
-            // Find units that have same unit id and collide with this unit's center
-            // (So they don't necessarily have to be perfectly stacked)
-            let mut count = 0;
-            let pos = unit.position();
-            let id = normalize_id(unit.id());
-            // Doing a loop like this through every active unit is definitely worse
-            // than using some position searching structure, but building that structure
-            // would still require looping through the units once.
-            // If we have such structure in future for some other code it should be used
-            // here too though.
-            for other in bw.active_units() {
-                if normalize_id(other.id()) == id && other.collision_rect().contains_point(&pos) {
-                    count += 1;
-                }
-            }
-            if count > 1 {
-                // Show the text at where unit rank/status is usually, as long as it hasn't
-                // been used.
-                if let Some(rank_status) = status_screen.child_by_id(-20) {
-                    let existing_text = rank_status.string();
-                    if rank_status.is_hidden()
-                        || existing_text.starts_with("Stacked")
-                        || existing_text.is_empty()
-                    {
-                        use std::io::Write;
-
-                        let mut buffer = [0; 32];
-                        let buf_len = buffer.len();
-                        let mut out = &mut buffer[..];
-                        // TODO: Could use translations in other SC:R languages :)
-                        let _ = write!(&mut out, "Stacked ({count})");
-                        let len = buf_len - out.len();
-                        rank_status.set_string(&buffer[..len]);
-                        rank_status.show();
                     }
                 }
             }

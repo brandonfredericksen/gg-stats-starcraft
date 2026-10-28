@@ -3,13 +3,10 @@
 
 use libc::c_void;
 
-use crate::bw;
 use crate::bw::SnpFunctions;
 use crate::bw_scr::{bw_free, bw_malloc};
 
 use super::thiscall::Thiscall;
-
-pub use bw_dat::structs::scr::{DrawCommand, DrawCommands, DrawSubCommand, DrawSubCommands};
 
 #[repr(C)]
 pub struct SnpLoadFuncs {
@@ -89,30 +86,6 @@ impl BwString {
         self.capacity & !(usize::MAX >> 1) != 0
     }
 
-    /// Whether the header's fields agree with each other well enough that reading the contents is
-    /// safe: the inline buffer is in use and pointed to, or the heap buffer's length fits its
-    /// (bounded) capacity. A struct read from memory that doesn't actually hold a `BwString` fails
-    /// this check in practice, which callers reading game data at guessed layouts rely on.
-    pub fn is_plausible(&self) -> bool {
-        if self.is_using_inline_buffer() {
-            std::ptr::eq(self.pointer, self.inline_buffer.as_ptr())
-                && self.length < self.inline_buffer.len()
-        } else {
-            !self.pointer.is_null()
-                && self.length <= self.get_capacity()
-                && self.get_capacity() < 0x1000
-        }
-    }
-
-    /// The string's current contents, without the null terminator.
-    ///
-    /// # Safety
-    /// `pointer` must point to at least `length` readable bytes (true for any string the game
-    /// built; check `is_plausible` first when the struct itself was read at a guessed layout).
-    pub unsafe fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.pointer, self.length) }
-    }
-
     /// Replaces the entire contents of the string, allocating new memory if necessary.
     pub fn replace_all(&mut self, replace_with: &str) {
         if replace_with.len() > self.get_capacity() {
@@ -138,14 +111,6 @@ impl BwString {
             text_slice[replace_with.len()] = 0;
             self.length = replace_with.len();
         }
-    }
-}
-
-pub struct BorrowedBwString<'a>(&'a mut *mut BwString);
-
-impl<'a> BorrowedBwString<'a> {
-    pub unsafe fn as_ptr(&self) -> *mut BwString {
-        *self.0
     }
 }
 
@@ -182,12 +147,6 @@ impl SafeBwString {
                 Self(s)
             }
         }
-    }
-
-    /// Borrows the inner [BwString], allowing you to use the inner pointer directly. This is useful
-    /// if you need to pass the string to a BW function that does not take ownership over it.
-    pub unsafe fn borrow(&mut self) -> BorrowedBwString<'_> {
-        BorrowedBwString(&mut self.0)
     }
 
     /// Consumes the [SafeBwString], returning the wrapped [BwString] pointer.
@@ -369,150 +328,6 @@ pub struct V_Function {
 }
 
 #[repr(C)]
-pub struct Font {
-    pub unk0: *mut c_void,
-    pub unk4: usize,
-    pub unk8: *mut c_void,
-    pub unkc: u32,
-    pub unk10: u32,
-    pub ttf: *mut TtfSet,
-}
-
-#[repr(C)]
-pub struct TtfSet {
-    pub fonts: [TtfFont; 5],
-}
-
-#[repr(C)]
-pub struct TtfFont {
-    pub unk0: usize,
-    pub raw_ttf: *mut u8,
-    #[cfg(target_arch = "x86")]
-    pub unk8: [u8; 0x70],
-    #[cfg(target_arch = "x86_64")]
-    pub unk8: [u8; 0x88],
-    pub raw_ttf2: *mut u8, // 78 // 98
-    pub unk7c: u32,
-    pub scale: f32, // 80 // a4
-    pub unk_floats: [f32; 3],
-    pub unk90: [u32; 3],
-    pub unk90_ptr_sized: [usize; 1],
-}
-
-#[repr(C)]
-pub struct BwHashTable<K, V> {
-    pub bucket_count: usize,
-    pub buckets: *mut *mut BwHashTableEntry<K, V>,
-    pub size: usize,
-    pub resize_factor: f32,
-}
-
-#[repr(C)]
-pub struct BwHashTableEntry<K, V> {
-    pub next: *mut BwHashTableEntry<K, V>,
-    pub pair: Pair<K, V>,
-}
-
-#[repr(C)]
-pub struct Pair<K, V> {
-    pub key: K,
-    pub value: V,
-}
-
-/// A loaded `rez/sfx.json` entry, as SC:R keeps them in the heap array its `sfx_data` global points
-/// to (indexed by sound id). The bool fields hold the json flags of the same name. Fields from
-/// `metadata_name` on are runtime state that only exists here so the struct's size matches the
-/// array stride on both architectures.
-#[repr(C)]
-pub struct SfxDataEntry {
-    pub name: BwString,
-    pub alt_name: BwString,
-    pub file_path: BwString,
-    pub priority: u8,
-    pub preload: u8,
-    /// Besides marking speech for the one-line-per-unit-type dedup, the positional volume
-    /// calculation reads this as "ignore camera zoom" (see
-    /// `BwScr::fix_zoom_ignoring_effect_sounds`).
-    pub unit_speech: u8,
-    pub streaming: u8,
-    /// Set once the game has tried to load the audio asset.
-    pub load_attempted: u8,
-    pub unk7d: u8,
-    pub one_at_a_time: u8,
-    pub never_preempt: u8,
-    pub length_adjust: u16,
-    /// Percent; the floor for positional attenuation.
-    pub min_volume: u8,
-    pub unk83: u8,
-    pub raffle_tickets: u32,
-    pub metadata_name: BwString,
-    pub reload_requested: u8,
-    pub audio_asset: SfxAudioAsset,
-    pub src_data: BwString,
-}
-
-#[repr(C)]
-pub struct SfxAudioAsset {
-    pub sound: *mut c_void,
-    pub duration_ms: u32,
-    pub last_play_tick: u32,
-    pub group: u32,
-}
-
-#[cfg(target_arch = "x86")]
-const _: () = assert!(std::mem::size_of::<SfxDataEntry>() == 0xb0);
-#[cfg(target_arch = "x86")]
-const _: () = assert!(std::mem::offset_of!(SfxDataEntry, unit_speech) == 0x56);
-#[cfg(target_arch = "x86_64")]
-const _: () = assert!(std::mem::size_of::<SfxDataEntry>() == 0xf8);
-#[cfg(target_arch = "x86_64")]
-const _: () = assert!(std::mem::offset_of!(SfxDataEntry, unit_speech) == 0x7a);
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct PrismShaderSet {
-    pub count: u32,
-    pub shaders: *mut PrismShader,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct PrismShader {
-    pub api_type: u8,
-    pub shader_type: u8,
-    pub unk: [u8; 6],
-    pub data: *const u8,
-    pub data_len: u32,
-}
-
-#[repr(C)]
-pub struct Shader {
-    pub id: u32,
-    pub rest: [u8; 0x74],
-}
-
-#[repr(C)]
-pub struct Sprite {
-    pub prev: *mut Sprite,
-    pub next: *mut Sprite,
-    pub sprite_id: u16,
-    pub player: u8,
-    pub selection_index: u8,
-    pub visibility_mask: u8,
-    pub elevation_level: u8,
-    pub flags: u8,
-    pub selection_flash_timer: u8,
-    pub index: u16,
-    pub width: u8,
-    pub height: u8,
-    pub pos_x: usize,
-    pub pos_y: usize,
-    pub main_image: *mut bw::Image,
-    pub first_image: *mut bw::Image,
-    pub last_image: *mut bw::Image,
-}
-
-#[repr(C)]
 pub struct Allocator {
     pub vtable: *mut AllocatorVtable,
 }
@@ -544,203 +359,11 @@ pub struct AntiTroll {
     pub active: u8,
 }
 
-#[repr(C)]
-pub struct NetFormatTurnRateResult {
-    // TODO(tec27): Not entirely certain what this is, behaves kind of weird during a DTR scan.
-    // This first value is a pointer that gets zeroed out if not used.
-    pub unk0: [u8; 4],
-    pub text: BwString,
-}
-
-#[repr(C)]
-pub struct Renderer {
-    pub vtable: *const V_Renderer,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct V_Renderer {
-    pub clone: usize,
-    pub init_sub: usize,
-    pub init: usize,
-    pub unk3: usize,
-    pub unk4: usize,
-    pub swap_buffers: usize,
-    pub unk6: usize,
-    pub draw: Thiscall<unsafe extern "C" fn(*mut Renderer, *mut DrawCommands, u32, u32) -> u32>,
-    pub clear_color: usize,
-    pub unk9: usize,
-    pub upload_vertices: usize,
-    pub unkb: usize,
-    /// format, data, data_len, width, height, filtering, wrap_mode
-    pub create_texture: Thiscall<
-        unsafe extern "C" fn(
-            *mut Renderer,
-            u32,
-            *const u8,
-            usize,
-            u32,
-            u32,
-            u32,
-            u32,
-        ) -> *mut RendererTexture,
-    >,
-    pub unkd: usize,
-    /// texture, x, y, width, height, data, row_length (pixels), format, filtering, wrap_mode
-    pub update_texture: Thiscall<
-        unsafe extern "C" fn(
-            *mut Renderer,
-            *mut RendererTexture,
-            u32,
-            u32,
-            u32,
-            u32,
-            *const u8,
-            u32,
-            u32,
-            u32,
-            u32,
-        ),
-    >,
-    pub delete_texture: Thiscall<unsafe extern "C" fn(*mut Renderer, *mut *mut RendererTexture)>,
-    pub create_shader: Thiscall<
-        unsafe extern "C" fn(
-            *mut Renderer,
-            *mut Shader,
-            *const u8,
-            *const u8,
-            *const u8,
-            *mut c_void,
-        ) -> usize,
-    >,
-}
-
-/// Opaque struct
-#[repr(C)]
-pub struct RendererTexture {}
-
-// Checked to have correct layout on both 32/64 bit
-#[repr(C)]
-pub struct VertexBuffer {
-    pub buffer_size_u32s: usize,
-    pub allocated_size_bytes: usize,
-    pub buffer: BwVector,
-    pub subbuffers: BwVector,
-    pub heap_allocated: u8,
-    pub unk_size: usize,
-    pub subbuffer_sizes: usize,
-    pub unk2c: usize,
-    pub index_buf_size_u16s: usize,
-    pub index_buffer_allocated_bytes: usize,
-    pub index_buffer: BwVector,
-    pub index_buf_heap_allocated: u8,
-    pub unk_vertex_buffer_data: *mut c_void,
-}
-
-#[repr(C)]
-pub struct RenderTarget {
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub attachments: u32,
-    pub unk14: [u32; 2],
-    pub backend_target: *mut c_void,
-}
-
-/// Used to sort DrawCommands to be drawn in correct order when rendering.
-/// One DrawSort must exist for each DrawCommand used.
-#[repr(C)]
-pub struct DrawSort {
-    pub layer: u16,
-    // Self index when pushed to vector
-    // Probably used to break ties when layer is same
-    pub index: u16,
-    pub command: *mut DrawCommand,
-}
-
-#[repr(C)]
-pub struct Texture {
-    pub unk: u32,
-    pub width: u16,
-    pub height: u16,
-    pub renderer_texture: *mut RendererTexture,
-    pub scale: u16,
-}
-
-#[repr(C)]
-pub struct DdsGrp {
-    pub frame_count: u16,
-    pub textures: *mut Texture,
-}
-
-#[repr(C)]
-pub struct DdsGrpSet {
-    // Legacy palette renderer GRP (Same struct as pre-SC:R)
-    pub grp: *mut c_void,
-    // SD, HD, Carbot (Carbot is not required to be loaded)
-    pub dds_grps: [DdsGrp; 0x3],
-    pub ui_asset_id: u32,
-    pub unk_20: u8,
-    pub unk_21: u8,
-    pub unk_22: u8,
-    pub unk_23: u8,
-    pub unk_24: u8,
-}
-
-#[repr(C)]
-pub struct UiConsole {
-    pub vtable: *const V_UiConsole,
-}
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct V_UiConsole {
-    pub delete: usize,
-    pub unk1: usize,
-    pub unk2: usize,
-    pub unk3: usize,
-    pub unk4: usize,
-    pub unk5: usize,
-    pub hit_test: Thiscall<unsafe extern "C" fn(*mut UiConsole, u32, u32) -> u8>,
-}
-
-unsafe impl Sync for PrismShader {}
-unsafe impl Send for PrismShader {}
-
-pub const PRISM_SHADER_API_SM4: u8 = 0x0;
-pub const PRISM_SHADER_API_SM5: u8 = 0x4;
-pub const PRISM_SHADER_TYPE_PIXEL: u8 = 0x6;
-
 #[test]
 fn struct_sizes() {
-    #[cfg(target_arch = "x86")]
-    fn size(value: usize, _: usize) -> usize {
-        value
-    }
-    #[cfg(target_arch = "x86_64")]
-    fn size(_: usize, value: usize) -> usize {
-        value
-    }
-
     use std::mem::size_of;
     assert_eq!(
         size_of::<SnpFunctions>(),
         (0x3c / 4 + 0x10) * size_of::<usize>()
     );
-    assert_eq!(size_of::<PrismShaderSet>(), size(0x8, 0x10));
-    assert_eq!(size_of::<PrismShader>(), size(0x10, 0x18));
-    assert_eq!(size_of::<DrawCommand>(), size(0xa0, 0xd8));
-    // Not correct on 64bit but don't think we rely on the size at all.
-    assert_eq!(size_of::<Shader>(), 0x78);
-    assert_eq!(size_of::<Sprite>(), size(0x28, 0x48));
-    assert_eq!(size_of::<V_Renderer>(), 0x44 / 4 * size_of::<usize>());
-    assert_eq!(size_of::<VertexBuffer>(), size(0x4c, 0x98));
-    assert_eq!(size_of::<RenderTarget>(), size(0x20, 0x28));
-    assert_eq!(size_of::<DrawSort>(), size(0x8, 0x10));
-    assert_eq!(size_of::<Texture>(), size(0x10, 0x18));
-    assert_eq!(size_of::<DdsGrp>(), size(0x8, 0x10));
-    assert_eq!(size_of::<DdsGrpSet>(), size(0x28, 0x48));
-    assert_eq!(size_of::<Font>(), size(0x18, 0x28));
-    assert_eq!(size_of::<TtfFont>(), size(0xa0, 0xc8));
 }

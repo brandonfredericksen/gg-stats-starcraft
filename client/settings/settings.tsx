@@ -5,23 +5,15 @@ import { useTranslation } from 'react-i18next'
 import { useSearch } from 'wouter'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { useKeyListener } from '../keyboard/key-listener'
-import { TextButton } from '../material/button'
 import { useAppDispatch } from '../redux-hooks'
 import { starcraftHealthy } from '../starcraft/health-state'
-import { closeSettings, confirmResetReplayViewing } from './action-creators'
+import { closeSettings } from './action-creators'
 import { AppAppearanceSettings } from './app/appearance-settings'
 import { AppPlayerNamesSettings } from './app/player-names-settings'
 import { AppReplaySettings } from './app/replay-settings'
 import { AppSystemSettings } from './app/system-settings'
-import { GameplaySettings } from './game/gameplay-settings'
-import { GameInputSettings } from './game/input-settings'
-import { GameSoundSettings } from './game/sound-settings'
 import { StarcraftSettings } from './game/starcraft-settings'
-import { GameVideoSettings } from './game/video-settings'
 import {
-  CollapseButton,
-  CollapseChevron,
-  CollapseText,
   Main,
   NavItem,
   NavList,
@@ -29,8 +21,6 @@ import {
   NavVersion,
   Root,
   Section,
-  SectionDescription,
-  SectionNote,
   SectionTitle,
   SettingsCard,
   SideNav,
@@ -46,7 +36,7 @@ const ESCAPE = 'Escape'
 /** Room left above a section's title when jumping to it. */
 const SCROLL_TOP_MARGIN = 24
 
-type SectionId = 'general' | 'replays' | 'starcraft' | 'replay-viewing'
+type SectionId = 'general' | 'replays' | 'starcraft'
 
 interface SettingsSection {
   id: SectionId
@@ -62,16 +52,6 @@ const SECTIONS: ReadonlyArray<SettingsSection> = [
   },
   { id: 'replays', icon: 'video_library', pages: [AppSettingsPage.Replays] },
   { id: 'starcraft', icon: 'folder_open', pages: [GameSettingsPage.StarCraft] },
-  {
-    id: 'replay-viewing',
-    icon: 'smart_display',
-    pages: [
-      GameSettingsPage.Input,
-      GameSettingsPage.Sound,
-      GameSettingsPage.Video,
-      GameSettingsPage.Gameplay,
-    ],
-  },
 ]
 
 function getSectionTitle(id: SectionId, t: TFunction) {
@@ -82,8 +62,6 @@ function getSectionTitle(id: SectionId, t: TFunction) {
       return t('settings.sections.replays', 'Replays')
     case 'starcraft':
       return t('settings.sections.starcraft', 'StarCraft')
-    case 'replay-viewing':
-      return t('settings.sections.replayViewing', 'When watching replays')
     default:
       return id satisfies never
   }
@@ -131,7 +109,6 @@ export function SettingsScreen() {
   const targetPage = ALL_SETTINGS_PAGES.find(p => p === pageParam)
   const targetSection = sectionForPage(targetPage)
 
-  const [replayViewingOpen, setReplayViewingOpen] = useState(targetSection?.id === 'replay-viewing')
   const [activeSection, setActiveSection] = useState<SectionId>(targetSection?.id ?? 'general')
   const sectionElems = useRef(new Map<SectionId, HTMLElement>())
 
@@ -146,7 +123,7 @@ export function SettingsScreen() {
   })
 
   const rootRef = useRef<HTMLDivElement>(null)
-  // A section to scroll to once it has rendered, like one that was collapsed until it was asked for
+  // A section to scroll to once it has rendered
   const [pendingJump, setPendingJump] = useState<{ id: SectionId; smooth: boolean } | undefined>(
     targetSection ? { id: targetSection.id, smooth: false } : undefined,
   )
@@ -162,7 +139,7 @@ export function SettingsScreen() {
       behavior: pendingJump.smooth ? 'smooth' : 'auto',
     })
     setPendingJump(undefined)
-  }, [pendingJump, replayViewingOpen])
+  }, [pendingJump])
 
   useEffect(() => {
     if (!rootRef.current) {
@@ -192,9 +169,6 @@ export function SettingsScreen() {
   }, [])
 
   const jumpTo = (id: SectionId) => {
-    if (id === 'replay-viewing') {
-      setReplayViewingOpen(true)
-    }
     setActiveSection(id)
     setPendingJump({ id, smooth: true })
   }
@@ -234,56 +208,6 @@ export function SettingsScreen() {
             }
           }
 
-          if (section.id === 'replay-viewing') {
-            return (
-              <Section key={section.id} ref={ref} data-section={section.id}>
-                <CollapseButton
-                  type='button'
-                  aria-expanded={replayViewingOpen}
-                  onClick={() => setReplayViewingOpen(open => !open)}>
-                  <CollapseText>
-                    <SectionTitle as='span'>{getSectionTitle(section.id, t)}</SectionTitle>
-                    <SectionDescription>
-                      {t(
-                        'settings.sections.replayViewingDescription',
-                        'Controls, sound, video and gameplay for when you watch a replay in ' +
-                          'StarCraft. Analysis ignores them.',
-                      )}
-                    </SectionDescription>
-                  </CollapseText>
-                  <CollapseChevron icon='expand_more' $open={replayViewingOpen} />
-                </CollapseButton>
-                {replayViewingOpen && !isStarcraftHealthy ? (
-                  <SectionNote>
-                    {t(
-                      'settings.sections.replayViewingNeedsStarcraft',
-                      'Set your StarCraft folder above to change these.',
-                    )}
-                  </SectionNote>
-                ) : null}
-                {replayViewingOpen && isStarcraftHealthy
-                  ? section.pages.map(page => (
-                      <SettingsCard
-                        key={page}
-                        title={getSettingsPageTitle({ page, t })}
-                        testName={`settings-card-${page}`}>
-                        <SettingsPageDisplay page={page} />
-                      </SettingsCard>
-                    ))
-                  : null}
-                {replayViewingOpen && isStarcraftHealthy ? (
-                  <div>
-                    <TextButton
-                      label={t('settings.replayViewing.reset', 'Reset to defaults')}
-                      iconStart={<MaterialIcon icon='restart_alt' />}
-                      onClick={() => dispatch(confirmResetReplayViewing())}
-                    />
-                  </div>
-                ) : null}
-              </Section>
-            )
-          }
-
           return (
             <Section key={section.id} ref={ref} data-section={section.id}>
               <SectionTitle>{getSectionTitle(section.id, t)}</SectionTitle>
@@ -319,14 +243,6 @@ function SettingsPageDisplay({ page }: { page: SettingsPage }) {
       return <AppSystemSettings />
     case GameSettingsPage.StarCraft:
       return <StarcraftSettings />
-    case GameSettingsPage.Input:
-      return <GameInputSettings />
-    case GameSettingsPage.Sound:
-      return <GameSoundSettings />
-    case GameSettingsPage.Video:
-      return <GameVideoSettings />
-    case GameSettingsPage.Gameplay:
-      return <GameplaySettings />
     default:
       return page satisfies never
   }
@@ -344,14 +260,6 @@ function getSettingsPageTitle({ page, t }: { page: SettingsPage; t: TFunction })
       return t('settings.app.system.title', 'System')
     case GameSettingsPage.StarCraft:
       return t('settings.game.starcraft.title', 'StarCraft')
-    case GameSettingsPage.Input:
-      return t('settings.game.input.title', 'Input')
-    case GameSettingsPage.Sound:
-      return t('settings.game.sound.title', 'Sound')
-    case GameSettingsPage.Video:
-      return t('settings.game.video.title', 'Video')
-    case GameSettingsPage.Gameplay:
-      return t('settings.game.gameplay.title', 'Gameplay')
     default:
       return page satisfies never
   }

@@ -522,27 +522,6 @@ export class GameStatsStore {
     })
   }
 
-  /** Records where a played game's replay was saved, once it has been. */
-  setReplayPath(gameId: string, replayPath: string): Promise<void> {
-    return this.enqueue(async () => {
-      const saved = await this.readSaved(gameId)
-      if (saved?.source.kind !== 'game') {
-        return
-      }
-      const updated: SavedGameStats = {
-        ...saved,
-        source: { ...saved.source, replayPath },
-        replayFile: await getReplayFileInfo(replayPath),
-      }
-      const savedFile = await this.writeSaved(updated)
-      const index = await this.getIndex()
-      if (index.has(gameId)) {
-        index.set(gameId, await toIndexEntry(updated, savedFile))
-        this.scheduleCacheWrite()
-      }
-    })
-  }
-
   /**
    * Returns the stats saved for a game: a game played or replay analyzed under this id, or the
    * latest analysis of a replay linked to the game with this id. Stats covering the whole

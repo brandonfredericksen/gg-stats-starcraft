@@ -51,7 +51,7 @@ import logger from './logger'
 import { setupMyStats } from './my-stats'
 import { ReplayLibraryService, setupReplayLibrary } from './replay-library'
 import { parseReplayMetadata, readReplayChat } from './replay-library/replay-parser'
-import { LocalSettingsManager, ScrSettingsManager } from './settings'
+import { LocalSettingsManager, StarcraftSettings } from './settings'
 import type { NewInstanceNotification } from './single-instance'
 import { readSystemHourCycle } from './system-hour-cycle'
 import SystemTray from './system-tray'
@@ -203,19 +203,7 @@ async function createLocalSettings() {
   return settings
 }
 
-async function createScrSettings() {
-  const sessionName = process.env.GGSTATS_SESSION
-  const fileName = sessionName ? `scr-settings-${sessionName}.json` : 'scr-settings.json'
-  const settings = new ScrSettingsManager(
-    path.join(getUserDataPath(), fileName),
-    path.join(app.getPath('documents'), 'StarCraft', 'CSettings.json'),
-    path.join(getUserDataPath(), sessionName ? `CSettings-${sessionName}.json` : 'CSettings.json'),
-  )
-  await settings.untilInitialized()
-  return settings
-}
-
-function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsManager) {
+function setupIpc(localSettings: LocalSettingsManager) {
   ipcMain.on('rendererReady', () => {
     logger.verbose('Renderer reported ready')
     rendererReady = true
@@ -237,24 +225,10 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
       throw err
     }
   })
-  ipcMain.handle('settingsScrGet', async () => {
-    try {
-      return await scrSettings.get()
-    } catch (err: unknown) {
-      logger.error('Error getting SC:R settings: ' + err)
-      throw err
-    }
-  })
   ipcMain.handle('settingsLocalMerge', (event, settings) => {
     // This will trigger a change if things changed, which will then emit a `settingsLocalChanged`
     localSettings.merge(settings).catch(err => {
       logger.error('Error merging local settings: ' + err)
-    })
-  })
-  ipcMain.handle('settingsScrMerge', (event, settings) => {
-    // This will trigger a change if things changed, which will then emit a `settingsScrChanged`
-    scrSettings.merge(settings).catch(err => {
-      logger.error('Error merging SC:R settings: ' + err)
     })
   })
   ipcMain.handle('windowGetStatus', async () => {
@@ -321,9 +295,6 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
     }
 
     TypedIpcSender.from(mainWindow?.webContents).send('settingsLocalChanged', settings)
-  })
-  scrSettings.on('change', settings => {
-    TypedIpcSender.from(mainWindow?.webContents).send('settingsScrChanged', settings)
   })
 
   ipcMain
@@ -413,12 +384,6 @@ function setupIpc(localSettings: LocalSettingsManager, scrSettings: ScrSettingsM
   activeGameManager
     .on('gameStatus', status => {
       TypedIpcSender.from(mainWindow?.webContents).send('activeGameStatus', status)
-    })
-    .on('replaySaved', (gameId, replayPath) => {
-      TypedIpcSender.from(mainWindow?.webContents).send('activeGameReplaySaved', gameId, replayPath)
-      gameStatsStore.setReplayPath(gameId, replayPath).catch(err => {
-        logger.error(`Error saving the replay path for game ${gameId}: ${getErrorStack(err)}`)
-      })
     })
     .on('gameStats', (gameId, { unitPositions, ...stats }, source) => {
       TypedIpcSender.from(mainWindow?.webContents).send('activeGameStats', gameId, stats, source)
@@ -854,7 +819,6 @@ app.on('ready', () => {
   // Analyzing a folder of ladder replays for the baseline, with no window, instead of opening.
   const ladderRun = getLadderRunArgs(process.argv)
   const localSettingsPromise = createLocalSettings()
-  const scrSettingsPromise = createScrSettings()
   const programRegistrationPromise = registerCurrentProgram()
 
   // We don't display this anyway, and it registers shortcuts for things that we don't want (e.g.
@@ -863,14 +827,15 @@ app.on('ready', () => {
 
   Promise.resolve()
     .then(async () => {
-      const [localSettings, scrSettings] = await Promise.all([
-        localSettingsPromise,
-        scrSettingsPromise,
-        programRegistrationPromise,
-      ])
+      const [localSettings] = await Promise.all([localSettingsPromise, programRegistrationPromise])
 
       container.register(LocalSettingsManager, { useValue: localSettings })
-      container.register(ScrSettingsManager, { useValue: scrSettings })
+      container.register(StarcraftSettings, {
+        useValue: new StarcraftSettings(
+          path.join(app.getPath('documents'), 'StarCraft', 'CSettings.json'),
+          getUserDataPath(),
+        ),
+      })
       if (ladderRun) {
         if (!process.env.GGSTATS_SESSION) {
           throw new Error('Analyzing a folder needs its own GGSTATS_SESSION, apart from your stats')
@@ -892,7 +857,7 @@ app.on('ready', () => {
       )
       container.register(GameStatsStore, { useValue: gameStatsStore })
 
-      setupIpc(localSettings, scrSettings)
+      setupIpc(localSettings)
       setupCspProtocol(currentSession())
       gameServer = createGameServer(localSettings)
       if (!ladderRun) {
@@ -937,18 +902,15 @@ app.on('ready', () => {
       )
       commandStatsBackfill.start()
       // New stats, and a played game's replay once it's saved, have commands to read.
-      container
-        .resolve(ActiveGameManager)
-        .on('gameStats', (_gameId, _stats, source) => {
-          commandStatsBackfill.schedule(5000)
-          myStats.forgetScoutGames()
-          if (source.kind === 'replay') {
-            replayLibrary?.fillTileset(source.path).catch(err => {
-              logger.error(`Error reading the tileset of ${source.path}: ${getErrorStack(err)}`)
-            })
-          }
-        })
-        .on('replaySaved', () => commandStatsBackfill.schedule(5000))
+      container.resolve(ActiveGameManager).on('gameStats', (_gameId, _stats, source) => {
+        commandStatsBackfill.schedule(5000)
+        myStats.forgetScoutGames()
+        if (source.kind === 'replay') {
+          replayLibrary?.fillTileset(source.path).catch(err => {
+            logger.error(`Error reading the tileset of ${source.path}: ${getErrorStack(err)}`)
+          })
+        }
+      })
 
       const playerRanks = new PlayerRanksStore(
         path.join(
@@ -1103,7 +1065,6 @@ app.on('ready', () => {
         playerRanks.flush().catch(() => {})
         replayLibrary?.stop()
         localSettings.saveSettingsToDiskSync()
-        scrSettings.saveSettingsToDiskSync()
       })
     })
     .catch(err => {

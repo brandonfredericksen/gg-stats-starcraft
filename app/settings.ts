@@ -3,35 +3,15 @@ import debounce from 'lodash/debounce'
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { ConditionalKeys } from 'type-fest'
 import swallowNonBuiltins from '../common/async/swallow-non-builtins'
 import { DEV_INDICATOR } from '../common/flags'
-import {
-  DisplayMode,
-  SCR_GAMMA_DEFAULT,
-  SCR_GAMMA_MAX,
-  SCR_GAMMA_MIN,
-} from '../common/settings/blizz-settings'
+import { DisplayMode } from '../common/settings/blizz-settings'
 import { DEFAULT_LOCAL_SETTINGS } from '../common/settings/default-settings'
-import {
-  FfaColorPreset,
-  LocalSettings,
-  ScrSettings,
-  StartingFog,
-} from '../common/settings/local-settings'
-import { cloneCustomTeamColors, DEFAULT_FFA_COLORS } from '../common/settings/team-colors'
+import { LocalSettings } from '../common/settings/local-settings'
 import { findInstallPath } from './find-install-path'
 import log from './logger'
 
-const VERSION = 28
-const SCR_VERSION = 6
-
-/**
- * The `ffaColorPreset` value of the removed `Classic` preset. Settings files written before version
- * 21 can still hold it, so the migrations below name it explicitly rather than going through
- * {@link FfaColorPreset}, which no longer has a member for it.
- */
-const REMOVED_CLASSIC_FFA_PRESET = 'classic'
+const VERSION = 29
 
 /**
  * Where StarCraft is installed, or an empty path when it can't be found, so Settings asks for it
@@ -84,8 +64,6 @@ export async function readSettingsFile<T>(filepath: string): Promise<T | undefin
   }
 }
 
-// A general class that the local settings and SC:R settings can both use to handle their respective
-// logic.
 abstract class SettingsManager<T> extends EventEmitter<SettingsEvents<T>> {
   protected abstract settings: Partial<T>
   protected initialized: Promise<void>
@@ -245,8 +223,6 @@ export class LocalSettingsManager extends SettingsManager<LocalSettings> {
   private async createDefaults(): Promise<LocalSettings> {
     return {
       ...DEFAULT_LOCAL_SETTINGS,
-      customTeamColors: cloneCustomTeamColors(DEFAULT_LOCAL_SETTINGS.customTeamColors),
-      customFfaColors: [...DEFAULT_LOCAL_SETTINGS.customFfaColors],
       version: VERSION,
       starcraftPath: await findStarcraftPath(),
       winX: -1,
@@ -330,11 +306,6 @@ export async function migrateLocalSettings(
     newSettings.quickOpenReplays = false
   }
 
-  if (!settings.version || settings.version < 12) {
-    log.verbose('Found settings version 11, migrating to version 12')
-    newSettings.startingFog = StartingFog.ShowTerrainAndResources
-  }
-
   if (!settings.version || settings.version < 13) {
     log.verbose('Found settings version 12, migrating to version 13')
     // NOTE(tec27): These settings still exist, but the tracking for them before this version
@@ -346,42 +317,12 @@ export async function migrateLocalSettings(
     delete newSettings.gameWinHeight
   }
 
-  if (!settings.version || settings.version < 14) {
-    log.verbose('Found settings version 13, migrating to version 14')
-    newSettings.legacyCursorSizing = false
-    newSettings.useCustomCursorSize = false
-    newSettings.customCursorSize = 0.25
-  }
-
   if (!settings.version || settings.version < 15) {
     log.verbose('Found settings version 14, migrating to version 15')
     newSettings.winX = -1
     newSettings.winY = -1
     newSettings.winWidth = -1
     newSettings.winHeight = -1
-  }
-
-  if (!settings.version || settings.version < 16) {
-    log.verbose('Found settings version 15, migrating to version 16')
-    // `colorPreset`'s only possible value was `legacyDiplomacy`, which the new defaults below
-    // reproduce, so there's no old value to carry forward.
-    delete (newSettings as any).colorPreset
-    newSettings.teamColorPreset = DEFAULT_LOCAL_SETTINGS.teamColorPreset
-    newSettings.ffaColorPreset = DEFAULT_LOCAL_SETTINGS.ffaColorPreset
-    newSettings.teamColorUsage = DEFAULT_LOCAL_SETTINGS.teamColorUsage
-    newSettings.shuffleColors = DEFAULT_LOCAL_SETTINGS.shuffleColors
-    newSettings.customTeamColors = cloneCustomTeamColors(DEFAULT_LOCAL_SETTINGS.customTeamColors)
-    newSettings.customFfaColors = [...DEFAULT_LOCAL_SETTINGS.customFfaColors]
-    delete newSettings.ffaSelfColor
-  }
-
-  if (!settings.version || settings.version < 17) {
-    log.verbose('Found settings version 16, migrating to version 17')
-    // The Pastel FFA preset was removed; anyone who had it selected falls back to Classic (itself
-    // removed later -- the version 21 migration below carries these users on to Custom).
-    if ((settings.ffaColorPreset as string | undefined) === 'pastel') {
-      newSettings.ffaColorPreset = REMOVED_CLASSIC_FFA_PRESET as FfaColorPreset
-    }
   }
 
   if (!settings.version || settings.version < 18) {
@@ -395,38 +336,12 @@ export async function migrateLocalSettings(
     }
   }
 
-  if (!settings.version || settings.version < 19) {
-    log.verbose('Found settings version 18, migrating to version 19')
-    newSettings.grabPanSensitivityOn = DEFAULT_LOCAL_SETTINGS.grabPanSensitivityOn
-    newSettings.grabPanSensitivity = DEFAULT_LOCAL_SETTINGS.grabPanSensitivity
-  }
-
   if (!settings.version || settings.version < 20) {
     log.verbose('Found settings version 19, migrating to version 20')
     // The 64-bit client is the default now. The old dev-only 64-bit opt-in flag is dropped
     // rather than carried over, so every install starts on the 64-bit path.
     delete (newSettings as any).launch64Bit
     newSettings.launch32Bit = DEFAULT_LOCAL_SETTINGS.launch32Bit
-  }
-
-  if (!settings.version || settings.version < 21) {
-    log.verbose('Found settings version 20, migrating to version 21')
-    // The Classic FFA preset was removed. Move anyone who had it selected onto Custom seeded with
-    // Classic's colors, so the colors they actually play with don't change. This overwrites their
-    // stored `customFfaColors`, but that pool wasn't in use while Classic was selected, and
-    // silently recoloring their games would be the worse trade.
-    //
-    // Reads `newSettings` rather than `settings` so it also catches the Pastel -> Classic hop the
-    // version 17 migration above may have just made.
-    if ((newSettings.ffaColorPreset as string | undefined) === REMOVED_CLASSIC_FFA_PRESET) {
-      newSettings.ffaColorPreset = FfaColorPreset.Custom
-      newSettings.customFfaColors = [...DEFAULT_FFA_COLORS]
-    }
-  }
-
-  if (!settings.version || settings.version < 22) {
-    log.verbose('Found settings version 21, migrating to version 22')
-    newSettings.grabPanInverted = DEFAULT_LOCAL_SETTINGS.grabPanInverted
   }
 
   if (!settings.version || settings.version < 24) {
@@ -466,337 +381,108 @@ export async function migrateLocalSettings(
     delete newSettings.startWithWindowsOffered
   }
 
+  if (!settings.version || settings.version < 29) {
+    log.verbose('Found settings version 28, migrating to version 29')
+    // Replays play the way they do in StarCraft itself, so the game's own colors, fog, cursor and
+    // camera panning stay as StarCraft has them.
+    for (const removed of [
+      'colorPreset',
+      'startingFog',
+      'minimapColorMode',
+      'teamColorPreset',
+      'ffaColorPreset',
+      'teamColorUsage',
+      'shuffleColors',
+      'customTeamColors',
+      'customFfaColors',
+      'teamSelfColor',
+      'ffaSelfColor',
+      'legacyCursorSizing',
+      'useCustomCursorSize',
+      'customCursorSize',
+      'grabPanSensitivityOn',
+      'grabPanSensitivity',
+      'grabPanInverted',
+    ]) {
+      delete (newSettings as any)[removed]
+    }
+  }
+
   newSettings.version = VERSION
   return newSettings
 }
 
+/** The few settings from StarCraft's own file that the game DLL reads, under the names it uses. */
+export interface GameScrSettings {
+  displayMode?: DisplayMode
+  gamma?: number
+  selectedSkin?: string
+  showBonusSkins?: boolean
+  hdGraphicsOn?: boolean
+}
+
 /**
- * Mapping of setting names between our SC:R settings and the game's own file, where our names are
- * the keys and the game's names are the values. Used for converting ours to the game's (when
- * saving). To convert the game's to ours (when fetching) use the inverse map below.
+ * The user's own StarCraft settings file (`CSettings.json`), which a replay being watched reads and
+ * writes like any other StarCraft would. A replay being analyzed gets a copy of it instead, see
+ * `writeSilentFile`.
  */
-export const settingsToScrMapping: ReadonlyMap<
-  Omit<keyof ScrSettings, 'version'>,
-  string
-> = new Map([
-  ['keyboardScrollSpeed', 'm_kscroll'],
-  ['mouseScrollSpeed', 'm_mscroll'],
-  ['mouseSensitivityOn', 'MouseUseSensitivity'],
-  ['mouseSensitivity', 'MouseSensitivity'],
-  ['mouseScalingOn', 'MouseScaling'],
-  ['hardwareCursorOn', 'MouseHardwareCursor'],
-  ['mouseConfineOn', 'MouseConfine'],
-  ['musicOn', 'MusicEnabled'],
-  ['musicVolume', 'music'],
-  ['soundOn', 'SfxEnabled'],
-  ['soundVolume', 'sfx'],
-  ['unitSpeechOn', 'unitspeech'],
-  ['unitAcknowledgementsOn', 'unitnoise'],
-  ['backgroundSoundsOn', 'SoundInBackground'],
-  ['buildingSoundsOn', 'bldgnoise'],
-  ['gameSubtitlesOn', 'trigtext'],
-  ['cinematicSubtitlesOn', 'cinematicSubtitlesEnabled'],
-  ['originalVoiceOversOn', 'originalUnitVO'],
-  ['displayMode', 'WindowMode'],
-  ['gamma', 'Gamma'],
-  ['fpsLimitOn', 'FPSLimitEnabled'],
-  ['fpsLimit', 'FPSLimit'],
-  ['sdGraphicsFilter', 'SDFilterMode'],
-  ['vsyncOn', 'VSync'],
-  ['hdGraphicsOn', 'HDPreferences'],
-  ['environmentEffectsOn', 'ShowFoliage'],
-  ['realTimeLightingOn', 'RealtimeLightingEnabled'],
-  ['smoothUnitTurningOn', 'UseHDRotation'],
-  ['shadowStackingOn', 'ShadowStacking'],
-  ['pillarboxOn', 'OriginalAspectRatio'],
-  ['gameTimerOn', 'GameTimer'],
-  ['colorCyclingOn', 'ColorCycle'],
-  ['unitPortraits', 'UnitPortraits'],
-  ['minimapPosition', 'consoleSplit'],
-  ['apmDisplayOn', 'apm_Showing'],
-  ['apmAlertOn', 'apm_AlertUser'],
-  ['apmAlertValue', 'apm_AlertValue'],
-  ['apmAlertColorOn', 'apm_AlertUseColor'],
-  ['apmAlertSoundOn', 'apm_AlertUseSound'],
-  ['consoleSkin', 'selectedConsole'],
-  ['selectedSkin', 'selectedSkin'],
-  ['showBonusSkins', 'skinsEnabled'],
-  ['selectedAnnouncer', 'selectedAnnouncer'],
-  ['showFps', 'ShowFPS'],
-  ['showTurnRate', 'ShowTurnRate'],
-])
-
-export const scrToSettingsMapping: ReadonlyMap<
-  string,
-  Omit<keyof ScrSettings, 'version'>
-> = new Map(Array.from(settingsToScrMapping.entries(), ([key, value]) => [value, key]))
-
-export function fromBlizzardSettings(blizzardSettings: Record<string, any>): Partial<ScrSettings> {
-  return Object.entries(blizzardSettings).reduce((acc, [name, value]) => {
-    const keyName = scrToSettingsMapping.get(name)
-
-    if (keyName) {
-      ;(acc as any)[keyName as any] = value
-    }
-
-    return acc
-  }, {} as Partial<ScrSettings>)
-}
-
-export function toBlizzardSettings(ourSettings: Partial<ScrSettings>): Record<string, any> {
-  return Object.entries(ourSettings).reduce(
-    (acc, [name, value]) => {
-      const scrKeyName = settingsToScrMapping.get(name)
-
-      if (scrKeyName) {
-        acc[scrKeyName] = value
-      }
-
-      return acc
-    },
-    {} as Record<string, any>,
-  )
-}
-
-function normalizeGamma(value: unknown): number {
-  const gamma = Number(value)
-  if (!Number.isFinite(gamma)) {
-    return SCR_GAMMA_DEFAULT
-  }
-
-  return Math.max(SCR_GAMMA_MIN, Math.min(SCR_GAMMA_MAX, Math.round(gamma)))
-}
-
-export class ScrSettingsManager extends SettingsManager<ScrSettings> {
-  protected settings!: Partial<ScrSettings>
-  private blizzardFilepath: string
-  private blizzardSettings!: Record<string, any>
-
+export class StarcraftSettings {
   /**
-   * Creates a new ScrSettings.
-   *
-   * @param filepath the path to store the settings file that gets updated by our settings dialog
-   * @param blizzardFilepath the path to the game's normal settings file, which we overlay our
-   *   settings on top of.
-   * @param gameFilepath the path to the file that the game should load instead of the normal
-   *   settings file, which we write out during game launches.
+   * @param filepath the game's normal settings file
+   * @param silentDir the folder the copy for analyses is written to
    */
   constructor(
-    filepath: string,
-    blizzardFilepath: string,
-    readonly gameFilepath: string,
-  ) {
-    const initializeFunc = async function (this: ScrSettingsManager) {
-      try {
-        this.settings = JSON.parse(await fsPromises.readFile(this.filepath, { encoding: 'utf8' }))
-      } catch (err) {
-        log.error('Error reading/parsing SCR settings file: ' + err + ', creating')
-        try {
-          await fsPromises.unlink(this.filepath)
-        } catch (err) {
-          // Ignored, probably just due to the file not existing
-        }
-      }
+    readonly filepath: string,
+    private silentDir: string,
+  ) {}
 
-      try {
-        const contents = await fsPromises.readFile(this.blizzardFilepath, { encoding: 'utf8' })
-        this.blizzardSettings = JSON.parse(contents)
-        log.debug('Blizzard settings file loaded successfully')
-        // We only attach the watcher if the above doesn't throw, which means the settings exist.
-        // TODO(tec27): We should probably be watching the directory if we can't watch the file
-        // itself (or create the file empty ourselves?) so that we can monitor any changes SC:R
-        // might make to it if launched after the app starts
-        fs.watch(this.blizzardFilepath, event => this.onBlizzardFileChange(event))
-      } catch (err) {
-        log.error(
-          'Error reading/parsing the Blizzard settings file: ' + ((err as any).stack ?? err),
-        )
-        this.blizzardSettings = {}
+  /** The settings file's contents, or nothing when it doesn't exist yet or can't be read. */
+  async read(): Promise<Record<string, unknown>> {
+    try {
+      const contents = JSON.parse(await fsPromises.readFile(this.filepath, { encoding: 'utf8' }))
+      return contents && typeof contents === 'object' ? contents : {}
+    } catch (err: any) {
+      if (err?.code !== 'ENOENT') {
+        log.error(`Error reading the StarCraft settings file: ${err.stack ?? err}`)
       }
-
-      if (!this.settings) {
-        this.settings = await this.createDefaults()
-        await fsPromises.writeFile(this.filepath, jsonify(this.settings), { encoding: 'utf8' })
-      } else if (this.settings.version !== SCR_VERSION) {
-        this.settings = this.migrateOldSettings(this.settings)
-        await fsPromises.writeFile(this.filepath, jsonify(this.settings), { encoding: 'utf8' })
-      }
-
-      fs.watch(this.filepath, event => this.onFileChange(event))
+      return {}
     }
-
-    super('SCR', filepath, initializeFunc)
-    log.debug(`Blizzard settings path: ${blizzardFilepath}`)
-    this.blizzardFilepath = blizzardFilepath
   }
 
-  private async createDefaults() {
-    // NOTE(tec27): This is always called *after* we initialize scrSettings the first time. If the
-    // `initialize` function above gets rearranged that may no longer be true  (so don't do that :))
-    const blizzSettings = fromBlizzardSettings(this.blizzardSettings)
+  /** What the game DLL reads from the settings file. */
+  async forGame(): Promise<GameScrSettings> {
+    const settings = await this.read()
     return {
-      version: SCR_VERSION,
-      ...blizzSettings,
-      gamma: normalizeGamma(blizzSettings.gamma),
-    }
-  }
-
-  private migrateOldSettings(settings: Partial<ScrSettings>) {
-    const newSettings = { ...settings }
-    if (!newSettings.version || newSettings.version < 2) {
-      // Fix integer settings to not be negative
-      const intSettings: Array<ConditionalKeys<ScrSettings, number>> = [
-        'keyboardScrollSpeed',
-        'mouseScrollSpeed',
-        'mouseSensitivity',
-        'musicVolume',
-        'soundVolume',
-        'displayMode',
-        'fpsLimit',
-        'sdGraphicsFilter',
-        'unitPortraits',
-        'apmAlertValue',
-      ]
-      for (const setting of intSettings) {
-        const oldSetting = newSettings[setting]
-        if (oldSetting !== undefined && oldSetting < 0) {
-          newSettings[setting] = 0
-        }
-      }
-      newSettings.version = 2
-    }
-    if (newSettings.version < 3) {
-      // Add settings related to skins (console and ingame), defaulting to whatever people have in
-      // their Blizzard file
-
-      // NOTE(tec27): Like `createDefaults` above, this is always called *after* scrSettings has
-      // been loaded
-      const blizzSettings = fromBlizzardSettings(this.blizzardSettings)
-      newSettings.consoleSkin = blizzSettings.consoleSkin
-      newSettings.selectedSkin = blizzSettings.selectedSkin
-      newSettings.showBonusSkins = blizzSettings.showBonusSkins
-      newSettings.version = 3
-    }
-    if (newSettings.version < 4) {
-      // Address previous issues with vsyncOn setting. If not n range, we just reset it to the
-      // current blizz setting (or off if the blizz setting is also bad)
-      const vsyncOnAsNumber = Number(newSettings.vsyncOn)
-      if (vsyncOnAsNumber !== 0 && vsyncOnAsNumber !== 1) {
-        const blizzAsNumber = Number(fromBlizzardSettings(this.blizzardSettings).vsyncOn)
-        if (blizzAsNumber !== 0 && blizzAsNumber !== 1) {
-          newSettings.vsyncOn = 0
-        } else {
-          newSettings.vsyncOn = blizzAsNumber
-        }
-      } else {
-        newSettings.vsyncOn = vsyncOnAsNumber
-      }
-
-      newSettings.version = 4
-    }
-    if (newSettings.version < 5) {
-      // Add new settings that we didn't have before
-
-      // NOTE(tec27): Like `createDefaults` above, this is always called *after* scrSettings has
-      // been loaded
-      const blizzSettings = fromBlizzardSettings(this.blizzardSettings)
-      newSettings.selectedAnnouncer = blizzSettings.selectedAnnouncer
-      newSettings.showFps = blizzSettings.showFps
-      newSettings.showTurnRate = blizzSettings.showTurnRate
-      newSettings.version = 5
-    }
-    if (newSettings.version < 6) {
-      const blizzSettings = fromBlizzardSettings(this.blizzardSettings)
-      newSettings.gamma = normalizeGamma(blizzSettings.gamma)
-      newSettings.version = 6
-    }
-
-    newSettings.version = SCR_VERSION
-    return newSettings
-  }
-
-  private onBlizzardFileChange(event: 'change' | 'rename') {
-    if (event === 'change') {
-      this.readBlizzardFile().catch(err => {
-        log.error('Error reading/parsing the Blizzard settings file: ' + (err.stack ?? err))
-      })
-    }
-  }
-
-  private async readBlizzardFile() {
-    await this.initialized
-    const contents = await fsPromises.readFile(this.blizzardFilepath, { encoding: 'utf8' })
-    const newData = JSON.parse(contents)
-    if (!isDeepStrictEqual(newData, this.blizzardSettings)) {
-      this.blizzardSettings = newData
+      displayMode: settings.WindowMode as DisplayMode | undefined,
+      gamma: settings.Gamma as number | undefined,
+      selectedSkin: settings.selectedSkin as string | undefined,
+      showBonusSkins: settings.skinsEnabled as boolean | undefined,
+      hdGraphicsOn: settings.HDPreferences as boolean | undefined,
     }
   }
 
   /**
-   * Writes out the current SC:R settings to our replacement file, which the game will redirect
-   * reads/writes of CSettings.json to. Once the game completes, `syncWithGameSettingsFile` should
-   * be called to update our settings with what was changed ingame.
+   * Writes the user's settings with every sound turned off and in a window, for a game that runs
+   * unseen in the background, and returns where they were written. The game writes its changes to
+   * this copy, so none of them reach the user's own file.
    */
-  async writeGameSettingsFile() {
-    log.debug('Writing ScrSettings to game settings file')
-    await this.initialized
-    await fsPromises.writeFile(this.gameFilepath, jsonify(this.getGameSettings()), {
-      encoding: 'utf8',
-    })
-  }
-
-  /**
-   * Writes the current SC:R settings with every sound turned off and in a window, for a game that
-   * runs unseen in the background, and returns where they were written. This is a separate file
-   * from the one `syncWithGameSettingsFile` reads back, so these changes never make it into the
-   * user's settings.
-   */
-  async writeSilentGameSettingsFile(): Promise<string> {
-    await this.initialized
+  async writeSilentFile(): Promise<string> {
     // Namespaced by GGSTATS_SESSION (like the app's own settings files) so concurrent dev instances
     // don't write over each other's.
     const sessionName = process.env.GGSTATS_SESSION
     const silentFilepath = path.join(
-      path.dirname(this.gameFilepath),
+      this.silentDir,
       sessionName ? `CSettings.silent-${sessionName}.json` : 'CSettings.silent.json',
     )
     const silent = {
-      ...this.getGameSettings(),
-      ...toBlizzardSettings({
-        musicOn: false,
-        musicVolume: 0,
-        soundOn: false,
-        soundVolume: 0,
-        displayMode: DisplayMode.Windowed,
-      }),
+      ...(await this.read()),
+      MusicEnabled: false,
+      music: 0,
+      SfxEnabled: false,
+      sfx: 0,
+      WindowMode: DisplayMode.Windowed,
     }
     await fsPromises.writeFile(silentFilepath, jsonify(silent), { encoding: 'utf8' })
     return silentFilepath
-  }
-
-  private getGameSettings() {
-    return {
-      ...this.blizzardSettings,
-      ...toBlizzardSettings(this.settings),
-      /**
-       * NOTE(tec27): Blizzard uses this to signal they should force Carbot on immediately after
-       * purchasing. In cases where our settings file is corrupted in some way, the existence of
-       * this setting can make the game launch with Carbot even though it's turned off in our
-       * settings. We add this back explicitly just in case (Carbot can still be enabled
-       * directly, it just won't pick it regardless of setting).
-       */
-      forcedCarbot: true,
-    }
-  }
-
-  async syncWithGameSettingsFile() {
-    log.debug('Syncing ScrSettings with game settings file')
-    await this.initialized
-    const contents = await fsPromises.readFile(this.gameFilepath, { encoding: 'utf8' })
-    const newData = fromBlizzardSettings(JSON.parse(contents))
-    if (newData.gamma !== undefined) {
-      newData.gamma = normalizeGamma(newData.gamma)
-    }
-    await this.merge(newData)
   }
 }

@@ -36,7 +36,7 @@ import {
   ReplayTrashResult,
   SuggestedOwnName,
 } from './replays-library'
-import { LocalSettings, ScrSettings } from './settings/local-settings'
+import { LocalSettings } from './settings/local-settings'
 import { UpdateStatus } from './updates'
 
 const IS_RENDERER = typeof process === 'undefined' || !process || process.type === 'renderer'
@@ -202,9 +202,7 @@ interface IpcInvokeables {
   autoCaptureClearWaiting: () => Promise<void>
 
   settingsLocalGet: () => Promise<Partial<LocalSettings>>
-  settingsScrGet: () => Promise<Partial<ScrSettings>>
   settingsLocalMerge: (settings: Readonly<Partial<LocalSettings>>) => void
-  settingsScrMerge: (settings: Readonly<Partial<ScrSettings>>) => void
 
   settingsAutoPickStarcraftPath: () => Promise<boolean>
   settingsCheckStarcraftPath: (path: string) => Promise<{ path: boolean }>
@@ -249,7 +247,6 @@ interface IpcRendererSendables {
 
 /** Events that can be sent from the main process to a renderer process. */
 interface IpcMainSendables {
-  activeGameReplaySaved: (gameId: string, replayPath: string) => void
   activeGameStats: (gameId: string, stats: GameStatsPayload, source: GameStatsSource) => void
   /** Sent when a game ended without being able to report its stats. */
   activeGameStatsFailed: (gameId: string) => void
@@ -283,7 +280,6 @@ interface IpcMainSendables {
   replaysOpen: (replayPaths: string[]) => void
 
   settingsLocalChanged: (settings: Readonly<Partial<LocalSettings>>) => void
-  settingsScrChanged: (settings: Readonly<Partial<ScrSettings>>) => void
 
   updaterStatusChanged: (status: UpdateStatus) => void
 

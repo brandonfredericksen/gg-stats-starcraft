@@ -22,7 +22,7 @@ vi.mock('../logger', () => ({
 vi.mock('../log-paths', () => ({ gameLogBaseName: () => 'game' }))
 vi.mock('../settings', () => ({
   LocalSettingsManager: class {},
-  ScrSettingsManager: class {},
+  StarcraftSettings: class {},
 }))
 vi.mock('./check-starcraft-path', () => ({
   checkStarcraftPath: () => new Promise(() => {}),

@@ -27,7 +27,6 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use crate::app_messages::ReplaySaved;
 use crate::app_messages::WindowMove;
 use crate::bw_scr::IS_LOGGING_TIME_CALL;
 use crate::forge::TRACK_WINDOW_POS;
@@ -62,10 +61,8 @@ mod minimap;
 mod offline_cookie;
 mod recurse_checked_mutex;
 mod replay;
-mod replay_name;
 mod snp;
 mod sync;
-mod team_colors;
 mod windows;
 
 const WAIT_DEBUGGER: bool = false;
@@ -299,14 +296,10 @@ unsafe extern "C" fn scr_init(image: *mut u8) {
         }
     };
     unsafe {
-        bw.set_use_legacy_cursor_sizing(parse_args().use_legacy_cursor_sizing);
         bw.patch_game(image);
     }
     bw::set_bw_impl(bw);
     initialize();
-    unsafe {
-        bw.post_async_init();
-    }
 }
 
 static SELF_HANDLE: AtomicUsize = AtomicUsize::new(0);
@@ -427,18 +420,6 @@ async fn handle_messages_from_game_thread(
                         *lock = Some(WindowMove { x, y, w, h });
                         debouncer.trigger();
                     }
-                    GameThreadMessage::ReplaySaved(path) => {
-                        let Ok(path) = path.into_os_string().into_string() else {
-                            warn!("Replay path was not valid UTF-8");
-                            continue;
-                        };
-
-                        let msg =
-                            app_socket::encode_message("/game/replaySaved", ReplaySaved { path });
-                        if let Some(msg) = msg {
-                            let _ = ws_send.send(msg).await;
-                        }
-                    }
                     GameThreadMessage::GameStats(stats) => {
                         let msg = app_socket::encode_message("/game/stats", stats);
                         if let Some(msg) = msg {
@@ -552,22 +533,10 @@ fn async_thread(main_thread: std::sync::mpsc::Sender<()>) {
     std::process::exit(0);
 }
 
-/// Obtains a handle to async runtime, which can be used to spawn additional tasks
-/// that would block on sync I/O.
-/// Currently this is used to eagerly open some filesystem files to speed up SCR loading.
-fn async_handle() -> tokio::runtime::Handle {
-    ASYNC_RUNTIME
-        .lock()
-        .as_ref()
-        .expect("Async runtime was not initialized")
-        .clone()
-}
-
 struct Args {
     game_id: String,
     server_port: u16,
     user_data_path: PathBuf,
-    use_legacy_cursor_sizing: bool,
     /// Base name for the rotating log file (`<log_name>.<slot>.log`). The launcher passes an
     /// `SB_SESSION`-namespaced value so concurrent dev instances don't share a log; defaults to
     /// `game` when the launcher doesn't specify one.
@@ -596,17 +565,12 @@ fn try_parse_args() -> Option<Args> {
     let game_id = args.next()?.into_string().ok()?;
     let server_port = args.next()?.into_string().ok()?.parse::<u16>().ok()?;
     let user_data_path = args.next()?.into();
-    let mut use_legacy_cursor_sizing = false;
     let mut log_name = "game".to_owned();
     let mut background = false;
 
     for arg in args {
         let arg = arg.into_string().ok()?;
-        if arg == "-legacy-cursor-sizing" {
-            // NOTE(tec27): We pass this through args because we need to know if it's enabled before
-            // we patch the game, and settings come over websocket (so too late)
-            use_legacy_cursor_sizing = true;
-        } else if let Some(name) = arg.strip_prefix("-log-name=") {
+        if let Some(name) = arg.strip_prefix("-log-name=") {
             // The launcher's SB_SESSION-namespaced log base (see app/log-paths.ts). Ignored if
             // empty so a malformed arg can't produce a `.<slot>.log` file with no stem.
             if !name.is_empty() {
@@ -621,7 +585,6 @@ fn try_parse_args() -> Option<Args> {
         game_id,
         server_port,
         user_data_path,
-        use_legacy_cursor_sizing,
         log_name,
         background,
     })

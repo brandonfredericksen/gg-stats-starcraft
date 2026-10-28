@@ -10,16 +10,15 @@
 //!
 //! IMPORTANT: this crate intentionally wraps only the subset of samase_scarf's `Analysis`
 //! surface that the main crate actually uses. An analysis "missing" here is often already
-//! implemented in samase_scarf — check the pinned samase_scarf rev's `Analysis` API before
+//! implemented in samase_scarf â€” check the pinned samase_scarf rev's `Analysis` API before
 //! concluding new binary analysis is needed; if it exists there, adding a one-line wrapper
 //! method in this file is the whole job.
 
 pub use samase_scarf::scarf;
 pub use samase_scarf::{DatTablePtr, DatType};
 
-use scarf::exec_state::ExecutionState as _;
 use scarf::exec_state::VirtualAddress as _;
-use scarf::{BinaryFile, MemAccessSize, Operand, OperandCtx};
+use scarf::{BinaryFile, Operand, OperandCtx};
 
 #[cfg(target_arch = "x86")]
 use scarf::ExecutionStateX86 as ExecutionState;
@@ -55,10 +54,6 @@ impl<'e> Analysis<'e> {
         Some(euds.euds.get(index)?.operand)
     }
 
-    fn mem_word(&self, op: Operand<'e>) -> Operand<'e> {
-        self.2.mem_any(ExecutionState::WORD_SIZE, op, 0)
-    }
-
     pub fn game(&mut self) -> Option<Operand<'e>> {
         self.0.game()
     }
@@ -92,14 +87,6 @@ impl<'e> Analysis<'e> {
     }
 
     // Storm session internals for the netcode-v2 native-lobby join replacement.
-
-    pub fn single_player_start(&mut self) -> Option<VirtualAddress> {
-        self.0.single_player_start()
-    }
-
-    pub fn is_paused(&mut self) -> Option<Operand<'e>> {
-        self.0.is_paused()
-    }
 
     pub fn select_map_entry(&mut self) -> Option<VirtualAddress> {
         self.0.select_map_entry()
@@ -165,28 +152,12 @@ impl<'e> Analysis<'e> {
         self.0.local_player_name()
     }
 
-    pub fn fonts(&mut self) -> Option<Operand<'e>> {
-        self.0.fonts()
-    }
-
     pub fn init_storm_networking(&mut self) -> Option<VirtualAddress> {
         self.0.init_storm_networking()
     }
 
     pub fn load_snp_list(&mut self) -> Option<VirtualAddress> {
         self.0.load_snp_list()
-    }
-
-    pub fn font_cache_render_ascii(&mut self) -> Option<VirtualAddress> {
-        self.0.font_cache_render_ascii()
-    }
-
-    pub fn ttf_malloc(&mut self) -> Option<VirtualAddress> {
-        self.0.ttf_malloc()
-    }
-
-    pub fn ttf_render_sdf(&mut self) -> Option<VirtualAddress> {
-        self.0.ttf_render_sdf()
     }
 
     pub fn create_game_dialog_vtbl_on_multiplayer_create(&mut self) -> Option<usize> {
@@ -254,78 +225,8 @@ impl<'e> Analysis<'e> {
         Some(tls_ptr.as_u64() as *mut u32)
     }
 
-    pub fn prism_pixel_shaders(&mut self) -> Option<Vec<VirtualAddress>> {
-        // As of this writing, there are 0x2b pixel shaders in SC:R;
-        // assume that finding any less is an error.
-        Some((*self.0.prism_pixel_shaders()).clone()).filter(|x| x.len() >= 0x2b)
-    }
-
-    pub fn prism_renderer_vtable(&mut self) -> Option<VirtualAddress> {
-        Some(self.0.vtables_for_class(b".?AVPrismRenderer@@"))
-            .filter(|x| x.len() == 1)
-            .map(|x| x[0])
-    }
-
     pub fn first_active_unit(&mut self) -> Option<Operand<'e>> {
         self.0.first_active_unit()
-    }
-
-    pub fn client_selection(&mut self) -> Option<Operand<'e>> {
-        self.0.client_selection()
-    }
-
-    pub fn sprites_by_y_tile_start(&mut self) -> Option<Operand<'e>> {
-        self.0.sprite_hlines()
-    }
-
-    pub fn sprites_by_y_tile_end(&mut self) -> Option<Operand<'e>> {
-        self.0.sprite_hlines_end()
-    }
-
-    pub fn first_free_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.first_free_sprite()
-    }
-
-    pub fn last_free_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.last_free_sprite()
-    }
-
-    pub fn first_active_fow_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.first_fow_sprite()
-    }
-
-    pub fn last_active_fow_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.last_fow_sprite()
-    }
-
-    pub fn first_free_fow_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.first_free_fow_sprite()
-    }
-
-    pub fn last_free_fow_sprite(&mut self) -> Option<Operand<'e>> {
-        self.0.last_free_fow_sprite()
-    }
-
-    pub fn first_free_image(&mut self) -> Option<Operand<'e>> {
-        self.eud(0x0057eb68).map(|x| self.mem_word(x))
-    }
-
-    pub fn last_free_image(&mut self) -> Option<Operand<'e>> {
-        self.eud(0x0057eb70).map(|x| self.mem_word(x))
-    }
-
-    pub fn sprite_x(&mut self) -> Option<(Operand<'e>, u32, MemAccessSize)> {
-        self.0.sprite_x_position()
-    }
-
-    pub fn sprite_y(&mut self) -> Option<(Operand<'e>, u32, MemAccessSize)> {
-        self.0.sprite_y_position()
-    }
-
-    pub fn replay_minimap_unexplored_fog_patch(&mut self) -> Option<Patch> {
-        self.0
-            .replay_minimap_unexplored_fog_patch()
-            .map(|x| (*x).clone())
     }
 
     pub fn step_game(&mut self) -> Option<VirtualAddress> {
@@ -366,26 +267,6 @@ impl<'e> Analysis<'e> {
 
     pub fn allocator(&mut self) -> Option<Operand<'e>> {
         self.0.allocator()
-    }
-
-    pub fn status_screen_funcs(&mut self) -> Option<VirtualAddress> {
-        self.0
-            .firegraft_addresses()
-            .unit_status_funcs
-            .first()
-            .copied()
-    }
-
-    pub fn replay_visions(&mut self) -> Option<Operand<'e>> {
-        self.0.replay_visions()
-    }
-
-    pub fn local_visions(&mut self) -> Option<Operand<'e>> {
-        self.0.local_visions()
-    }
-
-    pub fn replay_show_entire_map(&mut self) -> Option<Operand<'e>> {
-        self.0.replay_show_entire_map()
     }
 
     pub fn start_udp_server(&mut self) -> Option<VirtualAddress> {
@@ -463,15 +344,11 @@ impl<'e> Analysis<'e> {
             .map(|mem| mem.address_op(self.2))
     }
 
-    pub fn network_ready(&mut self) -> Option<Operand<'e>> {
-        self.0.network_ready()
-    }
-
     pub fn net_user_latency(&mut self) -> Option<Operand<'e>> {
         self.0.net_user_latency()
     }
 
-    // --- Netcode v2 turn/command seam (see scr-netcode-replacement-guide.md §5.1). ---
+    // --- Netcode v2 turn/command seam (see scr-netcode-replacement-guide.md Â§5.1). ---
     // These expose the turn-send / turn-receive / latency-pipe surface so the rally-point2
     // QUIC transport can be interposed above Storm. samase_scarf resolves each of these; they
     // were simply not surfaced through this wrapper before.
@@ -483,33 +360,6 @@ impl<'e> Analysis<'e> {
         self.0.trigger_execution_timer()
     }
 
-    pub fn net_format_turn_rate(&mut self) -> Option<VirtualAddress> {
-        self.0.net_format_turn_rate()
-    }
-
-    pub fn update_game_screen_size(&mut self) -> Option<VirtualAddress> {
-        self.0.update_game_screen_size()
-    }
-
-    pub fn move_screen(&mut self) -> Option<VirtualAddress> {
-        self.0.move_screen()
-    }
-
-    /// Base address (as an operand) of the UI input dispatch's function-pointer table, indexed by
-    /// event type. Slot 3 holds the active drag callback (grab pan / selection box), or null when
-    /// no drag is in progress.
-    pub fn global_event_handlers(&mut self) -> Option<Operand<'e>> {
-        self.0.global_event_handlers()
-    }
-
-    pub fn ui_default_middle_down_handler(&mut self) -> Option<VirtualAddress> {
-        self.0.ui_default_middle_down_handler()
-    }
-
-    pub fn ui_default_middle_up_handler(&mut self) -> Option<VirtualAddress> {
-        self.0.ui_default_middle_up_handler()
-    }
-
     pub fn map_width_pixels(&mut self) -> Option<Operand<'e>> {
         self.0.map_width_pixels()
     }
@@ -518,60 +368,8 @@ impl<'e> Analysis<'e> {
         self.0.map_height_pixels()
     }
 
-    pub fn screen_x(&mut self) -> Option<Operand<'e>> {
-        self.0.screen_x()
-    }
-
-    pub fn screen_y(&mut self) -> Option<Operand<'e>> {
-        self.0.screen_y()
-    }
-
-    pub fn game_screen_width_bwpx(&mut self) -> Option<Operand<'e>> {
-        self.0.game_screen_width_bwpx()
-    }
-
-    pub fn game_screen_height_bwpx(&mut self) -> Option<Operand<'e>> {
-        self.0.game_screen_height_bwpx()
-    }
-
-    pub fn renderer(&mut self) -> Option<Operand<'e>> {
-        self.0.renderer()
-    }
-
-    pub fn draw_commands(&mut self) -> Option<Operand<'e>> {
-        self.0.draw_commands()
-    }
-
-    pub fn vertex_buffer(&mut self) -> Option<Operand<'e>> {
-        self.0.vertex_buffer()
-    }
-
-    pub fn get_render_target(&mut self) -> Option<VirtualAddress> {
-        self.0.get_render_target()
-    }
-
-    pub fn init_obs_ui(&mut self) -> Option<VirtualAddress> {
-        self.0.init_obs_ui()
-    }
-
     pub fn is_replay(&mut self) -> Option<Operand<'e>> {
         self.0.is_replay()
-    }
-
-    pub fn get_ui_consoles(&mut self) -> Option<VirtualAddress> {
-        self.0.get_ui_consoles()
-    }
-
-    pub fn load_consoles(&mut self) -> Option<VirtualAddress> {
-        self.0.load_consoles()
-    }
-
-    pub fn init_consoles(&mut self) -> Option<VirtualAddress> {
-        self.0.init_consoles()
-    }
-
-    pub fn draw_graphic_layers(&mut self) -> Option<VirtualAddress> {
-        self.0.draw_graphic_layers()
     }
 
     pub fn render_screen(&mut self) -> Option<VirtualAddress> {
@@ -580,83 +378,6 @@ impl<'e> Analysis<'e> {
 
     pub fn main_palette(&mut self) -> Option<Operand<'e>> {
         self.0.main_palette()
-    }
-
-    pub fn statres_icons(&mut self) -> Option<Operand<'e>> {
-        self.0.statres_icons_ddsgrp()
-    }
-
-    pub fn cmdicons(&mut self) -> Option<Operand<'e>> {
-        self.0.cmdicons_ddsgrp()
-    }
-
-    pub fn use_rgb_colors(&mut self) -> Option<Operand<'e>> {
-        self.0.use_rgb_colors()
-    }
-
-    pub fn rgb_colors(&mut self) -> Option<Operand<'e>> {
-        self.0.rgb_colors()
-    }
-
-    /// The Shift+Tab minimap player-color cycle value (0 = normal colors, higher values recolor
-    /// allies/enemies/self on the minimap and game view).
-    pub fn minimap_color_mode(&mut self) -> Option<Operand<'e>> {
-        self.0.minimap_color_mode()
-    }
-
-    /// Draws all unit/sprite dots on the minimap. In color mode 0 with RGB player colors on, the
-    /// dots read `rgb_colors[player]` directly; this function draws the local player's units (and
-    /// lone sprites) inline and calls [`draw_minimap_player_units`](Self::draw_minimap_player_units)
-    /// / [`draw_minimap_main_player_units`](Self::draw_minimap_main_player_units) for the others.
-    pub fn draw_minimap_units(&mut self) -> Option<VirtualAddress> {
-        self.0.draw_minimap_units()
-    }
-
-    pub fn decide_cursor_type(&mut self) -> Option<VirtualAddress> {
-        self.0.decide_cursor_type()
-    }
-
-    pub fn cursor_dimension_patch(&mut self) -> Option<Patch> {
-        self.0.cursor_dimension_patch().map(|x| (*x).clone())
-    }
-
-    pub fn cursor_scale_factor(&mut self) -> Option<Operand<'e>> {
-        self.0.cursor_scale_factor()
-    }
-
-    pub fn load_ddsgrp_cursor(&mut self) -> Option<VirtualAddress> {
-        self.0.load_ddsgrp_cursor()
-    }
-
-    pub fn select_units(&mut self) -> Option<VirtualAddress> {
-        self.0.select_units()
-    }
-
-    pub fn first_dialog(&mut self) -> Option<Operand<'e>> {
-        self.0.first_dialog()
-    }
-
-    pub fn graphic_layers(&mut self) -> Option<Operand<'e>> {
-        self.0.graphic_layers()
-    }
-
-    pub fn first_player_unit(&mut self) -> Option<Operand<'e>> {
-        self.0.first_player_unit()
-    }
-
-    pub fn game_screen_height_ratio(&mut self) -> Option<Operand<'e>> {
-        self.0.game_screen_height_ratio()
-    }
-
-    pub fn zoom(&mut self) -> Option<Operand<'e>> {
-        self.0.zoom()
-    }
-
-    pub fn console_vtables(&mut self) -> Vec<VirtualAddress> {
-        let mut out = Vec::with_capacity(2);
-        out.extend(self.0.vtables_for_class(b".?AVSDConsole@@"));
-        out.extend(self.0.vtables_for_class(b".?AVHDWideConsole@@"));
-        out
     }
 
     pub fn order_harvest_gas(&mut self) -> Option<VirtualAddress> {
@@ -669,23 +390,6 @@ impl<'e> Analysis<'e> {
 
     pub fn pathing(&mut self) -> Option<Operand<'e>> {
         self.0.pathing()
-    }
-
-    pub fn lookup_sound_id(&mut self) -> Option<VirtualAddress> {
-        self.0.lookup_sound_id()
-    }
-
-    pub fn play_sound(&mut self) -> Option<VirtualAddress> {
-        self.0.play_sound()
-    }
-
-    /// Pointer to the array of loaded `rez/sfx.json` entries, indexed by sound id.
-    pub fn sfx_data(&mut self) -> Option<Operand<'e>> {
-        self.0.sfx_data()
-    }
-
-    pub fn print_text(&mut self) -> Option<VirtualAddress> {
-        self.0.print_text()
     }
 
     pub fn snet_local_player_list(&mut self) -> Option<Operand<'e>> {

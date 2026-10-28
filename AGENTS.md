@@ -14,7 +14,7 @@ releases (`app/updater.ts`), which the user can turn off. Keep it that way.
 | `client/` | React renderer (replay library, stats)       | TypeScript, Redux, Jotai, styled-components |
 | `app/`    | Electron main process                        | TypeScript, native OS integration           |
 | `common/` | Shared TypeScript code                       | Types, utilities, IPC definitions           |
-| `game/`   | Rust DLL injected into the StarCraft it runs | Windows API, egui                           |
+| `game/`   | Rust DLL injected into the StarCraft it runs | Windows API                                 |
 
 **Architecture Rule**: `client/` and `app/` must not depend on each other. Both can depend on
 `common/`.

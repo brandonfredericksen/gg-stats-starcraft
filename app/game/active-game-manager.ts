@@ -15,16 +15,9 @@ import {
 import { GameStatsPayload, GameStatsSource } from '../../common/games/game-stats'
 import { GameStatus, ReportedGameStatus, statusToString } from '../../common/games/game-status'
 import { DisplayMode } from '../../common/settings/blizz-settings'
-import { DEFAULT_LOCAL_SETTINGS } from '../../common/settings/default-settings'
-import {
-  cloneCustomTeamColors,
-  resolveFfaColors,
-  resolveSeatlessTeamColors,
-  resolveTeamSelfOverride,
-} from '../../common/settings/team-colors'
 import { gameLogBaseName } from '../log-paths'
 import log from '../logger'
-import { LocalSettingsManager, ScrSettingsManager } from '../settings'
+import { LocalSettingsManager, StarcraftSettings } from '../settings'
 import { checkStarcraftPath } from './check-starcraft-path'
 import { isCrashExitCode } from './crash-exit-code'
 import { stopLaunchedGame } from './stop-launched-game'
@@ -90,7 +83,6 @@ const REPLAY_ANALYSIS_QUIT_GRACE_MS = 15 * 1000
 export type ActiveGameManagerEvents = {
   gameCommand: [gameId: string, command: string, ...args: any[]]
   gameStatus: [statusInfo: ReportedGameStatus]
-  replaySaved: [gameId: string, path: string]
   gameStats: [gameId: string, stats: GameStatsPayload, source: GameStatsSource]
   gameStatsFailed: [gameId: string]
   /** No game is running anymore, so StarCraft is free for another. */
@@ -108,7 +100,7 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
 
   constructor(
     private localSettings: LocalSettingsManager,
-    private scrSettings: ScrSettingsManager,
+    private starcraftSettings: StarcraftSettings,
   ) {
     super()
   }
@@ -194,7 +186,6 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
       gameId,
       this.serverPort,
       this.localSettings,
-      this.scrSettings,
       getAnalyzedReplay(config) !== undefined,
     ).then(
       async proc => {
@@ -277,16 +268,6 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
     config.setup.mapPath = isReplayMapInfo(map) ? map.path : undefined
 
     const local = await this.localSettings.get()
-    // The stored settings should already have every field populated (via the defaults/migration
-    // in `app/settings.ts`), but fall back to the defaults for anything that's still missing so
-    // the resolvers below always have complete team-color settings to work with.
-    const resolvedLocal = {
-      ...DEFAULT_LOCAL_SETTINGS,
-      ...local,
-      customTeamColors:
-        local.customTeamColors ?? cloneCustomTeamColors(DEFAULT_LOCAL_SETTINGS.customTeamColors),
-      customFfaColors: local.customFfaColors ?? [...DEFAULT_LOCAL_SETTINGS.customFfaColors],
-    }
     const desiredMonitorBounds =
       local.monitorId !== undefined
         ? screen.getAllDisplays().find(d => d.id === local.monitorId)?.bounds
@@ -300,33 +281,17 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
         ]
       : undefined
 
-    // A replay watcher has no seat, so relational palettes that assume a "you" exists degrade.
-    const resolvedTeamColors = resolveSeatlessTeamColors(resolvedLocal)
-
     this.emit('gameCommand', id, 'localUser', config.localUser)
-    this.emit('gameCommand', id, 'blockedUsers', config.blockedUsers)
     const isAnalysis = getAnalyzedReplay(config) !== undefined
-    const scr = await this.scrSettings.get()
+    const scr = await this.starcraftSettings.forGame()
     this.emit('gameCommand', id, 'settings', {
       local,
       // A replay being analyzed runs hidden, so it shouldn't take over the display.
       scr: isAnalysis ? { ...scr, displayMode: DisplayMode.Windowed } : scr,
       settingsFilePath: isAnalysis
         ? await this.getAnalysisSettingsFilePath()
-        : this.scrSettings.gameFilepath,
+        : this.starcraftSettings.filepath,
       monitorBounds,
-      replayNameTemplate: config.replayNameTemplate,
-      // `local` only stores the active preset *names* plus the custom pools; the DLL has no
-      // preset tables of its own, so the active preset is mapped to concrete colors here and the
-      // DLL only ever receives resolved hex pools.
-      teamColors: {
-        usage: resolvedLocal.teamColorUsage,
-        shuffle: resolvedLocal.shuffleColors,
-        team: resolvedTeamColors,
-        teamSelf: resolveTeamSelfOverride(resolvedLocal, resolvedTeamColors) ?? null,
-        ffa: resolveFfaColors(resolvedLocal),
-        ffaSelf: resolvedLocal.ffaSelfColor ?? null,
-      },
     })
 
     this.emit('gameCommand', id, 'setupGame', config.setup)
@@ -335,10 +300,10 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
   /** The silent settings for a replay analysis, or the user's own if those can't be written. */
   private async getAnalysisSettingsFilePath() {
     try {
-      return await this.scrSettings.writeSilentGameSettingsFile()
+      return await this.starcraftSettings.writeSilentFile()
     } catch (err) {
       log.error(`Error writing the settings for a replay analysis: ${getErrorStack(err)}`)
-      return this.scrSettings.gameFilepath
+      return this.starcraftSettings.filepath
     }
   }
 
@@ -535,15 +500,6 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
     this.emit('gameCommand', gameId, 'cleanup_and_quit')
   }
 
-  handleReplaySaved(gameId: string, path: string) {
-    if (!this.activeGame || this.activeGame.id !== gameId) {
-      return
-    }
-
-    log.verbose(`Replay saved to: ${path}`)
-    this.emit('replaySaved', gameId, path)
-  }
-
   handleGameStats(gameId: string, stats: GameStatsPayload) {
     if (!this.activeGame || this.activeGame.id !== gameId) {
       return
@@ -596,12 +552,6 @@ export class ActiveGameManager extends EventEmitter<ActiveGameManagerEvents> {
       })
     }
 
-    Promise.resolve()
-      .then(() => this.scrSettings.syncWithGameSettingsFile())
-      .catch(err => {
-        log.error(`Error syncing settings with game settings file: ${err?.stack ?? err}`)
-      })
-
     const status = this.activeGame.status?.state ?? GameStatus.Unknown
     if (status < GameStatus.Finished) {
       if (status >= GameStatus.Playing) {
@@ -638,7 +588,6 @@ async function doLaunch(
   gameId: string,
   serverPort: number,
   localSettings: LocalSettingsManager,
-  scrSettings: ScrSettingsManager,
   inBackground: boolean,
 ) {
   const settings = await localSettings.get()
@@ -658,9 +607,6 @@ async function doLaunch(
     throw new Error(`StarCraft path ${starcraftPath} not valid: ` + JSON.stringify(checkResult))
   }
 
-  // Ensure that our local settings file is up-to-date with the current settings
-  await scrSettings.writeGameSettingsFile()
-
   const userDataPath = app.getPath('userData')
   let appPath = settings.launch32Bit
     ? path.join(starcraftPath, 'x86', 'StarCraft.exe')
@@ -679,7 +625,6 @@ async function doLaunch(
 
   log.debug(`Attempting to launch "${appPath}" with StarCraft path: "${starcraftPath}"`)
 
-  const legacyCursorSizingArg = settings.legacyCursorSizing ? '-legacy-cursor-sizing' : ''
   // The DLL writes its log to `<name>.<slot>.log`; tell it the GGSTATS_SESSION-namespaced base so
   // concurrent dev instances don't share a log file. Prod (no GGSTATS_SESSION) → plain `game`.
   const logNameArg = `-log-name=${gameLogBaseName()}`
@@ -689,7 +634,7 @@ async function doLaunch(
   // NOTE(tec27): SC:R uses -launch as an argument to skip bnet launcher.
   const args =
     `"${appPath}" ${gameId} ${serverPort} "${userDataPath}" ` +
-    `-launch ${legacyCursorSizingArg} ${logNameArg} ${backgroundArg}`
+    `-launch ${logNameArg} ${backgroundArg}`
 
   // NOTE(tec27): We dynamically import this so that it doesn't crash the process on startup if
   // an antivirus decides to delete the native module

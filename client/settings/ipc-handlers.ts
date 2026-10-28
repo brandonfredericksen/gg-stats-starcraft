@@ -38,21 +38,14 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
     }
   })
 
-  ipcRenderer
-    .on('settingsLocalChanged', (event, settings) => {
-      dispatch({
-        type: '@settings/updateLocalSettings',
-        payload: settings,
-      })
+  ipcRenderer.on('settingsLocalChanged', (event, settings) => {
+    dispatch({
+      type: '@settings/updateLocalSettings',
+      payload: settings,
+    })
 
-      afterLocalSettingsChange(settings)
-    })
-    .on('settingsScrChanged', (event, settings) => {
-      dispatch({
-        type: '@settings/updateScrSettings',
-        payload: settings,
-      })
-    })
+    afterLocalSettingsChange(settings)
+  })
 
   // Trigger an initial update for the settings
   ipcRenderer
@@ -64,15 +57,6 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
       })
 
       afterLocalSettingsChange(settings)
-    })
-    .catch(swallowNonBuiltins)
-  ipcRenderer
-    .invoke('settingsScrGet')
-    ?.then(settings => {
-      dispatch({
-        type: '@settings/updateScrSettings',
-        payload: settings,
-      })
     })
     .catch(swallowNonBuiltins)
 

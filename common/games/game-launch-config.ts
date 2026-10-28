@@ -96,13 +96,6 @@ export interface GameSetup {
 export interface GameLaunchConfig {
   /** The user the game is launched as. */
   localUser: GameUser
-  /** Always empty, since a replay has no chat. */
-  blockedUsers: number[]
-  /**
-   * The filename template for this game's auto-saved replay. Unset for replay playback, which saves
-   * no replay; the game uses the default template when it's missing.
-   */
-  replayNameTemplate?: string
   /** Setup configuration for the game, such as the map, game type, etc. */
   setup: GameSetup
 }

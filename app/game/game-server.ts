@@ -2,7 +2,7 @@ import http from 'http'
 import { AddressInfo } from 'net'
 import { container } from 'tsyringe'
 import { WebSocket, WebSocketServer } from 'ws'
-import { ALL_MINIMAP_COLOR_MODES, LocalSettings } from '../../common/settings/local-settings'
+import { LocalSettings } from '../../common/settings/local-settings'
 import log from '../logger'
 import { LocalSettingsManager } from '../settings'
 import { ActiveGameManager } from './active-game-manager'
@@ -98,9 +98,6 @@ export class GameServer {
       case '/game/finished':
         this.activeGameManager.handleGameFinished(gameId)
         break
-      case '/game/replaySaved':
-        this.activeGameManager.handleReplaySaved(gameId, payload.path)
-        break
       case '/game/stats':
         this.activeGameManager.handleGameStats(gameId, payload)
         break
@@ -125,19 +122,6 @@ export class GameServer {
           this.localSettings.merge(toMerge).catch(err => {
             log.error(`Error saving game window position: ${err.stack ?? err}`)
           })
-        }
-        break
-      case '/game/minimapSettings':
-        {
-          const { colorMode } = payload
-
-          // Validate before persisting: this is a local websocket command boundary, and corrupt
-          // values would flow back into the UI and future game launches.
-          if (ALL_MINIMAP_COLOR_MODES.includes(colorMode)) {
-            this.localSettings.merge({ minimapColorMode: colorMode }).catch(err => {
-              log.error(`Error saving minimap settings: ${err.stack ?? err}`)
-            })
-          }
         }
         break
       default:

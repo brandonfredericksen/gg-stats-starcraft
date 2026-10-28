@@ -68,18 +68,6 @@ pub unsafe fn get_section(
     }
 }
 
-/// Exe hash for SDF cache etc.
-///
-/// Hashes section header data, assuming that no meaningful
-/// recompilation of game gives exact same section sizes.
-pub unsafe fn hash_pe_header(base: *const u8) -> u32 {
-    unsafe {
-        let (sections, section_count) = sections_ptr(base);
-        let section_headers = std::slice::from_raw_parts(sections, section_count * 0x28);
-        fxhash::hash32(section_headers)
-    }
-}
-
 unsafe fn read_u32(base: *const u8, offset: usize) -> u32 {
     unsafe { (base.add(offset) as *const u32).read_unaligned() }
 }

@@ -282,10 +282,6 @@ impl<T: ExternCFn> Thiscall<T> {
     pub fn foreign(fnptr: usize) -> Thiscall<T> {
         Thiscall(fnptr, PhantomData)
     }
-
-    pub fn cast_usize(self) -> usize {
-        self.0
-    }
 }
 
 impl<T: ExternCFn<Args = ArgCount1>> Thiscall<T> {
@@ -339,172 +335,11 @@ impl<T: ExternCFn<Args = ArgCount3>> Thiscall<T> {
     }
 }
 
-impl<T: ExternCFn<Args = ArgCount6>> Thiscall<T> {
-    #[cfg(target_arch = "x86")]
-    pub unsafe fn call6(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-    ) -> T::Ret {
-        unsafe {
-            let fnptr: unsafe extern "C" fn(
-                usize,
-                T::A1,
-                T::A2,
-                T::A3,
-                T::A4,
-                T::A5,
-                T::A6,
-            ) -> T::Ret = mem::transmute(THISCALL_CALL.as_ptr());
-            fnptr(self.0, a1, a2, a3, a4, a5, a6)
-        }
-    }
+impl<T: ExternCFn<Args = ArgCount6>> Thiscall<T> {}
 
-    #[cfg(target_arch = "x86_64")]
-    pub unsafe fn call6(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-    ) -> T::Ret {
-        let fnptr: unsafe extern "C" fn(T::A1, T::A2, T::A3, T::A4, T::A5, T::A6) -> T::Ret =
-            mem::transmute(self.0);
-        fnptr(a1, a2, a3, a4, a5, a6)
-    }
-}
+impl<T: ExternCFn<Args = ArgCount8>> Thiscall<T> {}
 
-impl<T: ExternCFn<Args = ArgCount8>> Thiscall<T> {
-    #[cfg(target_arch = "x86")]
-    pub unsafe fn call8(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-        a7: T::A7,
-        a8: T::A8,
-    ) -> T::Ret {
-        unsafe {
-            #[allow(clippy::type_complexity)]
-            let fnptr: unsafe extern "C" fn(
-                usize,
-                T::A1,
-                T::A2,
-                T::A3,
-                T::A4,
-                T::A5,
-                T::A6,
-                T::A7,
-                T::A8,
-            ) -> T::Ret = mem::transmute(THISCALL_CALL.as_ptr());
-            fnptr(self.0, a1, a2, a3, a4, a5, a6, a7, a8)
-        }
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    pub unsafe fn call8(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-        a7: T::A7,
-        a8: T::A8,
-    ) -> T::Ret {
-        #[allow(clippy::type_complexity)]
-        let fnptr: unsafe extern "C" fn(
-            T::A1,
-            T::A2,
-            T::A3,
-            T::A4,
-            T::A5,
-            T::A6,
-            T::A7,
-            T::A8,
-        ) -> T::Ret = mem::transmute(self.0);
-        fnptr(a1, a2, a3, a4, a5, a6, a7, a8)
-    }
-}
-
-impl<T: ExternCFn<Args = ArgCount11>> Thiscall<T> {
-    #[cfg(target_arch = "x86")]
-    pub unsafe fn call11(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-        a7: T::A7,
-        a8: T::A8,
-        a9: T::A9,
-        a10: T::A10,
-        a11: T::A11,
-    ) -> T::Ret {
-        unsafe {
-            #[allow(clippy::type_complexity)]
-            let fnptr: unsafe extern "C" fn(
-                usize,
-                T::A1,
-                T::A2,
-                T::A3,
-                T::A4,
-                T::A5,
-                T::A6,
-                T::A7,
-                T::A8,
-                T::A9,
-                T::A10,
-                T::A11,
-            ) -> T::Ret = mem::transmute(THISCALL_CALL.as_ptr());
-            fnptr(self.0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
-        }
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    pub unsafe fn call11(
-        self,
-        a1: T::A1,
-        a2: T::A2,
-        a3: T::A3,
-        a4: T::A4,
-        a5: T::A5,
-        a6: T::A6,
-        a7: T::A7,
-        a8: T::A8,
-        a9: T::A9,
-        a10: T::A10,
-        a11: T::A11,
-    ) -> T::Ret {
-        #[allow(clippy::type_complexity)]
-        let fnptr: unsafe extern "C" fn(
-            T::A1,
-            T::A2,
-            T::A3,
-            T::A4,
-            T::A5,
-            T::A6,
-            T::A7,
-            T::A8,
-            T::A9,
-            T::A10,
-            T::A11,
-        ) -> T::Ret = mem::transmute(self.0);
-        fnptr(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
-    }
-}
+impl<T: ExternCFn<Args = ArgCount11>> Thiscall<T> {}
 
 // Max 11 arguments
 #[unsafe(link_section = ".text")]

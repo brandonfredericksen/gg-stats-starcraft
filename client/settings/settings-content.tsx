@@ -1,10 +1,9 @@
 import React from 'react'
 import styled from 'styled-components'
-import { MaterialIcon } from '../icons/material/material-icon'
+
 import { buttonReset } from '../material/button-reset'
 import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import {
-  bodyLarge,
   bodyMedium,
   headlineMedium,
   labelLarge,
@@ -149,60 +148,6 @@ export const Section = styled.section`
 export const SectionTitle = styled.h2`
   ${titleLarge};
   margin: 0;
-`
-
-export const SectionDescription = styled.span`
-  ${bodyMedium};
-  color: var(--theme-on-surface-variant);
-`
-
-export const SectionNote = styled.div`
-  ${bodyLarge};
-  padding: var(--space-5) var(--space-6);
-
-  background-color: var(--theme-container-low);
-  border: 1px dashed var(--theme-outline-variant);
-  border-radius: var(--radius-lg);
-  color: var(--theme-on-surface-variant);
-`
-
-export const CollapseButton = styled.button`
-  ${buttonReset};
-  width: 100%;
-  padding: 18px 20px 18px 24px;
-
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-
-  background-color: var(--theme-container-low);
-  border: 1px solid var(--theme-outline-variant);
-  border-radius: var(--radius-lg);
-  color: var(--theme-on-surface);
-  cursor: pointer;
-  text-align: left;
-
-  &:hover {
-    background-color: var(--theme-container);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
-  }
-`
-
-export const CollapseText = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-`
-
-export const CollapseChevron = styled(MaterialIcon)<{ $open: boolean }>`
-  color: var(--theme-on-surface-variant);
-  transform: rotate(${props => (props.$open ? '180deg' : '0deg')});
-  transition: transform 150ms ease;
 `
 
 const CardRoot = styled.div`

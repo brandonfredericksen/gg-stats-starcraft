@@ -12,7 +12,7 @@ use winapi::shared::windef::{HDC, HMENU, HMONITOR, HWND, POINT, RECT};
 use winapi::um::wingdi::DEVMODEW;
 use winapi::um::winuser::*;
 
-use crate::bw::{Bw, get_bw};
+use crate::bw::get_bw;
 use crate::game_thread::{self, GameThreadMessage, send_game_msg_to_async};
 
 mod gamma;
@@ -242,8 +242,6 @@ unsafe extern "system" fn wnd_proc_scr(
         });
 
         if let Some(ret) = ret {
-            return ret;
-        } else if let Some(ret) = get_bw().window_proc_hook(window, msg, wparam, lparam) {
             return ret;
         }
 

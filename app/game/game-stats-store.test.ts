@@ -279,18 +279,6 @@ describe('app/game/game-stats-store', () => {
     ])
   })
 
-  test("adds a played game's replay once it has been saved", async () => {
-    const store = new GameStatsStore(dir)
-    const replayPath = await makeReplay('LastReplay.rep')
-    // Not awaited, like when the replay is saved right after the stats arrive.
-    const saving = store.save('played', { kind: 'game' }, STATS)
-    await store.setReplayPath('played', replayPath)
-    await saving
-
-    expect((await store.get('played'))?.source).toEqual({ kind: 'game', replayPath })
-    expect((await store.findByReplayPath(replayPath))?.gameId).toBe('played')
-  })
-
   test('lists each replay once, preferring stats of the whole game', async () => {
     const replayPath = await makeReplay('game.rep')
     const store = new GameStatsStore(dir)

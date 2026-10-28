@@ -1,19 +1,15 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
 
-use bw_dat::UnitId;
 pub use bw_dat::structs::*;
 use libc::{c_void, sockaddr};
 use players::StormPlayerId;
 use quick_error::quick_error;
-use winapi::shared::windef::HWND;
 
-use crate::app_messages::{MapInfo, Settings, StartingFog};
+use crate::app_messages::{MapInfo, Settings};
 use crate::bw_scr::BwScr;
 
-pub mod apm_stats;
 pub mod commands;
 pub mod list;
 pub mod players;
@@ -92,18 +88,10 @@ pub trait Bw: Sync + Send {
     unsafe fn replay_header(&self) -> *mut ReplayHeader;
     fn game_command_lengths(&self) -> &[u32];
     unsafe fn process_replay_commands(&self, commands: &[u8], player: StormPlayerId);
-    unsafe fn replay_visions(&self) -> ReplayVisions;
 
     unsafe fn set_player_name(&self, id: u8, name: &str);
 
     unsafe fn active_units(&self) -> unit::UnitIterator;
-    unsafe fn fow_sprites(&self) -> FowSpriteIterator;
-    unsafe fn create_fow_sprite(&self, unit: unit::Unit);
-    unsafe fn sprite_position(&self, sprite: *mut c_void) -> Point;
-    unsafe fn client_selection(&self) -> [Option<unit::Unit>; 12];
-    /// Returns whether or not the network is ready to proceed to the next turn (that is, all
-    /// player's turns have been received). False indicates that we are currently in a stall.
-    unsafe fn is_network_ready(&self) -> bool;
     unsafe fn set_user_latency(&self, latency: UserLatency);
 
     /// Size unspecified.
@@ -112,36 +100,6 @@ pub trait Bw: Sync + Send {
     unsafe fn storm_set_last_error(&self, error: u32);
     unsafe fn alloc(&self, size: usize) -> *mut u8;
     unsafe fn free(&self, ptr: *mut u8);
-
-    unsafe fn call_original_status_screen_fn(&self, unit_id: UnitId, dialog: *mut Dialog);
-
-    unsafe fn window_proc_hook(
-        &self,
-        window: HWND,
-        msg: u32,
-        wparam: usize,
-        lparam: isize,
-    ) -> Option<isize>;
-
-    fn starting_fog(&self) -> StartingFog;
-}
-
-/// One bool for state that doesn't require specific handling based on version.
-/// Probably should refactor this state to some structure that is available as
-/// `bw.common_state()` or something later on, but this will work for this one case.
-static HAD_ALLIES_ENABLED: AtomicBool = AtomicBool::new(false);
-
-pub fn set_had_allies_enabled(had: bool) {
-    HAD_ALLIES_ENABLED.store(had, Ordering::Relaxed)
-}
-
-pub fn get_had_allies_enabled() -> bool {
-    HAD_ALLIES_ENABLED.load(Ordering::Relaxed)
-}
-
-pub struct ReplayVisions {
-    pub show_entire_map: bool,
-    pub players: u8,
 }
 
 pub const MAX_STORM_PLAYERS: usize = 12;
@@ -344,14 +302,6 @@ pub struct SNetPlayerConnection {
     pub unk_other_player_id: u8,
 }
 
-#[repr(C)]
-pub struct FowSprite {
-    pub prev: *mut FowSprite,
-    pub next: *mut FowSprite,
-    pub unit_id: u16,
-    pub sprite: *mut c_void,
-}
-
 /// BW's lobby command that ends lobby setup and starts the game with a shared random seed.
 pub const LOBBY_GAME_INIT_COMMAND: u8 = 0x48;
 
@@ -522,23 +472,6 @@ pub struct ReplayHeader {
     pub ums_user_select_slots: [u8; 8],
 }
 
-#[repr(C)]
-pub struct UnitStatusFunc {
-    pub index: u32,
-    pub has_changed: unsafe extern "C" fn() -> u32,
-    pub update_status: unsafe extern "C" fn(*mut Dialog),
-}
-
-#[repr(C)]
-pub struct GraphicLayer {
-    pub draw: u8,
-    pub flags: u8,
-    pub rect: Rect,
-    pub func_param: *mut c_void,
-    // unk_0, unk_0, func_param, rect, is_drawing_other_asset_mode
-    pub draw_func: Option<unsafe extern "C" fn(usize, usize, *mut c_void, *const Rect, u32)>,
-}
-
 unsafe impl Send for SnpFunctions {}
 unsafe impl Sync for SnpFunctions {}
 unsafe impl Send for ClientInfo {}
@@ -558,34 +491,9 @@ fn struct_sizes() {
 
     assert_eq!(size_of::<BwGameData>(), 0x8d);
     assert_eq!(size_of::<GameTemplate>(), 0x20);
-    assert_eq!(size_of::<FowSprite>(), size(0x10, 0x20));
     assert_eq!(size_of::<ReplayData>(), size(0x20, 0x30));
     assert_eq!(size_of::<ReplayHeader>(), 0x279);
-    assert_eq!(size_of::<UnitStatusFunc>(), size(0xc, 0x18));
-    assert_eq!(size_of::<GraphicLayer>(), size(0x14, 0x20));
     assert_eq!(size_of::<SNetPlayerConnection>(), size(0x21c, 0x2c0));
-}
-
-pub struct FowSpriteIterator(*mut FowSprite);
-
-impl FowSpriteIterator {
-    pub fn new(first: *mut FowSprite) -> FowSpriteIterator {
-        FowSpriteIterator(first)
-    }
-}
-
-impl Iterator for FowSpriteIterator {
-    type Item = *mut FowSprite;
-    fn next(&mut self) -> Option<*mut FowSprite> {
-        if self.0.is_null() {
-            return None;
-        }
-        let fow = self.0;
-        unsafe {
-            self.0 = (*fow).next;
-        }
-        Some(fow)
-    }
 }
 
 pub unsafe fn player_name(player: *mut Player) -> Cow<'static, str> {
@@ -595,45 +503,4 @@ pub unsafe fn player_name(player: *mut Player) -> Cow<'static, str> {
         let name = &name[..name_length];
         String::from_utf8_lossy(name)
     }
-}
-
-pub unsafe fn player_color(
-    game: bw_dat::Game,
-    main_palette: *mut u8,
-    use_rgb_colors: u8,
-    rgb_colors: *mut [[f32; 4]; 8],
-    player_id: u8,
-) -> [u8; 3] {
-    unsafe {
-        let color = if use_rgb_colors == 0 {
-            (**game)
-                .player_minimap_color
-                .get(player_id as usize)
-                .map(|&s| {
-                    let color = main_palette.add(4 * s as usize);
-                    [*color, *color.add(1), *color.add(2)]
-                })
-        } else {
-            (*rgb_colors).get(player_id as usize).map(|x| {
-                [
-                    (x[0] * 255.0) as u8,
-                    (x[1] * 255.0) as u8,
-                    (x[2] * 255.0) as u8,
-                ]
-            })
-        };
-        color.unwrap_or([0xff, 0xff, 0xff])
-    }
-}
-
-pub fn iter_dialogs(
-    first: Option<bw_dat::dialog::Dialog>,
-) -> impl Iterator<Item = bw_dat::dialog::Dialog> {
-    std::iter::successors(first, |&x| unsafe {
-        let ctrl = std::ptr::addr_of_mut!((**x).control);
-        match (*ctrl).next.is_null() {
-            false => Some(bw_dat::dialog::Dialog::new((*ctrl).next as *mut _)),
-            true => None,
-        }
-    })
 }
