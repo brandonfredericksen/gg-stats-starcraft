@@ -3,9 +3,8 @@ import { useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
-import { CoachBuild, CoachTeamBuild, MIN_WINNER_GAMES } from '../../common/my-stats/builds'
+import { CoachBuild, CoachTeamBuild } from '../../common/my-stats/builds'
 import { CoachBucket, CoachResult, CoachScope } from '../../common/my-stats/coach'
 import { MetaResult } from '../../common/my-stats/meta-builds'
 import { MyStatsShape } from '../../common/my-stats/my-stats'
@@ -41,7 +40,6 @@ import {
   BuildEntry,
   BuildsList,
   BuildsPickers,
-  getLevelName,
   getTopPlayersHelp,
   hasSplits,
   MIN_RATE_GAMES,
@@ -230,22 +228,13 @@ function getEntries(meta: MetaResult | 'error', level: LevelBuilds): BuildEntry[
 function getCompare(
   entry: BuildEntry,
   meta: MetaResult | 'error',
-  level: LevelBuilds,
-  bucket: CoachBucket,
-  autoRank: LadderRank | undefined,
-  eapmFloor: number,
   scope: Omit<CoachScope, 'games'>,
   t: TFunction,
 ): { compare: BuildCompare; note: string | undefined; typicalGame: string | undefined } {
   const topBuilds = meta === 'error' ? [] : meta.builds
   const topFamily = closestFamily(entry.family, f => topBuilds.some(b => b.family === f))
   const top = topBuilds.find(b => b.family === topFamily)
-  const played = level.builds.filter(b => b.others.games > 0)
-  const levelFamily = closestFamily(entry.family, f => played.some(b => b.family === f))
-  const others = played.find(b => b.family === levelFamily)
-  const winners = others?.winners
   const user = entry.level?.user
-  const levelName = getLevelName(bucket, autoRank, eapmFloor, t)
 
   const sides: ShownSide[] = [
     {
@@ -257,18 +246,6 @@ function getCompare(
       muted: false,
     },
     {
-      key: 'winners',
-      label: t('builds.winners', 'Winners'),
-      players: t('builds.basisWinners', 'the winners'),
-      side: winners,
-      help: t(
-        'builds.winnersHelp',
-        'Wins with this build by {{players}} who were still in at the end. Empty under {{empty}} such games, and faded under {{minimum}}.',
-        { players: levelName.players, empty: MIN_WINNER_GAMES, minimum: MIN_RATE_GAMES },
-      ),
-      muted: !!winners && winners.games < MIN_RATE_GAMES,
-    },
-    {
       key: 'you',
       label: t('builds.you', 'You'),
       side: user,
@@ -276,23 +253,14 @@ function getCompare(
       muted: false,
     },
   ]
-  const basis =
-    sides.find(s => s.key === 'winners' && s.side && !s.muted) ??
-    sides.find(s => s.key === 'top' && s.side)
+  // Top players' play is the standard the user's is held to.
+  const basis = sides.find(s => s.key === 'top' && s.side)
 
   const standIns: string[] = []
   if (topFamily && topFamily !== entry.family) {
     standIns.push(
       t('builds.topAs', 'Top players as {{build}}, the closest build they play.', {
         build: getBuildFamilyName(topFamily, t),
-      }),
-    )
-  }
-  if (levelFamily && levelFamily !== entry.family) {
-    standIns.push(
-      t('builds.levelAs', '{{side}} as {{build}}, the closest build they play.', {
-        side: t('builds.winners', 'Winners'),
-        build: getBuildFamilyName(levelFamily, t),
       }),
     )
   }
@@ -337,9 +305,7 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
     entries.find(e => e.family === picked) ??
     entries.find(e => e.family === level.userBuild) ??
     entries[0]
-  const detail = selected
-    ? getCompare(selected, meta, level, bucket, coach.autoRank, coach.eapmFloor, scope, t)
-    : undefined
+  const detail = selected ? getCompare(selected, meta, scope, t) : undefined
 
   return (
     <Panels>

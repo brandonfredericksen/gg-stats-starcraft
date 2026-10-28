@@ -2280,7 +2280,6 @@ export function computeCoach(
       result,
       gameId: sample.game.gameId,
       withUser,
-      carried: teamGame && wentOutFirst(sample),
       playedMs: sample.playedMs,
     })
     const userBuildSamples = userGames.map(g => toBuildSample(g.sample, g.result, true))

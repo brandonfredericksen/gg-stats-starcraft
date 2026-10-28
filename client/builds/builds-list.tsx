@@ -2,7 +2,6 @@ import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { assertUnreachable } from '../../common/assert-unreachable'
-import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { CoachBuild } from '../../common/my-stats/builds'
 import { CoachBucket, CoachScope } from '../../common/my-stats/coach'
@@ -76,6 +75,18 @@ const OtherCell = styled(Cell)`
 /** How the top players were picked, see `MetaResult.topBy`. */
 function getTopPlayersNote(meta: MetaResult, values: Record<string, unknown>, t: TFunction) {
   switch (meta.topBy) {
+    case 'eskill':
+      return t(
+        'builds.metaFieldESkill',
+        '{{games}} games of {{players}} {{race}} players from the last 6 months: S and A rank, with S counting twice. Players without a ladder rank here go by their eSkill.',
+        values,
+      )
+    case 'eskillQuarter':
+      return t(
+        'builds.metaFieldESkillQuarter',
+        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the best quarter of players here by eSkill, over {{eskill}}.',
+        values,
+      )
     case 'rank':
       return t(
         'builds.metaFieldRank',
@@ -107,6 +118,7 @@ export function getTopPlayersHelp(
     players: meta.players,
     race: raceCharToLabel(scope.race, t),
     eapm: Math.round(meta.eapmCutoff ?? 0),
+    eskill: Math.round(meta.eSkillCutoff ?? 0),
   }
   const notes = meta.games
     ? [getTopPlayersNote(meta, values, t)]
@@ -145,7 +157,7 @@ export function getTopPlayersHelp(
       ),
     )
   }
-  if (meta.topBy === 'eapm') {
+  if (scope.shape !== '1v1') {
     notes.push(
       t(
         'builds.metaThinTeam',
@@ -154,36 +166,6 @@ export function getTopPlayersHelp(
     )
   }
   return notes.join(' ')
-}
-
-/**
- * What the players at the user's level are called, as a heading and within a sentence. Their
- * level is only known from the rank of their latest ranked 1v1 game. Otherwise the players are
- * named for the rank or the EAPM they were picked by.
- */
-export function getLevelName(
-  bucket: CoachBucket,
-  autoRank: LadderRank | undefined,
-  eapmFloor: number,
-  t: TFunction,
-): { label: string; players: string } {
-  if (bucket.rank && bucket.rank === autoRank) {
-    return {
-      label: t('builds.yourLevel', 'Your level'),
-      players: t('builds.basisLevel', 'players at your level'),
-    }
-  }
-  if (bucket.rank) {
-    const rank = bucket.rank.toUpperCase()
-    return {
-      label: t('myStats.filters.rankOption', 'Rank {{rank}}', { rank }),
-      players: t('builds.basisRank', 'rank {{rank}} players', { rank }),
-    }
-  }
-  return {
-    label: t('myStats.filters.floorOption', '{{floor}}+ EAPM', { floor: eapmFloor }),
-    players: t('builds.basisFloor', 'players over {{floor}} EAPM', { floor: eapmFloor }),
-  }
 }
 
 function rateOf(record: { wins: number; losses: number } | undefined) {
@@ -362,7 +344,7 @@ export function BuildsList({
         <PanelHeadNote>{t('builds.popularNote', 'Pick one to compare it below.')}</PanelHeadNote>
         {pickers}
       </PanelHead>
-      <BuildsTable $columns={COLUMNS} $you={2}>
+      <BuildsTable $columns={COLUMNS} $you={`calc(${COUNT_COLUMN} + ${RATE_COLUMN})`}>
         <Row>
           <span />
           <SpanHead style={{ gridColumn: 'span 2' }}>

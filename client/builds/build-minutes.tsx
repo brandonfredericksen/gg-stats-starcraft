@@ -25,6 +25,7 @@ import {
   Row,
   ROW_ICON_SIZE,
   ShownSide,
+  SIDE_COLUMN,
   SIDE_COLUMNS,
   SMALL_ICON_SIZE,
 } from './build-shared'
@@ -137,7 +138,7 @@ function MinutesTable({ compare, race }: { compare: BuildCompare; race: Assigned
   ].join(' ')
 
   return (
-    <BuildsTable $columns={SIDE_COLUMNS} $you={1}>
+    <BuildsTable $columns={SIDE_COLUMNS} $you={SIDE_COLUMN}>
       <Row>
         <GroupHead $first={true}>{t('builds.workersTitle', 'Workers')}</GroupHead>
         {sides.map(s => (

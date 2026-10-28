@@ -30,6 +30,7 @@ import {
   Row,
   ROW_ICON_SIZE,
   ShownSide,
+  SIDE_COLUMN,
   SIDE_COLUMNS,
   SideHeads,
   SideKey,
@@ -37,7 +38,12 @@ import {
   stepId,
 } from './build-shared'
 
-/** A step this much later or earlier than the players it's compared with is pointed out. */
+/**
+ * A step within this much of the players it's compared with is on their build. Sooner isn't
+ * better: their timing is the standard.
+ */
+const ON_STEP_MS = 8_000
+/** A step this much later or sooner than the players it's compared with is off their build. */
 const OFF_STEP_MS = 20_000
 /** A step fewer games than this share take is marked as one only some players add. */
 const OPTIONAL_STEP_SHARE = 0.8
@@ -147,7 +153,7 @@ function StepsTable({ compare }: { compare: BuildCompare }) {
   const order = compare.sides.find(s => s.side && s.key !== 'you')?.key
 
   return (
-    <BuildsTable $columns={SIDE_COLUMNS} $you={1}>
+    <BuildsTable $columns={SIDE_COLUMNS} $you={SIDE_COLUMN}>
       <Row>
         <HeadCell>{t('builds.step', 'Step')}</HeadCell>
         <SideHeads sides={compare.sides} />
@@ -165,11 +171,11 @@ function StepsTable({ compare }: { compare: BuildCompare }) {
         const usual = order ? byId.get(order)?.get(id) : undefined
         const mine = byId.get('you')?.get(id)
         const theirs = compare.basis ? byId.get(compare.basis.key)?.get(id) : undefined
-        const diff = mine && theirs ? mine.timeMs - theirs.timeMs : 0
+        const off = mine && theirs ? Math.abs(mine.timeMs - theirs.timeMs) : undefined
         let tone: Tone | undefined
-        if (diff >= OFF_STEP_MS) {
+        if (off !== undefined && off >= OFF_STEP_MS) {
           tone = 'bad'
-        } else if (diff <= -OFF_STEP_MS) {
+        } else if (off !== undefined && off <= ON_STEP_MS) {
           tone = 'good'
         }
         return (
@@ -205,7 +211,6 @@ function StepsTable({ compare }: { compare: BuildCompare }) {
 /** Each side's color in the timeline. Top players are a band, the rest marks. */
 const SIDE_COLORS: Record<SideKey, string> = {
   top: 'var(--theme-data-1)',
-  winners: 'var(--theme-best)',
   you: 'var(--theme-tab-builds)',
 }
 
@@ -214,7 +219,6 @@ type MarkShape = 'circle' | 'diamond' | 'square'
 /** Each side's mark in the timeline. Top players are drawn as a band instead. */
 const SIDE_SHAPES: Record<SideKey, MarkShape | undefined> = {
   top: undefined,
-  winners: 'diamond',
   you: 'square',
 }
 
@@ -594,7 +598,6 @@ export function BuildOrder({
       }),
     })),
   ]
-  const fewWinners = compare.sides.some(s => s.key === 'winners' && !s.side)
 
   return (
     <PaddedPanel>
@@ -607,8 +610,16 @@ export function BuildOrder({
                 'builds.stepsHelp',
                 'The usual supply and time of each step. A side shows a step when most of its games take it, up to 10 minutes for buildings and tech and 15 for units.',
               ),
-              fewWinners
-                ? t('builds.fewWinners', 'Too few won games to show how winners play it.')
+              compare.basis
+                ? t(
+                    'builds.stepsToneHelp',
+                    'Your times in green are within {{on}} seconds of {{basis}}, in red {{off}} or more off, sooner or later.',
+                    {
+                      basis: compare.basis.players,
+                      on: ON_STEP_MS / 1000,
+                      off: OFF_STEP_MS / 1000,
+                    },
+                  )
                 : '',
             ].join(' ')}
           />

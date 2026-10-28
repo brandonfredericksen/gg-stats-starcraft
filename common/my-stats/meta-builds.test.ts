@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { LadderRank } from '../games/ladder'
 import { MapFamily } from '../games/map-family'
 import {
@@ -7,8 +7,23 @@ import {
   GameShape,
   PlayerMetrics,
 } from '../games/player-metrics'
+import { ESkillModel } from './eskill'
 import { computeMetaBuilds } from './meta-builds'
 import { DatedGameMetrics } from './my-stats'
+
+// Each player's eSkill is their MMR here, from 1700 A rank and from 2000 S.
+vi.mock('./eskill', async importOriginal => ({
+  ...(await importOriginal<typeof import('./eskill')>()),
+  getESkill: (_model: ESkillModel, _game: unknown, p: PlayerMetrics) =>
+    p.mmr === undefined ? undefined : { value: p.mmr, parts: {} },
+  getESkillRank: (_model: ESkillModel, value: number) => {
+    if (value >= 2000) {
+      return 's'
+    }
+    return value >= 1700 ? 'a' : 'b'
+  },
+}))
+const MODEL = {} as ESkillModel
 
 const empty = CHECKPOINT_MINUTES.map(() => null)
 const DAY_MS = 24 * 60 * 60_000
@@ -408,5 +423,46 @@ describe('common/my-stats/meta-builds', () => {
     expect(meta.opponentPairs).toEqual([{ value: 'zz', games: 30 }])
     expect(meta.anyAlly).toBe(false)
     expect(meta.games).toBe(30)
+  })
+
+  test('in team games, goes by eSkill rank rather than speed', () => {
+    // 22 slower players at A rank by eSkill, and 22 faster ones under it.
+    const games = times(44, i =>
+      game(
+        [
+          i % 2
+            ? player({ name: `skilled${i}`, mmr: 1800, eapm: 120, steps: FORGE_EXPAND })
+            : player({ name: `fast${i}`, mmr: 1300, eapm: 300 }),
+        ],
+        { shape: '3v3', mapFamily: 'bgh' },
+      ),
+    )
+    const meta = computeMetaBuilds(games, { shape: '3v3', race: 'p', mapFamily: 'bgh' }, MODEL)
+    expect(meta.topBy).toBe('eskill')
+    expect(meta.players).toBe(22)
+    expect(meta.builds.map(b => b.family)).toEqual(['p forgeExpand'])
+  })
+
+  test('in 1v1, goes by ladder rank, and eSkill only for players without one', () => {
+    const games = [
+      // A ladder B rank whose eSkill would be S doesn't count.
+      ...times(10, i => pvt({ name: `b${i}`, rank: 'b', mmr: 2100, steps: FORGE_EXPAND })),
+      ...times(20, i => pvt({ name: `a${i}`, rank: 'a', mmr: 1500 })),
+      ...times(10, i => pvt({ name: `unranked${i}`, mmr: 1800 })),
+    ]
+    const meta = computeMetaBuilds(games, PVT, MODEL)
+    expect(meta.topBy).toBe('eskill')
+    expect(meta.players).toBe(30)
+    expect(meta.builds.map(b => b.family)).toEqual(['p gates1 expand'])
+  })
+
+  test('with too few S and A rank players by eSkill, takes the best quarter by it', () => {
+    const games = times(40, i =>
+      game([player({ name: `p${i}`, mmr: 1000 + i * 10 })], { shape: '3v3', mapFamily: 'bgh' }),
+    )
+    const meta = computeMetaBuilds(games, { shape: '3v3', race: 'p', mapFamily: 'bgh' }, MODEL)
+    expect(meta.topBy).toBe('eskillQuarter')
+    expect(meta.eSkillCutoff).toBeCloseTo(1292.5)
+    expect(meta.players).toBe(10)
   })
 })

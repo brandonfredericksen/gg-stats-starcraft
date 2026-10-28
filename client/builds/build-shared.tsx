@@ -14,7 +14,7 @@ const YOU_TINT = 'color-mix(in srgb, var(--theme-on-surface) 3%, transparent)'
 /** A heading over a group of columns, with a line under it spanning them. */
 export const SpanHead = styled.span`
   ${labelMedium};
-  margin-left: var(--space-5);
+  margin-left: var(--space-3);
   padding-bottom: var(--space-1);
   margin-bottom: var(--space-2);
   border-bottom: 1px solid var(--theme-outline-variant);
@@ -26,9 +26,12 @@ export const SpanHead = styled.span`
 /**
  * A table of the Builds page. Every row is a `Row` or a `BuildRow`, and their lines and highlights
  * reach a little past the text on each side, the same in every table on the page. The user's
- * columns, the last `$you` of them, are a touch lighter, over any row's highlight.
+ * columns, the last `$you` wide of them, sit on one lighter band from the top row to the bottom,
+ * over any row's highlight. It starts a space into its first column, so it never touches the text
+ * of the column before, and ends a space past its last column's text.
  */
-export const BuildsTable = styled(Table)<{ $you?: number }>`
+export const BuildsTable = styled(Table)<{ $you?: string }>`
+  position: relative;
   margin-inline: calc(-1 * var(--space-3));
 
   & > * > :first-child {
@@ -42,8 +45,15 @@ export const BuildsTable = styled(Table)<{ $you?: number }>`
   ${props =>
     props.$you
       ? css`
-          & > * > :nth-last-child(-n + ${props.$you}):not(:only-child, ${SpanHead}) {
-            background-image: linear-gradient(${YOU_TINT}, ${YOU_TINT});
+          &::after {
+            content: '';
+            position: absolute;
+            inset-block: 0;
+            right: 0;
+            width: calc(${props.$you} - var(--space-3));
+            border-radius: var(--radius-md);
+            background: ${YOU_TINT};
+            pointer-events: none;
           }
         `
       : ''}
@@ -117,7 +127,7 @@ export const ROW_ICON_SIZE = 26
 export const SMALL_ICON_SIZE = 20
 
 /** Who a build's numbers are from, in the order every table and chart on the page shows them. */
-export type SideKey = 'top' | 'winners' | 'you'
+export type SideKey = 'top' | 'you'
 
 export interface ShownSide {
   key: SideKey
@@ -146,8 +156,11 @@ export interface BuildCompare {
   basis: ShownSide | undefined
 }
 
+/** The width of each side's column in a table with a column per side. */
+export const SIDE_COLUMN = '136px'
+
 /** The columns of a table with a row per step or number and a column per side. */
-export const SIDE_COLUMNS = 'minmax(0, 1fr) repeat(3, 136px)'
+export const SIDE_COLUMNS = `minmax(0, 1fr) repeat(2, ${SIDE_COLUMN})`
 
 /** A table's column headings for each side, explained when hovered. */
 export function SideHeads({ sides }: { sides: ReadonlyArray<ShownSide> }) {

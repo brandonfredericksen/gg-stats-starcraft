@@ -4,6 +4,7 @@ import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
 import { BuildSample, BuildSide, BuildStepSummary, quantile, summarizeBuildSide } from './builds'
 import { capPerPlayer, isComparable, Sample, toSample, wentOutFirst } from './coach'
+import { ESKILL_AVERAGE_GAMES, ESkillModel, getESkill, getESkillRank } from './eskill'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { getSidesOf, isTeamGame, makeScriptedCheck, nameOf, splitsByMap } from './player-games'
 
@@ -12,12 +13,13 @@ const META_WINDOW_MS = 180 * 24 * 60 * 60_000
 /** How much a 1v1 game counts by the player's ladder rank. Ranks not listed don't count. */
 const RANK_WEIGHTS: Readonly<Record<string, number>> = { s: 2, a: 1 }
 /**
- * The fewest S and A rank players whose EAPM tells which unranked players play at their level. With
- * fewer, the fastest quarter of everyone counts instead.
+ * The fewest S and A rank players, by ladder rank or eSkill, it takes to be the top players. Without
+ * eSkill, the fewest whose EAPM tells which unranked players play at their level. With fewer, the
+ * best quarter of everyone counts instead.
  */
 const MIN_RANKED_PLAYERS = 20
-/** Where the fastest quarter of players starts, by their EAPM. */
-const TOP_EAPM_QUANTILE = 0.75
+/** Where the best quarter of players starts, by their eSkill or EAPM. */
+const TOP_QUANTILE = 0.75
 /** How many games one player can add, their latest, so no one player sets the meta. */
 const MAX_GAMES_PER_PLAYER = 10
 /** The fewest top players' games, and players, a build needs to be listed. */
@@ -101,9 +103,14 @@ export interface MetaSplit<T extends string> {
 
 /** The builds top players use in one kind of game, and how they play them. */
 export interface MetaResult {
-  /** How top players were picked: by ladder rank in 1v1, otherwise by EAPM. */
-  topBy: 'rank' | 'eapm'
-  /** The early game EAPM a player without a rank needed to count. */
+  /**
+   * How top players were picked: by ladder rank or else eSkill, by eSkill when too few are S or A
+   * rank, and without eSkill by ladder rank in 1v1 and otherwise EAPM.
+   */
+  topBy: 'eskill' | 'eskillQuarter' | 'rank' | 'eapm'
+  /** The eSkill a player needed to count, when it's the best quarter's. */
+  eSkillCutoff?: number
+  /** The early game EAPM a player without a rank needed to count, without eSkill. */
   eapmCutoff?: number
   /** Top players' games, after each player's are capped. */
   games: number
@@ -158,6 +165,22 @@ function medianByPlayer(
     }
   }
   return new Map(Array.from(byPlayer, ([name, values]) => [name, median(values)]))
+}
+
+/** Each player's average eSkill over their latest scored games. */
+function eSkillByPlayer(samples: ReadonlyArray<Sample>, model: ESkillModel): Map<string, number> {
+  const byPlayer = new Map<string, number[]>()
+  for (const s of samples.toSorted((a, b) => b.game.gameTimeMs - a.game.gameTimeMs)) {
+    const name = nameOf(s.player)
+    const values = byPlayer.get(name) ?? []
+    if (values.length < ESKILL_AVERAGE_GAMES) {
+      const value = getESkill(model, s.game, s.player)?.value
+      if (value !== undefined) {
+        byPlayer.set(name, [...values, value])
+      }
+    }
+  }
+  return new Map(Array.from(byPlayer, ([name, values]) => [name, sum(values) / values.length]))
 }
 
 /** A player's EAPM in the early game, which short games and long ones both have. */
@@ -267,7 +290,6 @@ function toBuildSample(s: TopSample): BuildSample {
     result: s.player.result,
     gameId: s.game.gameId,
     withUser: false,
-    carried: teamGame && wentOutFirst(s),
     playedMs: s.playedMs,
     weight: s.weight,
   }
@@ -325,64 +347,66 @@ function splitsOf<T extends string>(values: ReadonlyArray<T | undefined>): Array
     .sort((a, b) => b.games - a.games)
 }
 
-/** A player's opening, the race and how they opened, like `t raxCC`. */
-function openingOf(family: string | undefined) {
-  return family?.split(' ').slice(0, 2).join(' ')
+/** Who counts as a top player, and how much each of their games counts. */
+interface TopPick {
+  topBy: MetaResult['topBy']
+  eSkillCutoff?: number
+  eapmCutoff?: number
+  weightOf: (s: Sample) => number
+}
+
+/** S and A rank players, by their ladder rank in 1v1 and otherwise eSkill, or the best quarter. */
+function pickByESkill(
+  recent: ReadonlyArray<Sample>,
+  shape: MyStatsShape,
+  model: ESkillModel,
+): TopPick {
+  // Players are judged by their usual eSkill over their games here, not game by game.
+  const playerESkill = eSkillByPlayer(recent, model)
+  const rankOf = (s: Sample) => {
+    if (shape === '1v1' && s.player.rank) {
+      return s.player.rank
+    }
+    const eSkill = playerESkill.get(nameOf(s.player))
+    return eSkill === undefined ? undefined : getESkillRank(model, eSkill)
+  }
+  const ranked = new Set(
+    recent.flatMap(s => {
+      const rank = rankOf(s)
+      return rank && RANK_WEIGHTS[rank] ? [nameOf(s.player)] : []
+    }),
+  )
+  if (ranked.size >= MIN_RANKED_PLAYERS) {
+    return {
+      topBy: 'eskill',
+      weightOf: s => {
+        const rank = rankOf(s)
+        return rank ? (RANK_WEIGHTS[rank] ?? 0) : 0
+      },
+    }
+  }
+  const eSkillCutoff = playerESkill.size
+    ? quantile(Array.from(playerESkill.values()), TOP_QUANTILE)
+    : undefined
+  return {
+    topBy: 'eskillQuarter',
+    eSkillCutoff,
+    weightOf: s => {
+      const eSkill = playerESkill.get(nameOf(s.player))
+      return eSkillCutoff !== undefined && eSkill !== undefined && eSkill >= eSkillCutoff ? 1 : 0
+    },
+  }
 }
 
 /**
- * The builds the best players use in one kind of game, the most played first, with how each
- * does and the order the game closest to its usual play took its steps in. Every analyzed game
- * counts, the ladder baseline's and the user's own replays', the user's own play included. Top
- * players are picked player by player: in 1v1, S rank (counted twice) and A rank, and unranked
- * players as fast in the early game as them. Otherwise the fastest quarter of players.
- *
- * Team games in the ladder baseline have their players' ShieldBattery ratings, but most players
- * never play there, so neither who counts as a top player nor how a build wins goes by them.
+ * Without eSkill: in 1v1, S and A rank players and unranked ones as fast in the early game as them,
+ * otherwise the fastest quarter.
  */
-export function computeMetaBuilds(
-  everyGame: ReadonlyArray<DatedGameMetrics>,
-  query: MetaQuery,
-): MetaResult {
-  const { shape, race, opponentRace } = query
-  const is2v2 = shape === '2v2'
-  const mapFamily = splitsByMap(shape) ? query.mapFamily : undefined
-  const isOfKind = (game: DatedGameMetrics, p: PlayerMetrics) =>
-    game.shape === shape &&
-    (!mapFamily || game.mapFamily === mapFamily) &&
-    p.race === race &&
-    p.human &&
-    (shape !== '1v1' || getSidesOf(game, p).opponents[0]?.race === opponentRace)
-
-  // A program's builds are no top player's.
-  const isScripted = makeScriptedCheck(everyGame)
-  const all = everyGame.flatMap(game =>
-    game.players
-      .filter(p => isOfKind(game, p) && isComparable(game, p) && !isScripted(p))
-      .map(p => toSample(game, p)),
-  )
-  const topBy = shape === '1v1' ? 'rank' : 'eapm'
-  const empty: MetaResult = {
-    topBy,
-    games: 0,
-    players: 0,
-    libraryGames: 0,
-    builds: [],
-    otherShare: 0,
-    shortShare: 0,
-    seen: [],
-  }
-  if (!all.length) {
-    return empty
-  }
-  const toMs = Math.max(...all.map(s => s.game.gameTimeMs))
-  const fromMs = toMs - META_WINDOW_MS
-  const recent = all.filter(s => s.game.gameTimeMs >= fromMs)
-
+function pickByEapm(recent: ReadonlyArray<Sample>, shape: MyStatsShape): TopPick {
   // Players are judged by their usual speed over their games here, not game by game.
   const playerEapm = medianByPlayer(recent, s => earlyEapm(s.player))
   const fastestQuarter = playerEapm.size
-    ? quantile(Array.from(playerEapm.values()), TOP_EAPM_QUANTILE)
+    ? quantile(Array.from(playerEapm.values()), TOP_QUANTILE)
     : undefined
   const topRanked = new Set(
     shape === '1v1'
@@ -401,6 +425,69 @@ export function computeMetaBuilds(
     const eapm = playerEapm.get(nameOf(s.player))
     return eapmCutoff !== undefined && eapm !== undefined && eapm >= eapmCutoff ? 1 : 0
   }
+  return { topBy: shape === '1v1' ? 'rank' : 'eapm', eapmCutoff, weightOf }
+}
+
+/** A player's opening, the race and how they opened, like `t raxCC`. */
+function openingOf(family: string | undefined) {
+  return family?.split(' ').slice(0, 2).join(' ')
+}
+
+/**
+ * The builds the best players use in one kind of game, the most played first, with how each
+ * does and the order the game closest to its usual play took its steps in. Every analyzed game
+ * counts, the ladder baseline's and the user's own replays', the user's own play included. Top
+ * players are picked player by player: S rank (counted twice) and A rank, by their ladder rank in
+ * 1v1 and otherwise their eSkill, which puts every kind of game on the 1v1 ladder's scale. Where too
+ * few are, the best quarter by eSkill. Without an eSkill model, unranked 1v1 players as fast in the
+ * early game as the ranked ones count, and in other games the fastest quarter.
+ *
+ * Team games in the ladder baseline have their players' ShieldBattery ratings, but most players
+ * never play there, so neither who counts as a top player nor how a build wins goes by them.
+ */
+export function computeMetaBuilds(
+  everyGame: ReadonlyArray<DatedGameMetrics>,
+  query: MetaQuery,
+  eSkillModel?: ESkillModel,
+): MetaResult {
+  const { shape, race, opponentRace } = query
+  const is2v2 = shape === '2v2'
+  const mapFamily = splitsByMap(shape) ? query.mapFamily : undefined
+  const isOfKind = (game: DatedGameMetrics, p: PlayerMetrics) =>
+    game.shape === shape &&
+    (!mapFamily || game.mapFamily === mapFamily) &&
+    p.race === race &&
+    p.human &&
+    (shape !== '1v1' || getSidesOf(game, p).opponents[0]?.race === opponentRace)
+
+  // A program's builds are no top player's.
+  const isScripted = makeScriptedCheck(everyGame)
+  const all = everyGame.flatMap(game =>
+    game.players
+      .filter(p => isOfKind(game, p) && isComparable(game, p) && !isScripted(p))
+      .map(p => toSample(game, p)),
+  )
+  const eapmTopBy = shape === '1v1' ? 'rank' : 'eapm'
+  const empty: MetaResult = {
+    topBy: eSkillModel ? 'eskill' : eapmTopBy,
+    games: 0,
+    players: 0,
+    libraryGames: 0,
+    builds: [],
+    otherShare: 0,
+    shortShare: 0,
+    seen: [],
+  }
+  if (!all.length) {
+    return empty
+  }
+  const toMs = Math.max(...all.map(s => s.game.gameTimeMs))
+  const fromMs = toMs - META_WINDOW_MS
+  const recent = all.filter(s => s.game.gameTimeMs >= fromMs)
+
+  const { topBy, eSkillCutoff, eapmCutoff, weightOf } = eSkillModel
+    ? pickByESkill(recent, shape, eSkillModel)
+    : pickByEapm(recent, shape)
   let top: TopSample[] = capPerPlayer(
     recent
       .map(s => ({ ...s, weight: weightOf(s) }))
@@ -488,6 +575,8 @@ export function computeMetaBuilds(
   return {
     ...empty,
     ...result,
+    topBy,
+    eSkillCutoff,
     eapmCutoff,
     games: top.length,
     players: new Set(top.map(s => nameOf(s.player))).size,

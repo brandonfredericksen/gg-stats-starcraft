@@ -9,8 +9,6 @@ import {
 
 /** The fewest games a build needs to be listed, so one odd game doesn't make a build of its own. */
 const MIN_BUILD_GAMES = 3
-/** The fewest won games the winners' way of playing a build is shown from. */
-export const MIN_WINNER_GAMES = 5
 /** The most builds listed, the most played first. The user's own is listed as well. */
 const MAX_BUILDS = 8
 /** A step most games of a build take, rather than one some players add. */
@@ -40,8 +38,6 @@ export interface BuildSample {
   side?: string
   /** Whether the user played in the game, with or against this player. */
   withUser: boolean
-  /** Whether the player went out well before a teammate, and so didn't win or lose it alone. */
-  carried: boolean
   /** How long the player played. */
   playedMs: number
   /**
@@ -116,8 +112,6 @@ export interface CoachBuild {
   /** Other players who use it. */
   players: number
   others: BuildSide
-  /** The games other players won with it, leaving out players their team carried. */
-  winners?: BuildSide
   /** The user's games with it. */
   user?: BuildSide
 }
@@ -426,16 +420,12 @@ export function summarizeBuilds(
   ) {
     listed.push(userFamily)
   }
-  return listed.map(([family, games]) => {
-    const winners = games.pool.filter(s => s.result === 'win' && !s.carried)
-    return {
-      family,
-      players: new Set(games.pool.map(s => s.name)).size,
-      others: summarizeBuildSide(games.pool),
-      winners: winners.length >= MIN_WINNER_GAMES ? summarizeBuildSide(winners) : undefined,
-      user: games.user.length ? summarizeBuildSide(games.user) : undefined,
-    }
-  })
+  return listed.map(([family, games]) => ({
+    family,
+    players: new Set(games.pool.map(s => s.name)).size,
+    others: summarizeBuildSide(games.pool),
+    user: games.user.length ? summarizeBuildSide(games.user) : undefined,
+  }))
 }
 
 /**

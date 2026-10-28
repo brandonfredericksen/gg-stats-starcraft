@@ -112,9 +112,10 @@ export function setupMyStats(
     return computeMyStatsSummary(games, query, Date.now(), model)
   })
   ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
-  ipcMain.handle('metaBuildsQuery', async (_event, query) =>
-    computeMetaBuilds(await loadGames(), query),
-  )
+  ipcMain.handle('metaBuildsQuery', async (_event, query) => {
+    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    return computeMetaBuilds(games, query, model)
+  })
 
   // Looking up the players in a game happens while it loads: no ladder manifests, which it doesn't
   // need, and no baseline or eSkill model unless something else already read them.
