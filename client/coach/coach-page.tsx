@@ -1997,11 +1997,14 @@ export function CoachToolbar({
   coach,
   scopes,
   counts,
+  showCompared = true,
 }: {
   coach: CoachResult
   /** The kinds of game to offer, of `coach.scopes`. */
   scopes: ReadonlyArray<CoachScope>
   counts: ReadonlyArray<ShapeCount>
+  /** Whether to offer picking who the user is compared with, by EAPM and rank. */
+  showCompared?: boolean
 }) {
   const { t } = useTranslation()
   const [sentinelRef, stuck] = useStuck()
@@ -2027,8 +2030,8 @@ export function CoachToolbar({
         {coach.status === 'ready' ? (
           <WindowMenu autoGames={coach.autoGames} autoMonths={coach.autoMonths} />
         ) : null}
-        <FloorMenu floor={coach.eapmFloor} />
-        {picked?.shape === '1v1' ? (
+        {showCompared ? <FloorMenu floor={coach.eapmFloor} /> : null}
+        {showCompared && picked?.shape === '1v1' ? (
           <RankMenu
             autoRank={coach.autoRank}
             rankMmr={coach.rankMmr}

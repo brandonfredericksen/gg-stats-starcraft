@@ -147,7 +147,7 @@ function StepsTable({ compare }: { compare: BuildCompare }) {
   const order = compare.sides.find(s => s.side && s.key !== 'you')?.key
 
   return (
-    <BuildsTable $columns={SIDE_COLUMNS}>
+    <BuildsTable $columns={SIDE_COLUMNS} $you={1}>
       <Row>
         <HeadCell>{t('builds.step', 'Step')}</HeadCell>
         <SideHeads sides={compare.sides} />
@@ -202,20 +202,18 @@ function StepsTable({ compare }: { compare: BuildCompare }) {
   )
 }
 
-/** Each side's color in the timeline. Players at the user's level are a band, the rest marks. */
+/** Each side's color in the timeline. Top players are a band, the rest marks. */
 const SIDE_COLORS: Record<SideKey, string> = {
-  top: 'var(--theme-data-4)',
-  level: 'var(--theme-data-1)',
+  top: 'var(--theme-data-1)',
   winners: 'var(--theme-best)',
   you: 'var(--theme-tab-builds)',
 }
 
 type MarkShape = 'circle' | 'diamond' | 'square'
 
-/** Each side's mark in the timeline. Players at the user's level are drawn as a band instead. */
+/** Each side's mark in the timeline. Top players are drawn as a band instead. */
 const SIDE_SHAPES: Record<SideKey, MarkShape | undefined> = {
-  top: 'circle',
-  level: undefined,
+  top: undefined,
   winners: 'diamond',
   you: 'square',
 }
@@ -272,7 +270,7 @@ const Mark = styled.span<{ $color: string; $shape: MarkShape }>`
   transform: ${props => (props.$shape === 'diamond' ? 'rotate(45deg) scale(0.9)' : 'none')};
 `
 
-/** The band of the middle half of games at the user's level, with a line where most take a step. */
+/** The band of the middle half of top players' games, with a line where most take a step. */
 const BandSwatch = styled.span`
   position: relative;
   width: 22px;
@@ -418,8 +416,8 @@ function getTimelineSteps(compare: BuildCompare, kind: TimelineKind, t: TFunctio
 }
 
 /**
- * A build's steps on a game clock, or every worker or army unit: when the middle half of games at
- * the user's level take each, and when the other sides typically do.
+ * A build's steps on a game clock, or every worker or army unit: when the middle half of top
+ * players' games take each, and when the other sides typically do.
  */
 function Timeline({
   compare,

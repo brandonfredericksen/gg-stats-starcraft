@@ -137,7 +137,7 @@ function MinutesTable({ compare, race }: { compare: BuildCompare; race: Assigned
   ].join(' ')
 
   return (
-    <BuildsTable $columns={SIDE_COLUMNS}>
+    <BuildsTable $columns={SIDE_COLUMNS} $you={1}>
       <Row>
         <GroupHead $first={true}>{t('builds.workersTitle', 'Workers')}</GroupHead>
         {sides.map(s => (

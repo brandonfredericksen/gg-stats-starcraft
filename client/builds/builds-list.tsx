@@ -14,7 +14,6 @@ import {
 } from '../../common/my-stats/meta-builds'
 import { MIN_COLORED_GAMES } from '../../common/my-stats/my-stats'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
-import { getPoolPlace } from '../coach/coach-page'
 import { Cell, getMapFamilyShortName, HeadCell } from '../coach/coach-shared'
 import { SegmentMenu, SegmentOption } from '../material/segmented'
 import {
@@ -43,10 +42,11 @@ export const MIN_RATE_GAMES = MIN_COLORED_GAMES
 /** A top players' win number from fewer games than this is shown faded, the same way. */
 const MIN_WIN_GAMES = 30
 
-/** A build played here, by top players, by players at the user's level, or by the user. */
+/** A build played here, by top players or by the user. */
 export interface BuildEntry {
   family: string
   top: MetaBuild | undefined
+  /** The build in games at the user's level, which holds the user's own games of it. */
   level: CoachBuild | undefined
 }
 
@@ -54,13 +54,7 @@ const COUNT_COLUMN = '64px'
 const RATE_COLUMN = '96px'
 const COLUMNS = [
   'minmax(0, 1fr)',
-  // Top players: share, games, players, wins.
-  COUNT_COLUMN,
-  COUNT_COLUMN,
-  COUNT_COLUMN,
-  RATE_COLUMN,
-  // Players at the user's level: games, players, win rate.
-  COUNT_COLUMN,
+  // Top players: share, wins.
   COUNT_COLUMN,
   RATE_COLUMN,
   // The user: games, win rate.
@@ -190,52 +184,6 @@ export function getLevelName(
     label: t('myStats.filters.floorOption', '{{floor}}+ EAPM', { floor: eapmFloor }),
     players: t('builds.basisFloor', 'players over {{floor}} EAPM', { floor: eapmFloor }),
   }
-}
-
-/** Who the players at the user's level are here. */
-export function getLevelHelp(bucket: CoachBucket, eapmFloor: number, t: TFunction) {
-  const notes = [
-    t('builds.poolNote', '{{race}} players over {{floor}} EAPM in {{where}}.', {
-      race: raceCharToLabel(bucket.race, t),
-      where: getPoolPlace(bucket, t),
-      floor: eapmFloor,
-    }),
-  ]
-  if (bucket.rank) {
-    notes.push(
-      t('myStats.rankOnly', 'Only players who were rank {{rank}} going into the game count.', {
-        rank: bucket.rank.toUpperCase(),
-      }),
-    )
-  }
-  if (bucket.allyRace && bucket.anyAlly) {
-    notes.push(
-      t(
-        'builds.anyAllyNote',
-        'Theirs are with any teammate, since too few had a {{ally}} one. Yours are with a {{ally}} teammate.',
-        { ally: raceCharToLabel(bucket.allyRace, t) },
-      ),
-    )
-  }
-  return notes.join(' ')
-}
-
-/** What a win rate of players at the user's level means here: how much it follows the user's. */
-function getLevelWinRateHelp(bucket: CoachBucket, builds: ReadonlyArray<BuildEntry>, t: TFunction) {
-  const games = builds.reduce((sum, b) => sum + (b.level?.others.games ?? 0), 0)
-  const withUser = builds.reduce((sum, b) => sum + (b.level?.others.withUser ?? 0), 0)
-  const notes = [
-    t(
-      'builds.winRateHelp',
-      '{{share}} of these games were with or against you, so their win rates partly follow yours.',
-      { share: formatPercent(games ? withUser / games : 0) },
-    ),
-  ]
-  if (bucket.shape !== '1v1' && bucket.shape !== 'ffa') {
-    notes.push(t('builds.teamNote', 'Teammates on the same build count their result once.'))
-  }
-  notes.push(t('builds.fadedNote', 'Faded: under {{minimum}} games.', { minimum: MIN_RATE_GAMES }))
-  return notes.join(' ')
 }
 
 function rateOf(record: { wins: number; losses: number } | undefined) {
@@ -373,17 +321,11 @@ export function BuildsPickers({
   )
 }
 
-/**
- * Every build played here, by top players, by players at the user's level and by the user, side by
- * side. Picks the one shown below.
- */
+/** Every build played here, by top players and by the user, side by side. Picks the one shown below. */
 export function BuildsList({
   entries,
   meta,
   scope,
-  bucket,
-  autoRank,
-  eapmFloor,
   userBuild,
   selected,
   onSelect,
@@ -392,9 +334,6 @@ export function BuildsList({
   entries: ReadonlyArray<BuildEntry>
   meta: MetaResult | 'error'
   scope: Omit<CoachScope, 'games'>
-  bucket: CoachBucket
-  autoRank: LadderRank | undefined
-  eapmFloor: number
   userBuild: string | undefined
   selected: string
   onSelect: (family: string) => void
@@ -423,19 +362,13 @@ export function BuildsList({
         <PanelHeadNote>{t('builds.popularNote', 'Pick one to compare it below.')}</PanelHeadNote>
         {pickers}
       </PanelHead>
-      <BuildsTable $columns={COLUMNS}>
+      <BuildsTable $columns={COLUMNS} $you={2}>
         <Row>
           <span />
-          <SpanHead style={{ gridColumn: 'span 4' }}>
+          <SpanHead style={{ gridColumn: 'span 2' }}>
             <HelpLabel
               label={t('builds.topPlayers', 'Top players')}
               help={getTopPlayersHelp(meta, scope, t)}
-            />
-          </SpanHead>
-          <SpanHead style={{ gridColumn: 'span 3' }}>
-            <HelpLabel
-              label={getLevelName(bucket, autoRank, eapmFloor, t).label}
-              help={getLevelHelp(bucket, eapmFloor, t)}
             />
           </SpanHead>
           <SpanHead style={{ gridColumn: 'span 2' }}>{t('builds.you', 'You')}</SpanHead>
@@ -448,26 +381,8 @@ export function BuildsList({
               help={t('builds.metaShareHelp', "Its share of top players' games here.")}
             />
           </HeadCell>
-          <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
-          <HeadCell $end={true}>{t('builds.players', 'Players')}</HeadCell>
           <HeadCell $end={true}>
             <HelpLabel label={topWinLabel} help={topWinHelp} />
-          </HeadCell>
-          <HeadCell $end={true}>
-            <HelpLabel
-              label={t('builds.games', 'Games')}
-              help={t(
-                'builds.playedHelp',
-                'Games with this build, counting each player, and how many players played it.',
-              )}
-            />
-          </HeadCell>
-          <HeadCell $end={true}>{t('builds.players', 'Players')}</HeadCell>
-          <HeadCell $end={true}>
-            <HelpLabel
-              label={t('builds.winRate', 'Win rate')}
-              help={getLevelWinRateHelp(bucket, entries, t)}
-            />
           </HeadCell>
           <HeadCell $end={true}>{t('builds.games', 'Games')}</HeadCell>
           <HeadCell $end={true}>
@@ -496,21 +411,11 @@ export function BuildsList({
               <Cell $end={true} $tone={top ? undefined : 'muted'}>
                 {top ? formatPercent(top.share) : '-'}
               </Cell>
-              <CountCell count={top?.games} />
-              <CountCell count={top?.players} />
               <WinRateCell
                 rate={top?.winScore}
                 wins={top?.side.wins ?? 0}
                 losses={top?.side.losses ?? 0}
                 faded={!!top && top.winGames < MIN_WIN_GAMES}
-              />
-              <CountCell count={level?.others.games} />
-              <CountCell count={level?.players} />
-              <WinRateCell
-                rate={rateOf(level?.others)}
-                wins={level?.others.wins ?? 0}
-                losses={level?.others.losses ?? 0}
-                faded={(level?.others.games ?? 0) < MIN_RATE_GAMES}
               />
               <CountCell count={user?.games} />
               <WinRateCell
@@ -533,7 +438,7 @@ export function BuildsList({
           <Row>
             <OtherCell>{t('builds.metaOther', 'Other builds')}</OtherCell>
             <OtherCell $end={true}>{formatPercent(otherShare)}</OtherCell>
-            {Array.from({ length: 8 }, (_, i) => (
+            {Array.from({ length: 3 }, (_, i) => (
               <OtherCell key={i} $end={true}>
                 -
               </OtherCell>

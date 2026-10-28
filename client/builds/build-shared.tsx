@@ -1,6 +1,6 @@
 import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { BuildSide, BuildStepSummary } from '../../common/my-stats/builds'
 import { Cell, formatGameTime, getBuildName, HeadCell, Table, Tone } from '../coach/coach-shared'
 import { buttonReset } from '../material/button-reset'
@@ -8,11 +8,27 @@ import { Tooltip } from '../material/tooltip'
 import { formatPercent, HelpLabel } from '../my-stats/my-stats-panels'
 import { labelMedium } from '../styles/typography'
 
+/** The lift of the user's columns in a table, see `BuildsTable`. */
+const YOU_TINT = 'color-mix(in srgb, var(--theme-on-surface) 3%, transparent)'
+
+/** A heading over a group of columns, with a line under it spanning them. */
+export const SpanHead = styled.span`
+  ${labelMedium};
+  margin-left: var(--space-5);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--theme-outline-variant);
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+  text-align: center;
+`
+
 /**
  * A table of the Builds page. Every row is a `Row` or a `BuildRow`, and their lines and highlights
- * reach a little past the text on each side, the same in every table on the page.
+ * reach a little past the text on each side, the same in every table on the page. The user's
+ * columns, the last `$you` of them, are a touch lighter, over any row's highlight.
  */
-export const BuildsTable = styled(Table)`
+export const BuildsTable = styled(Table)<{ $you?: number }>`
   margin-inline: calc(-1 * var(--space-3));
 
   & > * > :first-child {
@@ -22,6 +38,15 @@ export const BuildsTable = styled(Table)`
   & > * > :last-child {
     padding-right: var(--space-3);
   }
+
+  ${props =>
+    props.$you
+      ? css`
+          & > * > :nth-last-child(-n + ${props.$you}):not(:only-child, ${SpanHead}) {
+            background-image: linear-gradient(${YOU_TINT}, ${YOU_TINT});
+          }
+        `
+      : ''}
 `
 
 /** A row of a `BuildsTable`. */
@@ -53,18 +78,6 @@ export const BuildRow = styled.button<{ $selected: boolean }>`
     outline: 2px solid var(--theme-tab-builds-ring);
     outline-offset: -2px;
   }
-`
-
-/** A heading over a group of columns, with a line under it spanning them. */
-export const SpanHead = styled.span`
-  ${labelMedium};
-  margin-left: var(--space-5);
-  padding-bottom: var(--space-1);
-  margin-bottom: var(--space-2);
-  border-bottom: 1px solid var(--theme-outline-variant);
-  color: var(--theme-on-surface-variant);
-  font-weight: 600;
-  text-align: center;
 `
 
 /**
@@ -104,7 +117,7 @@ export const ROW_ICON_SIZE = 26
 export const SMALL_ICON_SIZE = 20
 
 /** Who a build's numbers are from, in the order every table and chart on the page shows them. */
-export type SideKey = 'top' | 'level' | 'winners' | 'you'
+export type SideKey = 'top' | 'winners' | 'you'
 
 export interface ShownSide {
   key: SideKey
@@ -134,7 +147,7 @@ export interface BuildCompare {
 }
 
 /** The columns of a table with a row per step or number and a column per side. */
-export const SIDE_COLUMNS = 'minmax(0, 1fr) repeat(4, 136px)'
+export const SIDE_COLUMNS = 'minmax(0, 1fr) repeat(3, 136px)'
 
 /** A table's column headings for each side, explained when hovered. */
 export function SideHeads({ sides }: { sides: ReadonlyArray<ShownSide> }) {

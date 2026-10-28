@@ -41,7 +41,6 @@ import {
   BuildEntry,
   BuildsList,
   BuildsPickers,
-  getLevelHelp,
   getLevelName,
   getTopPlayersHelp,
   hasSplits,
@@ -206,8 +205,8 @@ interface LevelBuilds {
 }
 
 /**
- * Every build played here, top players' first, by how much they play each, then the rest by how
- * much players at the user's level do.
+ * Every build top players play here, by how much they play each, then the rest the user plays, by
+ * how much players at the user's level do.
  */
 function getEntries(meta: MetaResult | 'error', level: LevelBuilds): BuildEntry[] {
   const top = meta === 'error' ? [] : meta.builds
@@ -217,7 +216,7 @@ function getEntries(meta: MetaResult | 'error', level: LevelBuilds): BuildEntry[
     level: level.builds.find(b => b.family === build.family),
   }))
   for (const build of level.builds) {
-    if (!entries.some(entry => entry.family === build.family)) {
+    if (build.user?.games && !entries.some(entry => entry.family === build.family)) {
       entries.push({ family: build.family, top: undefined, level: build })
     }
   }
@@ -258,14 +257,6 @@ function getCompare(
       muted: false,
     },
     {
-      key: 'level',
-      label: levelName.label,
-      players: levelName.players,
-      side: others?.others,
-      help: getLevelHelp(bucket, eapmFloor, t),
-      muted: false,
-    },
-    {
       key: 'winners',
       label: t('builds.winners', 'Winners'),
       players: t('builds.basisWinners', 'the winners'),
@@ -287,7 +278,6 @@ function getCompare(
   ]
   const basis =
     sides.find(s => s.key === 'winners' && s.side && !s.muted) ??
-    sides.find(s => s.key === 'level' && s.side) ??
     sides.find(s => s.key === 'top' && s.side)
 
   const standIns: string[] = []
@@ -301,7 +291,7 @@ function getCompare(
   if (levelFamily && levelFamily !== entry.family) {
     standIns.push(
       t('builds.levelAs', '{{side}} as {{build}}, the closest build they play.', {
-        side: levelName.label,
+        side: t('builds.winners', 'Winners'),
         build: getBuildFamilyName(levelFamily, t),
       }),
     )
@@ -358,9 +348,6 @@ function BuildsBody({ coach }: { coach: Extract<CoachResult, { status: 'ready' }
           entries={entries}
           meta={meta}
           scope={scope}
-          bucket={bucket}
-          autoRank={coach.autoRank}
-          eapmFloor={coach.eapmFloor}
           userBuild={level.userBuild}
           selected={selected?.family ?? ''}
           onSelect={setPicked}
@@ -484,7 +471,7 @@ export function BuildsView({ coach }: { coach: CoachResult | 'error' | undefined
     }
     content = (
       <>
-        <CoachToolbar coach={coach} scopes={scopes} counts={counts} />
+        <CoachToolbar coach={coach} scopes={scopes} counts={counts} showCompared={false} />
         {body}
       </>
     )
