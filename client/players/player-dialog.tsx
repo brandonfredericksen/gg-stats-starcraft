@@ -719,30 +719,6 @@ function Overview({
           : t('players.allTheirGames', 'All their games')}
       </Heading>
       <Tiles>
-        {showCheese ? (
-          <Tile>
-            <TileValue>{styleGames ? formatPercent(styles.cheese / styleGames) : '-'}</TileValue>
-            <TileLabel>
-              <HelpLabel
-                label={t('players.cheese', 'Cheese')}
-                help={t(
-                  'players.cheeseAllHelp',
-                  'Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.',
-                )}
-              />
-            </TileLabel>
-            <TileNote>
-              {styleGames
-                ? t('players.cheeseNote', {
-                    defaultValue: '{{cheese}} of {{count}} games',
-                    defaultValue_one: '{{cheese}} of 1 game',
-                    cheese: styles.cheese,
-                    count: styleGames,
-                  })
-                : t('players.noNamedBuild', 'No named build')}
-            </TileNote>
-          </Tile>
-        ) : null}
         <Tile>
           <TileValue>
             <RecordText record={totals.record} />
@@ -786,6 +762,30 @@ function Overview({
             })}
           </TileNote>
         </Tile>
+        {showCheese ? (
+          <Tile>
+            <TileValue>{styleGames ? formatPercent(styles.cheese / styleGames) : '-'}</TileValue>
+            <TileLabel>
+              <HelpLabel
+                label={t('players.cheese', 'Cheese')}
+                help={t(
+                  'players.cheeseAllHelp',
+                  'Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.',
+                )}
+              />
+            </TileLabel>
+            <TileNote>
+              {styleGames
+                ? t('players.cheeseNote', {
+                    defaultValue: '{{cheese}} of {{count}} games',
+                    defaultValue_one: '{{cheese}} of 1 game',
+                    cheese: styles.cheese,
+                    count: styleGames,
+                  })
+                : t('players.noNamedBuild', 'No named build')}
+            </TileNote>
+          </Tile>
+        ) : null}
         <Tile>
           <TileValue>
             {totals.eSkill ? format.format(totals.eSkill.value) : '-'}
