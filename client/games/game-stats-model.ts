@@ -7,9 +7,9 @@ import {
   GameStatsResult,
   PlayerTimeline,
 } from '../../common/games/game-stats'
+import { isMyPlayerName } from '../../common/games/player-names'
 import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
-import { isMyPlayerName } from '../../common/games/player-names'
 import { RaceChar } from '../../common/races'
 
 /** A team, or a single player when the game had no teams. */

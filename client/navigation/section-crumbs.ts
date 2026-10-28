@@ -35,7 +35,10 @@ export function useSectionCrumbs({ fromPlayer = false }: { fromPlayer?: boolean 
       crumbs.push({ label: t('navigation.library', 'Library'), href: '/replays' })
       break
     case 'lastGame':
-      crumbs.push({ label: t('navigation.lastGame', 'Last game'), onClick: () => dispatch(openLastGame()) })
+      crumbs.push({
+        label: t('navigation.lastGame', 'Last game'),
+        onClick: () => dispatch(openLastGame()),
+      })
       break
     case 'liveGame':
       crumbs.push({ label: t('navigation.liveGame', 'Live game'), href: '/live-game' })

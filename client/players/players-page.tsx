@@ -9,9 +9,9 @@ import { urlPath } from '../../common/urls'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { useMyPlayerNames } from '../games/my-player-names'
 import { MaterialIcon } from '../icons/material/material-icon'
+import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
 import { RaceMix } from '../material/race-mix'
-import logger from '../logging/logger'
 import {
   Muted,
   PaddedPanel,

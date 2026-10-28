@@ -9,6 +9,8 @@ import { Comparison } from '../coach/coach-page'
 
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { TextButton } from '../material/button'
+import { PageNav } from '../navigation/page-nav'
+import { useSectionCrumbs } from '../navigation/section-crumbs'
 import { LoadingIndicatorArea } from '../progress/loading-indicator'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { useAppDispatch } from '../redux-hooks'
@@ -38,8 +40,6 @@ import {
   Totals,
   Trends,
 } from './my-stats-panels'
-import { PageNav } from '../navigation/page-nav'
-import { useSectionCrumbs } from '../navigation/section-crumbs'
 import { PlayerHeader } from './player-header'
 import { RanksRow } from './ranks-row'
 
