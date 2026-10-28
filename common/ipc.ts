@@ -26,7 +26,7 @@ import { TilesetId } from './maps'
 import { CoachQuery, CoachResult } from './my-stats/coach'
 import { MetaQuery, MetaResult } from './my-stats/meta-builds'
 import { MyStatsQuery, MyStatsSummary } from './my-stats/my-stats'
-import { PlayerScout } from './my-stats/player-scout'
+import { PlayerScout, PlayerSummary } from './my-stats/player-scout'
 import { SeenPlayerRanks } from './player-ranks'
 import {
   ReplayBackfillProgress,
@@ -177,6 +177,8 @@ interface IpcInvokeables {
   myStatsQuery: (query: MyStatsQuery) => Promise<MyStatsSummary>
   /** What the analyzed games say about each person, given every account each plays under. */
   liveGameScout: (accountLists: string[][]) => Promise<PlayerScout[]>
+  /** Each person's numbers for a list of players, given every account each plays under. */
+  playersSummary: (accountLists: string[][]) => Promise<PlayerSummary[]>
   /** The ranks the app has seen in the profiles of whoever goes by any of `accounts`. */
   playerRanksGet: (accounts: string[]) => Promise<SeenPlayerRanks[]>
   /** The game the user joined, if they're in one. */

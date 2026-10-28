@@ -1,6 +1,6 @@
 import { ESkillModel } from '../../common/my-stats/eskill'
-import { DatedGameMetrics } from '../../common/my-stats/my-stats'
-import { computePlayerScout, PlayerScout } from '../../common/my-stats/player-scout'
+import { computeMyStats, DatedGameMetrics } from '../../common/my-stats/my-stats'
+import { computePlayerScout, PlayerScout, PlayerSummary } from '../../common/my-stats/player-scout'
 import {
   BuildPopulation,
   countBuildPopulation,
@@ -80,19 +80,45 @@ export class ScoutGames {
     const eSkillModel = this.deps.loadedESkillModel()
     const nowMs = Date.now()
     const population = this.getPopulation(own.population, baseline?.population)
-    return accountLists.map(accounts => {
-      const ownGames = gamesOf(own.byName, accounts)
-      const baselineGames = baseline
-        ? withoutLibraryCopies(gamesOf(baseline.byName, accounts), own.replayPathKeys, ownGames)
-        : []
-      return computePlayerScout(
-        [...ownGames, ...baselineGames],
+    return accountLists.map(accounts =>
+      computePlayerScout(
+        this.gamesOf(own, baseline, accounts),
         accounts,
         nowMs,
         eSkillModel,
         population,
+      ),
+    )
+  }
+
+  /** Only the numbers a list of players needs, without the builds a full look up works out. */
+  async summarize(accountLists: ReadonlyArray<ReadonlyArray<string>>): Promise<PlayerSummary[]> {
+    const own = await this.loadOwn()
+    const baseline = this.getBaselineIndex()
+    const eSkillModel = this.deps.loadedESkillModel()
+    const nowMs = Date.now()
+    return accountLists.map(accounts => {
+      const { games, apm, eapm, eSkill } = computeMyStats(
+        this.gamesOf(own, baseline, accounts),
+        { names: [...accounts], range: 'all' },
+        nowMs,
+        eSkillModel,
       )
+      return { games, apm, eapm, eSkill }
     })
+  }
+
+  /** Everyone's games played as any of `accounts`, the user's and then the baseline's. */
+  private gamesOf(
+    own: { byName: NameIndex; replayPathKeys: ReadonlyArray<string> },
+    baseline: { byName: NameIndex } | undefined,
+    accounts: ReadonlyArray<string>,
+  ) {
+    const ownGames = gamesOf(own.byName, accounts)
+    const baselineGames = baseline
+      ? withoutLibraryCopies(gamesOf(baseline.byName, accounts), own.replayPathKeys, ownGames)
+      : []
+    return [...ownGames, ...baselineGames]
   }
 
   /** Lets go of the user's games, like when newly analyzed ones would change what they say. */

@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { getErrorStack } from '../../common/errors'
 import { TypedIpcRenderer } from '../../common/ipc'
-import { PersonRow, WinLoss } from '../../common/my-stats/my-stats'
-import { AssignedRaceChar } from '../../common/races'
+import { PersonRow } from '../../common/my-stats/my-stats'
 import { urlPath } from '../../common/urls'
 import { SectionErrorBoundary, StatsPanel } from '../games/game-stats-shared'
 import { useMyPlayerNames } from '../games/my-player-names'
@@ -24,6 +23,7 @@ import { push } from '../navigation/routing'
 import { bodyMedium, headlineMedium, labelLarge, labelMedium } from '../styles/typography'
 import { useKnownPlayers } from './known-players'
 import { useRecentPlayers } from './open-player'
+import { Person, PlayersTable, TopPlayers, usePlayerSummaries } from './players-tables'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -183,15 +183,6 @@ const Message = styled(PaddedPanel)`
   color: var(--theme-on-surface-variant);
 `
 
-/** Someone the user played with, against, or opened, with their record together. */
-interface Person {
-  name: string
-  races: Array<{ race: AssignedRaceChar; games: number }>
-  games: number
-  with?: WinLoss
-  against?: WinLoss
-}
-
 /** Everyone the user has played with or against, once each, most games first. */
 function toPeople(teammates: ReadonlyArray<PersonRow>, opponents: ReadonlyArray<PersonRow>) {
   const byName = new Map<string, Person>()
@@ -327,6 +318,7 @@ export function PlayersPage() {
   const [query, setQuery] = useState('')
 
   const people = data && data !== 'error' ? toPeople(data.teammates, data.opponents) : []
+  const summaries = usePlayerSummaries(people)
   const known = new Set(people.map(p => p.name.toLowerCase()))
   // Noted and recently opened players can be found too, even with no games together.
   for (const name of [...recent, ...knownPlayers.flatMap(p => p.accounts)]) {
@@ -401,6 +393,8 @@ export function PlayersPage() {
               </SectionErrorBoundary>
             </Columns>
           ) : null}
+          {summaries ? <TopPlayers people={people} summaries={summaries} /> : null}
+          {people.length ? <PlayersTable people={people} summaries={summaries} /> : null}
           {!myNames.length ? (
             <Message>
               <Muted>

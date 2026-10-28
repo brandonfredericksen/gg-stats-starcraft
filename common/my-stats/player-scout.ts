@@ -46,6 +46,9 @@ export type ScoutTotals = Pick<
   'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill' | 'recent'
 >
 
+/** The numbers a list of players sorts and ranks them by, worked out as for {@link ScoutTotals}. */
+export type PlayerSummary = Pick<MyStatsResult, 'games' | 'apm' | 'eapm' | 'eSkill'>
+
 /** What the analyzed games say about a player: how they've done, and how they play. */
 export interface PlayerScout {
   totals: ScoutTotals

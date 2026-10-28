@@ -584,7 +584,7 @@ export function RecentGames({
 
 // Tables
 
-const Table = styled.table`
+export const Table = styled.table`
   ${bodyMedium};
   width: 100%;
   border-collapse: collapse;
@@ -1702,20 +1702,22 @@ const PagerRoot = styled.div`
 function Pager({
   page,
   total,
+  pageSize,
   onPage,
 }: {
   page: number
   total: number
+  pageSize: number
   onPage: (page: number) => void
 }) {
   const { t } = useTranslation()
-  const pages = Math.ceil(total / LIST_PAGE_SIZE)
+  const pages = Math.ceil(total / pageSize)
   return (
     <PagerRoot>
       <span>
         {t('myStats.pageRange', '{{from}} to {{to}} of {{total}}', {
-          from: page * LIST_PAGE_SIZE + 1,
-          to: Math.min(total, (page + 1) * LIST_PAGE_SIZE),
+          from: page * pageSize + 1,
+          to: Math.min(total, (page + 1) * pageSize),
           total,
         })}
       </span>
@@ -1739,15 +1741,16 @@ function Pager({
  * A list's rows a page at a time, with a pager for the panel head when there's more than a page.
  * Goes back to the first page when the list changes length, like after a filter changes.
  */
-function usePaged<T>(rows: ReadonlyArray<T>) {
+export function usePaged<T>(rows: ReadonlyArray<T>, pageSize = LIST_PAGE_SIZE) {
   const [paged, setPaged] = useState({ page: 0, total: rows.length })
   const page = paged.total === rows.length ? paged.page : 0
-  const shown = rows.slice(page * LIST_PAGE_SIZE, (page + 1) * LIST_PAGE_SIZE)
+  const shown = rows.slice(page * pageSize, (page + 1) * pageSize)
   const pager =
-    rows.length > LIST_PAGE_SIZE ? (
+    rows.length > pageSize ? (
       <Pager
         page={page}
         total={rows.length}
+        pageSize={pageSize}
         onPage={next => setPaged({ page: next, total: rows.length })}
       />
     ) : null

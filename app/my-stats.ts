@@ -127,6 +127,7 @@ export function setupMyStats(
     loadedESkillModel: () => loadedESkillModel,
   })
   ipcMain.handle('liveGameScout', (_event, accountLists) => scoutGames.scout(accountLists))
+  ipcMain.handle('playersSummary', (_event, accountLists) => scoutGames.summarize(accountLists))
 
   return {
     /** Lets go of the games read for looking up players, like when a game was just analyzed. */
