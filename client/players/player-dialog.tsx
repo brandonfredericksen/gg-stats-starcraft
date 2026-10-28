@@ -133,13 +133,16 @@ const Heading = styled.h3`
   font-weight: 700;
 `
 
+/** One row when there's room, else wrapped rows whose tiles share each row evenly. */
 const Tiles = styled.div`
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 `
 
 const Tile = styled.div`
+  /* Fits the longest note, "Estimate, 120 games". */
+  flex: 1 1 160px;
   min-width: 0;
   padding: var(--space-3);
   display: flex;
@@ -237,8 +240,12 @@ const Strong = styled.span`
 
 const CheeseValue = styled.span`
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-2);
+`
+
+const CheeseBolt = styled(MaterialIcon).attrs({ icon: 'bolt', size: 16 })`
+  align-self: center;
 `
 
 // Builds table
@@ -711,10 +718,11 @@ function Overview({
           ? t('players.allYourGames', 'All your games')
           : t('players.allTheirGames', 'All their games')}
       </Heading>
-      {showCheese ? (
-        <Callout $color='var(--theme-outline-strong)'>
-          <CalloutLine>
-            <LineLabel>
+      <Tiles>
+        {showCheese ? (
+          <Tile>
+            <TileValue>{styleGames ? formatPercent(styles.cheese / styleGames) : '-'}</TileValue>
+            <TileLabel>
               <HelpLabel
                 label={t('players.cheese', 'Cheese')}
                 help={t(
@@ -722,21 +730,19 @@ function Overview({
                   'Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.',
                 )}
               />
-            </LineLabel>
-            {styleGames ? (
-              <CheeseValue>
-                <Figure>{formatPercent(styles.cheese / styleGames)}</Figure>
-                <Muted>
-                  {styles.cheese}/{styleGames}
-                </Muted>
-              </CheeseValue>
-            ) : (
-              <Muted>{t('players.noNamedBuild', 'No named build')}</Muted>
-            )}
-          </CalloutLine>
-        </Callout>
-      ) : null}
-      <Tiles>
+            </TileLabel>
+            <TileNote>
+              {styleGames
+                ? t('players.cheeseNote', {
+                    defaultValue: '{{cheese}} of {{count}} games',
+                    defaultValue_one: '{{cheese}} of 1 game',
+                    cheese: styles.cheese,
+                    count: styleGames,
+                  })
+                : t('players.noNamedBuild', 'No named build')}
+            </TileNote>
+          </Tile>
+        ) : null}
         <Tile>
           <TileValue>
             <RecordText record={totals.record} />
@@ -934,7 +940,7 @@ function ThisGame({ scout, live }: { scout: PlayerScout; live: NonNullable<Profi
         </LineLabel>
         {cheese ? (
           <CheeseValue>
-            {cheese.cheeser ? <MaterialIcon icon='bolt' size={16} /> : null}
+            {cheese.cheeser ? <CheeseBolt /> : null}
             <Figure>{formatPercent(cheese.cheese / cheese.games)}</Figure>
             <Muted>
               {cheese.cheese}/{cheese.games}

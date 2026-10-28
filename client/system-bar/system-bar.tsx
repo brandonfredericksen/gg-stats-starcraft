@@ -31,7 +31,7 @@ import {
   starcraftPathValid as starcraftPathValidAtom,
 } from '../starcraft/health-state'
 import { bahnschrift, labelLarge, labelMedium, titleMedium } from '../styles/typography'
-import { RestartToUpdateButton } from '../updates/update-status'
+import { RestartToUpdateButton, updateStatusAtom } from '../updates/update-status'
 import { openLastGame } from './last-game'
 import { SizeLeft, SizeRight, SizeTop, WINDOW_CONTROLS_WIDTH } from './window-controls'
 
@@ -64,6 +64,12 @@ const Container = styled.header`
   z-index: ${zIndexSystemBar};
 
   -webkit-app-region: drag;
+
+  /* Nothing gives up its width, or a tooltip's wrapper would shrink away and leave its button
+     under the window controls. The bar overflows instead, which steps up its fit level. */
+  & > * {
+    flex-shrink: 0;
+  }
 `
 
 const Lockup = styled.div`
@@ -90,7 +96,7 @@ const Wordmark = styled.div`
 
 const Nav = styled.nav`
   height: 100%;
-  flex-shrink: 0;
+  margin-right: auto;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -108,15 +114,17 @@ const LiveDot = styled.span`
   flex-shrink: 0;
   border-radius: var(--radius-full);
   background-color: var(--theme-live);
+  /* Undoes the lift NavItem's bottom padding gives its label, like the icon's offset. */
+  transform: translateY(1px);
 `
 
-const NavItem = styled.button<{ $active: boolean; $tab: NavTab }>`
+const NavItem = styled.button<{ $active: boolean; $tab: NavTab; $iconOnly?: boolean }>`
   ${buttonReset};
   ${labelLarge};
   height: 32px;
-  /* The bottom padding lifts the label, whose capitals sit low in its line box, 1px; the icon is
-     put back by its own offset. */
-  padding: 0 14px 2px 11px;
+  /* The bottom padding lifts the label, whose capitals sit low in its line box, 1px; the icon and
+     the live dot are put back by their own offsets. */
+  padding: ${props => (props.$iconOnly ? '0 6px 2px' : '0 14px 2px 11px')};
 
   display: flex;
   align-items: center;
@@ -161,10 +169,6 @@ const SettingsButton = styled(NavItem)`
   & > :first-child {
     transform: none;
   }
-`
-
-const Spacer = styled.div`
-  flex: 1;
 `
 
 /** The capture status, which opens a menu to pause or resume analyzing. */
@@ -405,6 +409,8 @@ const FitLevel = {
   StatusDotOnly: 1,
   /** The app's name is left out, next to its logo. */
   NoWordmark: 2,
+  /** Tabs other than the current one show just their icon, with their name in a tooltip. */
+  IconTabs: 3,
 } as const
 
 const DevIndicator = styled.button`
@@ -422,6 +428,46 @@ const DevIndicator = styled.button`
   cursor: pointer;
   -webkit-app-region: no-drag;
 `
+
+/** A tab of the bar, which shows just its icon when the bar is short of room. */
+function Tab({
+  tab,
+  active,
+  icon,
+  label,
+  compact,
+  onClick,
+}: {
+  tab: NavTab
+  active: boolean
+  icon: string
+  label: string
+  /** Whether the bar is short of room, so this shows just its icon unless it's current. */
+  compact: boolean
+  onClick: () => void
+}) {
+  const iconOnly = compact && !active
+  const item = (
+    <NavItem
+      type='button'
+      $tab={tab}
+      $active={active}
+      $iconOnly={iconOnly}
+      aria-current={active ? 'page' : undefined}
+      aria-label={iconOnly ? label : undefined}
+      onClick={onClick}>
+      <MaterialIcon icon={icon} size={20} />
+      {iconOnly ? null : label}
+    </NavItem>
+  )
+  return iconOnly ? (
+    <Tooltip text={label} position='bottom'>
+      {item}
+    </Tooltip>
+  ) : (
+    item
+  )
+}
 
 /** The bar across the top of the window: the app's name, where to go, and the window controls. */
 export function SystemBar() {
@@ -450,10 +496,17 @@ export function SystemBar() {
   }, [])
 
   const captureStatus = useCaptureStatus()
+  const updateReady = useAtomValue(updateStatusAtom).kind === 'ready'
   const [containerRef, fitLevel] = useFitLevel<HTMLElement>(
-    FitLevel.NoWordmark,
-    `${captureStatus.label} ${hasLiveGame}`,
+    FitLevel.IconTabs,
+    // The current tab keeps its label at every level, so it changes how wide the tabs are.
+    `${captureStatus.label} ${hasLiveGame} ${updateReady} ${section} ${isSettingsOpen}`,
   )
+  const compact = fitLevel >= FitLevel.IconTabs
+  const matchIconOnly = compact && !isMatch
+  const matchLabel = hasLiveGame
+    ? t('matchStats.liveLabel', 'Live game')
+    : t('matchStats.lastLabel', 'Last game')
 
   return (
     <Container ref={containerRef}>
@@ -466,15 +519,14 @@ export function SystemBar() {
       </Lockup>
       <HistoryButtons />
       <Nav>
-        <NavItem
-          type='button'
-          $tab='library'
-          $active={isReplays && !isSettingsOpen}
-          aria-current={isReplays && !isSettingsOpen ? 'page' : undefined}
-          onClick={() => push('/replays')}>
-          <MaterialIcon icon='video_library' size={20} />
-          {t('replays.activity.library', 'Library')}
-        </NavItem>
+        <Tab
+          tab='library'
+          active={isReplays && !isSettingsOpen}
+          icon='video_library'
+          label={t('replays.activity.library', 'Library')}
+          compact={compact}
+          onClick={() => push('/replays')}
+        />
         <Tooltip
           text={
             hasLiveGame
@@ -489,54 +541,49 @@ export function SystemBar() {
             $active={isMatch}
             aria-current={isMatch ? 'page' : undefined}
             data-testid='last-game-button'
+            $iconOnly={matchIconOnly}
+            aria-label={matchIconOnly ? matchLabel : undefined}
             onClick={() => (hasLiveGame ? push('/live-game') : dispatch(openLastGame()))}>
             <MaterialIcon icon='sports_esports' size={20} />
-            {hasLiveGame
-              ? t('matchStats.liveLabel', 'Live game')
-              : t('matchStats.lastLabel', 'Last game')}
+            {matchIconOnly ? null : matchLabel}
             {hasLiveGame ? (
               <LiveDot aria-label={t('matchStats.inGame', 'In a game')} role='img' />
             ) : null}
           </NavItem>
         </Tooltip>
-        <NavItem
-          type='button'
-          $tab='stats'
-          $active={isMyStats}
-          aria-current={isMyStats ? 'page' : undefined}
-          onClick={() => push('/my-stats')}>
-          <MaterialIcon icon='bar_chart' size={20} />
-          {t('myStats.label', 'My stats')}
-        </NavItem>
-        <NavItem
-          type='button'
-          $tab='players'
-          $active={isPlayers}
-          aria-current={isPlayers ? 'page' : undefined}
-          onClick={() => push('/players')}>
-          <MaterialIcon icon='group' size={20} />
-          {t('navigation.players', 'Players')}
-        </NavItem>
-        <NavItem
-          type='button'
-          $tab='coach'
-          $active={isCoach}
-          aria-current={isCoach ? 'page' : undefined}
-          onClick={() => push('/coach')}>
-          <MaterialIcon icon='query_stats' size={20} />
-          {t('myStats.coach.title', 'Coach')}
-        </NavItem>
-        <NavItem
-          type='button'
-          $tab='builds'
-          $active={isBuilds}
-          aria-current={isBuilds ? 'page' : undefined}
-          onClick={() => push('/builds')}>
-          <MaterialIcon icon='account_tree' size={20} />
-          {t('builds.title', 'Builds')}
-        </NavItem>
+        <Tab
+          tab='stats'
+          active={isMyStats}
+          icon='bar_chart'
+          label={t('myStats.label', 'My stats')}
+          compact={compact}
+          onClick={() => push('/my-stats')}
+        />
+        <Tab
+          tab='players'
+          active={isPlayers}
+          icon='group'
+          label={t('navigation.players', 'Players')}
+          compact={compact}
+          onClick={() => push('/players')}
+        />
+        <Tab
+          tab='coach'
+          active={isCoach}
+          icon='query_stats'
+          label={t('myStats.coach.title', 'Coach')}
+          compact={compact}
+          onClick={() => push('/coach')}
+        />
+        <Tab
+          tab='builds'
+          active={isBuilds}
+          icon='account_tree'
+          label={t('builds.title', 'Builds')}
+          compact={compact}
+          onClick={() => push('/builds')}
+        />
       </Nav>
-      <Spacer />
       <RestartToUpdateButton />
       <CaptureStatus status={captureStatus} indicatorOnly={fitLevel >= FitLevel.StatusDotOnly} />
       {DEV_INDICATOR ? (

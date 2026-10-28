@@ -1438,6 +1438,8 @@
     "cheese": "Cheese",
     "cheeseAllHelp": "Rushes and all ins, like a BBS, a 4 pool or a cannon rush, out of every game with a named build.",
     "cheeseHelp": "Rushes and all ins, out of their games with a named build. As this race in this kind of game when they have a few of those.",
+    "cheeseNote_one": "{{cheese}} of 1 game",
+    "cheeseNote_other": "{{cheese}} of {{count}} games",
     "eapm": "eAPM",
     "eapmHelp": "Effective actions per minute, on average. APM without spam, such as the same order clicked twice in a row.",
     "editNote": "Edit your note or their accounts",
