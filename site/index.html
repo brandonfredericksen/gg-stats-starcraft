@@ -579,6 +579,28 @@
           data-i18n-alt="alt.mystats"
           alt="My stats for 3v3: the last 20 results, overall record, win rate by game length and APM over recent games." />
         <img
+          src="shots/players.webp"
+          srcset="shots/players-960.webp 960w, shots/players.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          data-i18n-alt="alt.players"
+          alt="Players: who you play with and against most, and the highest eSkill and eAPM among everyone in your games." />
+        <img
+          src="shots/everyone.webp"
+          srcset="shots/everyone-960.webp 960w, shots/everyone.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          data-i18n-alt="alt.everyone"
+          alt="Everyone in your games, with your record with and against each, and their APM, eAPM and eSkill." />
+        <img
           src="shots/coach.webp"
           srcset="shots/coach-960.webp 960w, shots/coach.webp 1920w"
           sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
@@ -745,6 +767,26 @@
           aria-label="My stats"></button>
         <button
           class="tab"
+          id="tab-players"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          data-i18n-label="tab.players"
+          aria-label="Players"></button>
+        <button
+          class="tab"
+          id="tab-everyone"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          data-i18n-label="tab.everyone"
+          aria-label="Everyone"></button>
+        <button
+          class="tab"
           id="tab-coach"
           role="tab"
           aria-selected="false"
@@ -872,6 +914,10 @@
         'alt.units': '프로토스와 저그 나란히: 각자 만든 유닛, 그 아래 시간과 인구수가 있는 빌드 오더.',
         'alt.mystats':
           '3:3 내 통계: 최근 20게임 결과, 전체 전적, 게임 시간별 승률, 최근 게임의 APM.',
+        'alt.players':
+          '플레이어: 가장 많이 함께하고 맞붙은 플레이어, 그리고 내 게임에서 eSkill과 eAPM이 가장 높은 플레이어.',
+        'alt.everyone':
+          '내 게임의 모든 플레이어: 같은 팀과 상대로서의 전적, 그리고 각자의 APM, eAPM, eSkill.',
         'alt.coach':
           '빅게임헌터 3:3 저그 플레이어의 코치: 다음 게임 목표, 최근 게임 흐름, 잘하고 있는 점.',
         'alt.numbers':
@@ -890,6 +936,8 @@
         'tab.heatmap': '히트맵',
         'tab.units': '빌드 오더',
         'tab.mystats': '내 통계',
+        'tab.players': '플레이어',
+        'tab.everyone': '모든 플레이어',
         'tab.coach': '코치',
         'tab.numbers': '전체 수치',
         'tab.builds': '빌드',
