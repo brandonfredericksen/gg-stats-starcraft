@@ -18,6 +18,13 @@ export const LADDER_BASELINE_FILE = 'ladder-baseline.json.gz'
 export const NAMED_LADDER_BASELINE_FILE = 'ladder-baseline-named.json.gz'
 
 /**
+ * How each named player in the baseline's games played, read from the replays, so the other names a
+ * player plays under can be found among the ladder's players too. It goes wherever
+ * {@link NAMED_LADDER_BASELINE_FILE} goes, and like it never anywhere it would ship.
+ */
+export const NAMED_LADDER_FINGERPRINTS_FILE = 'ladder-fingerprints-named.json.gz'
+
+/**
  * While this file is in the folder of ladder replays, building the baseline waits: no more calls to
  * StarCraft or downloads, and no replay started after the one being analyzed.
  */

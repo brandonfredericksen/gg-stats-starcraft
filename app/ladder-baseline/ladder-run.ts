@@ -5,11 +5,14 @@ import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { gzipSync } from 'node:zlib'
 import { getErrorStack } from '../../common/errors'
+import { GameFingerprint } from '../../common/games/fingerprint'
 import {
   LADDER_BASELINE_VERSION,
   LADDER_PAUSE_FILE,
   LADDER_STOP_FILE,
   LadderBaseline,
+  NAMED_LADDER_BASELINE_FILE,
+  NAMED_LADDER_FINGERPRINTS_FILE,
 } from '../../common/games/ladder-baseline'
 import { GAME_METRICS_VERSION, GameShape, PlayerMetrics } from '../../common/games/player-metrics'
 import { ReplayToAnalyze } from '../../common/ipc'
@@ -21,7 +24,12 @@ import { CommandStatsBackfill } from '../game/command-stats-backfill'
 import { GameStatsStore } from '../game/game-stats-store'
 import log from '../logger'
 import { LadderManifests, withLadder } from '../replay-library/ladder-manifests'
-import { mapReplayHeaderToRecord, parseReplayMetadata } from '../replay-library/replay-parser'
+import {
+  mapReplayHeaderToRecord,
+  parseReplayMetadata,
+  readReplayFingerprints,
+} from '../replay-library/replay-parser'
+import { writeLadderFingerprints } from './ladder-fingerprints'
 import { getBaselineGameId } from './load-baseline'
 
 const POLL_MS = 5000
@@ -231,17 +239,18 @@ const LADDER_SHAPES: ReadonlySet<GameShape> = new Set(['1v1', '2v2', '3v3'])
  * from the ladder manifest next to them, as a baseline the app ships: 1v1 games from StarCraft's
  * ladder, and 2v2 and 3v3 games from ShieldBattery's, whose players have a rating but no rank.
  * Games without a ladder game in a manifest are left out. The same games with the players' real
- * names go to each of `namedExportPaths`, which must be on this computer only.
+ * names, and how each of those players played, go to each of `namedExportFolders`, which must be on
+ * this computer only.
  */
 export async function exportLadderBaseline({
   folders,
   exportPath,
-  namedExportPaths = [],
+  namedExportFolders = [],
   gameStatsStore,
 }: {
   folders: ReadonlyArray<string>
   exportPath: string
-  namedExportPaths?: ReadonlyArray<string>
+  namedExportFolders?: ReadonlyArray<string>
   gameStatsStore: GameStatsStore
 }) {
   const folderKeys = folders.map(folder => path.resolve(folder).toLowerCase() + path.sep)
@@ -252,6 +261,7 @@ export async function exportLadderBaseline({
   )
   const ladderGames = await new LadderManifests().getGames(listings.map(l => l.replayPathKey!))
   const games: DatedGameMetrics[] = []
+  const fingerprints: Array<{ gameTimeMs: number; names: string[]; prints: GameFingerprint[] }> = []
   for (const { replayPathKey, metrics } of listings) {
     const ladder = ladderGames.get(replayPathKey!)
     if (!ladder) {
@@ -271,11 +281,22 @@ export async function exportLadderBaseline({
       // Moments point to times in a replay that doesn't ship with the baseline.
       players: withRanks.players.map(({ moments: _moments, ...player }) => player),
     })
+    if (namedExportFolders.length) {
+      const prints = await readReplayFingerprints(replayPathKey!).catch(() => [])
+      if (prints.length) {
+        const names = withRanks.players.filter(p => p.human).flatMap(p => p.names)
+        fingerprints.push({ gameTimeMs, names, prints })
+      }
+    }
   }
   games.sort((a, b) => a.gameTimeMs - b.gameTimeMs)
+  fingerprints.sort((a, b) => a.gameTimeMs - b.gameTimeMs)
   const createdMs = Date.now()
-  for (const namedPath of namedExportPaths) {
-    await writeBaseline(namedPath, games, createdMs)
+  for (const folder of namedExportFolders) {
+    await writeBaseline(path.join(folder, NAMED_LADDER_BASELINE_FILE), games, createdMs)
+    const fingerprintsPath = path.join(folder, NAMED_LADDER_FINGERPRINTS_FILE)
+    await writeLadderFingerprints(fingerprintsPath, fingerprints, createdMs)
+    report(`Wrote the fingerprints of ${fingerprints.length} games to ${fingerprintsPath}.`)
   }
   const idOf = makeAnonymizer()
   await writeBaseline(

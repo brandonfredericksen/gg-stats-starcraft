@@ -20,7 +20,10 @@ import { URL } from 'url'
 import swallowNonBuiltins from '../common/async/swallow-non-builtins'
 import { getErrorStack } from '../common/errors'
 import { GameIconsManifest } from '../common/game-icons'
-import { NAMED_LADDER_BASELINE_FILE } from '../common/games/ladder-baseline'
+import {
+  NAMED_LADDER_BASELINE_FILE,
+  NAMED_LADDER_FINGERPRINTS_FILE,
+} from '../common/games/ladder-baseline'
 import { TypedIpcMain, TypedIpcSender } from '../common/ipc'
 import { DEFAULT_LOCAL_SETTINGS } from '../common/settings/default-settings'
 import { LocalSettings } from '../common/settings/local-settings'
@@ -185,14 +188,13 @@ function resolveReplayFolders(settings: Readonly<Partial<LocalSettings>>): strin
 }
 
 /**
- * Where building the baseline puts the copy with real names: this app's data, and an installed GG
- * Stats' if this computer has one, since baselines are built by the dev app.
+ * Where building the baseline puts the copy with real names and the players' fingerprints: this
+ * app's data, and an installed GG Stats' if this computer has one, since baselines are built by the
+ * dev app.
  */
-function getNamedBaselinePaths() {
+function getNamedBaselineFolders() {
   const folders = new Set([getUserDataPath(), path.join(app.getPath('appData'), 'GG Stats')])
-  return [...folders]
-    .filter(folder => existsSync(folder))
-    .map(folder => path.join(folder, NAMED_LADDER_BASELINE_FILE))
+  return [...folders].filter(folder => existsSync(folder))
 }
 
 async function createLocalSettings() {
@@ -875,6 +877,7 @@ app.on('ready', () => {
           : 'replay-library.sqlite'
         replayLibrary = setupReplayLibrary({
           dbPath: path.join(app.getPath('userData'), dbFileName),
+          ladderFingerprintsPath: path.join(getUserDataPath(), NAMED_LADDER_FINGERPRINTS_FILE),
           watchedFolders,
           getSender: () => TypedIpcSender.from(mainWindow?.webContents),
           getAnalyzedReplayPaths: () => gameStatsStore.listAnalyzedReplayPaths(),
@@ -1033,7 +1036,7 @@ app.on('ready', () => {
           await exportLadderBaseline({
             folders: ladderRun.folders,
             exportPath: ladderRun.exportPath,
-            namedExportPaths: getNamedBaselinePaths(),
+            namedExportFolders: getNamedBaselineFolders(),
             gameStatsStore,
           })
         }

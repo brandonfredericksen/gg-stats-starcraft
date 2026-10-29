@@ -4,7 +4,11 @@ import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { LADDER_MANIFEST_FILE, LadderGame } from '../../common/games/ladder'
-import { parseLadderBaseline } from '../../common/games/ladder-baseline'
+import {
+  NAMED_LADDER_BASELINE_FILE,
+  NAMED_LADDER_FINGERPRINTS_FILE,
+  parseLadderBaseline,
+} from '../../common/games/ladder-baseline'
 import {
   GAME_METRICS_VERSION,
   GameMetrics,
@@ -12,10 +16,19 @@ import {
   PlayerMetrics,
 } from '../../common/games/player-metrics'
 import { GameStatsStore, MetricsListing } from '../game/game-stats-store'
+import { readLadderFingerprints } from './ladder-fingerprints'
 import { exportLadderBaseline, getLadderRunArgs } from './ladder-run'
 
 vi.mock('../logger', () => ({
   default: { verbose: () => {}, info: () => {}, warning: () => {}, error: () => {} },
+}))
+
+// The test's replays are only names, with nothing in them to read how anyone played from.
+vi.mock('../replay-library/replay-parser', async importOriginal => ({
+  ...(await importOriginal<typeof import('../replay-library/replay-parser')>()),
+  readReplayFingerprints: async () => [
+    { name: 'Kestrel', race: 'p', features: [0.25, NaN, 3], actions: 900 },
+  ],
 }))
 
 function player(name: string, race: PlayerMetrics['race']): PlayerMetrics {
@@ -180,17 +193,21 @@ describe('app/ladder-baseline/ladder-run', () => {
       ]
       const store = { listMetrics: async () => listings } as unknown as GameStatsStore
       const exportPath = path.join(dir, 'baseline.json.gz')
-      const namedPath = path.join(dir, 'named.json.gz')
+      const namedFolder = path.join(dir, 'named')
+      await mkdir(namedFolder)
       await exportLadderBaseline({
         folders: [replays],
         exportPath,
-        namedExportPaths: [namedPath],
+        namedExportFolders: [namedFolder],
         gameStatsStore: store,
       })
 
       const read = async (filePath: string) =>
         parseLadderBaseline(JSON.parse(gunzipSync(await readFile(filePath)).toString('utf8')))!
-      const [shipped, named] = await Promise.all([read(exportPath), read(namedPath)])
+      const [shipped, named] = await Promise.all([
+        read(exportPath),
+        read(path.join(namedFolder, NAMED_LADDER_BASELINE_FILE)),
+      ])
       expect(named.createdMs).toBe(shipped.createdMs)
       expect(named.games).toHaveLength(1)
       const [game] = named.games
@@ -200,6 +217,17 @@ describe('app/ladder-baseline/ladder-run', () => {
         [['Wren', 'OldWren'], 1790, undefined],
       ])
       expect(JSON.stringify(shipped)).not.toMatch(/kestrel|wren/i)
+
+      const [prints] = readLadderFingerprints(
+        path.join(namedFolder, NAMED_LADDER_FINGERPRINTS_FILE),
+      )
+      expect(prints).toMatchObject({
+        gameTimeMs: LADDER_GAME.createdMs,
+        names: ['Kestrel', 'Wren', 'OldWren'],
+      })
+      expect(prints.prints.map(p => [p.name, p.race, Array.from(p.features)])).toEqual([
+        ['Kestrel', 'p', [0.25, NaN, 3]],
+      ])
     })
 
     test("adds another folder's team games, with ratings and no ranks", async () => {

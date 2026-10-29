@@ -26,6 +26,8 @@ export interface ReplayLibraryOptions {
   dbPath: string
   /** Absolute paths of the replay folders to index (each watched recursively). */
   watchedFolders: ReadonlyArray<string>
+  /** Where a baseline built on this computer put its ladder players' fingerprints, if it did. */
+  ladderFingerprintsPath?: string
   /** Returns the sender for the current renderer window, so change events reach it even after the
    * window is recreated. */
   getSender: () => TypedIpcSender
@@ -160,6 +162,7 @@ export class ReplayLibraryService {
     const workerData: ReplayDbWorkerData = {
       dbPath: this.options.dbPath,
       watchedFolders: [...this.watchedFolders],
+      ladderFingerprintsPath: this.options.ladderFingerprintsPath,
     }
     // Its own entry in the same build output as this module, so the path holds wherever the app
     // runs from.

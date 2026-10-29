@@ -1,7 +1,11 @@
-import { rmSync } from 'node:fs'
+import { rmSync, statSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import os from 'node:os'
 import { getErrorStack } from '../../../common/errors'
+import {
+  LadderFingerprintGame,
+  readLadderFingerprints,
+} from '../../ladder-baseline/ladder-fingerprints'
 import { AliasFinder } from '../alias-finder'
 import { FingerprintBackfill } from '../fingerprint-backfill'
 import { ReplayDb } from '../replay-db'
@@ -34,7 +38,9 @@ if (!parentPort) {
   throw new Error('db-worker must be run as a utility process')
 }
 
-const { dbPath, watchedFolders } = JSON.parse(process.argv.at(-1)!) as ReplayDbWorkerData
+const { dbPath, watchedFolders, ladderFingerprintsPath } = JSON.parse(
+  process.argv.at(-1)!,
+) as ReplayDbWorkerData
 
 function post(message: FromWorkerMessage): void {
   parentPort.postMessage(message)
@@ -85,8 +91,34 @@ function openReplayDb(path: string): ReplayDb {
   }
 }
 
+let ladderGames: { mtimeMs: number; games: LadderFingerprintGame[] } | undefined
+
+/**
+ * The ladder players' fingerprints a baseline built on this computer left, read again only once
+ * the baseline is built again. None if no baseline was built here.
+ */
+function getLadderGames(): LadderFingerprintGame[] {
+  if (!ladderFingerprintsPath) {
+    return []
+  }
+  const mtimeMs = statSync(ladderFingerprintsPath, { throwIfNoEntry: false })?.mtimeMs
+  if (mtimeMs === undefined) {
+    return []
+  }
+  if (ladderGames?.mtimeMs !== mtimeMs) {
+    let games: LadderFingerprintGame[] = []
+    try {
+      games = readLadderFingerprints(ladderFingerprintsPath)
+    } catch (err) {
+      logger.error(`Couldn't read the ladder fingerprints: ${getErrorStack(err)}`)
+    }
+    ladderGames = { mtimeMs, games }
+  }
+  return ladderGames.games
+}
+
 const db = openReplayDb(dbPath)
-const aliasFinder = new AliasFinder(db)
+const aliasFinder = new AliasFinder(db, getLadderGames)
 const watcher = new ReplayWatcher(watchedFolders, db, logger, {
   onProgress: progress => post({ type: 'backfillProgress', progress }),
   onChange: () => {

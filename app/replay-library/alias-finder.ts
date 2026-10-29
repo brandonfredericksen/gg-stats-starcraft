@@ -11,6 +11,7 @@ import {
 import modelData from '../../common/games/fingerprint-model.json'
 import { RaceChar } from '../../common/races'
 import { PlayerAlias, PlayerAliases } from '../../common/replays-library'
+import { LadderFingerprintGame } from '../ladder-baseline/ladder-fingerprints'
 import { StoredFingerprint } from './replay-db'
 
 const MODEL = modelData as unknown as FingerprintModel
@@ -51,13 +52,61 @@ export interface AliasFinderSource {
 }
 
 /**
+ * The library's fingerprints with the ladder games' added, each ladder game as a replay with an id
+ * below every replay's, the oldest game first. Ladder games the library has a replay of are left
+ * out, so no game counts twice.
+ */
+function withLadderGames(
+  rows: StoredFingerprint[],
+  together: Map<number, string[]>,
+  ladder: ReadonlyArray<LadderFingerprintGame>,
+): { rows: StoredFingerprint[]; together: Map<number, string[]> } {
+  if (!ladder.length) {
+    return { rows, together }
+  }
+  // A replay of the same game shares its start, to the second, and its players.
+  const inLibrary = new Set(rows.map(r => `${r.gameTime}|${r.nameKey}`))
+  const ladderRows: StoredFingerprint[] = []
+  const allTogether = new Map(together)
+  for (const [i, game] of ladder.entries()) {
+    const keys = game.names.map(n => n.toLowerCase())
+    if (keys.some(key => inLibrary.has(`${game.gameTimeMs}|${key}`))) {
+      continue
+    }
+    const replayId = -1 - i
+    allTogether.set(replayId, keys)
+    for (const { name, race, features } of game.prints) {
+      ladderRows.push({
+        replayId,
+        name,
+        nameKey: name.toLowerCase(),
+        race,
+        features,
+        gameTime: game.gameTimeMs,
+      })
+    }
+  }
+  return {
+    rows: [...rows, ...ladderRows].sort((a, b) => a.gameTime - b.gameTime),
+    together: allTogether,
+  }
+}
+
+/**
  * Finds the other names a player may play under, by comparing how they play to how everyone in the
  * replay library plays. What it learns from the library is kept until {@link invalidate}.
  */
 export class AliasFinder {
   private state: FinderState | undefined
 
-  constructor(private readonly source: AliasFinderSource) {}
+  /**
+   * @param readLadderGames The games of a baseline built on this computer, whose players are
+   *   compared along with the library's.
+   */
+  constructor(
+    private readonly source: AliasFinderSource,
+    private readonly readLadderGames: () => ReadonlyArray<LadderFingerprintGame> = () => [],
+  ) {}
 
   /** Forgets what was read from the library, like after more replays have fingerprints. */
   invalidate() {
@@ -68,8 +117,13 @@ export class AliasFinder {
     if (this.state) {
       return this.state
     }
+    const { rows, together: playedTogether } = withLadderGames(
+      this.source.getFingerprints(FINGERPRINT_VERSION),
+      this.source.getFingerprintedPlayerNames(FINGERPRINT_VERSION),
+      this.readLadderGames(),
+    )
     const byIdentity = new Map<string, Omit<Identity, 'print'>>()
-    for (const row of this.source.getFingerprints(FINGERPRINT_VERSION)) {
+    for (const row of rows) {
       const key = `${row.nameKey}|${row.race}`
       const projected = projectFingerprint(MODEL, row.race, Array.from(row.features))
       const identity = byIdentity.get(key)
@@ -91,7 +145,7 @@ export class AliasFinder {
     }))
 
     const together = new Map<string, Set<string>>()
-    for (const names of this.source.getFingerprintedPlayerNames(FINGERPRINT_VERSION).values()) {
+    for (const names of playedTogether.values()) {
       for (const name of names) {
         let others = together.get(name)
         if (!others) {

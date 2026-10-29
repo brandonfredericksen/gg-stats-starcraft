@@ -15,6 +15,8 @@ export interface ReplayDbWorkerData {
   dbPath: string
   /** Absolute paths of the replay folders to index (each watched recursively). */
   watchedFolders: string[]
+  /** Where a baseline built on this computer put its ladder players' fingerprints, if it did. */
+  ladderFingerprintsPath?: string
 }
 
 /** The library's status as the worker knows it. The main process checks the folders. */
