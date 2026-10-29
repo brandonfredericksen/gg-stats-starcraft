@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getShapeLabel } from '../../common/games/game-labels'
 import { DEFAULT_ESKILL_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsResult } from '../../common/my-stats/my-stats'
 import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
@@ -174,7 +175,7 @@ const Content = styled.div<{ $stale: boolean }>`
  */
 function getCoverageText(data: MyStatsData, filters: MyStatsFilters, other: boolean, t: TFunction) {
   const scope = [
-    filters.shape === 'ffa' ? t('myStats.ffa', 'FFA') : filters.shape,
+    filters.shape ? getShapeLabel(filters.shape, t) : undefined,
     filters.range === '7d' ? t('myStats.coverageWeek', 'last 7 days') : undefined,
     filters.range === '30d' ? t('myStats.coverageMonth', 'last 30 days') : undefined,
   ].filter(Boolean)

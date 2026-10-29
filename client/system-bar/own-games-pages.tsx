@@ -83,7 +83,7 @@ export function LastGamePage() {
     return <OwnGamesNeeded state={newest.state} onRetry={newest.retry} />
   }
   const { entry } = newest
-  const matchup = getLayoutMatchup(getReplayDisplayTeams(entry.players))
+  const matchup = getLayoutMatchup(getReplayDisplayTeams(entry.players), t)
   const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
     entry.gameTime,
   )

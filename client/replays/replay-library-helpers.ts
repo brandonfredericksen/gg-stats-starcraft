@@ -1,4 +1,6 @@
+import { TFunction } from 'i18next'
 import { assertUnreachable } from '../../common/assert-unreachable'
+import { formatMatchup, getShapeLabel } from '../../common/games/game-labels'
 import { ReplayLibraryPlayer } from '../../common/replays-library'
 
 /** Which part of the library is shown, addressed by the `/replays…` pathname. */
@@ -102,16 +104,13 @@ export function getReplayDisplayTeams(
 }
 
 /** A short matchup for a layout, like `PvZ` or `PTvZZ`, or undefined when there are no teams. */
-export function getLayoutMatchup(layout: ReplayTeamLayout): string | undefined {
+export function getLayoutMatchup(layout: ReplayTeamLayout, t: TFunction): string | undefined {
   if (layout.kind === 'flat') {
-    return layout.teams.flat().length ? 'FFA' : undefined
+    return layout.teams.flat().length ? getShapeLabel('ffa', t) : undefined
   }
-  return layout.teams
-    .map(team =>
-      team
-        .map(p => p.race.toUpperCase())
-        .sort()
-        .join(''),
-    )
-    .join('v')
+  return formatMatchup(
+    layout.teams.map(team => team.map(p => p.race).sort()),
+    t,
+    { compact: true },
+  )
 }

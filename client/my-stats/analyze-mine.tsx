@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
+import { getShapeLabel } from '../../common/games/game-labels'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { OutlinedButton } from '../material/button'
@@ -83,7 +84,7 @@ export function AnalyzeMine({
     return null
   }
   const count = Math.min(BATCH_SIZE, available)
-  const shape = filters.shape === 'ffa' ? 'FFA' : filters.shape
+  const shape = filters.shape ? getShapeLabel(filters.shape, t) : undefined
   const compactLabel = shape
     ? t('myStats.analyzeMine.moreShape', {
         defaultValue: 'Analyze {{count}} more {{shape}} games',
@@ -100,7 +101,7 @@ export function AnalyzeMine({
         defaultValue: 'Analyze {{count}} newest unanalyzed {{shape}} replays',
         defaultValue_one: 'Analyze the newest unanalyzed {{shape}} replay',
         count,
-        shape: filters.shape === 'ffa' ? 'FFA' : filters.shape,
+        shape,
       })
     : t('myStats.analyzeMine.button', {
         defaultValue: 'Analyze {{count}} newest unanalyzed replays',

@@ -227,6 +227,15 @@
     "mapName": {
       "unknown": "Unknown map"
     },
+    "matchup": {
+      "oneOnOne": "{{race}}v{{opponent}}",
+      "race": {
+        "p": "P",
+        "r": "R",
+        "t": "T",
+        "z": "Z"
+      }
+    },
     "playerName": {
       "computer": "Computer"
     },
@@ -235,6 +244,17 @@
       "random": "Random",
       "terran": "Terran",
       "zerg": "Zerg"
+    },
+    "raceLetter": {
+      "p": "P",
+      "r": "R",
+      "t": "T",
+      "z": "Z"
+    },
+    "shape": {
+      "ffa": "FFA",
+      "other": "Other",
+      "sizeSeparator": "v"
     },
     "teamName": {
       "number": "Team {{teamNumber}}"
@@ -1178,7 +1198,6 @@
     "coverageScopeTheirs": "{{count}} of their {{total}} games ({{scope}}) are analyzed.",
     "coverageWeek": "last 7 days",
     "editNames": "Edit names",
-    "ffa": "FFA",
     "filters": {
       "allTime": "All time",
       "allTypes": "All",
@@ -1287,7 +1306,6 @@
     "noAnalyzedGames": "None of your games are analyzed yet. Analyze some and they'll show up here.",
     "noAnalyzedGamesTheirs": "None of their games are analyzed yet. Analyze some and they'll show up here.",
     "noMatches": "No analyzed games match these filters.",
-    "otherShape": "Other",
     "pageNext": "Next",
     "pagePrevious": "Previous",
     "pageRange": "{{from}} to {{to}} of {{total}}",
@@ -1711,6 +1729,7 @@
       "analysis": "Analysis",
       "analyzed": "Analyzed",
       "anyAnalysis": "Any",
+      "bigTeams": "{{shape}}+",
       "filters": "Filters",
       "gameType": "Game type",
       "hideResults": "Hide results",
@@ -1742,6 +1761,8 @@
         "clock24": "24 hour",
         "clockOverline": "Clock",
         "clockSystem": "Match Windows",
+        "languageOverline": "Language",
+        "languageSystem": "System default",
         "themeDark": "Dark",
         "themeLight": "Light",
         "themeOverline": "Theme",

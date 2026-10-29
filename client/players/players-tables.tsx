@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { getErrorStack } from '../../common/errors'
+import { getRaceLetter } from '../../common/games/game-labels'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { WinLoss } from '../../common/my-stats/my-stats'
 import { PlayerSummary } from '../../common/my-stats/player-scout'
@@ -364,7 +365,7 @@ export function PlayersTable({
     { value: undefined, label: t('players.filterAnyRace', 'Any') },
     ...ALL_ASSIGNED_RACE_CHARS.map(r => ({
       value: r,
-      label: r.toUpperCase(),
+      label: getRaceLetter(r, t),
       title: raceCharToLabel(r, t),
     })),
   ]

@@ -2,6 +2,7 @@ import { useAtom } from 'jotai'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getRaceLetter, getShapeLabel } from '../../common/games/game-labels'
 import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { RankMmr } from '../../common/my-stats/coach'
@@ -134,22 +135,26 @@ export function FilterBar({
 
   const shapes: Array<SegmentOption<MyStatsShape | undefined>> = [
     { value: undefined, label: t('myStats.filters.allTypes', 'All') },
-    { value: '1v1', label: '1v1' },
-    { value: '2v2', label: '2v2' },
-    { value: '3v3', label: '3v3' },
-    { value: '4v4', label: '4v4' },
-    { value: 'ffa', label: t('myStats.ffa', 'FFA') },
+    { value: '1v1', label: getShapeLabel('1v1', t) },
+    { value: '2v2', label: getShapeLabel('2v2', t) },
+    { value: '3v3', label: getShapeLabel('3v3', t) },
+    { value: '4v4', label: getShapeLabel('4v4', t) },
+    { value: 'ffa', label: getShapeLabel('ffa', t) },
   ]
   const races: Array<SegmentOption<AssignedRaceChar | undefined>> = [
     { value: undefined, label: t('myStats.filters.any', 'Any') },
-    { value: 'p', label: 'P', title: t('myStats.filters.protoss', 'Protoss') },
-    { value: 't', label: 'T', title: t('myStats.filters.terran', 'Terran') },
-    { value: 'z', label: 'Z', title: t('myStats.filters.zerg', 'Zerg') },
+    { value: 'p', label: getRaceLetter('p', t), title: t('myStats.filters.protoss', 'Protoss') },
+    { value: 't', label: getRaceLetter('t', t), title: t('myStats.filters.terran', 'Terran') },
+    { value: 'z', label: getRaceLetter('z', t), title: t('myStats.filters.zerg', 'Zerg') },
   ]
   // No option for any map: each family plays like a different game, so they're never summed up
   // together.
   const maps: Array<SegmentOption<MapFamily | undefined>> = [
-    { value: 'bgh', label: 'BGH', title: t('myStats.filters.bgh', 'Big Game Hunters') },
+    {
+      value: 'bgh',
+      label: t('myStats.filters.bghShort', 'BGH'),
+      title: t('myStats.filters.bgh', 'Big Game Hunters'),
+    },
     { value: 'fastest', label: t('myStats.filters.fastest', 'Fastest') },
     {
       value: 'standard',
@@ -159,7 +164,10 @@ export function FilterBar({
   ]
   const pairs: Array<SegmentOption<RacePair | undefined>> = [
     { value: undefined, label: t('myStats.filters.any', 'Any') },
-    ...RACE_PAIRS.map(pair => ({ value: pair, label: pair.toUpperCase() })),
+    ...RACE_PAIRS.map(pair => ({
+      value: pair,
+      label: [...pair].map(race => getRaceLetter(race, t)).join(''),
+    })),
   ]
   const ranges: Array<SegmentOption<MyStatsRange>> = [
     { value: '7d', label: t('myStats.filters.lastWeek', 'Last 7 days') },

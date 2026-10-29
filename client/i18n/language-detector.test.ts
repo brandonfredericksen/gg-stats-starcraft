@@ -1,6 +1,26 @@
 import { describe, expect, test } from 'vitest'
 import { TranslationLanguage } from '../../common/i18n'
-import { getBestLanguage } from './language-detector'
+import { getAppLanguage, getBestLanguage } from './language-detector'
+
+describe('client/i18n/language-detector getAppLanguage', () => {
+  test('uses the language chosen in settings over the system languages', () => {
+    expect(getAppLanguage('ko', ['en-US'])).toBe(TranslationLanguage.Korean)
+    expect(getAppLanguage('en', ['ko-KR'])).toBe(TranslationLanguage.English)
+  })
+
+  test('follows the system languages when no language was chosen', () => {
+    expect(getAppLanguage(undefined, ['ko-KR', 'en-US'])).toBe(TranslationLanguage.Korean)
+    expect(getAppLanguage(undefined, ['fr-FR', 'en-US'])).toBe(TranslationLanguage.English)
+  })
+
+  test('follows the system languages when the chosen language is not shipped', () => {
+    expect(getAppLanguage('xx', ['ko-KR'])).toBe(TranslationLanguage.Korean)
+  })
+
+  test('falls back on English when nothing matches', () => {
+    expect(getAppLanguage(undefined, ['fr-FR'])).toBe(TranslationLanguage.English)
+  })
+})
 
 const SUPPORTED_LANGUAGES = ['zh-Hans', 'en', 'ko', 'ru', 'es']
 

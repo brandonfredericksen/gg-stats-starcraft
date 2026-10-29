@@ -7,6 +7,7 @@ import { assertUnreachable } from '../../common/assert-unreachable'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { withAssumedResults } from '../../common/games/assumed-results'
 import { getGameDurationString } from '../../common/games/game-duration'
+import { formatTeamSizes } from '../../common/games/game-labels'
 import {
   GameStats,
   GameStatsSource,
@@ -568,7 +569,13 @@ function getGameKind(sides: ReadonlyArray<Side>, t: TFunction): string[] {
   if (sides.every(side => side.players.length === 1)) {
     return [getMatchup(sides, t)]
   }
-  return [sides.map(side => side.players.length).join('v'), getMatchup(sides, t)]
+  return [
+    formatTeamSizes(
+      sides.map(side => side.players.length),
+      t,
+    ),
+    getMatchup(sides, t),
+  ]
 }
 
 function StatsHeader({

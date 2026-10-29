@@ -8,6 +8,7 @@ import {
   GameSortOption,
   makeEncodedMatchupString,
 } from '../../common/games/game-filters'
+import { formatMatchup } from '../../common/games/game-labels'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { filterColorCodes } from '../../common/maps'
 import { DatePreset } from '../games/date-range'
@@ -214,10 +215,10 @@ export function LibraryFilterRow({
     { value: '', label: t('replays.filters.anyMatchup', 'Any') },
     ...ONE_V_ONE_MATCHUPS.map(m => ({
       value: m,
-      label: m
-        .split('-')
-        .map(r => r.toUpperCase())
-        .join('v'),
+      label: formatMatchup(
+        m.split('-').map(r => [r]),
+        t,
+      ),
     })),
   ]
 

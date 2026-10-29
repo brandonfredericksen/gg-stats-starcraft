@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 import { getGameDurationString } from '../../common/games/game-duration'
+import { getShapeLabel } from '../../common/games/game-labels'
 import { MapFamily } from '../../common/games/map-family'
 import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
@@ -527,13 +528,13 @@ export function getScopeName(scope: Omit<CoachScope, 'games'>, t: TFunction) {
     return t('myStats.coach.scopeAlly', '{{race}} with a {{ally}} ally in {{shape}}', {
       race,
       ally: raceCharToLabel(scope.allyRace, t),
-      shape: scope.shape,
+      shape: getShapeLabel(scope.shape, t),
     })
   }
   if (scope.mapFamily) {
     return t('myStats.coach.scopeTeamMap', '{{race}} in {{shape}} on {{map}}', {
       race,
-      shape: scope.shape,
+      shape: getShapeLabel(scope.shape, t),
       map: getMapFamilyShortName(scope.mapFamily, t),
     })
   }
@@ -545,7 +546,7 @@ export function getScopeName(scope: Omit<CoachScope, 'games'>, t: TFunction) {
   }
   return t('myStats.coach.scopeTeam', '{{race}} in {{shape}}', {
     race,
-    shape: scope.shape === 'ffa' ? t('myStats.ffa', 'FFA') : scope.shape,
+    shape: getShapeLabel(scope.shape, t),
   })
 }
 

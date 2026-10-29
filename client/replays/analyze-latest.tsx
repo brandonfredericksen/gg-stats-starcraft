@@ -8,6 +8,7 @@ import { GameSortOption } from '../../common/games/game-filters'
 import { ReplayToAnalyze, TypedIpcRenderer } from '../../common/ipc'
 import { ReplayLibraryEntry, ReplayLibraryFilters } from '../../common/replays-library'
 import { autoCaptureStatusAtom } from '../games/replay-stats-status'
+import i18n from '../i18n/i18next'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { jotaiStore } from '../jotai-store'
 import { Divider } from '../material/menu/divider'
@@ -31,7 +32,7 @@ export function toReplayToAnalyze(entry: ReplayLibraryEntry): ReplayToAnalyze {
     linkedGameId: entry.linkedGameId,
     gameTime: entry.gameTime,
     mapName: entry.mapName,
-    matchup: getLayoutMatchup(getReplayDisplayTeams(entry.players)),
+    matchup: getLayoutMatchup(getReplayDisplayTeams(entry.players), i18n.t),
   }
 }
 

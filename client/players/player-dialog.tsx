@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getGameDurationString } from '../../common/games/game-duration'
+import { formatMatchup, getRaceLetter, getShapeLabel } from '../../common/games/game-labels'
 import { MapFamily } from '../../common/games/map-family'
 import { GameShape } from '../../common/games/player-metrics'
 
@@ -21,7 +22,7 @@ import { getMapFamilyShortName } from '../coach/coach-shared'
 import { CommonDialogProps } from '../dialogs/common-dialog-props'
 import { SectionErrorBoundary, useStatFormat } from '../games/game-stats-shared'
 import { useMyPlayerNames } from '../games/my-player-names'
-import { relativeTimeFormat, useFormat } from '../i18n/locale-formats'
+import { currentFormatLocale, relativeTimeFormat, useFormat } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { liveGameAtom } from '../live-game/live-game-atoms'
 import { ScoutState, useScouts } from '../live-game/live-game-data'
@@ -52,7 +53,6 @@ import {
   formatPercent,
   getResultLetter,
   getResultWord,
-  getShapeLabel,
   getWinRate,
   HelpLabel,
   Muted,
@@ -565,8 +565,7 @@ function getMatchupLabel(matchup: ScoutMatchup, t: TFunction) {
   const team = [matchup.race, ...matchup.teammateRaces].sort()
   const size = TEAM_SIZES[matchup.shape]
   if (size && team.length === size && matchup.opponentRaces.length === size) {
-    const side = (races: ReadonlyArray<string>) => races.join('').toUpperCase()
-    return `${side(team)} ${t('gameStats.matchupSeparator', 'v')} ${side(matchup.opponentRaces)}`
+    return formatMatchup([team, matchup.opponentRaces], t)
   }
   return `${raceCharToLabel(matchup.race, t)} · ${getKindLabel(matchup, t)}`
 }
@@ -591,8 +590,7 @@ function getGameRaces(game: MyStatsGame, t: TFunction) {
   if (!size || game.opponentRaces.length !== size || size * 2 !== getShapeSize(game.shape)) {
     return getShapeLabel(game.shape, t)
   }
-  const side = (races: ReadonlyArray<string>) => races.join('').toUpperCase()
-  return `${side(team)} ${t('gameStats.matchupSeparator', 'v')} ${side(game.opponentRaces)}`
+  return formatMatchup([team, game.opponentRaces], t)
 }
 
 /** How many play in an even game type, like 6 in a 3v3. */
@@ -877,7 +875,10 @@ function ThisGame({ scout, live }: { scout: PlayerScout; live: NonNullable<Profi
   const style = getPlaystyle(scout, race, kind)
   const cheese = getCheeseRate(scout, race, kind)
   const kindLabel = getKindLabel(kind, t)
-  const enemies = [...enemyRaces].sort().join('').toUpperCase()
+  const enemies = [...enemyRaces]
+    .sort()
+    .map(r => getRaceLetter(r, t))
+    .join('')
   const raceRecord = getRaceKindRecord(scout, kind, race)
   const record = raceRecord.games ? raceRecord : getRaceKindRecord(scout, kind, undefined)
 
@@ -1302,7 +1303,7 @@ function RecentList({ games, onOpen }: { games: ReadonlyArray<MyStatsGame>; onOp
             <GameRow
               key={game.gameId}
               type='button'
-              title={new Date(game.gameTimeMs).toLocaleString()}
+              title={new Date(game.gameTimeMs).toLocaleString(currentFormatLocale())}
               aria-label={[getResultWord(game.result, t), races, game.mapName, length, when].join(
                 ', ',
               )}
@@ -1513,7 +1514,7 @@ function ScoutSections({
         <Accordion
           title={t('players.racesAndStyles', 'Races and play style')}
           summary={scout.races
-            .map(r => `${r.race.toUpperCase()} ${formatPercent(r.games / scout.totals.games)}`)
+            .map(r => `${getRaceLetter(r.race, t)} ${formatPercent(r.games / scout.totals.games)}`)
             .join(' · ')}
           testName='player-styles'>
           <RacesAndStyles scout={scout} race={race} />

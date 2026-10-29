@@ -1,5 +1,6 @@
 import { TFunction } from 'i18next'
 import { getSideResult } from '../../common/games/assumed-results'
+import { formatMatchup, formatTeamSizes } from '../../common/games/game-labels'
 import {
   BuildStep,
   BuildStepKind,
@@ -72,20 +73,17 @@ export function getTeamsByPlayer(sides: ReadonlyArray<Side>): ReadonlyMap<number
   )
 }
 
-function raceLetter(player: GamePlayerStats) {
-  return player.race?.toUpperCase() ?? '?'
-}
-
 /**
  * The races facing off, in the order the sides are shown: "ZvP" for a 1v1, or "PPZ vs TZP" for
  * team games.
  */
 export function getMatchup(sides: ReadonlyArray<Side>, t: TFunction) {
-  return sides.every(side => side.players.length === 1)
-    ? sides.map(side => raceLetter(side.players[0])).join(t('gameStats.matchupSeparator', 'v'))
-    : sides
-        .map(side => side.players.map(raceLetter).join(''))
-        .join(t('gameStats.teamMatchupSeparator', ' vs '))
+  return formatMatchup(
+    sides.map(side => side.players.map(p => p.race)),
+    t,
+    // A free for all writes its races like a 1v1's: PvTvZ.
+    { compact: sides.every(side => side.players.length === 1) },
+  )
 }
 
 /**
@@ -114,7 +112,7 @@ export function getGameCrumbLabel(
           matchup,
           name: theirs.players[0].name,
         })
-      : `${mine.players.length}v${theirs.players.length} ${matchup}`,
+      : `${formatTeamSizes([mine.players.length, theirs.players.length], t)} ${matchup}`,
     mapName,
   ]
   if (mine.result === 'win') {

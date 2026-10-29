@@ -50,15 +50,16 @@ export function getMapBaseName(mapName: string): string {
 }
 
 /**
- * The name to show for a map: the one it goes by in English when it's a known map, uploaded in
- * Korean or tagged by a league, and otherwise its own name without what one upload adds.
+ * The name to show for a map: for a known map, uploaded in another language or tagged by a league,
+ * the one it goes by in `language` (English when not given), and otherwise its own name without
+ * what one upload adds. A name this returned can be passed back in for another language.
  */
-export function getMapDisplayName(mapName: string): string {
+export function getMapDisplayName(mapName: string, language?: string): string {
   const baseName = getMapBaseName(mapName)
-  return getKnownMapName(baseName) ?? baseName
+  return getKnownMapName(baseName, language) ?? baseName
 }
 
-/** The map a name is a version of, to group by. See `getMapDisplayName`. */
+/** The map a name is a version of, to group by, the same in every language. */
 export function getMapKey(mapName: string): string {
   return getMapDisplayName(mapName).toLowerCase()
 }

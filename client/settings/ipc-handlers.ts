@@ -2,6 +2,8 @@ import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { LocalSettings } from '../../common/settings/local-settings'
 import { dispatch } from '../dispatch-registry'
+import i18n from '../i18n/i18next'
+import { getAppLanguage } from '../i18n/language-detector'
 import { jotaiStore } from '../jotai-store'
 import { checkGgStatsFiles } from '../starcraft/check-gg-stats-files-ipc'
 import { ggStatsHealthy, starcraftChecked, starcraftPathValid } from '../starcraft/health-state'
@@ -22,6 +24,14 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
       .catch(swallowNonBuiltins)
   }
   const afterLocalSettingsChange = (settings: Partial<LocalSettings>) => {
+    // Until i18next is initialized it's still being set up with the chosen language, read from the
+    // same settings.
+    if (i18n.isInitialized) {
+      const language = getAppLanguage(settings.language)
+      if (i18n.language !== language) {
+        i18n.changeLanguage(language).catch(swallowNonBuiltins)
+      }
+    }
     if (settings.starcraftPath !== lastPath || !lastPathWasValid) {
       checkStarcraftPath(settings.starcraftPath ?? '')
     }

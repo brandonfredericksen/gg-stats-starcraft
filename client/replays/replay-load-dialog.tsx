@@ -52,7 +52,11 @@ export function ReplayLoadDialog({ onCancel, gameId, close }: ReplayLoadDialogPr
       onCancel={onCancel}
       title={t('replays.loading.dialogTitle', 'Loading replay…')}
       showCloseButton={false}
-      buttons={error ? [<TextButton key='close' label='Close' onClick={close} />] : undefined}>
+      buttons={
+        error
+          ? [<TextButton key='close' label={t('common.actions.close', 'Close')} onClick={close} />]
+          : undefined
+      }>
       {error ? (
         <ErrorText>
           {t('replays.loading.errorGeneric', 'Something went wrong while loading the replay.')}

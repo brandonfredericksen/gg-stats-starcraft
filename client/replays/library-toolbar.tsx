@@ -3,6 +3,7 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getShapeLabel } from '../../common/games/game-labels'
 import { ReplayTeamsFilter } from '../../common/replays-library'
 import { useFitLevel } from '../dom/use-fit-level'
 import { MaterialIcon } from '../icons/material/material-icon'
@@ -249,10 +250,13 @@ export function LibraryToolbar({
 
   const teamOptions: Array<SegmentOption<ReplayTeamsFilter | undefined>> = [
     { value: undefined, label: t('replays.toolbar.allTypes', 'All') },
-    { value: '1v1', label: '1v1' },
-    { value: '2v2', label: '2v2' },
-    { value: 'bigTeams', label: '3v3+' },
-    { value: 'ffa', label: 'FFA' },
+    { value: '1v1', label: getShapeLabel('1v1', t) },
+    { value: '2v2', label: getShapeLabel('2v2', t) },
+    {
+      value: 'bigTeams',
+      label: t('replays.toolbar.bigTeams', '{{shape}}+', { shape: getShapeLabel('3v3', t) }),
+    },
+    { value: 'ffa', label: getShapeLabel('ffa', t) },
   ]
   const analysisOptions: Array<SegmentOption<AnalysisFilter>> = [
     { value: 'any', label: t('replays.toolbar.anyAnalysis', 'Any') },

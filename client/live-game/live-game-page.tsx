@@ -5,7 +5,9 @@ import * as React from 'react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
+import i18n from '../i18n/i18next'
 
+import { getRaceLetter, getShapeLabel } from '../../common/games/game-labels'
 import { getMapDisplayName } from '../../common/games/map-family'
 import { LiveGame, LiveGamePlayer, LiveMatchFound } from '../../common/live-game'
 import { Playstyle } from '../../common/my-stats/playstyle'
@@ -26,7 +28,7 @@ import { RaceMix } from '../material/race-mix'
 import { RaceTag } from '../material/race-tag'
 import { SkeletonText } from '../material/skeleton'
 import { Tooltip } from '../material/tooltip'
-import { getShapeLabel, getWinRate, Muted, RecordText } from '../my-stats/my-stats-panels'
+import { getWinRate, Muted, RecordText } from '../my-stats/my-stats-panels'
 import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
 import {
   bahnschriftCapCentered,
@@ -592,7 +594,10 @@ function getScopeLabel(
   switch (scope) {
     case 'matchup':
       return t('liveGame.buildScope.matchup', 'Vs {{races}}', {
-        races: [...enemyRaces].sort().join('').toUpperCase(),
+        races: [...enemyRaces]
+          .sort()
+          .map(r => getRaceLetter(r, t))
+          .join(''),
       })
     case 'kind':
       return t('liveGame.buildScope.kind', 'Usually')
@@ -956,7 +961,7 @@ function PlayerTile({
         $glow={getFlair(scout) === 's'}
         $noGames={scout === 'error' || (scout !== 'loading' && !scout.totals.games)}>
         {race ? (
-          <RaceBlock $color={getRaceColor(race)}>{race.toUpperCase()}</RaceBlock>
+          <RaceBlock $color={getRaceColor(race)}>{getRaceLetter(race, t)}</RaceBlock>
         ) : (
           <UnknownRace $color='var(--theme-on-surface-variant)'>?</UnknownRace>
         )}
@@ -1015,7 +1020,7 @@ function LiveGameView({ game }: { game: LiveGame }) {
     (versus || game.matchFound) && kind.shape !== 'other'
       ? getShapeLabel(kind.shape, t)
       : undefined,
-    game.mapName ? getMapDisplayName(game.mapName) : undefined,
+    game.mapName ? getMapDisplayName(game.mapName, i18n.resolvedLanguage) : undefined,
   ]
     .filter(Boolean)
     .join(' · ')

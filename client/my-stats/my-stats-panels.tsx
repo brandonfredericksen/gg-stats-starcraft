@@ -13,7 +13,9 @@ import {
 import styled, { css } from 'styled-components'
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { getGameDurationString } from '../../common/games/game-duration'
+import { formatMatchup, getRaceLetter, getShapeLabel } from '../../common/games/game-labels'
 import { LadderRank } from '../../common/games/ladder'
+import { getMapDisplayName } from '../../common/games/map-family'
 import { GameShape } from '../../common/games/player-metrics'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { getMapKey, TilesetId } from '../../common/maps'
@@ -31,6 +33,8 @@ import { AssignedRaceChar } from '../../common/races'
 import { TICK_FONT_SIZE } from '../games/game-stats-charts'
 import { RESULT_COLORS, StatsPanel, useStatFormat } from '../games/game-stats-shared'
 import { MapArt, useMapArt } from '../games/map-art'
+import i18n from '../i18n/i18next'
+import { currentFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { IconButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -160,17 +164,6 @@ export function RecordText({ record }: { record: Pick<WinLoss, 'wins' | 'losses'
   )
 }
 
-export function getShapeLabel(shape: GameShape, t: TFunction) {
-  switch (shape) {
-    case 'ffa':
-      return t('myStats.ffa', 'FFA')
-    case 'other':
-      return t('myStats.otherShape', 'Other')
-    default:
-      return shape
-  }
-}
-
 /** 4v4 is left out: eight races don't fit on a chip. */
 const TEAM_SIZES: Partial<Record<GameShape, number>> = { '1v1': 1, '2v2': 2, '3v3': 3 }
 
@@ -182,7 +175,7 @@ function getMatchupLabel(game: MyStatsGame, t: TFunction) {
   const team = game.race ? [game.race, ...game.teammateRaces].sort() : []
   const size = TEAM_SIZES[game.shape]
   if (size && team.length === size && game.opponentRaces.length === size) {
-    return `${team.join('')}v${game.opponentRaces.join('')}`.toUpperCase()
+    return formatMatchup([team, game.opponentRaces], t, { compact: true })
   }
   return getShapeLabel(game.shape, t)
 }
@@ -540,7 +533,7 @@ export function RecentGames({
             getMatchupLabel(game, t),
             game.mapName,
             getGameDurationString(game.durationMs),
-            new Date(game.gameTimeMs).toLocaleString(),
+            new Date(game.gameTimeMs).toLocaleString(currentFormatLocale()),
           ].join(', ')}>
           <RecentChip
             type='button'
@@ -1072,7 +1065,7 @@ function TrendTooltip({
         <Muted>{getGameDurationString(game.durationMs)}</Muted>
       </TrendTipTitle>
       <Muted>
-        {game.mapName}, {new Date(game.gameTimeMs).toLocaleDateString()}
+        {game.mapName}, {new Date(game.gameTimeMs).toLocaleDateString(currentFormatLocale())}
       </Muted>
       {row.main !== undefined ? (
         <span>
@@ -1814,7 +1807,7 @@ function getMapLabel(map: MapRow, t: TFunction) {
     case 'bgh':
       return t('myStats.maps.bgh', 'Big Game Hunters (every version)')
     default:
-      return map.mapName
+      return getMapDisplayName(map.mapName, i18n.resolvedLanguage)
   }
 }
 
@@ -1982,9 +1975,9 @@ export function TeamGames({
   const teammateSlots = Math.max(1, ...(team?.byTeamRaces.map(row => row.races.length) ?? []))
   const options: Array<SegmentOption<TeamRace>> = [
     { value: 'any', label: t('myStats.filters.anyRace', 'Any race') },
-    { value: 'p', label: 'P', title: t('myStats.filters.protoss', 'Protoss') },
-    { value: 't', label: 'T', title: t('myStats.filters.terran', 'Terran') },
-    { value: 'z', label: 'Z', title: t('myStats.filters.zerg', 'Zerg') },
+    { value: 'p', label: getRaceLetter('p', t), title: t('myStats.filters.protoss', 'Protoss') },
+    { value: 't', label: getRaceLetter('t', t), title: t('myStats.filters.terran', 'Terran') },
+    { value: 'z', label: getRaceLetter('z', t), title: t('myStats.filters.zerg', 'Zerg') },
   ]
   return (
     <TeamPanel>

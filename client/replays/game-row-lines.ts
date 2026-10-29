@@ -1,3 +1,6 @@
+import { TFunction } from 'i18next'
+import { assertUnreachable } from '../../common/assert-unreachable'
+import { formatTeamSizes, getShapeLabel } from '../../common/games/game-labels'
 import { GameStatsSummary } from '../../common/games/game-stats'
 import { ReplayLibraryPlayer } from '../../common/replays-library'
 import { TeamLineResult } from '../material/team-line'
@@ -9,17 +12,41 @@ export interface GameRowLine {
   result: TeamLineResult
 }
 
-/** The game's type as players say it: `1v1`, `2v2`, `3v3`, `2v1`, `FFA`. */
-export function getGameModeLabel(layout: ReplayTeamLayout): string {
+/** How a game's players are split up: one against one, teams, or a free for all. */
+export type GameMode = 'none' | 'oneOnOne' | 'teams' | 'ffa'
+
+export function getGameMode(layout: ReplayTeamLayout): GameMode {
   if (layout.kind === 'flat') {
     const count = layout.teams.flat().length
     if (count > 2) {
-      return 'FFA'
+      return 'ffa'
     }
     // A replay with a single player, like a map test, has no game type.
-    return count === 2 ? '1v1' : '-'
+    return count === 2 ? 'oneOnOne' : 'none'
   }
-  return layout.teams.map(team => team.length).join('v')
+  return layout.teams.length === 2 && layout.teams.every(team => team.length === 1)
+    ? 'oneOnOne'
+    : 'teams'
+}
+
+/** The game's type as players say it: `1v1`, `2v2`, `3v3`, `2v1`, `FFA`. */
+export function getGameModeLabel(layout: ReplayTeamLayout, t: TFunction): string {
+  const mode = getGameMode(layout)
+  switch (mode) {
+    case 'none':
+      return '-'
+    case 'ffa':
+      return getShapeLabel('ffa', t)
+    case 'oneOnOne':
+      return getShapeLabel('1v1', t)
+    case 'teams':
+      return formatTeamSizes(
+        layout.teams.map(team => team.length),
+        t,
+      )
+    default:
+      return assertUnreachable(mode)
+  }
 }
 
 /**

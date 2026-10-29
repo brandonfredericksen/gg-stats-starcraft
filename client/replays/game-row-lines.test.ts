@@ -1,8 +1,15 @@
+import { TFunction } from 'i18next'
 import { describe, expect, test } from 'vitest'
 import { GameStatsSummary } from '../../common/games/game-stats'
 import { ReplayLibraryPlayer } from '../../common/replays-library'
 import { getGameModeLabel, getGameRowLines } from './game-row-lines'
 import { getReplayDisplayTeams } from './replay-library-helpers'
+
+// Fills in values the way the real translations do.
+const t = ((_key: string, defaultValue: string, values?: Record<string, unknown>) =>
+  defaultValue.replace(/{{(\w+)}}/g, (_, name: string) =>
+    String(values?.[name] ?? ''),
+  )) as unknown as TFunction
 
 function player(name: string, team: number, slot: number): ReplayLibraryPlayer {
   return { name, team, slot, race: 'p', isComputer: false }
@@ -46,12 +53,21 @@ function names(lines: ReturnType<typeof getGameRowLines>) {
 
 describe('client/replays/game-row-lines', () => {
   test('names the game type', () => {
-    expect(getGameModeLabel(TEAMS)).toBe('2v2')
-    expect(getGameModeLabel(FFA)).toBe('FFA')
-    expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0), player('B', 0, 1)]))).toBe(
+    expect(getGameModeLabel(TEAMS, t)).toBe('2v2')
+    expect(getGameModeLabel(FFA, t)).toBe('FFA')
+    expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0), player('B', 0, 1)]), t)).toBe(
       '1v1',
     )
-    expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0)]))).toBe('-')
+    expect(getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0)]), t)).toBe('-')
+  })
+
+  test('names the game type in the language the labels are written in', () => {
+    const ko = ((key: string, defaultValue: string) =>
+      key === 'game.shape.sizeSeparator' ? ':' : defaultValue) as unknown as TFunction
+    expect(getGameModeLabel(TEAMS, ko)).toBe('2:2')
+    expect(
+      getGameModeLabel(getReplayDisplayTeams([player('A', 0, 0), player('B', 0, 1)]), ko),
+    ).toBe('1:1')
   })
 
   test('puts the winning team first', () => {

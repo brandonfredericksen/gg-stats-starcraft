@@ -113,7 +113,15 @@ rootElemPromise
     registerIpcHandlers()
 
     try {
-      await initI18next()
+      // The chosen language is read first so the app starts in it, rather than in the system's
+      // language and then switching once the settings arrive.
+      let chosenLanguage
+      try {
+        chosenLanguage = (await new TypedIpcRenderer().invoke('settingsLocalGet'))?.language
+      } catch (err) {
+        log.warning(`Couldn't read the language setting: ${err?.stack ?? err}`)
+      }
+      await initI18next(chosenLanguage)
     } catch (err) {
       log.error(`Error initializing i18next: ${err?.stack ?? err}`)
     }

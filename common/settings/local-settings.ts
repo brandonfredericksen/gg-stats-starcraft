@@ -1,3 +1,5 @@
+import { TranslationLanguage } from '../i18n'
+
 /**
  * Settings the app keeps for itself (that will not be exposed to users in the settings dialog).
  */
@@ -38,6 +40,8 @@ export interface LocalSettings extends GgStatsAppSettings {
   themeMode?: ThemeMode
   /** Missing means `system`. */
   clockFormat?: ClockFormat
+  /** The language the app is shown in. Missing means the best match for Windows' languages. */
+  language?: TranslationLanguage
   /** Whether the user was asked once about starting with Windows, whatever they said. */
   startWithWindowsOffered?: boolean
   /**

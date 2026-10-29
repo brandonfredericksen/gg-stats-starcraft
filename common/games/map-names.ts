@@ -66,11 +66,17 @@ function squash(name: string) {
     .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
-const MAP_BY_TITLE = new Map<string, string>(
-  MAPS.flatMap(([name, ...aliases]) =>
-    [name, ...aliases].map(title => [squash(title), name] as const),
-  ),
+const MAP_BY_TITLE = new Map<string, (typeof MAPS)[number]>(
+  MAPS.flatMap(map => map.map(title => [squash(title), map] as const)),
 )
+
+/** The name a known map goes by in a language, for the languages its names are written in. */
+function getNameIn([name, ...aliases]: (typeof MAPS)[number], language: string | undefined) {
+  if (language === 'ko') {
+    return aliases.find(alias => /\p{Script=Hangul}/u.test(alias)) ?? name
+  }
+  return name
+}
 
 /**
  * What an upload adds to a map's name beyond the name itself: the league or site that tagged it,
@@ -87,9 +93,12 @@ function stripUploadMarks(baseName: string) {
 }
 
 /**
- * The name a known map goes by in English, for a title it was uploaded under, or undefined for a
- * map this doesn't know.
+ * The name a known map goes by, for a title it was uploaded under, or undefined for a map this
+ * doesn't know. The name is the English one, or the one players use in `language` when they know
+ * the map by another name (Korean players know Fighting Spirit only as 투혼).
  */
-export function getKnownMapName(baseName: string): string | undefined {
-  return MAP_BY_TITLE.get(squash(baseName)) ?? MAP_BY_TITLE.get(squash(stripUploadMarks(baseName)))
+export function getKnownMapName(baseName: string, language?: string): string | undefined {
+  const map =
+    MAP_BY_TITLE.get(squash(baseName)) ?? MAP_BY_TITLE.get(squash(stripUploadMarks(baseName)))
+  return map ? getNameIn(map, language) : undefined
 }

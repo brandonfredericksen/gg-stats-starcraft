@@ -14,6 +14,7 @@ import {
 } from '../../common/my-stats/coach'
 import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
+import { currentFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
 import { getESkillFloorName } from '../my-stats/rank-menu'
@@ -373,7 +374,10 @@ const WATCH_LEAD_MS = 20_000
 
 /** A short date for one of the user's games, like "Oct 4". */
 function formatGameDate(gameTimeMs: number) {
-  return new Date(gameTimeMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return new Date(gameTimeMs).toLocaleDateString(currentFormatLocale(), {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 /** What happened in the game that missed a goal by the most, in a sentence. */

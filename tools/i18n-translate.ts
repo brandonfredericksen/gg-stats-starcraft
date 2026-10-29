@@ -58,8 +58,16 @@ function localePath(lang: string): string {
   return path.join(LOCALES_DIR, lang, `${NAMESPACE}.json`)
 }
 
+/**
+ * Reads a language's translations. A target language that has no file yet has no translations, so
+ * a newly added language can be planned and applied like any other.
+ */
 function readLocale(lang: string): LocaleObject {
-  return JSON.parse(fs.readFileSync(localePath(lang), 'utf8')) as LocaleObject
+  const file = localePath(lang)
+  if (lang !== SOURCE_LANG && !fs.existsSync(file)) {
+    return {}
+  }
+  return JSON.parse(fs.readFileSync(file, 'utf8')) as LocaleObject
 }
 
 /**
@@ -107,6 +115,7 @@ export function serializeLocale(obj: LocaleObject): string {
 }
 
 function writeLocale(lang: string, obj: LocaleObject): void {
+  fs.mkdirSync(path.dirname(localePath(lang)), { recursive: true })
   fs.writeFileSync(localePath(lang), serializeLocale(obj), 'utf8')
 }
 

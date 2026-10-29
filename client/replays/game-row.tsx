@@ -23,7 +23,7 @@ import {
   titleMedium,
   titleSmall,
 } from '../styles/typography'
-import { getGameModeLabel, getGameRowLines } from './game-row-lines'
+import { GameMode, getGameMode, getGameModeLabel, getGameRowLines } from './game-row-lines'
 import { getReplayDisplayTeams } from './replay-library-helpers'
 
 /** Where a row sits in its session's panel, which decides which of the panel's edges it draws. */
@@ -214,11 +214,15 @@ function getArtPosition(id: number): React.CSSProperties {
   } as React.CSSProperties
 }
 
-function getModeIcon(mode: string) {
-  if (mode === 'FFA') {
-    return 'grid_view'
+function getModeIcon(mode: GameMode) {
+  switch (mode) {
+    case 'ffa':
+      return 'grid_view'
+    case 'oneOnOne':
+      return 'person'
+    default:
+      return 'group'
   }
-  return mode === '1v1' ? 'person' : 'group'
 }
 
 function toPillStatus(status: ReplayStatsStatus): AnalysisStatus {
@@ -351,7 +355,8 @@ export function GameRow({
   }
 
   const layout = getReplayDisplayTeams(entry.players)
-  const mode = getGameModeLabel(layout)
+  const mode = getGameMode(layout)
+  const modeLabel = getGameModeLabel(layout, t)
   const summary =
     status.kind === 'ready'
       ? {
@@ -392,8 +397,8 @@ export function GameRow({
         $openable={true}
         {...common}>
         <Mode>
-          {mode === '-' ? null : <MaterialIcon icon={getModeIcon(mode)} size={16} />}
-          <ModeLabel>{mode}</ModeLabel>
+          {mode === 'none' ? null : <MaterialIcon icon={getModeIcon(mode)} size={16} />}
+          <ModeLabel>{modeLabel}</ModeLabel>
         </Mode>
         <Lines>
           {lines.map((line, i) => (

@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getRaceLetter } from '../../common/games/game-labels'
 import { AssignedRaceChar, raceCharToLabel } from '../../common/races'
 import { getRaceColor } from '../styles/colors'
 import { labelSmall } from '../styles/typography'
@@ -98,7 +99,7 @@ export function RaceMix({
       <Root role='img' aria-label={label}>
         {shares.map(({ race, share }) => (
           <Segment key={race} $color={getRaceColor(race)} style={{ flex: `${share} 1 0` }}>
-            {share >= MIN_LETTER_SHARE ? race.toUpperCase() : null}
+            {share >= MIN_LETTER_SHARE ? getRaceLetter(race, t) : null}
           </Segment>
         ))}
       </Root>

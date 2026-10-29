@@ -87,6 +87,15 @@ const GlobalStyle = createGlobalStyle`
     --pixel-shove-y: rem(round(100dvh, 0.25px), 2px);
   }
 
+  /*
+   * Korean wraps between words, not between any two syllables. A word too long for its line still
+   * breaks rather than overflowing.
+   */
+  html:lang(ko) {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
   html, body, #app {
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0);

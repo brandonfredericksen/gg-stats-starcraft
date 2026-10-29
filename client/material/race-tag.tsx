@@ -1,4 +1,6 @@
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getRaceLetter } from '../../common/games/game-labels'
 import { RaceChar } from '../../common/races'
 import { getRaceColor } from '../styles/colors'
 import { labelSmall } from '../styles/typography'
@@ -24,9 +26,10 @@ const Root = styled.span<{ $color: string }>`
 
 /** A player's race as its letter on a tint of the race's color, sized to sit next to a name. */
 export function RaceTag({ race, className }: { race: RaceChar; className?: string }) {
+  const { t } = useTranslation()
   return (
     <Root $color={getRaceColor(race)} className={className} aria-hidden={true}>
-      {race.toUpperCase()}
+      {getRaceLetter(race, t)}
     </Root>
   )
 }

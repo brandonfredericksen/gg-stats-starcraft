@@ -8,20 +8,25 @@ export const singleLine = css`
 
 /**
  * The interface face. Segoe UI Variable ships with Windows 11 and adjusts its shapes to the size
- * it's shown at; Windows 10 falls back to Segoe UI.
+ * it's shown at; Windows 10 falls back to Segoe UI. Neither has Hangul, so Korean text comes from
+ * Malgun Gothic, which also ships with Windows.
  */
 export const segoeUi = css`
   font-family:
-    'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', 'Noto Color Emoji', sans-serif;
+    'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', 'Malgun Gothic', 'Noto Color Emoji',
+    sans-serif;
   font-synthesis: style small-caps;
 `
 
 /**
  * The display face for big titles, names and numbers. Bahnschrift ships with Windows 10 and up, and
- * its semi condensed width fits long player names and wide numbers.
+ * its semi condensed width fits long player names and wide numbers. Korean text comes from Malgun
+ * Gothic, as with segoeUi.
  */
 export const bahnschrift = css`
-  font-family: Bahnschrift, 'Segoe UI Variable Display', 'Segoe UI', 'Noto Color Emoji', sans-serif;
+  font-family:
+    Bahnschrift, 'Segoe UI Variable Display', 'Segoe UI', 'Malgun Gothic', 'Noto Color Emoji',
+    sans-serif;
   font-stretch: semi-condensed;
   font-synthesis: style small-caps;
 `

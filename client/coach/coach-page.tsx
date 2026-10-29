@@ -4,8 +4,9 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { getShapeLabel } from '../../common/games/game-labels'
 import { LadderRank } from '../../common/games/ladder'
-import { MapFamily } from '../../common/games/map-family'
+import { getMapDisplayName, MapFamily } from '../../common/games/map-family'
 import {
   COACH_METRIC_ORDER,
   COACH_MIN_POOL_GAMES,
@@ -27,6 +28,8 @@ import { raceCharToLabel } from '../../common/races'
 import { useObservedDimensions } from '../dom/dimension-hooks'
 import { GameIcon } from '../games/game-icon'
 import { SectionErrorBoundary } from '../games/game-stats-shared'
+import i18n from '../i18n/i18next'
+import { currentFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { OutlinedButton } from '../material/button'
 import { buttonReset } from '../material/button-reset'
@@ -454,7 +457,8 @@ function getBucketTitle(bucket: CoachBucket, t: TFunction) {
 }
 
 /** A few map names for a sentence, like "Python, Lost Temple and 3 more". */
-function formatMapNames(names: ReadonlyArray<string>, t: TFunction) {
+function formatMapNames(mapNames: ReadonlyArray<string>, t: TFunction) {
+  const names = mapNames.map(name => getMapDisplayName(name, i18n.resolvedLanguage))
   if (names.length <= 2) {
     return names.join(t('myStats.coach.mapsAnd', ' and '))
   }
@@ -485,7 +489,7 @@ export function getPoolPlace(bucket: CoachBucket, t: TFunction) {
 }
 
 function getPoolGameType(bucket: CoachBucket, t: TFunction) {
-  const shape = bucket.shape === 'ffa' ? t('myStats.ffa', 'FFA') : bucket.shape
+  const shape = getShapeLabel(bucket.shape, t)
   if (bucket.opponentRace) {
     return t('myStats.coach.poolVs', '{{shape}} against {{opponent}}', {
       shape,
@@ -509,7 +513,7 @@ function getPoolGameType(bucket: CoachBucket, t: TFunction) {
 
 /** A day, like Jul 7, 2026. */
 function formatDate(ms: number) {
-  return new Date(ms).toLocaleDateString(undefined, {
+  return new Date(ms).toLocaleDateString(currentFormatLocale(), {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -523,10 +527,6 @@ export function isReady(bucket: CoachBucket) {
 /** A game type and the kind of map, which the race picker then splits by race. */
 function getModeKey(scope: Pick<CoachScope, 'shape' | 'mapFamily'>) {
   return `${scope.shape}:${scope.mapFamily ?? ''}`
-}
-
-function getShapeName(shape: CoachScope['shape'], t: TFunction) {
-  return shape === 'ffa' ? t('myStats.ffa', 'FFA') : shape
 }
 
 function toQueryScope({ shape, race, opponentRace, allyRace, mapFamily }: CoachScope) {
@@ -565,8 +565,8 @@ function ShapeMenu({
     const families = new Set(scopes.filter(s => s.shape === shape).map(s => s.mapFamily))
     const [family] = families
     return families.size === 1 && family
-      ? `${getShapeName(shape, t)} ${getMapFamilyShortName(family, t)}`
-      : getShapeName(shape, t)
+      ? `${getShapeLabel(shape, t)} ${getMapFamilyShortName(family, t)}`
+      : getShapeLabel(shape, t)
   }
   const analyzedText = (name: string, count: ShapeCount) =>
     t('myStats.coach.modeLocked', '{{name}}, {{analyzed}} of {{total}} analyzed', {
@@ -591,8 +591,8 @@ function ShapeMenu({
     }),
     ...locked.map(count => ({
       value: `locked:${count.shape}`,
-      label: getShapeName(count.shape, t),
-      menuLabel: analyzedText(getShapeName(count.shape, t), count),
+      label: getShapeLabel(count.shape, t),
+      menuLabel: analyzedText(getShapeLabel(count.shape, t), count),
     })),
   ]
   if (!options.length) {
@@ -683,14 +683,17 @@ function MapNameMenu({
   }
   const options: Array<SegmentOption<string>> = [
     { value: '', label: t('myStats.coach.allMaps', 'All maps') },
-    ...maps.map(({ key, name, games }) => ({
-      value: key,
-      label: name,
-      menuLabel: t('myStats.coach.modeGames', '{{name}}, {{count}} games', {
-        name,
-        count: games,
-      }),
-    })),
+    ...maps.map(({ key, name, games }) => {
+      const shown = getMapDisplayName(name, i18n.resolvedLanguage)
+      return {
+        value: key,
+        label: shown,
+        menuLabel: t('myStats.coach.modeGames', '{{name}}, {{count}} games', {
+          name: shown,
+          count: games,
+        }),
+      }
+    }),
   ]
   // A map picked for another race can have none of this one's games, and still needs a name.
   if (picked && !maps.some(m => m.key === picked)) {
@@ -868,7 +871,7 @@ function ScopeLine({
             defaultValue: 'Your {{games}} {{race}} games in {{where}}',
             defaultValue_one: 'Your {{games}} {{race}} game in {{where}}',
             count: bucket.userGames,
-            games: bucket.userGames.toLocaleString(),
+            games: bucket.userGames.toLocaleString(currentFormatLocale()),
             race,
             where: getPoolPlace(bucket, t),
           })}
@@ -880,7 +883,7 @@ function ScopeLine({
             defaultValue: '{{games}} games from other {{race}} players',
             defaultValue_one: '{{games}} game from other {{race}} players',
             count: bucket.poolGames,
-            games: bucket.poolGames.toLocaleString(),
+            games: bucket.poolGames.toLocaleString(currentFormatLocale()),
             race,
           })}
           help={[theirs, rankOnly].filter(Boolean).join(' ')}
@@ -893,9 +896,9 @@ function ScopeLine({
                 'myStats.coach.scopeAnalyzed',
                 '{{analyzed}} of your {{total}} {{shape}} replays analyzed',
                 {
-                  analyzed: count.analyzed.toLocaleString(),
-                  total: count.total.toLocaleString(),
-                  shape: getShapeName(bucket.shape, t),
+                  analyzed: count.analyzed.toLocaleString(currentFormatLocale()),
+                  total: count.total.toLocaleString(currentFormatLocale()),
+                  shape: getShapeLabel(bucket.shape, t),
                 },
               )}
               help={t(
@@ -920,7 +923,7 @@ function ScopeLine({
 function LockedView({ locked }: { locked: ShapeCount }) {
   const { t } = useTranslation()
   const names = useStatsPlayerNames() ?? []
-  const name = locked.shape === 'ffa' ? t('myStats.ffa', 'FFA') : locked.shape
+  const name = getShapeLabel(locked.shape, t)
 
   return (
     <PaddedPanel>

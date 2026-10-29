@@ -57,6 +57,14 @@ describe('common/games/map-family', () => {
     expect(getMapDisplayName('Some Unknown Map 1.2')).toBe('Some Unknown Map')
   })
 
+  test('shows a known map by the name Korean players know it by', () => {
+    expect(getMapDisplayName('Fighting Spirit 1.3', 'ko')).toBe('투혼')
+    expect(getMapDisplayName('로템', 'ko')).toBe('로스트 템플')
+    expect(getMapDisplayName('Odyssey RE', 'ko')).toBe('Odyssey RE')
+    expect(getMapDisplayName('Some Unknown Map 1.2', 'ko')).toBe('Some Unknown Map')
+    expect(getMapKey('투혼 1.3')).toBe(getMapKey('Fighting Spirit'))
+  })
+
   test('keeps the case of the name it shows', () => {
     expect(getMapBaseName('| iCCup | Fighting Spirit 1.3')).toBe('Fighting Spirit')
   })
