@@ -100,4 +100,22 @@ describe('app/replay-library/ladder-manifests', () => {
     expect(other).toMatchObject({ mmr: 1790, rank: 'd' })
     expect(withLadder(metrics, undefined)).toBe(metrics)
   })
+
+  test('names a player by their ladder name first only when asked to', () => {
+    const metrics: GameMetrics = {
+      version: GAME_METRICS_VERSION,
+      gameId: 'g',
+      durationMs: 600_000,
+      complete: true,
+      mapName: 'Polypoid',
+      mapFamily: 'standard',
+      shape: '1v1',
+      players: [player('kestrel', 'p'), player('OldWren', 'z')],
+    }
+    expect(withLadder(metrics, GAME).players.map(p => p.names)).toEqual([['kestrel'], ['OldWren']])
+    expect(withLadder(metrics, GAME, { rename: true }).players.map(p => p.names)).toEqual([
+      ['kestrel'],
+      ['Wren', 'OldWren'],
+    ])
+  })
 })

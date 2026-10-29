@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { findLadderPlayer, LadderGame, parseLadderManifest, rankFromBucket } from './ladder'
+import { LadderGame, matchLadderPlayers, parseLadderManifest, rankFromBucket } from './ladder'
 
 const game: LadderGame = {
   matchId: 'MM-1',
@@ -46,12 +46,52 @@ describe('common/games/ladder', () => {
   })
 
   test('finds a player by name, whatever its case', () => {
-    expect(findLadderPlayer(game, ['wren'], 'z')?.mmr).toBe(1790)
+    const [wren] = matchLadderPlayers(game, [{ names: ['wren'], race: 'z' }])
+    expect(wren?.mmr).toBe(1790)
   })
 
   test('finds a player by race when the names differ and the races tell them apart', () => {
-    expect(findLadderPlayer(game, ['???'], 'p')?.name).toBe('Kestrel')
+    const [kestrel] = matchLadderPlayers(game, [
+      { names: ['???'], race: 'p' },
+      { names: ['Unrated'], race: 'z' },
+      { names: ['Unrated too'], race: 'z' },
+    ])
+    expect(kestrel?.name).toBe('Kestrel')
     const mirror = { ...game, players: game.players.map(p => ({ ...p, race: 'z' as const })) }
-    expect(findLadderPlayer(mirror, ['???'], 'z')).toBeUndefined()
+    expect(
+      matchLadderPlayers(mirror, [
+        { names: ['???'], race: 'z' },
+        { names: ['!!!'], race: 'z' },
+      ]),
+    ).toEqual([undefined, undefined])
+  })
+
+  test('finds a renamed player as the last one left, in a game of matching races', () => {
+    const team: LadderGame = {
+      ...game,
+      players: [
+        { name: 'Kestrel', race: 'z', mmr: 1850 },
+        { name: 'Wren', race: 'z', mmr: 1790 },
+        { name: 'Finch', mmr: 1700 },
+        { name: 'Heron', mmr: 1650 },
+      ],
+    }
+    const players = [
+      { names: ['Kestrel'], race: 'z' as const },
+      { names: ['OldWren'], race: 'z' as const },
+      { names: ['Finch'], race: 't' as const },
+      { names: ['OldHeron'], race: 'p' as const },
+    ]
+    // Wren is the only Zerg left, and Heron the last one left after that.
+    expect(matchLadderPlayers(team, players).map(p => p?.name)).toEqual([
+      'Kestrel',
+      'Wren',
+      'Finch',
+      'Heron',
+    ])
+    // A Zerg not on the ladder could be Wren as well as OldWren, so neither is matched.
+    expect(
+      matchLadderPlayers(team, [...players, { names: ['Unrated'], race: 'z' }]).map(p => p?.name),
+    ).toEqual(['Kestrel', undefined, 'Finch', undefined, undefined])
   })
 })

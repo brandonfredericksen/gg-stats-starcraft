@@ -257,7 +257,7 @@ export async function exportLadderBaseline({
     if (!ladder) {
       continue
     }
-    const withRanks = withLadder(metrics, ladder)
+    const withRanks = withLadder(metrics, ladder, { rename: true })
     // The replay knows when the game started. The ladder's time is often missing.
     const replayTime = (await toReplayToAnalyze(replayPathKey!))?.gameTime
     const gameTimeMs = replayTime || ladder.createdMs

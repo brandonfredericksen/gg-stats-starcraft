@@ -2,10 +2,10 @@ import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { getErrorStack } from '../../common/errors'
 import {
-  findLadderPlayer,
   LADDER_MANIFEST_FILE,
   LadderGame,
   LadderManifest,
+  matchLadderPlayers,
   parseLadderManifest,
 } from '../../common/games/ladder'
 import { GameMetrics } from '../../common/games/player-metrics'
@@ -80,16 +80,34 @@ export class LadderManifests {
   }
 }
 
-/** A game's metrics with each player's ladder MMR and rank, where the ladder game has them. */
-export function withLadder<T extends GameMetrics>(metrics: T, game: LadderGame | undefined): T {
+/**
+ * A game's metrics with each player's ladder MMR and rank, where the ladder game has them. With
+ * `rename`, a player the ladder knows by another name, one they changed to after the game, goes by
+ * that name first, and the replay's after it.
+ */
+export function withLadder<T extends GameMetrics>(
+  metrics: T,
+  game: LadderGame | undefined,
+  { rename = false }: { rename?: boolean } = {},
+): T {
   if (!game) {
     return metrics
   }
+  const ladderPlayers = matchLadderPlayers(game, metrics.players)
   return {
     ...metrics,
-    players: metrics.players.map(p => {
-      const ladder = findLadderPlayer(game, p.names, p.race)
-      return ladder ? { ...p, mmr: ladder.mmr, rank: ladder.rank } : p
+    players: metrics.players.map((p, i) => {
+      const ladder = ladderPlayers[i]
+      if (!ladder) {
+        return p
+      }
+      const known = p.names.some(n => n.toLowerCase() === ladder.name.toLowerCase())
+      return {
+        ...p,
+        names: rename && !known ? [ladder.name, ...p.names] : p.names,
+        mmr: ladder.mmr,
+        rank: ladder.rank,
+      }
     }),
   }
 }

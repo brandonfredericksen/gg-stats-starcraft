@@ -170,11 +170,12 @@ describe('app/ladder-baseline/ladder-run', () => {
     })
 
     test('writes the same games with real names to the named paths', async () => {
+      // Wren played as OldWren, a name they changed to Wren after the game.
       const listings: MetricsListing[] = [
         {
           replayPathKey: keyOf('abc.rep'),
           savedAt: 0,
-          metrics: metrics('g1', '1v1', [player('Kestrel', 'p'), player('Wren', 'z')]),
+          metrics: metrics('g1', '1v1', [player('Kestrel', 'p'), player('OldWren', 'z')]),
         },
       ]
       const store = { listMetrics: async () => listings } as unknown as GameStatsStore
@@ -196,7 +197,7 @@ describe('app/ladder-baseline/ladder-run', () => {
       expect(game).toMatchObject({ gameId: 'ladder-abc', gameTimeMs: LADDER_GAME.createdMs })
       expect(game.players.map(p => [p.names, p.mmr, p.moments])).toEqual([
         [['Kestrel'], 1850, undefined],
-        [['Wren'], 1790, undefined],
+        [['Wren', 'OldWren'], 1790, undefined],
       ])
       expect(JSON.stringify(shipped)).not.toMatch(/kestrel|wren/i)
     })

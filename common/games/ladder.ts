@@ -96,19 +96,40 @@ export function parseLadderManifest(value: unknown): LadderManifest | undefined 
 }
 
 /**
- * Finds a game's ladder player for a player of its replay: by name, or in a game where the races
- * tell everyone apart, by race.
+ * Finds a game's ladder player for each player of its replay: by name, then among the ones left,
+ * by a race only one of each side has, or as the last one left on both sides. A replay keeps the
+ * name a player had when they played, and the ladder gives the one they have now, so a player who
+ * changed their name is only found the second way. A ladder can leave out players, like unrated
+ * ones, so a player is only matched where nobody else left could be them.
  */
-export function findLadderPlayer(
+export function matchLadderPlayers(
   game: LadderGame,
-  names: ReadonlyArray<string>,
-  race: AssignedRaceChar | undefined,
-): LadderPlayer | undefined {
-  const lowered = names.map(n => n.toLowerCase())
-  const byName = game.players.find(p => lowered.includes(p.name.toLowerCase()))
-  if (byName || !race) {
-    return byName
+  players: ReadonlyArray<{ names: ReadonlyArray<string>; race?: AssignedRaceChar }>,
+): Array<LadderPlayer | undefined> {
+  const matched = players.map(({ names }) => {
+    const lowered = names.map(n => n.toLowerCase())
+    return game.players.find(p => lowered.includes(p.name.toLowerCase()))
+  })
+  for (let progress = true; progress;) {
+    progress = false
+    const left = game.players.filter(p => !matched.includes(p))
+    const unmatched = players.flatMap((p, i) => (matched[i] ? [] : [i]))
+    if (left.length === 1 && unmatched.length === 1) {
+      matched[unmatched[0]] = left[0]
+      break
+    }
+    for (const ladderPlayer of left) {
+      const sameRace = unmatched.filter(i => players[i].race === ladderPlayer.race)
+      if (
+        ladderPlayer.race &&
+        sameRace.length === 1 &&
+        left.filter(p => p.race === ladderPlayer.race).length === 1
+      ) {
+        matched[sameRace[0]] = ladderPlayer
+        progress = true
+        break
+      }
+    }
   }
-  const byRace = game.players.filter(p => p.race === race)
-  return byRace.length === 1 ? byRace[0] : undefined
+  return matched
 }
