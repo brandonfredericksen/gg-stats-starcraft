@@ -86,7 +86,7 @@ const Dot = styled.span<{ $on: boolean }>`
   opacity: ${props => (props.$on ? 1 : 0.25)};
 `
 
-function AliasChip({ alias }: { alias: PlayerAlias }) {
+function AliasChip({ alias, onOpen }: { alias: PlayerAlias; onOpen?: () => void }) {
   const { t } = useTranslation()
   const confidenceLabels: Record<AliasConfidence, string> = {
     strong: t('players.aliases.strong', 'Strong'),
@@ -105,7 +105,12 @@ function AliasChip({ alias }: { alias: PlayerAlias }) {
         name: alias.name,
         count: alias.games,
       })}>
-      <Chip type='button' onClick={() => push(urlPath`/players/${alias.name}`)}>
+      <Chip
+        type='button'
+        onClick={() => {
+          push(urlPath`/players/${alias.name}`)
+          onOpen?.()
+        }}>
         <RaceTag race={alias.race} />
         {alias.name}
         <Confidence $color={CONFIDENCE_COLORS[alias.confidence]}>
@@ -174,9 +179,16 @@ function usePlayerAliases(
 
 /**
  * The names that play most like a player, found by comparing how they play (their hotkeys, rhythm
- * and habits) with everyone in the user's replays, each with how sure the match is.
+ * and habits) with everyone in the user's replays, each with how sure the match is. `onOpen` runs
+ * after a name's page is opened from it.
  */
-export function PlayerAliasesLine({ accounts }: { accounts: ReadonlyArray<string> }) {
+export function PlayerAliasesLine({
+  accounts,
+  onOpen,
+}: {
+  accounts: ReadonlyArray<string>
+  onOpen?: () => void
+}) {
   const { t } = useTranslation()
   const myNames = useMyPlayerNames() ?? []
   const found = usePlayerAliases(accounts, myNames)
@@ -211,7 +223,7 @@ export function PlayerAliasesLine({ accounts }: { accounts: ReadonlyArray<string
     <Line>
       <span>{t('players.aliases.playsLike', 'Plays like')}</span>
       {found.aliases.map(alias => (
-        <AliasChip key={alias.name} alias={alias} />
+        <AliasChip key={alias.name} alias={alias} onOpen={onOpen} />
       ))}
       {reading ? <span>{reading}</span> : null}
     </Line>

@@ -79,6 +79,7 @@ import {
   useKnownPlayers,
 } from './known-players'
 import { usePlayerAccounts } from './open-player'
+import { PlayerAliasesLine } from './player-aliases'
 import { usePlayerRecord } from './player-record-hooks'
 import { LeagueTag } from './rank-tags'
 
@@ -1611,6 +1612,11 @@ function PlayerView({
             ) : null}
             <TileRating player={live.player} />
           </IdentityRow>
+        ) : null}
+        {!isMe ? (
+          <SectionErrorBoundary>
+            <PlayerAliasesLine accounts={profile.accounts} onOpen={close} />
+          </SectionErrorBoundary>
         ) : null}
         {note ? (
           <NoteBox>
