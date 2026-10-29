@@ -14,9 +14,10 @@
     </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>GG Stats for StarCraft</title>
+    <title data-i18n="title">GG Stats for StarCraft</title>
     <meta
       name="description"
+      data-i18n-content="description"
       content="Stats for every StarCraft: Remastered and Brood War game you play. GG Stats analyzes each replay as soon as the game ends, and shows who's in the games you join. Free and open source." />
     <meta property="og:title" content="GG Stats for StarCraft" />
     <meta
@@ -143,6 +144,46 @@
       :focus-visible {
         outline: 3px solid var(--focus);
         outline-offset: 2px;
+      }
+
+      :lang(ko) {
+        --body:
+          'Segoe UI Variable Text', 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo',
+          'Noto Sans KR', Inter, system-ui, sans-serif;
+        --display:
+          Bahnschrift, 'Segoe UI Variable Display', 'Malgun Gothic', 'Apple SD Gothic Neo',
+          'Sofia Sans', sans-serif;
+        word-break: keep-all;
+      }
+
+      /* English or Korean, at the top right. */
+      .languages {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        display: flex;
+        padding: 3px;
+        border-radius: 10px;
+        background: rgb(11 11 11 / 0.6);
+        box-shadow: inset 0 0 0 1px var(--outline-variant);
+      }
+
+      .language {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 7px;
+        color: var(--on-surface-variant);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .language:hover {
+        color: var(--on-surface);
+      }
+
+      .language[aria-pressed='true'] {
+        background: var(--container-highest);
+        color: var(--on-surface);
       }
 
       .logo {
@@ -427,6 +468,14 @@
   </head>
   <body>
     <div class="backdrop" aria-hidden="true"></div>
+    <nav class="languages" data-i18n-label="language" aria-label="Language">
+      <button class="language" type="button" lang="en" data-lang="en" aria-pressed="true">
+        EN
+      </button>
+      <button class="language" type="button" lang="ko" data-lang="ko" aria-pressed="false">
+        한국어
+      </button>
+    </nav>
     <main>
       <img class="logo" src="logo-256.webp" width="72" height="72" alt="GG Stats" />
 
@@ -439,7 +488,8 @@
           width="1920"
           height="1350"
           fetchpriority="high"
-          alt="A 2v2 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
+          data-i18n-alt="alt.game"
+          alt="A 3v3 game in GG Stats: each team's totals, then every player's score, army, economy and APM." />
         <img
           src="shots/library.webp"
           srcset="shots/library-960.webp 960w, shots/library.webp 1920w"
@@ -449,6 +499,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.library"
           alt="The Library: every replay by day, with its players, map and length, and whether it's analyzed." />
         <img
           src="shots/live.webp"
@@ -459,7 +510,19 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="A 3v3 that's about to start: both teams, with each player's rating, EAPM, eSkill, record and usual build." />
+          data-i18n-alt="alt.live"
+          alt="A 3v3 that's about to start: both teams, with each player's rating, EAPM, eSkill, record, usual build and who else they play like." />
+        <img
+          src="shots/smurfs.webp"
+          srcset="shots/smurfs-960.webp 960w, shots/smurfs.webp 1920w"
+          sizes="(min-width: 1072px) 1040px, calc(100vw - 32px)"
+          width="1920"
+          height="1350"
+          fetchpriority="low"
+          decoding="async"
+          aria-hidden="true"
+          data-i18n-alt="alt.smurfs"
+          alt="A player from the live game, with the other names in your replays that play like them and how sure each match is." />
         <img
           src="shots/charts.webp"
           srcset="shots/charts-960.webp 960w, shots/charts.webp 1920w"
@@ -469,6 +532,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.charts"
           alt="Charts of army, workers, income, EAPM, supply and bases over the course of the game." />
         <img
           src="shots/minimap.webp"
@@ -479,6 +543,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.minimap"
           alt="The game playing out on its minimap, with what each player is producing and the chat beside it." />
         <img
           src="shots/heatmap.webp"
@@ -489,7 +554,8 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="A heatmap of where two Zerg armies spent the game, with a cross where each unit died." />
+          data-i18n-alt="alt.heatmap"
+          alt="A heatmap of where a Protoss and a Terran army spent the game, with a cross where each unit died." />
         <img
           src="shots/units.webp"
           srcset="shots/units-960.webp 960w, shots/units.webp 1920w"
@@ -499,6 +565,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.units"
           alt="A Protoss and a Zerg side by side: the units each made, above their build orders with times and supply." />
         <img
           src="shots/mystats.webp"
@@ -509,6 +576,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.mystats"
           alt="My stats for 3v3: the last 20 results, overall record, win rate by game length and APM over recent games." />
         <img
           src="shots/coach.webp"
@@ -519,7 +587,8 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="Coach for an S rank Protoss player in PvT: goals for the next game, how their latest games are going and what to keep doing." />
+          data-i18n-alt="alt.coach"
+          alt="Coach for a Zerg player in 3v3 on Big Game Hunters: goals for the next game, how their latest games are going and what to keep doing." />
         <img
           src="shots/numbers.webp"
           srcset="shots/numbers-960.webp 960w, shots/numbers.webp 1920w"
@@ -529,7 +598,8 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
-          alt="All the numbers: economy, growth, fights and speed from their PvT games, next to other S rank Protoss players." />
+          data-i18n-alt="alt.numbers"
+          alt="All the numbers: economy, growth, fights and speed from their 3v3 Zerg games, next to other Zerg players at eSkill C and up." />
         <img
           src="shots/builds.webp"
           srcset="shots/builds-960.webp 960w, shots/builds.webp 1920w"
@@ -539,6 +609,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.builds"
           alt="Builds: each build played here, with how often top players open with it and its win rate at your level and for you." />
         <img
           src="shots/build-steps.webp"
@@ -549,6 +620,7 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.build-steps"
           alt="One build step by step: the supply and time of each step for top players, your level, winners and you." />
         <img
           src="shots/timeline.webp"
@@ -559,20 +631,29 @@
           fetchpriority="low"
           decoding="async"
           aria-hidden="true"
+          data-i18n-alt="alt.timeline"
           alt="The same build as a timeline, with your steps against everyone else's." />
-        <button class="arrow previous" type="button" aria-label="Previous screen">
+        <button
+          class="arrow previous"
+          type="button"
+          data-i18n-label="previous"
+          aria-label="Previous screen">
           <svg viewBox="0 -960 960 960" aria-hidden="true">
             <path d="M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z" />
           </svg>
         </button>
-        <button class="arrow next" type="button" aria-label="Next screen">
+        <button
+          class="arrow next"
+          type="button"
+          data-i18n-label="next"
+          aria-label="Next screen">
           <svg viewBox="0 -960 960 960" aria-hidden="true">
             <path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z" />
           </svg>
         </button>
       </div>
 
-      <div class="tabs" role="tablist" aria-label="Screens">
+      <div class="tabs" role="tablist" data-i18n-label="screens" aria-label="Screens">
         <button
           class="tab"
           id="tab-game"
@@ -580,6 +661,7 @@
           aria-selected="true"
           aria-controls="screens"
           type="button"
+          data-i18n-label="tab.game"
           aria-label="Scoreboard"></button>
         <button
           class="tab"
@@ -589,6 +671,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.library"
           aria-label="Library"></button>
         <button
           class="tab"
@@ -598,7 +681,18 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.live"
           aria-label="Live game"></button>
+        <button
+          class="tab"
+          id="tab-smurfs"
+          role="tab"
+          aria-selected="false"
+          aria-controls="screens"
+          tabindex="-1"
+          type="button"
+          data-i18n-label="tab.smurfs"
+          aria-label="Smurfs"></button>
         <button
           class="tab"
           id="tab-charts"
@@ -607,6 +701,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.charts"
           aria-label="Over time"></button>
         <button
           class="tab"
@@ -616,6 +711,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.minimap"
           aria-label="Minimap"></button>
         <button
           class="tab"
@@ -625,6 +721,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.heatmap"
           aria-label="Heatmap"></button>
         <button
           class="tab"
@@ -634,6 +731,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.units"
           aria-label="Build orders"></button>
         <button
           class="tab"
@@ -643,6 +741,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.mystats"
           aria-label="My stats"></button>
         <button
           class="tab"
@@ -652,6 +751,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.coach"
           aria-label="Coach"></button>
         <button
           class="tab"
@@ -661,6 +761,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.numbers"
           aria-label="All the numbers"></button>
         <button
           class="tab"
@@ -670,6 +771,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.builds"
           aria-label="Builds"></button>
         <button
           class="tab"
@@ -679,6 +781,7 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.steps"
           aria-label="Build steps"></button>
         <button
           class="tab"
@@ -688,11 +791,12 @@
           aria-controls="screens"
           tabindex="-1"
           type="button"
+          data-i18n-label="tab.timeline"
           aria-label="Timeline"></button>
       </div>
 
-      <h1>Stats for every StarCraft game you play</h1>
-      <p class="lede">
+      <h1 data-i18n="heading">Stats for every StarCraft game you play</h1>
+      <p class="lede" data-i18n="lede">
         GG Stats analyzes each replay as soon as the game ends, from Battle.net or ShieldBattery.
         Your old replays work too. Join a game and it shows who you're up against.
       </p>
@@ -705,18 +809,19 @@
           <path
             d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" />
         </svg>
-        Download for Windows
+        <span data-i18n="download">Download for Windows</span>
       </a>
       <p class="note">
-        Version <span id="version">1.4.2</span>. Needs StarCraft: Remastered.
+        <span data-i18n="version">Version</span> <span id="version">1.4.2</span>.
+        <span data-i18n="needs">Needs StarCraft: Remastered.</span>
       </p>
 
       <!-- TODO(winget): show once the ggstats package is approved in winget. -->
       <div class="install" hidden>
-        <span>To install:</span>
+        <span data-i18n="install">To install:</span>
         <span class="command">
           <code id="command">winget install ggstats</code>
-          <button class="copy" type="button" aria-label="Copy the command">
+          <button class="copy" type="button" data-i18n-label="copy" aria-label="Copy the command">
             <svg class="idle" viewBox="0 -960 960 960" aria-hidden="true">
               <path
                 d="M300-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h440q24 0 42 18t18 42v560q0 24-18 42t-42 18H300ZM180-80q-24 0-42-18t-18-42v-620h60v620h500v60H180Z" />
@@ -733,13 +838,14 @@
         <a
           class="github"
           href="https://github.com/brandonfredericksen/gg-stats-starcraft"
+          data-i18n-label="github"
           aria-label="GG Stats on GitHub">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M12.5.75C6.146.75 1 5.896 1 12.25c0 5.089 3.292 9.387 7.863 10.91.575.101.79-.244.79-.546 0-.273-.014-1.178-.014-2.142-2.889.532-3.636-.704-3.866-1.35-.13-.331-.69-1.352-1.18-1.625-.402-.216-.977-.748-.014-.762.906-.014 1.553.834 1.769 1.179 1.035 1.74 2.688 1.25 3.349.948.1-.747.402-1.25.733-1.538-2.559-.287-5.232-1.279-5.232-5.678 0-1.25.445-2.285 1.178-3.09-.115-.288-.517-1.467.115-3.048 0 0 .963-.302 3.163 1.179.92-.259 1.897-.388 2.875-.388.977 0 1.955.13 2.875.388 2.2-1.495 3.162-1.179 3.162-1.179.633 1.581.23 2.76.115 3.048.733.805 1.179 1.825 1.179 3.09 0 4.413-2.688 5.39-5.247 5.678.417.36.776 1.05.776 2.128 0 1.538-.014 2.774-.014 3.162 0 .302.216.662.79.547C20.709 21.637 24 17.324 24 12.25 24 5.896 18.854.75 12.5.75Z" />
           </svg>
         </a>
-        <p class="legal">
+        <p class="legal" data-i18n="legal">
           Not affiliated with Blizzard Entertainment. StarCraft is a trademark of Blizzard
           Entertainment, Inc.
         </p>
@@ -747,6 +853,119 @@
     </main>
 
     <script>
+      // The page is written in English. Korean comes from here, keyed by each element's data-i18n
+      // (its text), data-i18n-label (its aria-label), data-i18n-alt or data-i18n-content.
+      const KOREAN = {
+        title: '스타크래프트용 GG Stats',
+        description:
+          '플레이하는 모든 스타크래프트: 리마스터와 브루드 워 게임의 통계. GG Stats는 게임이 끝나는 즉시 리플레이를 분석하고, 참가한 게임에 누가 있는지 보여 줍니다. 무료 오픈 소스입니다.',
+        'alt.game': 'GG Stats의 3:3 게임: 팀별 합계, 그리고 각 플레이어의 점수, 병력, 자원, APM.',
+        'alt.library': '라이브러리: 날짜별 모든 리플레이와 플레이어, 맵, 길이, 분석 여부.',
+        'alt.live':
+          '곧 시작하는 3:3 게임: 양 팀 플레이어의 레이팅, EAPM, eSkill, 전적, 주로 쓰는 빌드, 비슷하게 플레이하는 다른 아이디.',
+        'alt.smurfs':
+          '실시간 게임의 한 플레이어와, 내 리플레이에서 비슷하게 플레이하는 다른 아이디, 그리고 각각 얼마나 확실한지.',
+        'alt.charts': '게임 동안의 병력, 일꾼, 채취량, EAPM, 인구수, 기지 수 그래프.',
+        'alt.minimap': '미니맵으로 보는 게임 진행, 옆에는 각 플레이어가 생산 중인 것과 채팅.',
+        'alt.heatmap':
+          '프로토스와 테란 병력이 게임 동안 있던 곳의 히트맵, 유닛이 죽은 곳은 X 표시.',
+        'alt.units': '프로토스와 저그 나란히: 각자 만든 유닛, 그 아래 시간과 인구수가 있는 빌드 오더.',
+        'alt.mystats':
+          '3:3 내 통계: 최근 20게임 결과, 전체 전적, 게임 시간별 승률, 최근 게임의 APM.',
+        'alt.coach':
+          '빅게임헌터 3:3 저그 플레이어의 코치: 다음 게임 목표, 최근 게임 흐름, 잘하고 있는 점.',
+        'alt.numbers':
+          '전체 수치: 3:3 저그 게임의 자원, 성장, 교전, 속도를 eSkill C 이상의 다른 저그 플레이어와 비교.',
+        'alt.builds':
+          '빌드: 여기서 쓰이는 각 빌드, 상위 플레이어가 얼마나 자주 쓰는지, 내 수준과 나의 승률.',
+        'alt.build-steps':
+          '한 빌드의 단계별 보기: 상위 플레이어, 내 수준, 이긴 플레이어, 나의 각 단계 인구수와 시간.',
+        'alt.timeline': '같은 빌드를 타임라인으로, 다른 플레이어와 내 단계 비교.',
+        'tab.game': '점수판',
+        'tab.library': '라이브러리',
+        'tab.live': '실시간 게임',
+        'tab.smurfs': '부계정',
+        'tab.charts': '시간별',
+        'tab.minimap': '미니맵',
+        'tab.heatmap': '히트맵',
+        'tab.units': '빌드 오더',
+        'tab.mystats': '내 통계',
+        'tab.coach': '코치',
+        'tab.numbers': '전체 수치',
+        'tab.builds': '빌드',
+        'tab.steps': '빌드 단계',
+        'tab.timeline': '타임라인',
+        previous: '이전 화면',
+        next: '다음 화면',
+        screens: '화면',
+        language: '언어',
+        heading: '플레이하는 모든 스타크래프트 게임의 통계',
+        lede: 'GG Stats는 배틀넷이든 ShieldBattery든 게임이 끝나는 즉시 리플레이를 분석합니다. 예전 리플레이도 됩니다. 게임에 들어가면 상대가 누구인지 보여 줍니다.',
+        download: 'Windows용 다운로드',
+        version: '버전',
+        needs: '스타크래프트: 리마스터가 필요합니다.',
+        install: '설치하려면:',
+        copy: '명령어 복사',
+        copied: '복사했습니다',
+        github: 'GitHub의 GG Stats',
+        legal:
+          'Blizzard Entertainment와 관련이 없습니다. StarCraft는 Blizzard Entertainment, Inc.의 상표입니다.',
+      }
+      const LANGUAGE_KEY = 'language'
+      /** Each element's English, read from the page the first time it's translated. */
+      const english = new Map()
+
+      // Each kind of thing translated: the data attribute with its key, then how to read and write it.
+      const KINDS = [
+        ['i18n', e => e.textContent, (e, v) => (e.textContent = v)],
+        ['i18nLabel', e => e.getAttribute('aria-label'), (e, v) => e.setAttribute('aria-label', v)],
+        ['i18nAlt', e => e.alt, (e, v) => (e.alt = v)],
+        ['i18nContent', e => e.content, (e, v) => (e.content = v)],
+      ]
+
+      function setLanguage(language) {
+        document.documentElement.lang = language
+        for (const [kind, read, write] of KINDS) {
+          const attr = 'data-' + kind.replace(/[A-Z]/g, c => '-' + c.toLowerCase())
+          for (const elem of document.querySelectorAll(`[${attr}]`)) {
+            const id = `${kind}:${elem.dataset[kind]}`
+            if (!english.has(id)) english.set(id, read(elem))
+            write(elem, language === 'ko' ? KOREAN[elem.dataset[kind]] : english.get(id))
+          }
+        }
+        // Each language has its own screenshots, of the app in that language.
+        for (const img of document.querySelectorAll('.window img')) {
+          for (const attr of ['src', 'srcset']) {
+            const value = img.getAttribute(attr).replaceAll('shots/ko/', 'shots/')
+            img.setAttribute(attr, language === 'ko' ? value.replaceAll('shots/', 'shots/ko/') : value)
+          }
+        }
+        for (const button of document.querySelectorAll('.language')) {
+          button.setAttribute('aria-pressed', String(button.dataset.lang === language))
+        }
+      }
+
+      /** Korean if the link asks for it, it was picked before, or the browser prefers it. */
+      function initialLanguage() {
+        const asked = new URLSearchParams(location.search).get('lang')
+        if (asked === 'en' || asked === 'ko') return asked
+        try {
+          const saved = localStorage.getItem(LANGUAGE_KEY)
+          if (saved === 'en' || saved === 'ko') return saved
+        } catch {}
+        return navigator.languages.some(l => l.toLowerCase().startsWith('ko')) ? 'ko' : 'en'
+      }
+
+      for (const button of document.querySelectorAll('.language')) {
+        button.addEventListener('click', () => {
+          setLanguage(button.dataset.lang)
+          try {
+            localStorage.setItem(LANGUAGE_KEY, button.dataset.lang)
+          } catch {}
+        })
+      }
+      if (initialLanguage() === 'ko') setLanguage('ko')
+
       const SLIDE_MS = 6000
       const tabs = [...document.querySelectorAll('[role="tab"]')]
       const slides = [...document.querySelectorAll('.window img')]
@@ -849,7 +1068,7 @@
           return
         }
         copyButton.classList.add('copied')
-        copyStatus.textContent = 'Copied'
+        copyStatus.textContent = document.documentElement.lang === 'ko' ? KOREAN.copied : 'Copied'
         clearTimeout(copiedTimer)
         copiedTimer = setTimeout(() => {
           copyButton.classList.remove('copied')
