@@ -279,6 +279,7 @@ function getSortValue(
 const Filters = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 `
 
