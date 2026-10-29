@@ -1003,8 +1003,8 @@ function LiveGameView({ game }: { game: LiveGame }) {
   const dispatch = useAppDispatch()
   const people = usePeople(game)
   const scouts = useScouts(people.map(p => p.accounts))
-  const sides = getTeams(people, game.source)
-  const kind = getGameKind(sides, game.mapName)
+  const sides = getTeams(people, game)
+  const kind = getGameKind(sides, game)
   const userPlaying = people.some(p => p.isMe && !p.player.observer)
   const watching = people.filter(p => p.player.observer)
   const keyOf = (person: Person) => getPersonKey(person, people.indexOf(person), people)
@@ -1012,8 +1012,9 @@ function LiveGameView({ game }: { game: LiveGame }) {
   const versus = !game.matchFound && sides.length === 2
   const art = useMapArt(game.mapName ?? '', game.tileset)
   const gameLine = [
-    versus && kind.shape !== 'other' ? getShapeLabel(kind.shape, t) : undefined,
-    game.matchFound ? getMatchShape(game.matchFound.playerCount) : undefined,
+    (versus || game.matchFound) && kind.shape !== 'other'
+      ? getShapeLabel(kind.shape, t)
+      : undefined,
     game.mapName ? getMapDisplayName(game.mapName) : undefined,
   ]
     .filter(Boolean)
@@ -1119,13 +1120,6 @@ function LiveGameView({ game }: { game: LiveGame }) {
       ) : null}
     </LiveRoot>
   )
-}
-
-/** A ShieldBattery match is two even teams, so its size gives its shape, like 3v3 for 6. */
-function getMatchShape(playerCount: number) {
-  return playerCount >= 2 && playerCount % 2 === 0
-    ? `${playerCount / 2}v${playerCount / 2}`
-    : undefined
 }
 
 const MatchFoundTitle = styled.div`

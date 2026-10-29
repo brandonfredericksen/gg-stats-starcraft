@@ -1,6 +1,6 @@
 import { getMapFamily, MapFamily } from '../../common/games/map-family'
 import { GameShape } from '../../common/games/player-metrics'
-import { LiveGamePlayer, LiveGameSource } from '../../common/live-game'
+import { LiveGame, LiveGamePlayer } from '../../common/live-game'
 import { WinLoss } from '../../common/my-stats/my-stats'
 import { splitsByMap } from '../../common/my-stats/player-games'
 import { PlayerScout, ScoutMatchup } from '../../common/my-stats/player-scout'
@@ -16,12 +16,13 @@ import { AssignedRaceChar } from '../../common/races'
 
 /**
  * The sides of a game, the user's first. Without teams from the game, a ladder game, or any game of
- * two, has the user on one side and everyone else on the other. A bigger game without teams yet is
- * one side of everyone, until the teams are known. Anyone watching is left out.
+ * two, has the user on one side and everyone else on the other. A bigger game without teams yet,
+ * or a match that hasn't loaded, is one side of everyone, until the teams are known. Anyone
+ * watching is left out.
  */
 export function getTeams<T extends { player: LiveGamePlayer; isMe: boolean }>(
   people: ReadonlyArray<T>,
-  source: LiveGameSource,
+  game: Pick<LiveGame, 'source' | 'matchFound'>,
 ): T[][] {
   const playing = people.filter(p => !p.player.observer)
   if (playing.some(p => p.player.team !== undefined)) {
@@ -38,7 +39,8 @@ export function getTeams<T extends { player: LiveGamePlayer; isMe: boolean }>(
       )
       .map(([, side]) => side)
   }
-  if (source !== 'ladder' && playing.length !== 2) {
+  // A match's players show only once the user opens them, so two of them can be teammates.
+  if (game.matchFound || (game.source !== 'ladder' && playing.length !== 2)) {
     return playing.length ? [playing] : []
   }
   const mine = playing.filter(p => p.isMe)
@@ -67,12 +69,20 @@ export interface GameKind {
   mapFamily?: MapFamily
 }
 
+/** The kind of game the sides make, or for a match that hasn't loaded, the kind its size makes. */
 export function getGameKind(
   teams: ReadonlyArray<ReadonlyArray<unknown>>,
-  mapName: string | undefined,
+  game: Pick<LiveGame, 'mapName' | 'matchFound'> | undefined,
 ): GameKind {
-  const shape = getGameShape(teams)
+  const shape = game?.matchFound ? getMatchShape(game.matchFound.playerCount) : getGameShape(teams)
+  const mapName = game?.mapName
   return { shape, mapFamily: mapName && splitsByMap(shape) ? getMapFamily(mapName) : undefined }
+}
+
+/** A ShieldBattery match is two even teams, so its size gives its shape, like 3v3 for 6. */
+export function getMatchShape(playerCount: number): GameShape {
+  const size = playerCount / 2
+  return Number.isInteger(size) && size >= 1 ? getGameShape([Array(size), Array(size)]) : 'other'
 }
 
 function isKind(row: { shape: GameShape; mapFamily?: MapFamily }, kind: GameKind) {

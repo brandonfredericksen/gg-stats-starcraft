@@ -50,18 +50,27 @@ describe('client/live-game/live-game-summary', () => {
       person('c', { team: 0 }),
       person('d', { observer: true }),
     ]
-    expect(getTeams(people, 'shieldBattery').map(side => side.map(p => p.player.name))).toEqual([
-      ['b'],
-      ['a', 'c'],
-    ])
+    expect(
+      getTeams(people, { source: 'shieldBattery' }).map(side => side.map(p => p.player.name)),
+    ).toEqual([['b'], ['a', 'c']])
   })
 
   test('without teams, splits off the user only on the ladder or in a game of two', () => {
     const people = [person('a', {}, true), person('b'), person('c'), person('d')]
     const names = (sides: ReturnType<typeof getTeams>) => sides.map(s => s.map(p => p.player.name))
-    expect(names(getTeams(people, 'ladder'))).toEqual([['a'], ['b', 'c', 'd']])
-    expect(names(getTeams(people, 'shieldBattery'))).toEqual([['a', 'b', 'c', 'd']])
-    expect(names(getTeams(people.slice(0, 2), 'shieldBattery'))).toEqual([['a'], ['b']])
+    expect(names(getTeams(people, { source: 'ladder' }))).toEqual([['a'], ['b', 'c', 'd']])
+    expect(names(getTeams(people, { source: 'shieldBattery' }))).toEqual([['a', 'b', 'c', 'd']])
+    expect(names(getTeams(people.slice(0, 2), { source: 'shieldBattery' }))).toEqual([['a'], ['b']])
+  })
+
+  test('keeps the players opened in a match on one side until it loads', () => {
+    const matchFound = { playerCount: 6, accepted: 6, phase: 'drafting' as const }
+    const people = [person('a'), person('b')]
+    expect(getTeams(people, { source: 'shieldBattery', matchFound })).toEqual([people])
+    expect(getGameKind([people], { matchFound }).shape).toBe('3v3')
+    expect(getGameKind([people], { matchFound: { ...matchFound, playerCount: 2 } }).shape).toBe(
+      '1v1',
+    )
   })
 
   test("names the kind of game, and the map's for 3v3", () => {
@@ -72,7 +81,7 @@ describe('client/live-game/live-game-summary', () => {
           [1, 2, 3],
           [4, 5, 6],
         ],
-        'Big Game Hunters 26.5',
+        { mapName: 'Big Game Hunters 26.5' },
       ),
     ).toEqual({
       shape: '3v3',

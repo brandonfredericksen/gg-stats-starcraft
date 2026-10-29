@@ -1688,7 +1688,7 @@ function LivePlayerDialog({
   const thisGame = game?.id === gameId ? game : undefined
   const people = usePeople(thisGame)
   const found = people.find((p, i) => getPersonKey(p, i, people) === personKey)
-  const sides = thisGame ? getTeams(people, thisGame.source) : []
+  const sides = thisGame ? getTeams(people, thisGame) : []
   const [lastSeen, setLastSeen] = useState<Profile>()
   const profile: Profile | undefined = found
     ? {
@@ -1698,11 +1698,13 @@ function LivePlayerDialog({
         isMe: found.isMe,
         live: {
           player: found.player,
-          kind: getGameKind(sides, thisGame?.mapName),
+          kind: getGameKind(sides, thisGame),
           enemyRaces: getEnemyRaces(sides, sides.find(side => side.includes(found)) ?? []),
-          ally: people.some(p => p.isMe && !p.player.observer)
-            ? sides.find(side => side.includes(found))?.some(p => p.isMe)
-            : undefined,
+          // With one side, who's on whose team isn't known yet.
+          ally:
+            sides.length > 1 && people.some(p => p.isMe && !p.player.observer)
+              ? sides.find(side => side.includes(found))?.some(p => p.isMe)
+              : undefined,
         },
       }
     : lastSeen
