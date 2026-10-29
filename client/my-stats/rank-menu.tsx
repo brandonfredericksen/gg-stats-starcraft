@@ -1,7 +1,8 @@
-import { useAtom } from 'jotai'
+import { TFunction } from 'i18next'
+import { useAtom, useSetAtom } from 'jotai'
 import { useTranslation } from 'react-i18next'
 import { LADDER_RANKS, LadderRank } from '../../common/games/ladder'
-import { RankMmr } from '../../common/my-stats/coach'
+import { ESKILL_FLOORS, RankMmr } from '../../common/my-stats/coach'
 import { useStatFormat } from '../games/game-stats-shared'
 import { RankBadge } from '../ladder/rank-badge'
 import { SegmentMenu, SegmentOption } from '../material/segmented'
@@ -86,6 +87,53 @@ export function RankMenu({
       options={options}
       value={filters.rank}
       onChange={rank => setFilters(f => ({ ...f, rank }))}
+    />
+  )
+}
+
+/** What other players at an eSkill floor are called, like "eSkill B+". S is the top, so no "+". */
+export function getESkillFloorName(floor: LadderRank, t: TFunction) {
+  const rank = floor.toUpperCase()
+  return floor === 's'
+    ? t('myStats.filters.eSkillTop', 'eSkill {{rank}}', { rank })
+    : t('myStats.filters.eSkillFloor', 'eSkill {{rank}}+', { rank })
+}
+
+/**
+ * The eSkill rank other players need to be compared with, for My stats and the coach alike. A pick
+ * applies to both.
+ */
+export function ESkillFloorMenu({
+  floor,
+  label,
+  showLabel,
+}: {
+  floor: LadderRank
+  label: string
+  showLabel?: boolean
+}) {
+  const { t } = useTranslation()
+  const setFilters = useSetAtom(myStatsFiltersAtom)
+  const options: Array<SegmentOption<LadderRank>> = ESKILL_FLOORS.map(value => ({
+    value,
+    label: getESkillFloorName(value, t),
+    menuLabel:
+      value === 's'
+        ? t('myStats.filters.eSkillTopPlayers', 'Players at eSkill {{rank}}', {
+            rank: value.toUpperCase(),
+          })
+        : t('myStats.filters.eSkillFloorPlayers', 'Players at eSkill {{rank}} and up', {
+            rank: value.toUpperCase(),
+          }),
+    icon: <RankBadge rank={value} />,
+  }))
+  return (
+    <SegmentMenu
+      label={label}
+      showLabel={showLabel}
+      options={options}
+      value={floor}
+      onChange={eSkillFloor => setFilters(f => ({ ...f, eSkillFloor }))}
     />
   )
 }

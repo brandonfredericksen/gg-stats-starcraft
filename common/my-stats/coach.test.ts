@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { GameStatsResult } from '../games/game-stats'
+import { LadderRank } from '../games/ladder'
 import {
   CHECKPOINT_MINUTES,
   GAME_METRICS_VERSION,
@@ -8,6 +9,7 @@ import {
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { CoachQuery, computeCoach, getMetricFamily, roundTarget } from './coach'
+import { fitESkillModel } from './eskill'
 import { DatedGameMetrics } from './my-stats'
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
@@ -96,6 +98,24 @@ function poolGames(count: number, workers6: (i: number) => number, eapm = 150) {
   )
 }
 
+/** Ladder players of every race whose MMR and rank go up with their EAPM, for an eSkill model. */
+function ladderGames(count: number) {
+  const ranks: LadderRank[] = ['e', 'd', 'c', 'b', 'a']
+  return Array.from({ length: count }, (_, i) => {
+    const make = (n: number, race: AssignedRaceChar) => {
+      const skill = (n * 37) % 100
+      return player(`ladder${n}`, race, 0, 'win', {
+        eapm: 60 + skill * 2 + (((n * 53) % 21) - 10),
+        mmr: 1000 + skill * 14,
+        rank: ranks[Math.floor(skill / 20)],
+      })
+    }
+    return game('1v1', [make(i * 2, (['p', 't', 'z'] as const)[i % 3]), make(i * 2 + 1, 'z')])
+  })
+}
+
+const model = fitESkillModel(ladderGames(900))!
+
 describe('common/my-stats/coach', () => {
   test('says when there are no games to coach', () => {
     expect(computeCoach([], { names: [me] }).status).toBe('noGames')
@@ -167,9 +187,21 @@ describe('common/my-stats/coach', () => {
     expect(bucket.uncompared.map(s => s.key)).not.toContain('larvaeFull10')
   })
 
-  test('leaves out players under the EAPM floor', () => {
-    const coach = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query)
-    expect(coach.status === 'ready' && coach.buckets[0].poolGames).toBe(0)
+  test('leaves out players under the eSkill floor', () => {
+    const query_ = { ...query, eSkillFloor: 'c' as const }
+    const slow = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query_, model)
+    expect(slow.status === 'ready' && slow.buckets[0].poolGames).toBe(0)
+    const fast = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 250)], query_, model)
+    expect(fast.status === 'ready' && fast.buckets[0].poolGames).toBe(40)
+  })
+
+  test("compares with players at the user's eSkill rank and up, unless a floor is picked", () => {
+    const fast = myGames(12, 18).map(g => {
+      g.players[0].eapm = 260
+      return g
+    })
+    expect(computeCoach(fast, query, model).eSkillFloor).toBe('a')
+    expect(computeCoach(fast, { ...query, eSkillFloor: 'c' }, model).eSkillFloor).toBe('c')
   })
 
   test('leaves out players a program played for, and says how many games that was', () => {
@@ -829,16 +861,6 @@ describe('common/my-stats/coach', () => {
     })
   })
 
-  test('compares with players about as fast as the user, unless a floor is picked', () => {
-    const fast = myGames(12, 18).map(g => {
-      g.players[0].eapm = 250
-      return g
-    })
-    const auto = computeCoach(fast, query)
-    expect(auto.eapmFloor).toBe(200)
-    const picked = computeCoach(fast, { ...query, eapmFloor: 100 })
-    expect(picked.eapmFloor).toBe(100)
-  })
   test('rounds targets as precisely as the page shows them, never to -0', () => {
     // 29.6s per 10 minutes shows as 30s, so a target of 30s or less is 30/600.
     expect(roundTarget(29.6 / 600, 'share', false)).toBe(29 / 600)

@@ -54,6 +54,7 @@ import {
 } from '../styles/typography'
 import { useShowsOtherPlayer } from './my-stats-data'
 import { getPoolSource, getScriptedNote } from './pool-source'
+import { getESkillFloorName } from './rank-menu'
 
 export const PanelTitle = styled.h2`
   ${titleSmall};
@@ -1426,7 +1427,7 @@ export function MacroAveragesPanel({
   noOthersNote,
   othersFromBaseline,
   othersScripted,
-  eapmFloor,
+  eSkillFloor,
   rank,
   extraNote,
 }: {
@@ -1438,7 +1439,7 @@ export function MacroAveragesPanel({
   othersFromBaseline: number
   /** Other players' games a bot or macro program played, left out of {@link othersGames}. */
   othersScripted: number
-  eapmFloor: number
+  eSkillFloor: LadderRank
   rank?: LadderRank
   /** A last sentence for the note under the numbers. */
   extraNote?: string
@@ -1602,8 +1603,8 @@ export function MacroAveragesPanel({
                     label={t('myStats.macro.others', 'Others')}
                     help={t(
                       'myStats.help.others',
-                      'Other players in the same kind of games, with the same races as the filters, at least {{floor}} EAPM and at least 5 minutes played. Their games from any time count. Your games under 5 minutes are left out too.',
-                      { floor: eapmFloor },
+                      'Other players in the same kind of games, with the same races as the filters, at {{floor}} and at least 5 minutes played. Their games from any time count. Your games under 5 minutes are left out too.',
+                      { floor: getESkillFloorName(eSkillFloor, t) },
                     )}
                   />
                 </span>
@@ -1627,16 +1628,16 @@ export function MacroAveragesPanel({
       <MacroNote>
         {hasOthers
           ? null
-          : `${noOthersNote ?? t('myStats.macro.noOthers', 'No other players over {{floor}} EAPM in these games yet, so there is nothing to compare with.', { floor: eapmFloor })} `}
+          : `${noOthersNote ?? t('myStats.macro.noOthers', 'No other players at {{floor}} in these games yet, so there is nothing to compare with.', { floor: getESkillFloorName(eSkillFloor, t) })} `}
         {!hasOthers
           ? null
           : t('myStats.macro.othersNote', {
               defaultValue:
-                "Others come from {{count}} games of other players {{source}}, at least {{floor}} EAPM. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
+                "Others come from {{count}} games of other players {{source}}, at {{floor}}. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
               defaultValue_one:
-                "Others come from {{count}} game of another player {{source}}, at least {{floor}} EAPM. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
+                "Others come from {{count}} game of another player {{source}}, at {{floor}}. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
               count: othersGames,
-              floor: eapmFloor,
+              floor: getESkillFloorName(eSkillFloor, t),
               source: getPoolSource(othersFromBaseline, othersGames, t),
             })}
         {hasOthers ? ' ' : null}

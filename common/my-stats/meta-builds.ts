@@ -4,7 +4,8 @@ import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
 import { BuildSample, BuildSide, BuildStepSummary, quantile, summarizeBuildSide } from './builds'
 import { capPerPlayer, isComparable, Sample, toSample, wentOutFirst } from './coach'
-import { ESKILL_AVERAGE_GAMES, ESkillModel, getESkill, getESkillRank } from './eskill'
+import { ESkillModel, getESkillRank } from './eskill'
+import { getESkillByPlayer } from './eskill-players'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import { getSidesOf, isTeamGame, makeScriptedCheck, nameOf, splitsByMap } from './player-games'
 
@@ -165,22 +166,6 @@ function medianByPlayer(
     }
   }
   return new Map(Array.from(byPlayer, ([name, values]) => [name, median(values)]))
-}
-
-/** Each player's average eSkill over their latest scored games. */
-function eSkillByPlayer(samples: ReadonlyArray<Sample>, model: ESkillModel): Map<string, number> {
-  const byPlayer = new Map<string, number[]>()
-  for (const s of samples.toSorted((a, b) => b.game.gameTimeMs - a.game.gameTimeMs)) {
-    const name = nameOf(s.player)
-    const values = byPlayer.get(name) ?? []
-    if (values.length < ESKILL_AVERAGE_GAMES) {
-      const value = getESkill(model, s.game, s.player)?.value
-      if (value !== undefined) {
-        byPlayer.set(name, [...values, value])
-      }
-    }
-  }
-  return new Map(Array.from(byPlayer, ([name, values]) => [name, sum(values) / values.length]))
 }
 
 /** A player's EAPM in the early game, which short games and long ones both have. */
@@ -362,7 +347,7 @@ function pickByESkill(
   model: ESkillModel,
 ): TopPick {
   // Players are judged by their usual eSkill over their games here, not game by game.
-  const playerESkill = eSkillByPlayer(recent, model)
+  const playerESkill = getESkillByPlayer(model, recent)
   const rankOf = (s: Sample) => {
     if (shape === '1v1' && s.player.rank) {
       return s.player.rank

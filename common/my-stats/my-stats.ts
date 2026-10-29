@@ -4,14 +4,16 @@ import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
-import { DEFAULT_EAPM_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
+import { DEFAULT_ESKILL_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
 import { ESKILL_AVERAGE_GAMES, ESkillModel, getESkill, getESkillRank } from './eskill'
+import { getESkillByPlayer, isAtESkillRank } from './eskill-players'
 import {
   findMe,
   getMyResult,
   getSidesOf,
   isTeamGame,
   makeScriptedCheck,
+  nameOf,
   splitsByMap,
 } from './player-games'
 
@@ -41,8 +43,8 @@ export interface MyStatsQuery {
    * played most is picked.
    */
   mapFamily?: MapFamily
-  /** The EAPM other players need for the comparisons to count them. */
-  eapmFloor?: number
+  /** The eSkill rank other players need for the comparisons to count them, see `ESKILL_FLOORS`. */
+  eSkillFloor?: LadderRank
   /** Only used in 1v1: the ladder rank other players need, see `CoachQuery`. */
   rank?: LadderRank | 'any'
 }
@@ -229,7 +231,7 @@ export interface MyStatsResult {
   macro: MacroAverages
   /**
    * The same numbers for other players in these kinds of games: the same game type, race and
-   * opponent race as the filters, at or above the EAPM floor.
+   * opponent race as the filters, at or above the eSkill floor.
    */
   macroOthers: MacroAverages
   /** How many other players' games {@link macroOthers} comes from. */
@@ -633,18 +635,20 @@ function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
 /**
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
  * filters pick, playing the race they pick against the opponents' races they pick, at or above the
- * EAPM floor and, in 1v1, at `rank`, who played at least 5 minutes. Games from any time count,
- * since how others play doesn't depend on when the user did. Games a program played are marked, to
- * be left out.
+ * eSkill floor and, in 1v1, at `rank`, who played at least 5 minutes. A player's eSkill is averaged
+ * over those games, and without an `eSkillModel` there's no floor. Games from any time count, since
+ * how others play doesn't depend on when the user did. Games a program played are marked, to be
+ * left out.
  */
 function getOthers(
   allGames: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
   rank: LadderRank | undefined,
+  eSkillModel: ESkillModel | undefined,
 ): Array<{ player: PlayerMetrics; baseline: boolean; scripted: boolean }> {
   const isScripted = makeScriptedCheck(allGames)
-  const floor = query.eapmFloor ?? DEFAULT_EAPM_FLOOR
-  return allGames.flatMap(game => {
+  const floor = query.eSkillFloor ?? DEFAULT_ESKILL_FLOOR
+  const candidates = allGames.flatMap(game => {
     if (query.shape && game.shape !== query.shape) {
       return []
     }
@@ -656,7 +660,6 @@ function getOthers(
       p =>
         p !== me &&
         p.human &&
-        (p.eapm ?? 0) >= floor &&
         (!rank || p.rank === rank) &&
         playedEnough(game, p) &&
         (!query.race || p.race === query.race) &&
@@ -667,10 +670,19 @@ function getOthers(
           playsAgainstPair(game, getSidesOf(game, p).opponents, query.opponentPair)),
     )
     return players.map(player => ({
+      game,
       player,
       baseline: game.ladderBaseline === true,
       scripted: isScripted(player),
     }))
+  })
+  if (!eSkillModel) {
+    return candidates
+  }
+  const byPlayer = getESkillByPlayer(eSkillModel, candidates)
+  return candidates.filter(c => {
+    const value = byPlayer.get(nameOf(c.player))
+    return value !== undefined && isAtESkillRank(eSkillModel, value, floor)
   })
 }
 
@@ -736,7 +748,7 @@ export function computeMyStats(
       : { auto: undefined, rank: undefined }
   // Each game type plays differently, and the ladder games the app ships are all 1v1, so other
   // players are only compared with once a game type is picked.
-  const candidates = query.shape ? getOthers(allGames, query, rank) : []
+  const candidates = query.shape ? getOthers(allGames, query, rank, eSkillModel) : []
   const others = candidates.filter(o => !o.scripted)
   return {
     games: games.length,

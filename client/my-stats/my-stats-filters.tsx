@@ -5,7 +5,7 @@ import styled from 'styled-components'
 import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { RankMmr } from '../../common/my-stats/coach'
-import { DEFAULT_EAPM_FLOOR, EAPM_FLOORS } from '../../common/my-stats/coach'
+import { DEFAULT_ESKILL_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsRange, MyStatsShape, RACE_PAIRS, RacePair } from '../../common/my-stats/my-stats'
 import { splitsByMap } from '../../common/my-stats/player-games'
 import { AssignedRaceChar } from '../../common/races'
@@ -13,7 +13,7 @@ import { useFitLevel } from '../dom/use-fit-level'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { labelMedium } from '../styles/typography'
 import { myStatsFiltersAtom, useShowsOtherPlayer } from './my-stats-data'
-import { RankMenu } from './rank-menu'
+import { ESkillFloorMenu, RankMenu } from './rank-menu'
 
 /**
  * How the filter bar gives up room in a narrow window, so it always stays one row. Each level
@@ -99,7 +99,7 @@ function Choice<T>({
 
 /**
  * Every My stats filter, in one row: the kind of game first, then what that kind of game divides
- * by (the map in 3v3 and 4v4, the opponents' races in 1v1 and 2v2), the user's race, when, and the EAPM
+ * by (the map in 3v3 and 4v4, the opponents' races in 1v1 and 2v2), the user's race, when, and the eSkill
  * (and in 1v1, the ladder rank) other players need to be compared with. The last ones rarely
  * change, so they're menus. `autoRank` is the rank picked until the user picks one, and `rankMmr`
  * the MMRs each covers. `autoMapFamily` is likewise the map family picked until the user picks one.
@@ -115,7 +115,7 @@ export function FilterBar({
 }) {
   const { t } = useTranslation()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
-  const floor = filters.eapmFloor ?? DEFAULT_EAPM_FLOOR
+  const floor = filters.eSkillFloor ?? DEFAULT_ESKILL_FLOOR
   const [rootRef, fitLevel] = useFitLevel<HTMLDivElement>(
     FitLevel.GameTypeMenu,
     [
@@ -166,10 +166,6 @@ export function FilterBar({
     { value: '30d', label: t('myStats.filters.lastMonth', 'Last 30 days') },
     { value: 'all', label: t('myStats.filters.allTime', 'All time') },
   ]
-  const floors: Array<SegmentOption<number>> = EAPM_FLOORS.map(value => ({
-    value,
-    label: t('myStats.filters.floorOption', '{{floor}}+ EAPM', { floor: value }),
-  }))
 
   const gameTypeLabel = t('myStats.filters.gameType', 'Game type')
   const mapLabel = t('myStats.filters.map', 'Map')
@@ -254,13 +250,7 @@ export function FilterBar({
       {/* Other players are only compared within one game type. */}
       {filters.shape ? (
         <Field caption={floorLabel}>
-          <SegmentMenu
-            label={floorLabel}
-            showLabel={false}
-            options={floors}
-            value={floor}
-            onChange={eapmFloor => setFilters(f => ({ ...f, eapmFloor }))}
-          />
+          <ESkillFloorMenu floor={floor} label={floorLabel} showLabel={false} />
         </Field>
       ) : null}
       {filters.shape === '1v1' ? (

@@ -111,7 +111,10 @@ export function setupMyStats(
     const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
     return computeMyStatsSummary(games, query, Date.now(), model)
   })
-  ipcMain.handle('coachQuery', async (_event, query) => computeCoach(await loadGames(), query))
+  ipcMain.handle('coachQuery', async (_event, query) => {
+    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    return computeCoach(games, query, model)
+  })
   ipcMain.handle('metaBuildsQuery', async (_event, query) => {
     const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
     return computeMetaBuilds(games, query, model)

@@ -2,7 +2,7 @@ import { TFunction } from 'i18next'
 import { useAtomValue } from 'jotai'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { DEFAULT_EAPM_FLOOR } from '../../common/my-stats/coach'
+import { DEFAULT_ESKILL_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsResult } from '../../common/my-stats/my-stats'
 import { picksOneKind, useFilteredCoach } from '../coach/coach-data'
 import { Comparison } from '../coach/coach-page'
@@ -231,7 +231,7 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
           <Comparison
             key={bucket.mapFamily ?? 'any'}
             bucket={bucket}
-            eapmFloor={coach.eapmFloor}
+            eSkillFloor={coach.eSkillFloor}
             sameDates={filters.range !== 'all'}
           />
         ))}
@@ -254,7 +254,7 @@ function Numbers({ stats, filters }: { stats: MyStatsResult; filters: MyStatsFil
       }
       othersFromBaseline={stats.othersFromBaseline}
       othersScripted={stats.othersScripted}
-      eapmFloor={filters.eapmFloor ?? DEFAULT_EAPM_FLOOR}
+      eSkillFloor={filters.eSkillFloor ?? DEFAULT_ESKILL_FLOOR}
       rank={stats.rank}
       // Without a game type, the note above already says what to pick first.
       extraNote={

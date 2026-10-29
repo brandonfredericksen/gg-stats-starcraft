@@ -2,6 +2,7 @@ import { TFunction } from 'i18next'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { LadderRank } from '../../common/games/ladder'
 import {
   COACH_SURE_RESULT_GAMES,
   CoachBucket,
@@ -15,6 +16,7 @@ import { isTeamGame } from '../../common/my-stats/player-games'
 import { raceCharToLabel } from '../../common/races'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
+import { getESkillFloorName } from '../my-stats/rank-menu'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
 
@@ -444,13 +446,13 @@ function GoalItem({
   goal,
   index,
   bucket,
-  eapmFloor,
+  eSkillFloor,
   compact = false,
 }: {
   goal: CoachGoal
   index: number
   bucket: CoachBucket
-  eapmFloor: number
+  eSkillFloor: LadderRank
   /** A later goal: its replay moment and tip stay hidden until asked for. */
   compact?: boolean
 }) {
@@ -471,13 +473,13 @@ function GoalItem({
   const race = raceCharToLabel(bucket.race, t)
   const headlineValues = {
     gap: goal.unit === 'time' ? formatTimeDiff(gap, t) : formatValue(gap, goal.unit),
-    // Speed is compared with every player, not only those over the EAPM floor.
+    // Speed is compared with every player, not only those at the eSkill floor.
     players:
       goal.key !== 'buildTiming' && getMetricFamily(goal.key) === 'speed'
         ? t('myStats.coach.playersAll', '{{race}} players', { race })
-        : t('myStats.coach.playersOverFloor', '{{race}} players over {{floor}} EAPM', {
+        : t('myStats.coach.playersAtFloor', '{{race}} players at {{floor}}', {
             race,
-            floor: eapmFloor,
+            floor: getESkillFloorName(eSkillFloor, t),
           }),
     build: goal.key === 'buildTiming' ? getBuildName(goal.buildKey ?? '', t) : undefined,
   }
@@ -592,11 +594,11 @@ function GoalItem({
 export function NextGame({
   bucket,
   allGames,
-  eapmFloor,
+  eSkillFloor,
 }: {
   bucket: CoachBucket
   allGames: boolean
-  eapmFloor: number
+  eSkillFloor: LadderRank
 }) {
   const { t } = useTranslation()
   return (
@@ -620,7 +622,12 @@ export function NextGame({
               {t('myStats.coach.focusLabel', 'Play your next game around this')}
             </GoalsLabel>
             <Goals>
-              <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} eapmFloor={eapmFloor} />
+              <GoalItem
+                goal={bucket.goals[0]}
+                index={0}
+                bucket={bucket}
+                eSkillFloor={eSkillFloor}
+              />
             </Goals>
           </Focus>
           {bucket.goals.length > 1 ? (
@@ -633,7 +640,7 @@ export function NextGame({
                     goal={goal}
                     index={i + 1}
                     bucket={bucket}
-                    eapmFloor={eapmFloor}
+                    eSkillFloor={eSkillFloor}
                     compact={true}
                   />
                 ))}

@@ -499,7 +499,7 @@ const teamScope = { shape: '3v3', race: 'p', mapFamily: 'bgh' } as const
 const cases: Array<[string, CoachResult | undefined]> = [
   [
     'Findings in 1v1',
-    { status: 'ready', scopes, eapmFloor: 150, scope: pvzScope, ...recentWindow, buckets: [pvz] },
+    { status: 'ready', scopes, eSkillFloor: 'b', scope: pvzScope, ...recentWindow, buckets: [pvz] },
   ],
   [
     'Team games on two kinds of map, one still locked',
@@ -507,7 +507,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
       status: 'ready',
       ...recentWindow,
       scopes,
-      eapmFloor: 100,
+      eSkillFloor: 'c',
       scope: teamScope,
       buckets: [
         { ...pvz, shape: '3v3', opponentRace: undefined, mapFamily: 'bgh', userGames: 24 },
@@ -533,7 +533,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
       status: 'ready',
       ...recentWindow,
       scopes,
-      eapmFloor: 200,
+      eSkillFloor: 'a',
       scope: pvzScope,
       buckets: [
         {
@@ -556,7 +556,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
       status: 'ready',
       ...recentWindow,
       scopes,
-      eapmFloor: 100,
+      eSkillFloor: 'c',
       scope: pvzScope,
       buckets: [{ ...pvz, ...empty, wins: 12, losses: 3 }],
     },
@@ -567,7 +567,7 @@ const cases: Array<[string, CoachResult | undefined]> = [
       status: 'ready',
       ...recentWindow,
       scopes: [{ shape: '2v2', race: 'z', allyRace: 't', games: 24 }, ...scopes],
-      eapmFloor: 100,
+      eSkillFloor: 'c',
       scope: { shape: '2v2', race: 'z', allyRace: 't' },
       buckets: [
         {
@@ -605,14 +605,14 @@ const cases: Array<[string, CoachResult | undefined]> = [
       ],
     },
   ],
-  ['No games to coach', { status: 'noGames', scopes: [], eapmFloor: 100 }],
+  ['No games to coach', { status: 'noGames', scopes: [], eSkillFloor: 'c' }],
   [
     'No games of the picked kind',
     {
       status: 'ready',
       ...recentWindow,
       scopes,
-      eapmFloor: 100,
+      eSkillFloor: 'c',
       scope: { shape: '2v2', race: 't' },
       buckets: [],
     },
