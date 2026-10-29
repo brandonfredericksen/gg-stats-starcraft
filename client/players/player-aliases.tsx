@@ -12,7 +12,7 @@ import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { Tooltip } from '../material/tooltip'
 import { push } from '../navigation/routing'
-import { bodyMedium, labelLarge, labelSmall } from '../styles/typography'
+import { bodyMedium, labelLarge, labelMedium, labelSmall, singleLine } from '../styles/typography'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -227,5 +227,95 @@ export function PlayerAliasesLine({
       ))}
       {reading ? <span>{reading}</span> : null}
     </Line>
+  )
+}
+
+const MiniLine = styled.span`
+  ${labelMedium};
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--theme-on-surface-variant);
+`
+
+const MiniLabel = styled.span`
+  ${labelSmall};
+  flex-shrink: 0;
+`
+
+const MiniAlias = styled.span`
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+`
+
+const MiniName = styled.span`
+  ${singleLine};
+  min-width: 0;
+  color: var(--theme-on-surface);
+  font-weight: 600;
+`
+
+const MiniDots = styled(Dots)<{ $color: string }>`
+  flex-shrink: 0;
+  color: ${props => props.$color};
+`
+
+/** The most names the short line has room for. */
+const MAX_MINI_ALIASES = 3
+
+/**
+ * {@link PlayerAliasesLine} on one short line, for places with little room, like a live game's
+ * player boxes: each name with its race and how sure the match is, as dots. Nothing in it can be
+ * clicked, so it can go inside something that can. Empty while it looks.
+ */
+export function PlayerAliasesMini({
+  accounts,
+  className,
+}: {
+  accounts: ReadonlyArray<string>
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const myNames = useMyPlayerNames() ?? []
+  const found = usePlayerAliases(accounts, myNames)
+  if (!found || found === 'error') {
+    return <MiniLine className={className} />
+  }
+  if (!found.aliases.length) {
+    let text: string | undefined
+    if (found.pendingReplays) {
+      text = t('players.aliases.reading', {
+        defaultValue: 'Still reading {{count}} replays.',
+        defaultValue_one: 'Still reading 1 replay.',
+        count: found.pendingReplays,
+      })
+    } else if (found.games) {
+      text = t('players.aliases.noneShort', 'No other name plays like them.')
+    }
+    return <MiniLine className={className}>{text}</MiniLine>
+  }
+  return (
+    <MiniLine className={className}>
+      <MiniLabel>{t('players.aliases.playsLike', 'Plays like')}</MiniLabel>
+      {found.aliases.slice(0, MAX_MINI_ALIASES).map(alias => {
+        const level = CONFIDENCE_LEVELS[alias.confidence]
+        return (
+          <MiniAlias key={alias.name}>
+            <RaceTag race={alias.race} />
+            <MiniName>{alias.name}</MiniName>
+            <MiniDots $color={CONFIDENCE_COLORS[alias.confidence]} aria-hidden={true}>
+              {[1, 2, 3].map(i => (
+                <Dot key={i} $on={i <= level} />
+              ))}
+            </MiniDots>
+          </MiniAlias>
+        )
+      })}
+    </MiniLine>
   )
 }

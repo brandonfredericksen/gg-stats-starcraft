@@ -30,6 +30,7 @@ import { SkeletonText } from '../material/skeleton'
 import { Tooltip } from '../material/tooltip'
 import { getWinRate, Muted, RecordText } from '../my-stats/my-stats-panels'
 import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
+import { PlayerAliasesMini } from '../players/player-aliases'
 import {
   bahnschriftCapCentered,
   DivisionIcon,
@@ -77,7 +78,7 @@ const TIME_AGO_FORMAT = relativeTimeFormat({ numeric: 'auto' })
  * A tile's height with everything in it: its rows, the gaps between them and the same padding
  * above and below. Tiles never grow past it, so nothing floats in them.
  */
-const FULL_TILE_HEIGHT = 160
+const FULL_TILE_HEIGHT = 192
 /** A win rate shows from this many games with a result. Fewer is a coin flip, not a rate. */
 const MIN_RATE_GAMES = 5
 /** The stat columns, the same in every tile, so each stat sits under the one above it. */
@@ -311,8 +312,8 @@ const Tile = styled(m.button)<{ $me: boolean; $flair?: Flair }>`
 `
 
 /**
- * What's in a tile. Shorter than a full tile, it tightens up before anything is left out, and the
- * usual build is the last to go: it says most about what a player is about to do.
+ * What's in a tile. Shorter than a full tile, it tightens up before anything is left out. Who they
+ * play like goes first, and the usual build last: it says most about what a player is about to do.
  */
 const TileBody = styled.span<{ $noGames: boolean; $glow: boolean }>`
   height: 100%;
@@ -330,14 +331,18 @@ const TileBody = styled.span<{ $noGames: boolean; $glow: boolean }>`
    */
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
-  grid-template-rows: 44px 24px 24px;
+  grid-template-rows: 44px 24px 24px 20px;
   align-content: center;
   column-gap: var(--space-3);
   row-gap: var(--space-3);
 
   @container (height < ${FULL_TILE_HEIGHT}px) {
-    grid-template-rows: 44px 24px 20px;
+    grid-template-rows: 44px 24px 20px 20px;
     row-gap: var(--space-2);
+  }
+
+  @container (height < 148px) {
+    grid-template-rows: 44px 24px 20px;
   }
 
   @container (height < 112px) {
@@ -531,6 +536,15 @@ const BuildRow = styled.span`
   align-self: end;
 
   @container (height < 88px) {
+    display: none;
+  }
+`
+
+/** Who else they may be, under the build: the names that play like them. */
+const AliasRow = styled(PlayerAliasesMini)`
+  grid-column: 1 / -1;
+
+  @container (height < 148px) {
     display: none;
   }
 `
@@ -977,6 +991,9 @@ function PlayerTile({
           id={statsId}
         />
         <TileBuild scout={scout} race={race} kind={kind} enemyRaces={enemyRaces} />
+        {!isMe && scout !== 'error' && (scout === 'loading' || scout.totals.games) ? (
+          <AliasRow accounts={person.accounts} />
+        ) : null}
       </TileBody>
     </Tile>
   )

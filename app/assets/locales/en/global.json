@@ -1437,6 +1437,7 @@
       "likely": "Likely",
       "noGames": "Not enough of their games in your replays to tell how they play.",
       "none": "No other name in your replays plays like them.",
+      "noneShort": "No other name plays like them.",
       "playsLike": "Plays like",
       "possible": "Possible",
       "reading_one": "Still reading 1 replay.",
