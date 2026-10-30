@@ -35,24 +35,18 @@ function getKilledPerLost(player: GamePlayerStats) {
     : undefined
 }
 
-/**
- * How each player traded and spent, and how they used hotkeys if the game's replay can be read for
- * its commands.
- */
-export function GameOtherStats({
-  replayPath,
-  players,
-  teamsByPlayer,
-  durationMs,
-}: {
-  replayPath?: string
-  players: ReadonlyArray<GamePlayerStats>
-  teamsByPlayer: ReadonlyMap<number, Side>
-  durationMs: number
-}) {
-  const { t } = useTranslation()
-  const rate = useFormat(rateFormat)
-  const percent = useFormat(percentFormat)
+/** What a game's replay says about each player's commands, once it's been read. */
+export interface ReplayCommandsRead {
+  reading: boolean
+  /** Missing while reading, and when the replay couldn't be read. */
+  byPlayer?: ReadonlyMap<number, PlayerCommandStats>
+}
+
+/** Reads the commands in a game's replay, if it has one, for each of its players. */
+export function useReplayCommands(
+  replayPath: string | undefined,
+  players: ReadonlyArray<GamePlayerStats>,
+): ReplayCommandsRead {
   const [read, setRead] = useState<{ path: string; commands?: ReplayCommandStats }>()
 
   useEffect(() => {
@@ -78,18 +72,44 @@ export function GameOtherStats({
   }, [replayPath])
 
   const reading = !!replayPath && read?.path !== replayPath
+  if (reading || !read?.commands) {
+    return { reading }
+  }
   const byPlayer = new Map<number, PlayerCommandStats>()
-  if (!reading && read?.commands) {
-    for (const player of players) {
-      const commands = findPlayerCommands(read.commands, player.names)
-      if (commands) {
-        byPlayer.set(player.id, commands)
-      }
+  for (const player of players) {
+    const commands = findPlayerCommands(read.commands, player.names)
+    if (commands) {
+      byPlayer.set(player.id, commands)
     }
   }
+  return { reading, byPlayer }
+}
+
+/**
+ * How each player traded and spent, and how they used hotkeys if the game's replay can be read for
+ * its commands.
+ */
+export function GameOtherStats({
+  replayPath,
+  commands,
+  players,
+  teamsByPlayer,
+  durationMs,
+}: {
+  replayPath?: string
+  commands: ReplayCommandsRead
+  players: ReadonlyArray<GamePlayerStats>
+  teamsByPlayer: ReadonlyMap<number, Side>
+  durationMs: number
+}) {
+  const { t } = useTranslation()
+  const rate = useFormat(rateFormat)
+  const percent = useFormat(percentFormat)
+  const { reading } = commands
+  const byPlayer = commands.byPlayer ?? new Map<number, PlayerCommandStats>()
   const rates = (player: GamePlayerStats) => {
-    const commands = byPlayer.get(player.id)
-    return commands && getHotkeyRates(commands)
+    const played = byPlayer.get(player.id)
+    return played && getHotkeyRates(played)
   }
 
   const columns: ScoreColumn[] = [
@@ -180,7 +200,7 @@ export function GameOtherStats({
   let note: string | undefined
   if (reading) {
     note = t('gameStats.readingReplay', 'Reading the replay…')
-  } else if (replayPath && !read?.commands) {
+  } else if (replayPath && !commands.byPlayer) {
     note = t('gameStats.hotkeysUnreadable', "Couldn't read this game's replay.")
   } else if (replayPath) {
     note = t(

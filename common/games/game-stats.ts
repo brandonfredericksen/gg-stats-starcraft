@@ -66,6 +66,12 @@ export interface GamePlayerStatsPayload {
   /** The frame the player first had a unit near an enemy's starting base. */
   firstScoutFrame?: number | null
   /**
+   * Commands naming enemy units the player couldn't see, which the game only lets a player click on
+   * once they can. Missing for computers, in stats from before it was checked, and for replays that
+   * play back out of sync.
+   */
+  hiddenTargets?: HiddenTargetsPayload
+  /**
    * The player's progress over the game, with one value per frame in
    * {@link GameStatsPayload.snapshotFrames} for as long as they were playing.
    */
@@ -97,6 +103,30 @@ export interface HotkeyPress {
   group: number
   /** What the group held, missing when only the replay's commands were read. */
   units?: UnitCounts
+}
+
+export interface HiddenTargetsPayload {
+  count: number
+  /** The first of them, in the order they were given. */
+  targets: HiddenTargetPayload[]
+}
+
+/** A command naming an enemy unit the player couldn't see. */
+export interface HiddenTargetPayload {
+  frame: number
+  /** Selecting the unit, or ordering units at it, like attacking it or casting a spell on it. */
+  kind: 'select' | 'order'
+  /** In the fog of war, or cloaked or burrowed with nothing detecting it. */
+  hiddenBy: 'fog' | 'cloak'
+  /** The type of the unit named. */
+  unitId: number
+  /** The order given, for an order. */
+  order?: number
+  /** Where the unit was, in pixels. */
+  x: number
+  y: number
+  /** The last frame the player could click on the unit, if they ever could. */
+  lastSeenFrame: number | null
 }
 
 export type BuildStepKind = 'unit' | 'upgrade' | 'tech'
@@ -190,6 +220,11 @@ export interface GameStatsPayload {
   unitPositions?: string
   /** The id of the picture of the map the game saved, see {@link getMinimapUrl}. */
   minimap?: string
+  /**
+   * The first frame the replay was seen playing back differently from the game it recorded, which
+   * leaves what's checked from the units commands name unreliable.
+   */
+  outOfSyncFrame?: number
 }
 
 /** The ids the game names its pictures of maps with. */
@@ -300,6 +335,26 @@ export interface GamePlayerStats {
   buildOrder?: BuildStep[]
   /** Every hotkey the player pressed, oldest first. */
   hotkeys?: HotkeyPress[]
+  /** See {@link GamePlayerStatsPayload.hiddenTargets}. */
+  hiddenTargets?: HiddenTargets
+}
+
+export interface HiddenTargets {
+  count: number
+  /** The first of them, in order. */
+  targets: HiddenTarget[]
+}
+
+export interface HiddenTarget {
+  timeMs: number
+  kind: 'select' | 'order'
+  hiddenBy: 'fog' | 'cloak'
+  unitId: number
+  order?: number
+  x: number
+  y: number
+  /** When the player could last click on the unit, if they ever could. */
+  lastSeenMs?: number
 }
 
 export interface BuildStep {
@@ -349,6 +404,8 @@ export interface GameStats {
   players: GamePlayerStats[]
   /** The picture of the map, missing in stats from before it was saved. */
   minimap?: string
+  /** See {@link GameStatsPayload.outOfSyncFrame}. */
+  outOfSyncMs?: number
 }
 
 const BW_RACES: ReadonlyArray<AssignedRaceChar> = ['z', 't', 'p']
@@ -385,6 +442,37 @@ function countList(value: unknown, maxLength: number): number[] | undefined {
   }
   const end = value.findIndex(n => optionalCount(n) === undefined)
   return value.slice(0, Math.min(end === -1 ? value.length : end, maxLength))
+}
+
+function toHiddenTargets(value: unknown): HiddenTargets | undefined {
+  const payload = value as Partial<HiddenTargetsPayload> | null | undefined
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.targets)) {
+    return undefined
+  }
+  const targets = payload.targets.flatMap((target): HiddenTarget[] => {
+    const frame = optionalCount(target?.frame)
+    if (
+      frame === undefined ||
+      (target.kind !== 'select' && target.kind !== 'order') ||
+      (target.hiddenBy !== 'fog' && target.hiddenBy !== 'cloak') ||
+      !Number.isInteger(target.unitId)
+    ) {
+      return []
+    }
+    return [
+      {
+        timeMs: frame * FASTEST_MS_PER_FRAME,
+        kind: target.kind,
+        hiddenBy: target.hiddenBy,
+        unitId: target.unitId,
+        order: optionalCount(target.order),
+        x: count(target.x),
+        y: count(target.y),
+        lastSeenMs: framesToMs(optionalCount(target.lastSeenFrame)),
+      },
+    ]
+  })
+  return { count: Math.max(count(payload.count), targets.length), targets }
 }
 
 function toTimeline(value: unknown, snapshotCount: number): PlayerTimeline | undefined {
@@ -644,6 +732,7 @@ function toPlayerStats(
         ? startBuildingMorphs(buildOrder, timeline, snapshotTimesMs)
         : buildOrder,
     hotkeys: toHotkeys(player.hotkeys),
+    hiddenTargets: toHiddenTargets(player.hiddenTargets),
   }
 }
 
@@ -670,6 +759,7 @@ export function fromGameStatsPayload(payload: GameStatsPayload): GameStats {
       typeof payload?.minimap === 'string' && MINIMAP_ID_PATTERN.test(payload.minimap)
         ? payload.minimap
         : undefined,
+    outOfSyncMs: framesToMs(optionalCount(payload?.outOfSyncFrame)),
   }
 }
 

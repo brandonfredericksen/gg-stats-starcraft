@@ -13,6 +13,7 @@ pub mod id {
     pub const VISION: u8 = 0xd;
     pub const ALLIANCE: u8 = 0xe;
     pub const HOTKEY: u8 = 0x13;
+    pub const RIGHT_CLICK: u8 = 0x14;
     pub const TARGETED_ORDER: u8 = 0x15;
     pub const CANCEL_BUILD: u8 = 0x18;
     pub const CANCEL_MORPH: u8 = 0x19;
@@ -39,6 +40,7 @@ pub mod id {
     pub const CHAT: u8 = 0x5c;
     pub const REPLAY_SEEK: u8 = 0x5d;
     pub const SET_TURN_RATE: u8 = 0x5f;
+    pub const RIGHT_CLICK_121: u8 = 0x60;
     pub const TARGETED_ORDER_121: u8 = 0x61;
     pub const SELECT_121: u8 = 0x63;
     pub const SELECT_ADD_121: u8 = 0x64;

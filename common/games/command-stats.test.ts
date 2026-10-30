@@ -2,6 +2,8 @@ import type { CommandData, ReplayCommand } from '@shieldbattery/broodrep'
 import { describe, expect, test } from 'vitest'
 import {
   getHotkeyRates,
+  isMacroAssisted,
+  MACRO_CYCLES,
   readHotkeyPresses,
   SCRIPTED_BURST_SHARE,
   summarizeCommands,
@@ -260,5 +262,47 @@ describe('common/games/command-stats', () => {
       },
       { name: 'Stork', presses: [[Math.round(2 * MINUTE), 1, 3]] },
     ])
+  })
+
+  test('counts making something and switching back on one frame', () => {
+    // Every 12 seconds a worker is made from the Nexus on hotkey 4 while the army on 1 is selected.
+    const cycle = (turn: number) =>
+      turn > 40 && turn % 12 === 0 ? [recall(4), train(64), recall(1), move(turn)] : undefined
+    const stats = turnsGame(24, turn => cycle(turn) ?? (turn % 6 === 0 ? [recall(1)] : undefined))
+    const [program, person] = stats.players
+    expect(program.productions).toBeGreaterThan(MACRO_CYCLES)
+    expect(program.productionCycles).toBe(program.productions)
+    expect(isMacroAssisted(program)).toBe(true)
+    expect(person.productionCycles).toBe(0)
+  })
+
+  test("doesn't count cycles a player spreads over frames, or in the opening", () => {
+    const stats = summarizeCommands(
+      players,
+      [
+        // Setting up at the start of the game.
+        { frame: 5, playerId: 0, command: recall(1) },
+        { frame: 5, playerId: 0, command: recall(4) },
+        { frame: 5, playerId: 0, command: train(64) },
+        { frame: 5, playerId: 0, command: recall(1) },
+        // By hand, a frame or more apart.
+        { frame: 2000, playerId: 0, command: recall(4) },
+        { frame: 2001, playerId: 0, command: train(64) },
+        { frame: 2002, playerId: 0, command: recall(1) },
+        // The same group again isn't switching back.
+        { frame: 3000, playerId: 0, command: recall(4) },
+        { frame: 3000, playerId: 0, command: train(64) },
+        { frame: 3000, playerId: 0, command: recall(4) },
+        // One that counts.
+        { frame: 4000, playerId: 0, command: recall(1) },
+        { frame: 4000, playerId: 0, command: recall(4) },
+        { frame: 4000, playerId: 0, command: train(64) },
+        { frame: 4000, playerId: 0, command: recall(1) },
+      ],
+      Math.round(20 * MINUTE),
+    )
+    expect(stats.players[0].productions).toBe(4)
+    expect(stats.players[0].productionCycles).toBe(1)
+    expect(isMacroAssisted(stats.players[0])).toBe(false)
   })
 })

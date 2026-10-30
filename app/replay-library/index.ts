@@ -4,6 +4,7 @@ import path from 'node:path'
 import createDeferred, { Deferred } from '../../common/async/deferred'
 import { getErrorStack } from '../../common/errors'
 import { PlayerHotkeyPresses, ReplayCommandStats } from '../../common/games/command-stats'
+import { ReplayActions } from '../../common/games/replay-actions'
 import { TypedIpcMain, TypedIpcSender } from '../../common/ipc'
 import log from '../logger'
 import { trashReplays } from './replay-remove'
@@ -150,6 +151,11 @@ export class ReplayLibraryService {
   /** Reads the hotkeys each player pressed from a replay's commands, off the main thread. */
   readHotkeys(replayPath: string): Promise<PlayerHotkeyPresses[]> {
     return this.call('readHotkeys', replayPath)
+  }
+
+  /** Lists every command the players in a replay gave, off the main thread. */
+  readActions(replayPath: string): Promise<ReplayActions> {
+    return this.call('readActions', replayPath)
   }
 
   /** Notifies the renderer that the index changed, for mutations outside the watcher's own path. */

@@ -10,6 +10,7 @@ import {
 } from '../../common/games/command-stats'
 import { fingerprintReplay, GameFingerprint } from '../../common/games/fingerprint'
 import { computeMatchupString } from '../../common/games/matchups'
+import { listReplayActions, ReplayActions } from '../../common/games/replay-actions'
 import { getReplayChat, ReplayChat } from '../../common/games/replay-chat'
 import { filterColorCodes } from '../../common/maps'
 import { RaceChar } from '../../common/races'
@@ -248,6 +249,21 @@ export async function readReplayHotkeys(filePath: string): Promise<PlayerHotkeyP
         replay.players(),
         replay.queryCommands({ includeKinds: ['hotkey'] }) ?? [],
       )
+    } finally {
+      replay.free()
+    }
+  } catch (err) {
+    throw err instanceof Error ? err : new Error(String(err))
+  }
+}
+
+/** Lists every command the players in a replay gave. Rejects if the file can't be parsed. */
+export async function readReplayActions(filePath: string): Promise<ReplayActions> {
+  const buffer = await readFile(filePath)
+  try {
+    const replay = parseReplay(buffer)
+    try {
+      return listReplayActions(replay.players(), replay.getCommands() ?? [])
     } finally {
       replay.free()
     }

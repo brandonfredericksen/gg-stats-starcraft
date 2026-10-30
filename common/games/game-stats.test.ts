@@ -294,4 +294,49 @@ describe('common/games/game-stats/fromGameStatsPayload', () => {
   test('marks a partial replay analysis as incomplete', () => {
     expect(fromGameStatsPayload(payload({ complete: false })).complete).toBe(false)
   })
+
+  test('reads commands naming hidden units, dropping ones it cannot read', () => {
+    const stats = fromGameStatsPayload(
+      payload({
+        outOfSyncFrame: 1000,
+        players: [
+          player({
+            hiddenTargets: {
+              count: 120,
+              targets: [
+                {
+                  frame: 500,
+                  kind: 'select',
+                  hiddenBy: 'fog',
+                  unitId: 37,
+                  x: 64,
+                  y: 96,
+                  lastSeenFrame: 200,
+                },
+                { frame: 600, kind: 'peek', hiddenBy: 'fog', unitId: 37, x: 0, y: 0 } as never,
+              ],
+            },
+          }),
+          player({ id: 1 }),
+        ],
+      }),
+    )
+    expect(stats.outOfSyncMs).toBe(42_000)
+    expect(stats.players[0].hiddenTargets).toEqual({
+      count: 120,
+      targets: [
+        {
+          timeMs: 21_000,
+          kind: 'select',
+          hiddenBy: 'fog',
+          unitId: 37,
+          order: undefined,
+          x: 64,
+          y: 96,
+          lastSeenMs: 8400,
+        },
+      ],
+    })
+    expect(stats.players[1].hiddenTargets).toBeUndefined()
+  })
 })

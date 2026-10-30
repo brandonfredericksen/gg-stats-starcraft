@@ -1,4 +1,4 @@
-import type { CommandKind, Player, ReplayCommand } from '@shieldbattery/broodrep'
+import type { CommandData, CommandKind, Player, ReplayCommand } from '@shieldbattery/broodrep'
 import { FASTEST_MS_PER_FRAME } from './game-stats'
 import { MIN_PHASE_MINUTES, PHASE_MINUTES } from './player-metrics'
 
@@ -6,7 +6,7 @@ import { MIN_PHASE_MINUTES, PHASE_MINUTES } from './player-metrics'
  * The version of {@link ReplayCommandStats} worked out now. Stats from an older version are worked
  * out again from the replay.
  */
-export const COMMAND_STATS_VERSION = 6
+export const COMMAND_STATS_VERSION = 7
 
 /**
  * How many commands that do something, from one player, per frame of a network turn, make a frame
@@ -28,6 +28,29 @@ export const SCRIPTED_BURST_SHARE = 0.2
  * a player leaving in the first minute. The shares above were worked out from players with more.
  */
 const MIN_BURST_COMMANDS = 200
+
+/**
+ * A player who made something this many times by selecting it and switching back to what they had,
+ * all on one frame, had a program do it, if those were at least {@link MACRO_CYCLE_SHARE} of what
+ * they made. A program that makes workers or units for a player does it that way between the
+ * player's own commands, while over about 35,000 player-games of ladder and team replays, players
+ * the bursts didn't give away almost never did it more than twice.
+ */
+export const MACRO_CYCLES = 10
+export const MACRO_CYCLE_SHARE = 0.1
+
+/** Cycles this early are a player setting up their hotkeys as the game starts, not a program. */
+const OPENING_MS = 20_000
+
+/** Commands that make something with what's selected. */
+const PRODUCTION_KINDS: ReadonlySet<CommandKind> = new Set<CommandKind>([
+  'train',
+  'trainFighter',
+  'unitMorph',
+  'buildingMorph',
+  'tech',
+  'upgrade',
+])
 
 /** Gaps between commands longer than this are players pausing, not the length of a turn. */
 const MAX_TURN_FRAMES = 12
@@ -113,6 +136,23 @@ export interface PlayerCommandStats {
    * {@link SCRIPTED_BURST_SHARE}.
    */
   burstShare?: number
+  /** Commands that made something: units, morphs, research and upgrades. */
+  productions: number
+  /**
+   * Times the player selected something, made something with it and selected what they had before
+   * again, all on one frame, as a macro program does. See {@link MACRO_CYCLES}.
+   */
+  productionCycles: number
+}
+
+/** Whether a program made things for the player between their own commands. */
+export function isMacroAssisted(
+  player: Pick<PlayerCommandStats, 'productions' | 'productionCycles'>,
+) {
+  return (
+    player.productionCycles >= MACRO_CYCLES &&
+    player.productionCycles >= player.productions * MACRO_CYCLE_SHARE
+  )
 }
 
 /** What a replay's commands say about how each player played, which the game's stats don't. */
@@ -158,20 +198,121 @@ export function estimateTurnFrames(frames: Iterable<number>): number {
   return common.length ? Math.min(...common) : 1
 }
 
-/**
- * The share of a player's commands sent in frames with a burst of them, from how many per frame,
- * unless there are too few to tell.
- */
-function burstShareOf(commandsByFrame: ReadonlyMap<number, number>, turnFrames: number) {
-  let total = 0
-  let inBursts = 0
-  for (const sent of commandsByFrame.values()) {
-    total += sent
-    if (sent >= BURST_COMMANDS_PER_TURN_FRAME * turnFrames) {
-      inBursts += sent
+/** Counts a player's commands that did something, by the frame they ran on, to find bursts. */
+export class BurstCounter {
+  /** Commands that did something, by the frame they ran on. */
+  readonly byFrame = new Map<number, number>()
+  /** The frame of a selection no order has followed yet. */
+  private selectedAt: number | undefined
+
+  /** Takes the player's next action, one that counts toward APM. */
+  add(frame: number, command: CommandData) {
+    // A selection only does something once an order follows it, so one replaced by another first,
+    // like a hotkey pressed over and over, isn't counted toward bursts.
+    if (
+      SELECTION_KINDS.has(command.type) ||
+      (command.type === 'hotkey' && command.hotkeyType === HOTKEY_RECALL)
+    ) {
+      this.selectedAt = frame
+      return
     }
+    if (this.selectedAt !== undefined) {
+      this.count(this.selectedAt)
+      this.selectedAt = undefined
+    }
+    this.count(frame)
   }
-  return total >= MIN_BURST_COMMANDS ? inBursts / total : undefined
+
+  private count(frame: number) {
+    this.byFrame.set(frame, (this.byFrame.get(frame) ?? 0) + 1)
+  }
+
+  /** Whether the commands on a frame were a burst no hand could manage. */
+  isBurst(frame: number, turnFrames: number) {
+    return (this.byFrame.get(frame) ?? 0) >= BURST_COMMANDS_PER_TURN_FRAME * turnFrames
+  }
+
+  /**
+   * The share of the player's commands sent in frames with a burst of them, unless there are too
+   * few to tell.
+   */
+  share(turnFrames: number) {
+    let total = 0
+    let inBursts = 0
+    for (const [frame, sent] of this.byFrame) {
+      total += sent
+      if (this.isBurst(frame, turnFrames)) {
+        inBursts += sent
+      }
+    }
+    return total >= MIN_BURST_COMMANDS ? inBursts / total : undefined
+  }
+}
+
+/**
+ * Finds a player making something by selecting it and selecting what they had before again, all on
+ * one frame. See {@link MACRO_CYCLES}.
+ */
+export class ProductionCycleFinder {
+  /** Commands that made something. */
+  productions = 0
+  /** What the player selected last, as a key that's the same for the same selection. */
+  private selection: { key: string; frame: number; index: number } | undefined
+  private previousSelection: string | undefined
+  /** Something just made, until another command shows whether it was a cycle. */
+  private made:
+    | { frame: number; selectedAt: number; selected: string; before?: string; indices: number[] }
+    | undefined
+  private lastCycleFrame: number | undefined
+
+  /**
+   * Takes the player's next action, one that counts toward APM, with `index` saying where it is.
+   * Returns the indices of the actions in a cycle this one finishes.
+   */
+  add(index: number, frame: number, command: CommandData): number[] | undefined {
+    let selected: string | undefined
+    if (command.type === 'select') {
+      selected = `s${command.unitTags.toSorted((a, b) => a - b).join(',')}`
+    } else if (command.type === 'hotkey' && command.hotkeyType === HOTKEY_RECALL) {
+      selected = `h${command.group}`
+    }
+    if (selected !== undefined) {
+      const made = this.made
+      let cycle: number[] | undefined
+      if (
+        made &&
+        made.frame === frame &&
+        made.selectedAt === frame &&
+        selected === made.before &&
+        selected !== made.selected &&
+        frame * FASTEST_MS_PER_FRAME >= OPENING_MS &&
+        this.lastCycleFrame !== frame
+      ) {
+        this.lastCycleFrame = frame
+        cycle = [...made.indices, index]
+      }
+      this.made = undefined
+      this.previousSelection = this.selection?.key
+      this.selection = { key: selected, frame, index }
+      return cycle
+    }
+    if (PRODUCTION_KINDS.has(command.type)) {
+      this.productions += 1
+      const { selection } = this
+      if (selection) {
+        this.made = {
+          frame,
+          selectedAt: selection.frame,
+          selected: selection.key,
+          before: this.previousSelection,
+          indices: [...(this.made?.indices ?? [selection.index]), index],
+        }
+      }
+    } else if (command.type !== 'selectAdd' && command.type !== 'selectRemove') {
+      this.made = undefined
+    }
+    return undefined
+  }
 }
 
 /** How a player used hotkeys over the whole game, per minute they played. */
@@ -223,12 +364,12 @@ export function summarizeCommands(
             phases,
             groupsUsed: 0,
             casts: {},
+            productions: 0,
+            productionCycles: 0,
           } as PlayerCommandStats,
           groups: new Set<number>(),
-          /** Commands that did something, by the frame they ran on. */
-          commandsByFrame: new Map<number, number>(),
-          /** The frame of a selection no order has followed yet. */
-          selectedAt: undefined as number | undefined,
+          bursts: new BurstCounter(),
+          cycles: new ProductionCycleFinder(),
           lastRecall: undefined as { group: number; frame: number; taps: number } | undefined,
           /** When the player last double tapped a hotkey, until it's known to be a jump. */
           doubleTappedAt: undefined as number | undefined,
@@ -239,7 +380,7 @@ export function summarizeCommands(
   const phaseAt = (stats: PlayerCommandStats, frame: number) =>
     stats.phases[phaseIndex(frame * FASTEST_MS_PER_FRAME)]
 
-  for (const { frame, playerId, command } of commands) {
+  for (const [index, { frame, playerId, command }] of commands.entries()) {
     const entry = byId.get(playerId)
     const phase = entry && phaseAt(entry.stats, frame)
     if (!entry || !phase) {
@@ -250,21 +391,9 @@ export function summarizeCommands(
       continue
     }
     phase.actions += 1
-    // A selection only does something once an order follows it, so one replaced by another first,
-    // like a hotkey pressed over and over, isn't counted toward bursts.
-    const count = (at: number) =>
-      entry.commandsByFrame.set(at, (entry.commandsByFrame.get(at) ?? 0) + 1)
-    if (
-      SELECTION_KINDS.has(kind) ||
-      (command.type === 'hotkey' && command.hotkeyType === HOTKEY_RECALL)
-    ) {
-      entry.selectedAt = frame
-    } else {
-      if (entry.selectedAt !== undefined) {
-        count(entry.selectedAt)
-        entry.selectedAt = undefined
-      }
-      count(frame)
+    entry.bursts.add(frame, command)
+    if (entry.cycles.add(index, frame, command)) {
+      entry.stats.productionCycles += 1
     }
 
     const last = entry.lastRecall
@@ -308,14 +437,15 @@ export function summarizeCommands(
   }
 
   const turnFrames = estimateTurnFrames(
-    Array.from(byId.values()).flatMap(({ commandsByFrame }) => Array.from(commandsByFrame.keys())),
+    Array.from(byId.values()).flatMap(({ bursts }) => Array.from(bursts.byFrame.keys())),
   )
   return {
     version: COMMAND_STATS_VERSION,
-    players: Array.from(byId.values(), ({ stats, groups, commandsByFrame }) => ({
+    players: Array.from(byId.values(), ({ stats, groups, bursts, cycles }) => ({
       ...stats,
       groupsUsed: groups.size,
-      burstShare: burstShareOf(commandsByFrame, turnFrames),
+      burstShare: bursts.share(turnFrames),
+      productions: cycles.productions,
     })),
   }
 }

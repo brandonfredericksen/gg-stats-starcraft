@@ -19,6 +19,7 @@ import {
   SavedGameStats,
 } from './games/game-stats'
 import { ReportedGameStatus } from './games/game-status'
+import { ReplayActions } from './games/replay-actions'
 import { ReplayChat } from './games/replay-chat'
 import { GgStatsFileResult } from './gg-stats-file'
 import { LiveGame } from './live-game'
@@ -134,6 +135,8 @@ interface IpcInvokeables {
 
   /** The hotkeys each player pressed, from the commands in the replay at `replayPath`. */
   replayReadHotkeys: (replayPath: string) => Promise<PlayerHotkeyPresses[]>
+  /** Every command the players in the replay at `replayPath` gave, in order. */
+  replayReadActions: (replayPath: string) => Promise<ReplayActions>
 
   /**
    * Returns the page of indexed replays matching `filters` selected by `filters.offset`/

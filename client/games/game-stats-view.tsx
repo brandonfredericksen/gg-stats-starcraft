@@ -7,13 +7,15 @@ import { MaterialIcon } from '../icons/material/material-icon'
 import { Card } from '../material/card'
 import { Tooltip } from '../material/tooltip'
 import { bodyLarge } from '../styles/typography'
+import { GameActions } from './game-stats-actions'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat, MissingAllyChatNote, useReplayChat } from './game-stats-chat'
 import { GameHotkeys } from './game-stats-hotkeys'
+import { GameFairPlay } from './game-stats-fair-play'
 import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
-import { GameOtherStats } from './game-stats-other'
+import { GameOtherStats, useReplayCommands } from './game-stats-other'
 import { GameProduction } from './game-stats-production'
 import { Scoreboard } from './game-stats-scoreboard'
 import {
@@ -167,6 +169,7 @@ export function GameStatsView({
   const { t } = useTranslation()
   const myNames = useMyPlayerNames()
   const chat = useReplayChat(replayPath)
+  const commands = useReplayCommands(replayPath, stats.players)
   if (!stats.players.length) {
     return (
       <Root>
@@ -265,10 +268,28 @@ export function GameStatsView({
 
       <GameOtherStats
         replayPath={replayPath}
+        commands={commands}
         // In the order of the teams, since there's no score to rank them by here.
         players={sides.flatMap(side => side.players)}
         teamsByPlayer={teamsByPlayer}
         durationMs={stats.durationMs}
+      />
+
+      <GameFairPlay
+        players={sides.flatMap(side => side.players)}
+        teamsByPlayer={teamsByPlayer}
+        durationMs={stats.durationMs}
+        outOfSyncMs={stats.outOfSyncMs}
+        commands={commands}
+        onAnalyzeAgain={onAnalyzeAgain}
+      />
+
+      <GameActions
+        gameId={gameId}
+        replayPath={replayPath}
+        players={sides.flatMap(side => side.players)}
+        playerColors={playerColors}
+        commands={commands}
       />
 
       {footer}

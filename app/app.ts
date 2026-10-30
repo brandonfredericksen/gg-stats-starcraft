@@ -135,6 +135,14 @@ async function readCommandStats(replayPath: string) {
   return await replayLibrary.readCommandStats(replayPath)
 }
 
+/** Lists every command the players in a replay gave, in the replay library's worker. */
+async function readReplayActions(replayPath: string) {
+  if (!replayLibrary) {
+    throw new Error('The replay library is not running')
+  }
+  return await replayLibrary.readActions(replayPath)
+}
+
 export function notifyNewInstance(data: NewInstanceNotification) {
   if (mainWindow) {
     if (!mainWindow.isVisible()) {
@@ -457,6 +465,7 @@ function setupIpc(localSettings: LocalSettingsManager) {
     }
     return await replayLibrary.readHotkeys(replayPath)
   })
+  ipcMain.handle('replayReadActions', async (event, replayPath) => readReplayActions(replayPath))
 
   ipcMain.handle('ggStatsCheckFiles', () => checkGgStatsFiles())
 }

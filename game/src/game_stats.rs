@@ -17,9 +17,11 @@ use crate::bw::{self, Bw, get_bw, player_name};
 use crate::game_thread::{self, GameThreadMessage, send_game_msg_to_async};
 use crate::minimap;
 
+mod fog;
 mod hotkeys;
 mod positions;
 
+use fog::{FogWatch, HiddenTargets, NamedUnit};
 use hotkeys::{HotkeyTracker, Hotkeys};
 use positions::{MapUnits, UnitPositions};
 
@@ -187,6 +189,9 @@ pub struct GameStatsTracker {
     list_units: unsafe fn() -> Option<Vec<SeenUnit>>,
     scouting: Box<Scouting>,
     positions: Box<UnitPositions>,
+    /// Who could see which units, for commands naming enemy units the player couldn't see. Only
+    /// kept while a replay is analyzed.
+    fog: Box<FogWatch>,
     /// The id of the picture of the map saved for the minimap, if it could be made.
     minimap: Option<String>,
     /// The frames each slot's progress was recorded on.
@@ -633,6 +638,10 @@ pub struct GameStats {
     /// The id of the picture of the map saved for the minimap, see [`minimap`].
     #[serde(skip_serializing_if = "Option::is_none")]
     minimap: Option<String>,
+    /// The first frame the replay was seen playing back differently from the game it recorded,
+    /// see [`fog`]. Nothing is said about commands naming hidden units then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    out_of_sync_frame: Option<u32>,
 }
 
 /// A player's progress over the game, with one value per frame in `GameStats::snapshot_frames` for
@@ -725,6 +734,10 @@ struct PlayerStats {
     /// Every hotkey the player pressed and what its group held.
     #[serde(skip_serializing_if = "Option::is_none")]
     hotkeys: Option<Hotkeys>,
+    /// Commands naming enemy units the player couldn't see, see [`fog`]. Only checked while a
+    /// replay is analyzed, and missing for computers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hidden_targets: Option<HiddenTargets>,
 }
 
 /// Live games are tracked so they can be reported when they end, and so are replays being
@@ -816,6 +829,9 @@ pub unsafe fn after_step() {
         let tracker =
             tracker.get_or_insert_with(|| unsafe { GameStatsTracker::start(game, players) });
         unsafe { tracker.update(game, players, frame) };
+        if game_thread::is_replay_analysis() {
+            unsafe { watch_fog(&mut tracker.fog, frame) };
+        }
     }
 
     if game_thread::is_replay_analysis() {
@@ -863,6 +879,34 @@ pub unsafe fn record_command(player: u8, command: &[u8]) {
         if activity.left_at_frame.is_none() {
             let units = unsafe { get_bw().unit_array() };
             activity.hotkeys.record_command(command, frame, &units);
+        }
+        if game_thread::is_replay_analysis() {
+            unsafe { tracker.check_hidden_targets(game, player, command, frame) };
+        }
+    }
+}
+
+/// Records which players could click on each unit this frame: the ones it's visible to, and if
+/// it's cloaked or burrowed, detected by.
+unsafe fn watch_fog(fog: &mut FogWatch, frame: u32) {
+    unsafe {
+        let bw = get_bw();
+        let units = bw.unit_array();
+        fog.watched = true;
+        for unit in bw.active_units() {
+            let Some(sprite) = unit.sprite() else {
+                continue;
+            };
+            let mut clickable_for = sprite.visibility_mask();
+            if unit.is_invisible() {
+                clickable_for &= (**unit).detection_status as u8;
+            }
+            fog.record_seen(
+                units.to_index(unit) as usize,
+                (**unit).minor_unique_index,
+                clickable_for,
+                frame,
+            );
         }
     }
 }
@@ -980,6 +1024,7 @@ impl GameStatsTracker {
                 list_units,
                 scouting: Default::default(),
                 positions: Box::new(UnitPositions::new(map_units)),
+                fog: Default::default(),
                 minimap: None,
                 snapshot_frames: Vec::new(),
                 snapshots: Default::default(),
@@ -1489,6 +1534,60 @@ impl GameStatsTracker {
             })
     }
 
+    /// Checks a command for enemy units it names that the player couldn't see, see [`fog`].
+    unsafe fn check_hidden_targets(
+        &mut self,
+        game: *mut bw::Game,
+        player: usize,
+        command: &[u8],
+        frame: u32,
+    ) {
+        if self.players[player]
+            .as_ref()
+            .is_none_or(|player| player.is_computer)
+        {
+            return;
+        }
+        let Some(named) = fog::named_units(command) else {
+            return;
+        };
+        unsafe {
+            let units = get_bw().unit_array();
+            let slot = self.slot_of[player];
+            // Vision shared with the player's slot shows them everything it shows its owner.
+            let sight = (0..PLAYER_COUNT)
+                .filter(|&other| other == slot || (*game).visions[other] & (1 << slot) != 0)
+                .fold(0u8, |sight, other| sight | (1 << other));
+            for &id in &named.ids {
+                let Some(unit) = units.get_by_unique_id(id) else {
+                    continue;
+                };
+                let owner = usize::from(unit.player());
+                if owner >= PLAYER_COUNT || owner == slot || (*game).alliances[slot][owner] != 0 {
+                    continue;
+                }
+                let position = unit.position();
+                let visible = unit
+                    .sprite()
+                    .is_some_and(|sprite| sprite.visibility_mask() & sight != 0);
+                self.fog.check(
+                    player,
+                    sight,
+                    frame,
+                    &named,
+                    &NamedUnit {
+                        index: units.to_index(unit) as usize,
+                        generation: (**unit).minor_unique_index,
+                        unit_id: unit.id().0,
+                        x: position.x,
+                        y: position.y,
+                        visible,
+                    },
+                );
+            }
+        }
+    }
+
     /// Each player's stats, with players sharing a slot still separate.
     fn player_stats(&self, victory_states: &[u8], counts_units: bool) -> Vec<PlayerStats> {
         let totals = &*self.totals;
@@ -1548,6 +1647,10 @@ impl GameStatsTracker {
                     build_order: counts_units.then(|| self.build_order(slot)),
                     first_scout_frame: self.scouting.first_scout_frame[slot],
                     hotkeys: activity.hotkeys.hotkeys(),
+                    hidden_targets: (self.fog.watched
+                        && self.fog.out_of_sync_frame.is_none()
+                        && !player.is_computer)
+                        .then(|| self.fog.hidden[id].clone()),
                 })
             })
             .collect()
@@ -1850,6 +1953,7 @@ unsafe fn collect() -> Option<GameStats> {
             players: stats,
             unit_positions,
             minimap: tracker.minimap.clone(),
+            out_of_sync_frame: tracker.fog.out_of_sync_frame,
         })
     }
 }
@@ -1877,6 +1981,13 @@ fn merge_shared_control(
         main.names.extend(teammate.names);
         main.actions = sum_known(main.actions, teammate.actions);
         main.effective_actions = sum_known(main.effective_actions, teammate.effective_actions);
+        main.hidden_targets = match (main.hidden_targets.take(), teammate.hidden_targets) {
+            (Some(mut a), Some(b)) => {
+                a.merge(b);
+                Some(a)
+            }
+            (a, b) => a.or(b),
+        };
         // The slot is only left once everyone sharing it has left.
         main.left_at_frame = main
             .left_at_frame
@@ -2277,6 +2388,7 @@ mod test {
             build_order: None,
             first_scout_frame: None,
             hotkeys: None,
+            hidden_targets: None,
         }
     }
 
