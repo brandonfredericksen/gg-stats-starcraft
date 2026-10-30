@@ -243,6 +243,8 @@ export const THEME_CSS = css`
   /** Soft fills behind a win or loss label, with the label in the positive or negative color. */
   --theme-positive-container: rgb(74 222 128 / 0.14);
   --theme-negative-container: rgb(240 163 165 / 0.14);
+  /** Something worth a second look that isn't a loss or danger, like a one off in Fair play. */
+  --theme-warning: #f5b544;
   /** A game that's being analyzed, and one that has been. */
   --theme-info: var(--color-blue70);
   --theme-info-container: rgb(56 198 244 / 0.14);
@@ -404,6 +406,7 @@ export const LIGHT_THEME_CSS = css`
   --theme-inverse-negative: #f0a3a5;
   --theme-positive-container: #dcfce7;
   --theme-negative-container: #f8e5e5;
+  --theme-warning: #a35f00;
   --theme-info: #0369a1;
   --theme-info-container: #e0f2fe;
 

@@ -17,19 +17,19 @@ import { filterColorCodes } from '../../common/maps'
 import { MaterialIcon } from '../icons/material/material-icon'
 import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
+import { RaceTag } from '../material/race-tag'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
 import { bodyMedium, labelLarge, labelMedium, labelSmall, singleLine } from '../styles/typography'
+import { Side } from './game-stats-model'
 import { ReplayCommandsRead } from './game-stats-other'
 import {
   LegendButton,
   Picker,
   PickerButton,
   PlayerSwatch,
-  Section,
   SectionErrorBoundary,
   SectionNote,
-  SectionTitle,
   StatsPanel,
 } from './game-stats-shared'
 
@@ -48,17 +48,18 @@ const ORDER_PATROL = 0x98
 /** BW's unit type for no unit, which a click on the ground names. */
 const NO_UNIT = 228
 
-type ActionGroup = 'all' | 'selection' | 'hotkey' | 'order' | 'production' | 'other'
+type ActionGroup = 'selection' | 'hotkey' | 'order' | 'production' | 'chat' | 'other'
 
-const GROUPS: ReadonlyArray<Exclude<ActionGroup, 'all'>> = [
+const GROUPS: ReadonlyArray<ActionGroup> = [
   'selection',
   'hotkey',
   'order',
   'production',
+  'chat',
   'other',
 ]
 
-function groupOf(command: CommandData): Exclude<ActionGroup, 'all'> {
+function groupOf(command: CommandData): ActionGroup {
   switch (command.type) {
     case 'select':
     case 'selectAdd':
@@ -100,6 +101,8 @@ function groupOf(command: CommandData): Exclude<ActionGroup, 'all'> {
     case 'cancelTech':
     case 'cancelUpgrade':
       return 'production'
+    case 'chat':
+      return 'chat'
     default:
       return 'other'
   }
@@ -107,8 +110,6 @@ function groupOf(command: CommandData): Exclude<ActionGroup, 'all'> {
 
 function groupLabel(group: ActionGroup, t: TFunction) {
   switch (group) {
-    case 'all':
-      return t('gameStats.actions.all', 'All')
     case 'selection':
       return t('gameStats.actions.selections', 'Selections')
     case 'hotkey':
@@ -117,6 +118,8 @@ function groupLabel(group: ActionGroup, t: TFunction) {
       return t('gameStats.actions.orders', 'Orders')
     case 'production':
       return t('gameStats.actions.production', 'Production')
+    case 'chat':
+      return t('gameStats.actions.chatGroup', 'Chat')
     case 'other':
       return t('gameStats.actions.other', 'Other')
   }
@@ -326,10 +329,20 @@ function describeAction(command: CommandData, t: TFunction): string {
 
 type LabelKind = 'hidden' | 'macroCycle' | 'burst'
 
+const LABEL_KINDS: ReadonlyArray<LabelKind> = ['hidden', 'macroCycle', 'burst']
+
+/**
+ * How far apart a bot's bursts can be and still be one stretch of them, which gets one label for
+ * all its commands rather than one each.
+ */
+const BURST_STRETCH_FRAMES = 24
+
 /** A label on an action: a hack the game's analysis proved, or something only suspicious. */
 interface RowLabel {
   kind: LabelKind
   hack: boolean
+  /** For a burst, how many commands the stretch it starts has. */
+  commands?: number
 }
 
 interface ActionRow {
@@ -338,6 +351,13 @@ interface ActionRow {
   player?: GamePlayerStats
   labels: RowLabel[]
   hidden?: HiddenTarget
+}
+
+/** A row as listed: an action, and how many just like it the player gave on the same frame. */
+interface ListedRow {
+  row: ActionRow
+  repeats: number
+  description: string
 }
 
 function labelText(label: RowLabel, hidden: HiddenTarget | undefined, t: TFunction) {
@@ -351,9 +371,25 @@ function labelText(label: RowLabel, hidden: HiddenTarget | undefined, t: TFuncti
     case 'macroCycle':
       return t('gameStats.actions.label.macroCycle', 'Made and switched back')
     case 'burst':
-      return t('gameStats.actions.label.burst', 'Burst')
+      return t('gameStats.actions.label.burst', {
+        defaultValue: 'Burst of {{count}} commands',
+        defaultValue_one: 'Burst of {{count}} command',
+        count: label.commands ?? 1,
+      })
   }
   return label.kind
+}
+
+function labelKindName(kind: LabelKind, t: TFunction) {
+  switch (kind) {
+    case 'hidden':
+      return t('gameStats.actions.kind.hidden', 'Hidden units')
+    case 'macroCycle':
+      return t('gameStats.actions.kind.macroCycle', 'Switched back')
+    case 'burst':
+      return t('gameStats.actions.kind.burst', 'Bursts')
+  }
+  return kind
 }
 
 /**
@@ -401,6 +437,7 @@ function toRows(
     return undefined
   }
   const flags = new Map(Array.from(byNetworkId, ([id, p]) => [id, flagsOf(p)]))
+  const lastBursts = new Map<number, { label: RowLabel; frame: number }>()
 
   return read.actions.map((action, index) => {
     const player = byNetworkId.get(action.playerId)
@@ -414,17 +451,92 @@ function toRows(
       labels.push({ kind: 'macroCycle', hack: !!playerFlags?.macroProgram })
     }
     // A person's bursts are too common to point out one by one, so they're only labeled for a
-    // player a program played for.
+    // player a program played for, and then once for each stretch of them.
     if (action.labels?.includes('burst') && playerFlags?.bot) {
-      labels.push({ kind: 'burst', hack: true })
+      const last = lastBursts.get(action.playerId)
+      if (last && action.frame - last.frame <= BURST_STRETCH_FRAMES) {
+        last.label.commands = (last.label.commands ?? 1) + 1
+        last.frame = action.frame
+      } else {
+        const label: RowLabel = { kind: 'burst', hack: true, commands: 1 }
+        labels.push(label)
+        lastBursts.set(action.playerId, { label, frame: action.frame })
+      }
     }
     return { index, action, player, labels, hidden }
   })
 }
 
+/**
+ * How far apart the same action from the same player can be and still fold into one row, like a
+ * player pressing a key to train workers a few times in a row.
+ */
+const REPEAT_FRAMES = 24
+
+/**
+ * Lists rows, folding an action into the one before it when the same player gave the same one
+ * within {@link REPEAT_FRAMES} of it, like a bot ordering an attack on a unit several times at once.
+ */
+function listRows(rows: ReadonlyArray<ActionRow>, t: TFunction): ListedRow[] {
+  const listed: ListedRow[] = []
+  for (const row of rows) {
+    const description = describeAction(row.action.command, t)
+    const last = listed.at(-1)
+    if (
+      last &&
+      last.row.action.playerId === row.action.playerId &&
+      row.action.frame - last.row.action.frame <= REPEAT_FRAMES &&
+      last.description === description &&
+      last.row.labels.map(l => l.kind).join() === row.labels.map(l => l.kind).join()
+    ) {
+      last.repeats += 1
+    } else {
+      listed.push({ row, repeats: 1, description })
+    }
+  }
+  return listed
+}
+
+/** A filter of a set of things: every one of them when undefined, or only the ones in it. */
+type Shown<T> = ReadonlySet<T> | undefined
+
+/**
+ * Picks things to show the way a legend does: a click shows only those, or everything again if
+ * that's all that was shown, and a click with shift held adds or removes them.
+ */
+function pick<T>(shown: Shown<T>, all: ReadonlyArray<T>, picked: ReadonlyArray<T>, add: boolean) {
+  let next: Set<T>
+  if (add) {
+    next = new Set(shown ?? all)
+    const allIn = picked.every(p => next.has(p))
+    for (const p of picked) {
+      if (allIn) {
+        next.delete(p)
+      } else {
+        next.add(p)
+      }
+    }
+  } else {
+    const only = shown && shown.size === picked.length && picked.every(p => shown.has(p))
+    next = only ? new Set(all) : new Set(picked)
+  }
+  return next.size === 0 || all.every(a => next.has(a)) ? undefined : next
+}
+
+/** Toggles one thing in a set, where an empty set means no filter. */
+function toggle<T>(set: ReadonlySet<T>, value: T) {
+  const next = new Set(set)
+  if (next.has(value)) {
+    next.delete(value)
+  } else {
+    next.add(value)
+  }
+  return next
+}
+
 const rowColumns = css`
   display: grid;
-  grid-template-columns: 52px minmax(120px, 170px) minmax(0, 1fr) minmax(0, 200px) 92px;
+  grid-template-columns: 52px minmax(140px, 200px) minmax(0, 1fr) minmax(0, 240px) 92px;
   column-gap: var(--space-3);
   align-items: center;
 `
@@ -433,13 +545,21 @@ const Toolbar = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
 `
 
 const Players = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+`
+
+const TeamPlayers = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
 `
 
 const Header = styled.div`
@@ -449,54 +569,6 @@ const Header = styled.div`
   background: var(--theme-container);
   color: var(--theme-on-surface-variant);
   font-weight: 600;
-`
-
-const Row = styled.div<{ $selected: boolean }>`
-  ${bodyMedium};
-  ${rowColumns};
-  height: ${ROW_HEIGHT}px;
-  padding: 0 18px;
-  border-top: 1px solid var(--theme-outline-variant);
-  background: ${props =>
-    props.$selected ? 'rgb(from var(--theme-amber) r g b / 0.14)' : 'transparent'};
-`
-
-const Time = styled.span`
-  font-variant-numeric: tabular-nums;
-  color: var(--theme-on-surface-variant);
-`
-
-const Cell = styled.span`
-  ${singleLine};
-  min-width: 0;
-`
-
-const PlayerCell = styled.span`
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-`
-
-const Labels = styled.span`
-  min-width: 0;
-  display: flex;
-  gap: var(--space-1);
-  overflow: hidden;
-`
-
-const Label = styled.span<{ $hack: boolean }>`
-  ${labelSmall};
-  ${singleLine};
-  flex-shrink: 0;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-full);
-  background: ${props =>
-    props.$hack
-      ? 'rgb(from var(--theme-negative) r g b / 0.18)'
-      : 'rgb(from var(--theme-amber) r g b / 0.18)'};
-  color: ${props => (props.$hack ? 'var(--theme-negative)' : 'var(--theme-amber)')};
-  font-weight: 700;
 `
 
 const SmallButton = styled.button`
@@ -524,6 +596,81 @@ const SmallButton = styled.button`
     opacity: 0.45;
     cursor: default;
   }
+`
+
+/** Shows only on the row under the mouse or picked, so the list isn't a column of buttons. */
+const WatchButton = styled(SmallButton)`
+  opacity: 0;
+
+  &:focus-visible {
+    opacity: 1;
+  }
+`
+
+const Row = styled.div<{ $selected: boolean }>`
+  ${bodyMedium};
+  ${rowColumns};
+  height: ${ROW_HEIGHT}px;
+  padding: 0 18px;
+  border-top: 1px solid var(--theme-outline-variant);
+  background: ${props =>
+    props.$selected ? 'rgb(from var(--theme-on-surface) r g b / 0.08)' : 'transparent'};
+
+  &:hover ${WatchButton} {
+    opacity: 1;
+  }
+
+  ${props =>
+    props.$selected
+      ? css`
+          & ${WatchButton} {
+            opacity: 1;
+          }
+        `
+      : ''}
+`
+
+const Time = styled.span`
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-on-surface-variant);
+`
+
+const Cell = styled.span`
+  ${singleLine};
+  min-width: 0;
+`
+
+const PlayerCell = styled.span`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+`
+
+const Repeats = styled.span`
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+`
+
+const Labels = styled.span`
+  min-width: 0;
+  display: flex;
+  gap: var(--space-1);
+  overflow: hidden;
+`
+
+const Label = styled.span<{ $hack: boolean }>`
+  ${labelSmall};
+  ${singleLine};
+  flex-shrink: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: ${props =>
+    props.$hack
+      ? 'rgb(from var(--theme-negative) r g b / 0.18)'
+      : 'rgb(from var(--theme-warning) r g b / 0.18)'};
+  color: ${props => (props.$hack ? 'var(--theme-negative)' : 'var(--theme-warning)')};
+  font-weight: 700;
 `
 
 const Empty = styled.div`
@@ -562,66 +709,106 @@ function useReplayActions(replayPath: string | undefined) {
 
 /**
  * Every action the players gave, from the game's replay, with the ones a program would give
- * labeled, the way BWChart listed them.
+ * labeled, the way BWChart listed them. Players, teams, kinds of action and kinds of label can each
+ * be picked out, so even an 8 player game narrows down to the moments that matter.
  */
 export function GameActions({
   gameId,
   replayPath,
   players,
+  teamsByPlayer,
   playerColors,
   commands,
 }: {
   gameId: string
   replayPath?: string
   players: ReadonlyArray<GamePlayerStats>
+  teamsByPlayer: ReadonlyMap<number, Side>
   playerColors: ReadonlyMap<number, string>
   commands: ReplayCommandsRead
 }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { reading, actions } = useReplayActions(replayPath)
-  const [hiddenPlayers, setHiddenPlayers] = useState<ReadonlySet<number>>(new Set())
-  const [group, setGroup] = useState<ActionGroup>('all')
-  const [labeledOnly, setLabeledOnly] = useState(false)
+  const [shownPlayers, setShownPlayers] = useState<Shown<number>>()
+  const [groups, setGroups] = useState<ReadonlySet<ActionGroup>>(new Set())
+  const [labelKinds, setLabelKinds] = useState<ReadonlySet<LabelKind>>(new Set())
   const [selected, setSelected] = useState<number>()
+  const [copied, setCopied] = useState(false)
   const listRef = useRef<VirtuosoHandle>(null)
 
   if (!replayPath) {
     return null
   }
 
+  const humans = players.filter(p => p.apm !== undefined)
+  const humanIds = humans.map(p => p.id)
+  const teams = Array.from(
+    Map.groupBy(humans, p => teamsByPlayer.get(p.id)?.number ?? 0),
+    ([number, teamPlayers]) => ({ number, players: teamPlayers }),
+  )
+  const hasTeams = teams.some(team => team.number && team.players.length > 1)
+
   const rows = actions
     ? toRows(actions, players, p => getFairPlayFlags(p, commands.byPlayer?.get(p.id)))
     : []
-  const shown = rows.filter(
+  const inFilters = rows.filter(
     row =>
-      (!row.player || !hiddenPlayers.has(row.player.id)) &&
-      (group === 'all' || groupOf(row.action.command) === group) &&
-      (!labeledOnly || row.labels.length),
+      (!shownPlayers || (row.player && shownPlayers.has(row.player.id))) &&
+      (!groups.size || groups.has(groupOf(row.action.command))),
   )
-  const labeledCount = rows.filter(row => row.labels.length).length
-  const shownPlayers = players.filter(p => p.apm !== undefined)
-
-  const togglePlayer = (id: number) => {
-    const next = new Set(hiddenPlayers)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    setHiddenPlayers(next)
-  }
+  // A switch back is a few actions on one frame, so it's counted once, as Fair play counts it.
+  const labelCounts = new Map(
+    LABEL_KINDS.map(kind => {
+      const labeled = inFilters.filter(row => row.labels.some(l => l.kind === kind))
+      return [
+        kind,
+        kind === 'macroCycle'
+          ? new Set(labeled.map(row => `${row.action.playerId}:${row.action.frame}`)).size
+          : labeled.length,
+      ]
+    }),
+  )
+  const shown = listRows(
+    labelKinds.size
+      ? inFilters.filter(row => row.labels.some(l => labelKinds.has(l.kind)))
+      : inFilters,
+    t,
+  )
+  const labeledCount = shown.filter(({ row }) => row.labels.length).length
 
   /** Moves to the next labeled action after the one picked, going back to the first at the end. */
   const goToNextLabeled = () => {
-    const labeled = shown.flatMap((row, i) => (row.labels.length ? [i] : []))
+    const labeled = shown.flatMap(({ row }, i) => (row.labels.length ? [i] : []))
     if (!labeled.length) {
       return
     }
-    const at = shown.findIndex(row => row.index === selected)
+    const at = shown.findIndex(({ row }) => row.index === selected)
     const next = labeled.find(i => i > at) ?? labeled[0]
-    setSelected(shown[next].index)
+    setSelected(shown[next].row.index)
     listRef.current?.scrollToIndex({ index: next, align: 'center' })
+  }
+
+  const nameOf = (row: ActionRow) =>
+    row.player?.name ?? actions?.players.find(p => p.networkId === row.action.playerId)?.name ?? ''
+  const describe = ({ repeats, description }: ListedRow) =>
+    repeats > 1 ? `${description} ×${repeats}` : description
+
+  /** Copies the actions listed as text, a line each, to paste into a report. */
+  const copyReport = () => {
+    const lines = shown.map(listed => {
+      const { row } = listed
+      const time = getGameDurationString(row.action.frame * FASTEST_MS_PER_FRAME)
+      const labels = row.labels.map(l => labelText(l, row.hidden, t))
+      return `${time} ${nameOf(row)}: ${describe(listed)}${labels.length ? ` [${labels.join(', ')}]` : ''}`
+    })
+    navigator.clipboard
+      .writeText(lines.join('\n'))
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(err => logger.error(`Error copying actions: ${getErrorStack(err)}`))
   }
 
   let note: string | undefined
@@ -631,44 +818,103 @@ export function GameActions({
     note = t('gameStats.actions.unreadable', "Couldn't read this game's replay.")
   }
 
+  const playerButton = (player: GamePlayerStats) => (
+    <LegendButton
+      key={player.id}
+      type='button'
+      $dimmed={!!shownPlayers && !shownPlayers.has(player.id)}
+      aria-pressed={!shownPlayers || shownPlayers.has(player.id)}
+      title={t(
+        'gameStats.actions.playerHelp',
+        'Show only this player, or shift click to add or remove them',
+      )}
+      onClick={event => setShownPlayers(pick(shownPlayers, humanIds, [player.id], event.shiftKey))}>
+      <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
+      {player.race ? <RaceTag race={player.race} /> : null}
+      {player.name}
+    </LegendButton>
+  )
+
   return (
-    <Section>
-      <SectionTitle>{t('gameStats.actions.title', 'Actions')}</SectionTitle>
+    <>
+      <Players>
+        {hasTeams
+          ? teams.map(team => (
+              <TeamPlayers key={team.number}>
+                <PickerButton
+                  type='button'
+                  $on={!!shownPlayers && team.players.every(p => shownPlayers.has(p.id))}
+                  title={t(
+                    'gameStats.actions.teamHelp',
+                    'Show only this team, or shift click to add or remove it',
+                  )}
+                  onClick={event =>
+                    setShownPlayers(
+                      pick(
+                        shownPlayers,
+                        humanIds,
+                        team.players.map(p => p.id),
+                        event.shiftKey,
+                      ),
+                    )
+                  }>
+                  {t('gameStats.teamName', 'Team {{number}}', { number: team.number })}
+                </PickerButton>
+                {team.players.map(playerButton)}
+              </TeamPlayers>
+            ))
+          : humans.map(playerButton)}
+      </Players>
       <Toolbar>
-        <Players>
-          {shownPlayers.map(player => (
-            <LegendButton
-              key={player.id}
+        <Picker role='group' aria-label={t('gameStats.actions.kinds', 'Kinds of action')}>
+          <PickerButton
+            type='button'
+            $on={!groups.size}
+            aria-pressed={!groups.size}
+            onClick={() => setGroups(new Set())}>
+            {t('gameStats.actions.all', 'All')}
+          </PickerButton>
+          {GROUPS.map(g => (
+            <PickerButton
+              key={g}
               type='button'
-              $dimmed={hiddenPlayers.has(player.id)}
-              aria-pressed={!hiddenPlayers.has(player.id)}
-              onClick={() => togglePlayer(player.id)}>
-              <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
-              {player.name}
-            </LegendButton>
-          ))}
-        </Players>
-        <Picker>
-          {(['all', ...GROUPS] as const).map(g => (
-            <PickerButton key={g} type='button' $on={group === g} onClick={() => setGroup(g)}>
+              $on={groups.has(g)}
+              aria-pressed={groups.has(g)}
+              onClick={() => setGroups(toggle(groups, g))}>
               {groupLabel(g, t)}
             </PickerButton>
           ))}
         </Picker>
-        <Picker>
-          <PickerButton
-            type='button'
-            $on={labeledOnly}
-            aria-pressed={labeledOnly}
-            onClick={() => setLabeledOnly(!labeledOnly)}>
-            {t('gameStats.actions.labeledOnly', 'Labeled only ({{count}})', {
-              count: labeledCount,
-            })}
-          </PickerButton>
+        <Picker role='group' aria-label={t('gameStats.actions.labelKinds', 'Labels')}>
+          {LABEL_KINDS.map(kind => (
+            <PickerButton
+              key={kind}
+              type='button'
+              $on={labelKinds.has(kind)}
+              aria-pressed={labelKinds.has(kind)}
+              disabled={!labelCounts.get(kind) && !labelKinds.has(kind)}
+              onClick={() => setLabelKinds(toggle(labelKinds, kind))}>
+              {t('gameStats.actions.labelCount', '{{kind}} ({{count}})', {
+                kind: labelKindName(kind, t),
+                count: labelCounts.get(kind) ?? 0,
+              })}
+            </PickerButton>
+          ))}
         </Picker>
         <SmallButton type='button' disabled={!labeledCount} onClick={goToNextLabeled}>
           <MaterialIcon icon='arrow_downward' size={18} />
           {t('gameStats.actions.next', 'Next labeled')}
+        </SmallButton>
+        <SmallButton
+          type='button'
+          disabled={!shown.length}
+          title={t(
+            'gameStats.actions.copyHelp',
+            'Copy the actions listed as text, a line each, to paste into a report',
+          )}
+          onClick={copyReport}>
+          <MaterialIcon icon={copied ? 'check' : 'content_copy'} size={18} />
+          {copied ? t('gameStats.actions.copied', 'Copied') : t('gameStats.actions.copy', 'Copy')}
         </SmallButton>
       </Toolbar>
       <SectionErrorBoundary>
@@ -683,15 +929,14 @@ export function GameActions({
           {shown.length ? (
             <Virtuoso
               ref={listRef}
-              style={{ height: Math.min(480, shown.length * ROW_HEIGHT) }}
+              style={{ height: Math.min(540, shown.length * ROW_HEIGHT) }}
               data={shown}
               fixedItemHeight={ROW_HEIGHT}
-              computeItemKey={(_, row) => row.index}
-              itemContent={(_, row) => {
+              computeItemKey={(_, listed) => listed.row.index}
+              itemContent={(_, listed) => {
+                const { row, repeats, description } = listed
                 const timeMs = row.action.frame * FASTEST_MS_PER_FRAME
-                const name =
-                  row.player?.name ??
-                  actions?.players.find(p => p.networkId === row.action.playerId)?.name
+                const name = nameOf(row)
                 return (
                   <Row $selected={row.index === selected} onClick={() => setSelected(row.index)}>
                     <Time>{getGameDurationString(timeMs)}</Time>
@@ -699,10 +944,12 @@ export function GameActions({
                       <PlayerSwatch
                         $color={(row.player && playerColors.get(row.player.id)) ?? 'transparent'}
                       />
+                      {row.player?.race ? <RaceTag race={row.player.race} /> : null}
                       <Cell title={name}>{name}</Cell>
                     </PlayerCell>
-                    <Cell title={describeAction(row.action.command, t)}>
-                      {describeAction(row.action.command, t)}
+                    <Cell title={describe(listed)}>
+                      {description}
+                      {repeats > 1 ? <Repeats> ×{repeats}</Repeats> : null}
                     </Cell>
                     <Labels>
                       {row.labels.map(label => (
@@ -714,21 +961,21 @@ export function GameActions({
                               ? t('gameStats.actions.hackHelp', 'Part of what a program did')
                               : t(
                                   'gameStats.actions.suspiciousHelp',
-                                  'Suspicious on its own, but not enough to say',
+                                  'Happened once or a few times, which lag can explain',
                                 )
                           }>
                           {labelText(label, row.hidden, t)}
                         </Label>
                       ))}
                     </Labels>
-                    <SmallButton
+                    <WatchButton
                       type='button'
                       onClick={() =>
                         dispatch(watchGameAt(gameId, Math.max(0, timeMs - WATCH_LEAD_MS)))
                       }>
                       <MaterialIcon icon='play_arrow' size={18} />
                       {t('gameStats.actions.watch', 'Watch')}
-                    </SmallButton>
+                    </WatchButton>
                   </Row>
                 )
               }}
@@ -741,10 +988,11 @@ export function GameActions({
       <SectionNote>
         {t(
           'gameStats.actions.note',
-          'Red labels are part of what a program did. Amber ones are suspicious on their own, ' +
-            'like a unit that stepped out of sight while a command waited on latency.',
+          'Red labels are part of what a program did. Amber ones happened only once or a few ' +
+            'times, which lag can explain, so watch them to judge. Click a player or team to show ' +
+            'only them, and shift click to add more.',
         )}
       </SectionNote>
-    </Section>
+    </>
   )
 }

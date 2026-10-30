@@ -13,7 +13,7 @@ import { numberFormat, useFormat } from '../i18n/locale-formats'
 import logger from '../logging/logger'
 import { Side } from './game-stats-model'
 import { PlayerStatsGrid, ScoreColumn } from './game-stats-scoreboard'
-import { Section, SectionErrorBoundary, SectionNote, SectionTitle } from './game-stats-shared'
+import { SectionErrorBoundary, SectionNote } from './game-stats-shared'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -210,8 +210,7 @@ export function GameOtherStats({
   }
 
   return (
-    <Section>
-      <SectionTitle>{t('gameStats.otherStats', 'Other stats')}</SectionTitle>
+    <>
       <SectionErrorBoundary>
         <PlayerStatsGrid
           players={players}
@@ -222,6 +221,6 @@ export function GameOtherStats({
         />
       </SectionErrorBoundary>
       {note ? <SectionNote>{note}</SectionNote> : null}
-    </Section>
+    </>
   )
 }
