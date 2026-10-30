@@ -1,4 +1,4 @@
-import { ReplayCommandStats } from '../../../common/games/command-stats'
+import { PlayerHotkeyPresses, ReplayCommandStats } from '../../../common/games/command-stats'
 import { TilesetId } from '../../../common/maps'
 import {
   PlayerAliases,
@@ -46,6 +46,8 @@ export interface ReplayDbCalls {
   getGameTimes: (pathKeys: string[]) => Array<[pathKey: string, gameTime: number]>
   /** Reads what each player did from a replay's commands. */
   readCommandStats: (path: string) => Promise<ReplayCommandStats>
+  /** Reads the hotkeys each player pressed from a replay's commands. */
+  readHotkeys: (path: string) => Promise<PlayerHotkeyPresses[]>
   /**
    * Parses and (re)indexes a single file immediately, then resolves with its index id (`undefined`
    * only if the write itself fails to produce a row, which shouldn't normally happen). Used by the

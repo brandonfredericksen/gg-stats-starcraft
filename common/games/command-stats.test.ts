@@ -1,6 +1,11 @@
 import type { CommandData, ReplayCommand } from '@shieldbattery/broodrep'
 import { describe, expect, test } from 'vitest'
-import { getHotkeyRates, SCRIPTED_BURST_SHARE, summarizeCommands } from './command-stats'
+import {
+  getHotkeyRates,
+  readHotkeyPresses,
+  SCRIPTED_BURST_SHARE,
+  summarizeCommands,
+} from './command-stats'
 
 /** Frames in a minute of game time on Fastest. */
 const MINUTE = 60_000 / 42
@@ -234,5 +239,26 @@ describe('common/games/command-stats', () => {
         ? Array.from({ length: 6 }, (_, i) => [select(turn * 10 + i), train(65)]).flat()
         : undefined
     expect(turnsGame(3, program).players[0].burstShare).toBeGreaterThanOrEqual(SCRIPTED_BURST_SHARE)
+  })
+
+  test('lists the hotkeys each human player pressed, in order', () => {
+    const assign = (group: number): CommandData => ({ type: 'hotkey', hotkeyType: 0, group })
+    const presses = readHotkeyPresses(players, [
+      at(1, 0, select(5)),
+      at(1, 0, assign(1)),
+      at(2, 1, recall(3)),
+      at(3, 0, recall(1)),
+      at(3, 255, recall(1)),
+    ])
+    expect(presses).toEqual([
+      {
+        name: 'Bisu',
+        presses: [
+          [Math.round(MINUTE), 0, 1],
+          [Math.round(3 * MINUTE), 1, 1],
+        ],
+      },
+      { name: 'Stork', presses: [[Math.round(2 * MINUTE), 1, 3]] },
+    ])
   })
 })

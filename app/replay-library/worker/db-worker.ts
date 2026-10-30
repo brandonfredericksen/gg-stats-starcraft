@@ -17,6 +17,7 @@ import {
   parseReplayContents,
   readReplayCommandStats,
   readReplayFingerprints,
+  readReplayHotkeys,
   ReplayFileInfo,
 } from '../replay-parser'
 import { ReplayLibraryLogger, ReplayWatcher } from '../replay-watcher'
@@ -196,6 +197,7 @@ const calls: ReplayDbCalls = {
   getMapTilesets: () => db.getMapTilesets(),
   getGameTimes: pathKeys => db.getGameTimes(pathKeys),
   readCommandStats: path => readReplayCommandStats(path),
+  readHotkeys: path => readReplayHotkeys(path),
   indexFile: path => indexFile(path),
   fillTileset: path => fillTileset(path),
   setWatchedFolders: folders => watcher.setWatchedFolders(folders),

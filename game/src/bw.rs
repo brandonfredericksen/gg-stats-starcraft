@@ -92,6 +92,8 @@ pub trait Bw: Sync + Send {
     unsafe fn set_player_name(&self, id: u8, name: &str);
 
     unsafe fn active_units(&self) -> unit::UnitIterator;
+    /// Every unit slot, for finding the units commands name.
+    unsafe fn unit_array(&self) -> bw_dat::UnitArray;
     unsafe fn set_user_latency(&self, latency: UserLatency);
 
     /// Size unspecified.
