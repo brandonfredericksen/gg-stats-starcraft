@@ -15,6 +15,7 @@ import {
 import { TypedIpcRenderer } from '../../common/ipc'
 import logger from '../logging/logger'
 import { RaceTag } from '../material/race-tag'
+import { SegmentMenu, SegmentOption } from '../material/segmented'
 import { bodyMedium, bodySmall, labelMedium, singleLine } from '../styles/typography'
 import { GameIcon } from './game-icon'
 import { getTimelineTicks, toUnitEntries } from './game-stats-model'
@@ -28,6 +29,7 @@ import {
   StatsPanel,
   useStatFormat,
 } from './game-stats-shared'
+import { useMyPlayerNames } from './my-player-names'
 
 const ipcRenderer = new TypedIpcRenderer()
 
@@ -55,6 +57,51 @@ const MARKS: Record<HotkeyPressKind, { width: number; inset: number; opacity: nu
 
 /** Marks that change a group are drawn in the text color, so they read apart from selecting. */
 const GROUP_CHANGE_COLOR = 'var(--theme-on-surface)'
+
+/** The icon beside a group's mark when it's made or added to, for the unit it held most of. */
+const GROUP_ICON_SIZE = 16
+
+/**
+ * Where to put an icon for the unit each group held most of, at each press that changed the group
+ * to a different main unit. An icon too close to the one before it in its row is left out, so they
+ * never overlap.
+ */
+function toGroupIcons(presses: ReadonlyArray<HotkeyPress>, durationMs: number, plotWidth: number) {
+  const icons: Array<{ timeMs: number; group: number; unitId: number }> = []
+  if (plotWidth <= 0) {
+    return icons
+  }
+  const lastByGroup = new Map<number, { x: number; unitId: number }>()
+  for (const press of presses) {
+    if (press.kind === 'select' || !press.units?.length) {
+      continue
+    }
+    const [unitId] = press.units.reduce((most, entry) => (entry[1] > most[1] ? entry : most))
+    const x = (press.timeMs / durationMs) * plotWidth
+    const last = lastByGroup.get(press.group)
+    if (last && (last.unitId === unitId || x < last.x + GROUP_ICON_SIZE + 6)) {
+      continue
+    }
+    lastByGroup.set(press.group, { x, unitId })
+    icons.push({ timeMs: press.timeMs, group: press.group, unitId })
+  }
+  return icons
+}
+
+/**
+ * The two players charted first: the user's own player when they're in the game, or else the
+ * first, and someone from the other side.
+ */
+function defaultPicks(
+  players: ReadonlyArray<GamePlayerStats>,
+  myNames: ReadonlyArray<string> | undefined,
+): [number, number] {
+  const mine = new Set(myNames?.map(n => n.toLowerCase()))
+  const first = players.find(p => p.names.some(n => mine.has(n.toLowerCase()))) ?? players[0]
+  const second =
+    players.find(p => p.team !== first.team) ?? players.find(p => p.id !== first.id) ?? first
+  return [first.id, second.id]
+}
 
 /** The presses of the players whose stats were saved without them, from the replay's commands. */
 function useReplayPresses(replayPath: string | undefined, needed: boolean) {
@@ -207,6 +254,21 @@ const ScrubLine = styled.div`
   pointer-events: none;
 `
 
+/** Sits on the presses after the mark it belongs to, so the marks don't run through it. */
+const GroupIcon = styled.div`
+  position: absolute;
+  height: ${ROW_HEIGHT}px;
+  margin-left: 2px;
+  padding: 0 1px;
+
+  display: flex;
+  align-items: center;
+
+  background: var(--theme-container-high);
+  border-radius: 3px;
+  pointer-events: none;
+`
+
 const HoverRing = styled.div`
   position: absolute;
   width: 9px;
@@ -329,15 +391,28 @@ function PlayerHotkeyChart({
   presses,
   color,
   durationMs,
+  picker,
 }: {
   player: GamePlayerStats
   presses: ReadonlyArray<HotkeyPress>
   color: string
   durationMs: number
+  /** Picks which player the chart shows, in place of their name. */
+  picker?: React.ReactNode
 }) {
   const { t } = useTranslation()
   const format = useStatFormat()
   const plotRef = useRef<HTMLDivElement>(null)
+  const [plotWidth, setPlotWidth] = useState(0)
+  useEffect(() => {
+    const plot = plotRef.current
+    if (!plot) {
+      return undefined
+    }
+    const observer = new ResizeObserver(([entry]) => setPlotWidth(entry.contentRect.width))
+    observer.observe(plot)
+    return () => observer.disconnect()
+  }, [])
   const scrub = useAtomValue(gameScrubAtom)
   const setScrub = useSetAtom(gameScrubAtom)
   const [hovered, setHovered] = useState<{
@@ -390,9 +465,13 @@ function PlayerHotkeyChart({
   return (
     <PlayerPanel>
       <PlayerHeader>
-        <PlayerSwatch $color={color} />
-        {player.race ? <RaceTag race={player.race} /> : null}
-        <PlayerHeaderName title={player.name}>{player.name}</PlayerHeaderName>
+        {picker ?? (
+          <>
+            <PlayerSwatch $color={color} />
+            {player.race ? <RaceTag race={player.race} /> : null}
+            <PlayerHeaderName title={player.name}>{player.name}</PlayerHeaderName>
+          </>
+        )}
         <PlayerSummary>
           {t('gameStats.hotkeySummary', '{{presses}} presses · {{perMinute}} selects per min', {
             presses: format.format(presses.length),
@@ -428,6 +507,20 @@ function PlayerHotkeyChart({
               />
             ))}
           </PlotSvg>
+          {toGroupIcons(presses, durationMs, plotWidth).map(icon => (
+            <GroupIcon
+              key={`${icon.group}-${icon.timeMs}`}
+              style={{
+                left: `${toFraction(icon.timeMs) * 100}%`,
+                top: GROUP_ROWS.indexOf(icon.group) * ROW_HEIGHT,
+              }}>
+              <GameIcon
+                buildKey={`u${icon.unitId}`}
+                size={GROUP_ICON_SIZE}
+                color='var(--theme-on-surface)'
+              />
+            </GroupIcon>
+          ))}
           {scrub ? <ScrubLine style={{ left: `${toFraction(scrub.timeMs) * 100}%` }} /> : null}
           {hovered ? (
             <>
@@ -491,6 +584,8 @@ export function GameHotkeys({
   replayPath?: string
 }) {
   const { t } = useTranslation()
+  const myNames = useMyPlayerNames()
+  const [picked, setPicked] = useState<[number, number]>()
   const humans = players.filter(p => p.apm !== undefined)
   const needsReplay = humans.some(p => !p.hotkeys)
   const replayPlayers = useReplayPresses(replayPath, needsReplay)
@@ -502,17 +597,64 @@ export function GameHotkeys({
     return null
   }
   const missingContents = charted.some(({ player }) => !player.hotkeys)
+  const colorOf = (player: GamePlayerStats) =>
+    playerColors.get(player.id) ?? 'var(--theme-on-surface-variant)'
+
+  // A team game has too many players to chart them all, so two charts each pick one of them.
+  const picking = charted.length > 2
+  const chartedIds = charted.map(c => c.player.id)
+  const picks =
+    picked && picked.every(id => chartedIds.includes(id))
+      ? picked
+      : defaultPicks(
+          charted.map(c => c.player),
+          myNames,
+        )
+  const shown = picking ? picks.flatMap(id => charted.filter(c => c.player.id === id)) : charted
+  // Picking the player the other chart shows swaps the two, so they never show the same player.
+  const pick = (slot: number, id: number) => {
+    const next: [number, number] = [...picks]
+    const other = slot === 0 ? 1 : 0
+    if (next[other] === id) {
+      next[other] = next[slot]
+    }
+    next[slot] = id
+    setPicked(next)
+  }
+  const options: Array<SegmentOption<number>> = charted.map(({ player }) => ({
+    value: player.id,
+    label: player.name,
+    icon: <PlayerSwatch $color={colorOf(player)} />,
+    buttonContent: (
+      <>
+        <PlayerSwatch $color={colorOf(player)} />
+        {player.race ? <RaceTag race={player.race} /> : null}
+        {player.name}
+      </>
+    ),
+  }))
 
   return (
     <Section>
       <SectionTitle>{t('gameStats.hotkeys', 'Hotkeys')}</SectionTitle>
-      {charted.map(({ player, presses }) => (
-        <SectionErrorBoundary key={player.id}>
+      {shown.map(({ player, presses }, slot) => (
+        <SectionErrorBoundary key={slot}>
           <PlayerHotkeyChart
             player={player}
             presses={presses}
-            color={playerColors.get(player.id) ?? 'var(--theme-on-surface-variant)'}
+            color={colorOf(player)}
             durationMs={durationMs}
+            picker={
+              picking ? (
+                <SegmentMenu
+                  label={t('gameStats.hotkeyPlayer', 'Player')}
+                  showLabel={false}
+                  options={options}
+                  value={player.id}
+                  onChange={id => pick(slot, id)}
+                />
+              ) : undefined
+            }
           />
         </SectionErrorBoundary>
       ))}
@@ -539,8 +681,8 @@ export function GameHotkeys({
             )
           : t(
               'gameStats.hotkeysContentsNote',
-              'Hover a press to see what the group held. Click to show that moment on the ' +
-                'minimap.',
+              'Icons show what each group mostly held when it was made. Hover a press to see ' +
+                'all of it. Click to show that moment on the minimap.',
             )}
       </SectionNote>
     </Section>
