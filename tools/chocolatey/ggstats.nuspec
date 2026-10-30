@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Chocolatey package for GG Stats. chocolatey.yml fills in the version on each release. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>ggstats</id>
+    <version>__VERSION__</version>
+    <title>GG Stats for StarCraft</title>
+    <authors>Brandon Fredericksen</authors>
+    <owners>brandonfredericksen</owners>
+    <projectUrl>https://ggstats.app/</projectUrl>
+    <iconUrl>https://ggstats.app/logo.png</iconUrl>
+    <licenseUrl>https://github.com/brandonfredericksen/gg-stats-starcraft/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/brandonfredericksen/gg-stats-starcraft</projectSourceUrl>
+    <packageSourceUrl>https://github.com/brandonfredericksen/gg-stats-starcraft/tree/main/tools/chocolatey</packageSourceUrl>
+    <bugTrackerUrl>https://github.com/brandonfredericksen/gg-stats-starcraft/issues</bugTrackerUrl>
+    <releaseNotes>https://github.com/brandonfredericksen/gg-stats-starcraft/releases/tag/v__VERSION__</releaseNotes>
+    <tags>starcraft starcraft-remastered brood-war replays stats esports</tags>
+    <summary>Post game stats for StarCraft, from your replays.</summary>
+    <description>Stats for every StarCraft: Remastered and Brood War game you play. GG Stats analyzes each replay as soon as the game ends, and shows who's in the games you join. Free and open source.
+
+Needs StarCraft: Remastered.</description>
+    <dependencies>
+      <dependency id="vcredist140" version="14.0.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

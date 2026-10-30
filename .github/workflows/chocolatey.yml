@@ -1,0 +1,45 @@
+name: Chocolatey
+
+# Publishing a release pushes the new version of the ggstats package to the Chocolatey community
+# repository, where it waits for moderation. Needs CHOCOLATEY_API_KEY, from the ggstats owner's
+# account on community.chocolatey.org.
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to submit (v1.2.3)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  chocolatey:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fill in the release's installer
+        shell: bash
+        working-directory: tools/chocolatey
+        run: |
+          version="${TAG#v}"
+          installer="GGStats-setup-$version.exe"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$installer"
+          checksum=$(sha256sum "$installer" | cut -d' ' -f1)
+          rm "$installer"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$installer"
+          sed -i "s|__URL__|$url|; s|__CHECKSUM__|$checksum|" tools/chocolateyinstall.ps1
+          sed -i "s|__VERSION__|$version|g" ggstats.nuspec
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Pack and push
+        working-directory: tools/chocolatey
+        run: |
+          choco pack ggstats.nuspec
+          choco push "ggstats.$env:VERSION.nupkg" --source https://push.chocolatey.org/ --api-key "${{ secrets.CHOCOLATEY_API_KEY }}"
