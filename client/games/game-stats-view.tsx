@@ -10,6 +10,7 @@ import { bodyLarge } from '../styles/typography'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat, MissingAllyChatNote, useReplayChat } from './game-stats-chat'
+import { GameHotkeys } from './game-stats-hotkeys'
 import { GameMinimap } from './game-stats-minimap'
 import { getTeamsByPlayer, groupSides } from './game-stats-model'
 import { GameOtherStats } from './game-stats-other'
@@ -252,6 +253,15 @@ export function GameStatsView({
       </MapAndChat>
 
       <UnitsAndBuildOrders sides={sides} playerColors={playerColors} />
+
+      <SectionErrorBoundary>
+        <GameHotkeys
+          players={sides.flatMap(side => side.players)}
+          playerColors={playerColors}
+          durationMs={stats.durationMs}
+          replayPath={replayPath}
+        />
+      </SectionErrorBoundary>
 
       <GameOtherStats
         replayPath={replayPath}

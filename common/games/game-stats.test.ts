@@ -253,6 +253,44 @@ describe('common/games/game-stats/fromGameStatsPayload', () => {
     expect(stats.players[2].timeline).toBeUndefined()
   })
 
+  test('reads hotkey presses with what each group held', () => {
+    const hotkeys = {
+      presses: [
+        [100, 0, 1, 0],
+        [200, 1, 1, 1],
+        [300, 2, 4, 0],
+        // Not a group or kind the game has, so left out.
+        [400, 1, 12, 0],
+        [500, 7, 1, 0],
+      ] as Array<[number, number, number, number]>,
+      contents: [
+        [[43, 7]],
+        [
+          [43, 6],
+          [42, 1],
+        ],
+      ] as Array<Array<[number, number]>>,
+    }
+    const stats = fromGameStatsPayload(payload({ players: [player({ hotkeys })] }))
+    expect(stats.players[0].hotkeys).toEqual([
+      { timeMs: 4200, kind: 'assign', group: 1, units: [[43, 7]] },
+      {
+        timeMs: 8400,
+        kind: 'select',
+        group: 1,
+        units: [
+          [43, 6],
+          [42, 1],
+        ],
+      },
+      { timeMs: 12600, kind: 'add', group: 4, units: [[43, 7]] },
+    ])
+  })
+
+  test('leaves hotkeys out of stats recorded without them', () => {
+    expect(fromGameStatsPayload(payload()).players[0].hotkeys).toBeUndefined()
+  })
+
   test('marks a partial replay analysis as incomplete', () => {
     expect(fromGameStatsPayload(payload({ complete: false })).complete).toBe(false)
   })

@@ -8,7 +8,7 @@ import type {
 } from 'electron'
 import { Promisable } from 'type-fest'
 import { GameIconsManifest } from './game-icons'
-import { ReplayCommandStats } from './games/command-stats'
+import { PlayerHotkeyPresses, ReplayCommandStats } from './games/command-stats'
 import { GameDebugScreenshot } from './games/game-debug'
 import { GameLaunchConfig } from './games/game-launch-config'
 import {
@@ -131,6 +131,9 @@ interface IpcInvokeables {
 
   /** What each player did, from the commands in the replay at `replayPath`. */
   replayReadCommandStats: (replayPath: string) => Promise<ReplayCommandStats>
+
+  /** The hotkeys each player pressed, from the commands in the replay at `replayPath`. */
+  replayReadHotkeys: (replayPath: string) => Promise<PlayerHotkeyPresses[]>
 
   /**
    * Returns the page of indexed replays matching `filters` selected by `filters.offset`/

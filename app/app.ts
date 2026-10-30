@@ -451,6 +451,13 @@ function setupIpc(localSettings: LocalSettingsManager) {
     readCommandStats(replayPath),
   )
 
+  ipcMain.handle('replayReadHotkeys', async (event, replayPath) => {
+    if (!replayLibrary) {
+      throw new Error('The replay library is not running')
+    }
+    return await replayLibrary.readHotkeys(replayPath)
+  })
+
   ipcMain.handle('ggStatsCheckFiles', () => checkGgStatsFiles())
 }
 

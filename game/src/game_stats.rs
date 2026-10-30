@@ -17,8 +17,10 @@ use crate::bw::{self, Bw, get_bw, player_name};
 use crate::game_thread::{self, GameThreadMessage, send_game_msg_to_async};
 use crate::minimap;
 
+mod hotkeys;
 mod positions;
 
+use hotkeys::{HotkeyTracker, Hotkeys};
 use positions::{MapUnits, UnitPositions};
 
 /// Indexes into `Game::scores`.
@@ -609,6 +611,7 @@ struct PlayerActivity {
     actions: u32,
     effective_actions: u32,
     recent: VecDeque<Action>,
+    hotkeys: HotkeyTracker,
 }
 
 #[derive(Serialize)]
@@ -719,6 +722,9 @@ struct PlayerStats {
     /// The frame the player first had a unit near an enemy's starting base.
     #[serde(skip_serializing_if = "Option::is_none")]
     first_scout_frame: Option<u32>,
+    /// Every hotkey the player pressed and what its group held.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hotkeys: Option<Hotkeys>,
 }
 
 /// Live games are tracked so they can be reported when they end, and so are replays being
@@ -852,7 +858,12 @@ pub unsafe fn record_command(player: u8, command: &[u8]) {
     if let Some(mut tracker) = get_bw().game_stats().lock() {
         let tracker =
             tracker.get_or_insert_with(|| unsafe { GameStatsTracker::start(game, players) });
-        tracker.activity[player].record_command(command, frame);
+        let activity = &mut tracker.activity[player];
+        activity.record_command(command, frame);
+        if activity.left_at_frame.is_none() {
+            let units = unsafe { get_bw().unit_array() };
+            activity.hotkeys.record_command(command, frame, &units);
+        }
     }
 }
 
@@ -1536,6 +1547,7 @@ impl GameStatsTracker {
                     timeline: counts_units.then(|| self.timeline(slot)),
                     build_order: counts_units.then(|| self.build_order(slot)),
                     first_scout_frame: self.scouting.first_scout_frame[slot],
+                    hotkeys: activity.hotkeys.hotkeys(),
                 })
             })
             .collect()
@@ -2264,6 +2276,7 @@ mod test {
             timeline: None,
             build_order: None,
             first_scout_frame: None,
+            hotkeys: None,
         }
     }
 

@@ -320,6 +320,35 @@ export function summarizeCommands(
   }
 }
 
+/** The hotkeys one player pressed, from a replay's commands. */
+export interface PlayerHotkeyPresses {
+  name: string
+  /** Each press, oldest first, with kinds as in {@link HOTKEY_ASSIGN} and the rest. */
+  presses: Array<[frame: number, kind: number, group: number]>
+}
+
+/**
+ * The hotkeys each player pressed, for games whose stats were recorded without them. The commands
+ * can't say what a group held: they only name units, not what type each is.
+ */
+export function readHotkeyPresses(
+  players: ReadonlyArray<Pick<Player, 'networkId' | 'name' | 'playerType' | 'isObserver'>>,
+  commands: ReadonlyArray<ReplayCommand>,
+): PlayerHotkeyPresses[] {
+  const byId = new Map(
+    players
+      .filter(p => p.playerType === 'human' && !p.isObserver)
+      .map(p => [p.networkId, { name: p.name, presses: [] } as PlayerHotkeyPresses]),
+  )
+  for (const { frame, playerId, command } of commands) {
+    const player = byId.get(playerId)
+    if (player && command.type === 'hotkey') {
+      player.presses.push([frame, command.hotkeyType, command.group])
+    }
+  }
+  return Array.from(byId.values())
+}
+
 /** Commands that aren't the player acting in the game, which APM leaves out. */
 export const NOT_ACTIONS: ReadonlySet<CommandKind> = new Set<CommandKind>([
   'vision',

@@ -1827,6 +1827,13 @@ impl bw::Bw for BwScr {
         unsafe { UnitIterator::new(Unit::from_ptr(self.first_active_unit.resolve())) }
     }
 
+    unsafe fn unit_array(&self) -> bw_dat::UnitArray {
+        unsafe {
+            let units = self.units.resolve();
+            bw_dat::UnitArray::new((*units).data as *mut bw::Unit, (*units).length)
+        }
+    }
+
     unsafe fn storm_player_flags(&self) -> Vec<u32> {
         unsafe {
             let ptr = self.storm_player_flags.resolve() as *const u32;

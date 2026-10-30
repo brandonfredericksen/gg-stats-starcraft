@@ -72,6 +72,31 @@ export interface GamePlayerStatsPayload {
   timeline: TimelinePayload | null
   /** What the player started making, researching and upgrading, in order. */
   buildOrder: BuildStepPayload[] | null
+  /** Every hotkey the player pressed, missing in stats from before it was recorded. */
+  hotkeys?: HotkeysPayload
+}
+
+/** Every hotkey a player pressed, with what the group held at the time. */
+export interface HotkeysPayload {
+  /** Each press, oldest first, with an index into {@link HotkeysPayload.contents}. */
+  presses: Array<[frame: number, kind: number, group: number, contents: number]>
+  /** Unit id and count for each type of unit in a group, each different one listed once. */
+  contents: UnitCounts[]
+}
+
+/** What a hotkey press did to its group. */
+export type HotkeyPressKind = 'assign' | 'select' | 'add'
+
+/** BW's hotkey commands, by the number it sends for each. */
+export const HOTKEY_PRESS_KINDS: ReadonlyArray<HotkeyPressKind> = ['assign', 'select', 'add']
+
+export interface HotkeyPress {
+  timeMs: number
+  kind: HotkeyPressKind
+  /** The number key, 0 to 9. */
+  group: number
+  /** What the group held, missing when only the replay's commands were read. */
+  units?: UnitCounts
 }
 
 export type BuildStepKind = 'unit' | 'upgrade' | 'tech'
@@ -273,6 +298,8 @@ export interface GamePlayerStats {
   timeline?: PlayerTimeline
   /** What the player started making, researching and upgrading, in order. */
   buildOrder?: BuildStep[]
+  /** Every hotkey the player pressed, oldest first. */
+  hotkeys?: HotkeyPress[]
 }
 
 export interface BuildStep {
@@ -517,6 +544,25 @@ function average(values: ReadonlyArray<number> | undefined) {
     : undefined
 }
 
+function toHotkeys(value: HotkeysPayload | undefined): HotkeyPress[] | undefined {
+  if (!value || !Array.isArray(value.presses)) {
+    return undefined
+  }
+  const contents = Array.isArray(value.contents) ? value.contents.map(unitCounts) : []
+  return value.presses.flatMap(press => {
+    if (!Array.isArray(press)) {
+      return []
+    }
+    const [frame, kind, group, index] = press
+    const pressKind = HOTKEY_PRESS_KINDS[kind]
+    const timeMs = framesToMs(optionalCount(frame))
+    if (timeMs === undefined || !pressKind || !Number.isInteger(group) || group < 0 || group > 9) {
+      return []
+    }
+    return [{ timeMs, kind: pressKind, group, units: contents[index] }]
+  })
+}
+
 function toResult(victoryState: unknown): GameStatsResult {
   switch (victoryState) {
     case 2:
@@ -597,6 +643,7 @@ function toPlayerStats(
       buildOrder && buildOrderVersion < 2
         ? startBuildingMorphs(buildOrder, timeline, snapshotTimesMs)
         : buildOrder,
+    hotkeys: toHotkeys(player.hotkeys),
   }
 }
 
