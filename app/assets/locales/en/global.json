@@ -2024,7 +2024,7 @@
     "analyzes": "GG Stats analyzes your replays and shows the stats in them.",
     "autoCapture": "Analyze each game when it ends",
     "autoCaptureHint": "Analysis runs in the background, out of your way.",
-    "baseline": "It comes with recent ladder games to compare you against, and the builds played in them. It also estimates each player's ladder rank from how they play.",
+    "baseline": "It comes with stats from thousands of analyzed ladder replays, so you can compare yourself with other players and see the builds they play. That data also helps estimate each player's eRank: the rank they play like, apart from their real ladder rank.",
     "optionsTitle": "Your games",
     "settingsHint": "You can change these in Settings.",
     "start": "Get started",

@@ -103,8 +103,10 @@ export function WelcomeDialog({ onCancel, close }: CommonDialogProps) {
             <div>
               {t(
                 'welcome.baseline',
-                'It comes with recent ladder games to compare you against, and the builds ' +
-                  "played in them. It also estimates each player's ladder rank from how they play.",
+                'It comes with stats from thousands of analyzed ladder replays, so you can compare ' +
+                  'yourself with other players and see the builds they play. That data also helps ' +
+                  "estimate each player's eRank: the rank they play like, apart from their real " +
+                  'ladder rank.',
               )}
             </div>
           </Paragraphs>
