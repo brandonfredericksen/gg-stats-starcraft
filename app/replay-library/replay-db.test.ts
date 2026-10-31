@@ -146,7 +146,9 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
     addGames(db)
     const gamePath = (i: number) => path.win32.join(AUTOSAVE, `Game ${i}.rep`)
     const unread = () => db.listUnfingerprinted(1, 100).map(r => r.path)
-    expect(db.countUnfingerprinted(1)).toBe(13)
+    expect(db.countUnfingerprinted(1, ['ärger'])).toBe(12)
+    expect(db.countUnfingerprinted(1, ['ärger', 'somebody'])).toBe(13)
+    expect(db.countUnfingerprinted(1, [])).toBe(0)
     // The newest first.
     expect(unread()[0]).toBe(path.win32.join(AUTOSAVE, 'Other.rep'))
 
@@ -155,8 +157,9 @@ describe.runIf(CAN_OPEN_INDEX)('app/replay-library/replay-db', () => {
       { name: 'Ärger', race: 't', features, actions: 300 },
     ])
     db.saveFingerprints(db.getIdByPath(gamePath(2))!, 1, [])
-    expect(db.countUnfingerprinted(1)).toBe(11)
-    expect(db.countUnfingerprinted(2)).toBe(13)
+    expect(db.countUnfingerprinted(1, ['ärger'])).toBe(10)
+    expect(db.countUnfingerprinted(1, ['somebody'])).toBe(1)
+    expect(db.countUnfingerprinted(2, ['ärger'])).toBe(12)
     expect(unread()).not.toContain(gamePath(2))
 
     const [stored] = db.getFingerprints(1)

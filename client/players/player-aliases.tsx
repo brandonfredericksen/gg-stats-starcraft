@@ -198,9 +198,9 @@ export function PlayerAliasesLine({
   }
 
   const reading = found.pendingReplays
-    ? t('players.aliases.reading', {
-        defaultValue: 'Still reading {{count}} replays.',
-        defaultValue_one: 'Still reading 1 replay.',
+    ? t('players.aliases.readingTheirs', {
+        defaultValue: 'Still reading {{count}} of their replays.',
+        defaultValue_one: 'Still reading 1 of their replays.',
         count: found.pendingReplays,
       })
     : undefined
@@ -289,9 +289,9 @@ export function PlayerAliasesMini({
   if (!found.aliases.length) {
     let text: string | undefined
     if (found.pendingReplays) {
-      text = t('players.aliases.reading', {
-        defaultValue: 'Still reading {{count}} replays.',
-        defaultValue_one: 'Still reading 1 replay.',
+      text = t('players.aliases.readingTheirs', {
+        defaultValue: 'Still reading {{count}} of their replays.',
+        defaultValue_one: 'Still reading 1 of their replays.',
         count: found.pendingReplays,
       })
     } else if (found.games) {

@@ -48,7 +48,7 @@ export interface PlayerAliases {
   aliases: PlayerAlias[]
   /** The player's own games with a fingerprint, which the aliases were found from. */
   games: number
-  /** Replays still to be read for fingerprints, which may hold more. */
+  /** The player's replays still to be read for fingerprints, which may change the aliases. */
   pendingReplays: number
 }
 

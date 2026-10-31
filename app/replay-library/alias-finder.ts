@@ -48,7 +48,7 @@ interface FinderState {
 export interface AliasFinderSource {
   getFingerprints(version: number): StoredFingerprint[]
   getFingerprintedPlayerNames(version: number): Map<number, string[]>
-  countUnfingerprinted(version: number): number
+  countUnfingerprinted(version: number, nameKeys: ReadonlyArray<string>): number
 }
 
 /**
@@ -178,8 +178,8 @@ export class AliasFinder {
    * race only.
    */
   find(names: ReadonlyArray<string>, excludeNames: ReadonlyArray<string>): PlayerAliases {
-    const pendingReplays = this.source.countUnfingerprinted(FINGERPRINT_VERSION)
     const keys = new Set(names.map(n => n.toLowerCase()))
+    const pendingReplays = this.source.countUnfingerprinted(FINGERPRINT_VERSION, Array.from(keys))
     const { identities, together, cohort, cohortSums } = this.getState()
     const own = identities.filter(i => keys.has(i.nameKey))
     const games = own.reduce((sum, i) => sum + i.games.length, 0)

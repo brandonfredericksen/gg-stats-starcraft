@@ -636,16 +636,25 @@ export class ReplayDb {
       .all(version, limit) as Array<{ id: number; path: string }>
   }
 
-  /** How many readable replays {@link listUnfingerprinted} would list without a limit. */
-  countUnfingerprinted(version: number): number {
+  /**
+   * How many of the readable replays {@link listUnfingerprinted} would list without a limit have a
+   * player named one of `nameKeys` (lowercased) in them.
+   */
+  countUnfingerprinted(version: number, nameKeys: ReadonlyArray<string>): number {
+    if (!nameKeys.length) {
+      return 0
+    }
+    const marks = nameKeys.map(() => '?').join(', ')
     return (
       this.db
         .prepare(
           `SELECT COUNT(*) AS count FROM replays r
           LEFT JOIN replay_fingerprints f ON f.replay_id = r.id
-          WHERE r.parse_error = 0 AND (f.version IS NULL OR f.version != ?)`,
+          WHERE r.parse_error = 0 AND (f.version IS NULL OR f.version != ?)
+            AND EXISTS (SELECT 1 FROM replay_players p WHERE p.replay_id = r.id
+              AND p.is_computer = 0 AND p.name_key IN (${marks}))`,
         )
-        .get(version) as { count: number }
+        .get(version, ...nameKeys) as { count: number }
     ).count
   }
 

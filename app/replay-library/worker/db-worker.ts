@@ -168,6 +168,9 @@ async function indexFile(path: string): Promise<number | undefined> {
     record = makeParseErrorRecord(fileInfo)
   }
   db.upsertReplay(record)
+  // The watcher finds the file already indexed and reports no change, so its players are read here.
+  aliasFinder.invalidate()
+  fingerprints.schedule()
   return db.getIdByPath(path)
 }
 

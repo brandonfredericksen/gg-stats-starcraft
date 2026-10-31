@@ -1605,8 +1605,8 @@
       "noneShort": "No other name plays like them.",
       "playsLike": "Plays like",
       "possible": "Possible",
-      "reading_one": "Still reading 1 replay.",
-      "reading_other": "Still reading {{count}} replays.",
+      "readingTheirs_one": "Still reading 1 of their replays.",
+      "readingTheirs_other": "Still reading {{count}} of their replays.",
       "strong": "Strong"
     },
     "allTheirGames": "All their games",
