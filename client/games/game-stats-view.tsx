@@ -7,6 +7,7 @@ import { MaterialIcon } from '../icons/material/material-icon'
 import { Card } from '../material/card'
 import { Tooltip } from '../material/tooltip'
 import { bodyLarge } from '../styles/typography'
+import { GameActionLog, useReplayActions } from './game-stats-actions'
 import { UnitsAndBuildOrders } from './game-stats-breakdown'
 import { GameStatsTimelines } from './game-stats-charts'
 import { GameChat, MissingAllyChatNote, useReplayChat } from './game-stats-chat'
@@ -169,6 +170,7 @@ export function GameStatsView({
   const myNames = useMyPlayerNames()
   const chat = useReplayChat(replayPath)
   const commands = useReplayCommands(replayPath, stats.players)
+  const actions = useReplayActions(replayPath)
   if (!stats.players.length) {
     return (
       <Root>
@@ -266,8 +268,8 @@ export function GameStatsView({
       </SectionErrorBoundary>
 
       <GameOtherData
-        gameId={gameId}
         replayPath={replayPath}
+        actions={actions}
         // In the order of the teams, since there's no score to rank them by here.
         players={sides.flatMap(side => side.players)}
         teamsByPlayer={teamsByPlayer}
@@ -277,6 +279,17 @@ export function GameStatsView({
         commands={commands}
         onAnalyzeAgain={onAnalyzeAgain}
       />
+
+      {replayPath ? (
+        <GameActionLog
+          gameId={gameId}
+          read={actions}
+          players={sides.flatMap(side => side.players)}
+          teamsByPlayer={teamsByPlayer}
+          playerColors={playerColors}
+          commands={commands}
+        />
+      ) : null}
 
       {footer}
     </Root>

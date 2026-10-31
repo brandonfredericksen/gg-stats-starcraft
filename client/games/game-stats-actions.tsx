@@ -18,6 +18,9 @@ import { numberFormat, useFormat } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
+import { MenuItem } from '../material/menu/item'
+import { MenuList } from '../material/menu/menu'
+import { Popover, usePopoverController, useRefAnchorPosition } from '../material/popover'
 import { RaceTag } from '../material/race-tag'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
@@ -32,13 +35,14 @@ import {
 import { Side } from './game-stats-model'
 import { ReplayCommandsRead } from './game-stats-other'
 import {
-  LegendButton,
   Picker,
   PickerButton,
   PlayerName,
   PlayerSwatch,
+  Section,
   SectionErrorBoundary,
   SectionNote,
+  SectionTitle,
   StatsPanel,
   TeamChip,
   useStatFormat,
@@ -411,7 +415,8 @@ function labelKindName(kind: LabelKind, t: TFunction) {
 function toRows(
   read: ReplayActions,
   players: ReadonlyArray<GamePlayerStats>,
-  flagsOf: (player: GamePlayerStats) => FairPlayFlags,
+  /** Says which labels are hacks, and labels a bot's bursts. Without it, nothing is a hack. */
+  flagsOf?: (player: GamePlayerStats) => FairPlayFlags,
 ): ActionRow[] {
   const byNetworkId = new Map<number, GamePlayerStats>()
   for (const replayPlayer of read.players) {
@@ -447,7 +452,7 @@ function toRows(
     }
     return undefined
   }
-  const flags = new Map(Array.from(byNetworkId, ([id, p]) => [id, flagsOf(p)]))
+  const flags = new Map(Array.from(byNetworkId, ([id, p]) => [id, flagsOf?.(p)]))
   const lastBursts = new Map<number, { label: RowLabel; frame: number }>()
 
   return read.actions.map((action, index) => {
@@ -508,32 +513,6 @@ function listRows(rows: ReadonlyArray<ActionRow>, t: TFunction): ListedRow[] {
   return listed
 }
 
-/** A filter of a set of things: every one of them when undefined, or only the ones in it. */
-type Shown<T> = ReadonlySet<T> | undefined
-
-/**
- * Picks things to show the way a legend does: a click shows only those, or everything again if
- * that's all that was shown, and a click with shift held adds or removes them.
- */
-function pick<T>(shown: Shown<T>, all: ReadonlyArray<T>, picked: ReadonlyArray<T>, add: boolean) {
-  let next: Set<T>
-  if (add) {
-    next = new Set(shown ?? all)
-    const allIn = picked.every(p => next.has(p))
-    for (const p of picked) {
-      if (allIn) {
-        next.delete(p)
-      } else {
-        next.add(p)
-      }
-    }
-  } else {
-    const only = shown && shown.size === picked.length && picked.every(p => shown.has(p))
-    next = only ? new Set(all) : new Set(picked)
-  }
-  return next.size === 0 || all.every(a => next.has(a)) ? undefined : next
-}
-
 /** Toggles one thing in a set, where an empty set means no filter. */
 function toggle<T>(set: ReadonlySet<T>, value: T) {
   const next = new Set(set)
@@ -557,20 +536,6 @@ const Toolbar = styled.div`
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-`
-
-const Players = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-`
-
-const TeamPlayers = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
 `
 
 const Header = styled.div`
@@ -707,50 +672,21 @@ const MixRow = styled.div`
 `
 
 const MixHeaderCell = styled.div`
-  padding: 6px 8px 4px;
+  ${labelMedium};
+  padding: 12px 14px 10px;
 
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
 
   border-bottom: 1px solid var(--theme-outline-variant);
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+  white-space: nowrap;
 `
 
 const MixPlayerHeader = styled(MixHeaderCell)`
-  ${labelMedium};
-  padding: 12px 14px 10px;
   justify-content: flex-start;
-  color: var(--theme-on-surface-variant);
-  font-weight: 600;
-`
-
-/** A kind of action's column header, which also shows only that kind in the list below. */
-const MixHeaderButton = styled.button<{ $on: boolean }>`
-  ${buttonReset};
-  ${labelMedium};
-  padding: 6px;
-  border-radius: var(--radius-sm);
-  background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
-  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--theme-on-surface);
-  }
-
-  &:focus-visible {
-    outline: 3px solid var(--theme-grey-blue);
-    outline-offset: 2px;
-  }
-`
-
-const MixTotalHeader = styled(MixHeaderCell)`
-  ${labelMedium};
-  padding: 12px 14px 10px;
-  color: var(--theme-on-surface-variant);
-  font-weight: 600;
 `
 
 const MixCell = styled.div<{ $first: boolean }>`
@@ -807,31 +743,32 @@ const ShareFill = styled.span<{ $color: string }>`
 
 /**
  * How each player's actions split between the kinds of action, a row each, the way BWChart charted
- * them. A kind's header also shows only that kind in the list.
+ * them.
  */
-function ActionMix({
-  rows,
+export function GameActionMix({
+  read,
   players,
   teamsByPlayer,
   playerColors,
   durationMs,
-  groups,
-  onToggleGroup,
 }: {
-  rows: ReadonlyArray<ActionRow>
+  read: ReplayActionsRead
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
   playerColors: ReadonlyMap<number, string>
   durationMs: number
-  groups: ReadonlySet<ActionGroup>
-  onToggleGroup: (group: ActionGroup) => void
 }) {
   const { t } = useTranslation()
   const format = useStatFormat()
   const percent = useFormat(percentFormat)
 
-  const counts = new Map(players.map(p => [p.id, new Map<ActionGroup, number>()]))
-  for (const row of rows) {
+  if (!read.actions) {
+    return <SectionNote>{readNote(read, t)}</SectionNote>
+  }
+
+  const humans = players.filter(p => p.apm !== undefined)
+  const counts = new Map(humans.map(p => [p.id, new Map<ActionGroup, number>()]))
+  for (const row of toRows(read.actions, humans)) {
     const byGroup = row.player && counts.get(row.player.id)
     if (byGroup) {
       const group = groupOf(row.action.command)
@@ -847,21 +784,14 @@ function ActionMix({
             <MixPlayerHeader role='columnheader'>{t('gameStats.player', 'Player')}</MixPlayerHeader>
             {GROUPS.map(g => (
               <MixHeaderCell key={g} role='columnheader'>
-                <MixHeaderButton
-                  type='button'
-                  $on={groups.has(g)}
-                  aria-pressed={groups.has(g)}
-                  title={t('gameStats.actions.mixHeaderHelp', 'Show only these in the list')}
-                  onClick={() => onToggleGroup(g)}>
-                  {groupLabel(g, t)}
-                </MixHeaderButton>
+                {groupLabel(g, t)}
               </MixHeaderCell>
             ))}
-            <MixTotalHeader role='columnheader'>
+            <MixHeaderCell role='columnheader'>
               {t('gameStats.actions.total', 'Total')}
-            </MixTotalHeader>
+            </MixHeaderCell>
           </MixRow>
-          {players.map((player, i) => {
+          {humans.map((player, i) => {
             const first = i === 0
             const team = teamsByPlayer.get(player.id)
             const byGroup = counts.get(player.id)
@@ -899,8 +829,14 @@ function ActionMix({
   )
 }
 
+/** The actions in a game's replay, once read: none while reading, or if it couldn't be read. */
+export interface ReplayActionsRead {
+  reading: boolean
+  actions?: ReplayActions
+}
+
 /** Reads every action in a game's replay. */
-function useReplayActions(replayPath: string | undefined) {
+export function useReplayActions(replayPath: string | undefined): ReplayActionsRead {
   const [read, setRead] = useState<{ path: string; actions?: ReplayActions }>()
   useEffect(() => {
     if (!replayPath) {
@@ -927,56 +863,171 @@ function useReplayActions(replayPath: string | undefined) {
   return { reading, actions: reading ? undefined : read?.actions }
 }
 
-/**
- * Every action the players gave, from the game's replay, with the ones a program would give
- * labeled, the way BWChart listed them. Players, teams, kinds of action and kinds of label can each
- * be picked out, so even an 8 player game narrows down to the moments that matter.
- */
-export function GameActions({
-  gameId,
-  replayPath,
+function readNote(read: ReplayActionsRead, t: TFunction) {
+  return read.reading
+    ? t('gameStats.readingReplay', 'Reading the replay…')
+    : t('gameStats.actions.unreadable', "Couldn't read this game's replay.")
+}
+
+const FilterChevron = styled(MaterialIcon).attrs({ icon: 'expand_more', size: 18 })`
+  color: var(--theme-on-surface-variant);
+`
+
+const FilterLabel = styled.span`
+  color: var(--theme-on-surface-variant);
+`
+
+const MenuPlayer = styled.span`
+  margin-left: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+`
+
+/** A checklist of the players whose actions are listed, with each team's on or off at once. */
+function PlayerFilter({
   players,
   teamsByPlayer,
   playerColors,
-  durationMs,
-  commands,
+  hidden,
+  onChange,
 }: {
-  gameId: string
-  replayPath?: string
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
   playerColors: ReadonlyMap<number, string>
-  durationMs: number
+  hidden: ReadonlySet<number>
+  onChange: (hidden: ReadonlySet<number>) => void
+}) {
+  const { t } = useTranslation()
+  const [anchor, anchorX, anchorY, refreshAnchorPos] = useRefAnchorPosition('left', 'bottom')
+  const [open, openMenu, closeMenu] = usePopoverController({ refreshAnchorPos })
+
+  const teams = Array.from(
+    Map.groupBy(players, p => teamsByPlayer.get(p.id)?.number ?? 0),
+    ([number, teamPlayers]) => ({ number, players: teamPlayers }),
+  )
+  const hasTeams = teams.some(team => team.number && team.players.length > 1)
+  const shownCount = players.filter(p => !hidden.has(p.id)).length
+  const checkIcon = (checked: boolean) => (
+    <MaterialIcon icon={checked ? 'check_box' : 'check_box_outline_blank'} />
+  )
+
+  const items: React.ReactNode[] = [
+    <MenuItem
+      key='all'
+      icon={checkIcon(!hidden.size)}
+      text={t('gameStats.actions.allPlayers', 'All players')}
+      onClick={() => onChange(new Set())}
+    />,
+  ]
+  for (const team of teams) {
+    const ids = team.players.map(p => p.id)
+    if (hasTeams) {
+      const allShown = ids.every(id => !hidden.has(id))
+      items.push(
+        <MenuItem
+          key={`team${team.number}`}
+          icon={checkIcon(allShown)}
+          text={t('gameStats.teamName', 'Team {{number}}', { number: team.number })}
+          onClick={() => {
+            const next = new Set(hidden)
+            for (const id of ids) {
+              if (allShown) {
+                next.add(id)
+              } else {
+                next.delete(id)
+              }
+            }
+            onChange(next)
+          }}
+        />,
+      )
+    }
+    for (const player of team.players) {
+      items.push(
+        <MenuItem
+          key={player.id}
+          icon={checkIcon(!hidden.has(player.id))}
+          text={player.name}
+          trailingContent={
+            <MenuPlayer>
+              {player.race ? <RaceTag race={player.race} /> : null}
+              <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
+            </MenuPlayer>
+          }
+          onClick={() => onChange(toggle(hidden, player.id))}
+        />,
+      )
+    }
+  }
+
+  return (
+    <>
+      <SmallButton ref={anchor} type='button' onClick={openMenu}>
+        <FilterLabel>{t('gameStats.actions.players', 'Players')}</FilterLabel>
+        {hidden.size
+          ? t('gameStats.actions.playersShown', '{{count}} of {{total}}', {
+              count: shownCount,
+              total: players.length,
+            })
+          : t('gameStats.actions.playersAll', 'All')}
+        <FilterChevron />
+      </SmallButton>
+      <Popover
+        open={open}
+        onDismiss={closeMenu}
+        anchorX={anchorX ?? 0}
+        anchorY={anchorY ?? 0}
+        originX='left'
+        originY='top'>
+        <MenuList dense={true}>{items}</MenuList>
+      </Popover>
+    </>
+  )
+}
+
+/**
+ * Every action the players gave, from the game's replay, with the ones a program would give
+ * labeled, the way BWChart listed them. Players, kinds of action and kinds of label can each be
+ * picked out, so even an 8 player game narrows down to the moments that matter.
+ */
+export function GameActionLog({
+  gameId,
+  read,
+  players,
+  teamsByPlayer,
+  playerColors,
+  commands,
+}: {
+  gameId: string
+  read: ReplayActionsRead
+  players: ReadonlyArray<GamePlayerStats>
+  teamsByPlayer: ReadonlyMap<number, Side>
+  playerColors: ReadonlyMap<number, string>
   commands: ReplayCommandsRead
 }) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const { reading, actions } = useReplayActions(replayPath)
-  const [shownPlayers, setShownPlayers] = useState<Shown<number>>()
+  const { actions } = read
+  const [hiddenPlayers, setHiddenPlayers] = useState<ReadonlySet<number>>(new Set())
   const [groups, setGroups] = useState<ReadonlySet<ActionGroup>>(new Set())
   const [labelKinds, setLabelKinds] = useState<ReadonlySet<LabelKind>>(new Set())
   const [selected, setSelected] = useState<number>()
   const [copied, setCopied] = useState(false)
   const listRef = useRef<VirtuosoHandle>(null)
 
-  if (!replayPath) {
+  // Computers play without commands, so there are no actions to list for them.
+  const humans = players.filter(p => p.apm !== undefined)
+  if (!humans.length) {
     return null
   }
-
-  const humans = players.filter(p => p.apm !== undefined)
-  const humanIds = humans.map(p => p.id)
-  const teams = Array.from(
-    Map.groupBy(humans, p => teamsByPlayer.get(p.id)?.number ?? 0),
-    ([number, teamPlayers]) => ({ number, players: teamPlayers }),
-  )
-  const hasTeams = teams.some(team => team.number && team.players.length > 1)
 
   const rows = actions
     ? toRows(actions, players, p => getFairPlayFlags(p, commands.byPlayer?.get(p.id)))
     : []
   const inFilters = rows.filter(
     row =>
-      (!shownPlayers || (row.player && shownPlayers.has(row.player.id))) &&
+      (!row.player || !hiddenPlayers.has(row.player.id)) &&
       (!groups.size || groups.has(groupOf(row.action.command))),
   )
   // A switch back is a few actions on one frame, so it's counted once, as Fair play counts it.
@@ -1033,72 +1084,19 @@ export function GameActions({
       .catch(err => logger.error(`Error copying actions: ${getErrorStack(err)}`))
   }
 
-  let note: string | undefined
-  if (reading) {
-    note = t('gameStats.readingReplay', 'Reading the replay…')
-  } else if (!actions) {
-    note = t('gameStats.actions.unreadable', "Couldn't read this game's replay.")
-  }
-
-  const playerButton = (player: GamePlayerStats) => (
-    <LegendButton
-      key={player.id}
-      type='button'
-      $dimmed={!!shownPlayers && !shownPlayers.has(player.id)}
-      aria-pressed={!shownPlayers || shownPlayers.has(player.id)}
-      title={t(
-        'gameStats.actions.playerHelp',
-        'Show only this player, or shift click to add or remove them',
-      )}
-      onClick={event => setShownPlayers(pick(shownPlayers, humanIds, [player.id], event.shiftKey))}>
-      <PlayerSwatch $color={playerColors.get(player.id) ?? 'transparent'} />
-      {player.race ? <RaceTag race={player.race} /> : null}
-      {player.name}
-    </LegendButton>
-  )
-
   return (
-    <>
-      {rows.length ? (
-        <ActionMix
-          rows={rows}
-          players={humans}
-          teamsByPlayer={teamsByPlayer}
-          playerColors={playerColors}
-          durationMs={durationMs}
-          groups={groups}
-          onToggleGroup={g => setGroups(toggle(groups, g))}
-        />
-      ) : null}
-      <Players>
-        {hasTeams
-          ? teams.map(team => (
-              <TeamPlayers key={team.number}>
-                <PickerButton
-                  type='button'
-                  $on={!!shownPlayers && team.players.every(p => shownPlayers.has(p.id))}
-                  title={t(
-                    'gameStats.actions.teamHelp',
-                    'Show only this team, or shift click to add or remove it',
-                  )}
-                  onClick={event =>
-                    setShownPlayers(
-                      pick(
-                        shownPlayers,
-                        humanIds,
-                        team.players.map(p => p.id),
-                        event.shiftKey,
-                      ),
-                    )
-                  }>
-                  {t('gameStats.teamName', 'Team {{number}}', { number: team.number })}
-                </PickerButton>
-                {team.players.map(playerButton)}
-              </TeamPlayers>
-            ))
-          : humans.map(playerButton)}
-      </Players>
+    <Section>
+      <SectionTitle>{t('gameStats.actions.logTitle', 'Action log')}</SectionTitle>
       <Toolbar>
+        {humans.length > 1 ? (
+          <PlayerFilter
+            players={humans}
+            teamsByPlayer={teamsByPlayer}
+            playerColors={playerColors}
+            hidden={hiddenPlayers}
+            onChange={setHiddenPlayers}
+          />
+        ) : null}
         <Picker role='group' aria-label={t('gameStats.actions.kinds', 'Kinds of action')}>
           <PickerButton
             type='button'
@@ -1214,7 +1212,9 @@ export function GameActions({
               }}
             />
           ) : (
-            <Empty>{note ?? t('gameStats.actions.none', 'No actions match.')}</Empty>
+            <Empty>
+              {actions ? t('gameStats.actions.none', 'No actions match.') : readNote(read, t)}
+            </Empty>
           )}
         </StatsPanel>
       </SectionErrorBoundary>
@@ -1222,10 +1222,9 @@ export function GameActions({
         {t(
           'gameStats.actions.note',
           'Red labels are part of what a program did. Amber ones happened only once or a few ' +
-            'times, which lag can explain, so watch them to judge. Click a player or team to show ' +
-            'only them, and shift click to add more.',
+            'times, which lag can explain, so watch them to judge.',
         )}
       </SectionNote>
-    </>
+    </Section>
   )
 }

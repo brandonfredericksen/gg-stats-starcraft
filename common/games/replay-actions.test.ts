@@ -32,6 +32,18 @@ describe('common/games/replay-actions', () => {
     expect(actions.every(a => !a.labels)).toBe(true)
   })
 
+  test('credits chat to whoever sent it, not whoever saved the replay', () => {
+    const { actions } = listReplayActions(players, [
+      command(20, 1, { type: 'chat', senderSlot: 1, message: 'gl hf' }),
+      command(21, 1, { type: 'chat', senderSlot: 0, message: 'u2' }),
+      command(22, 1, { type: 'chat', senderSlot: 128, message: 'from the stands' }),
+    ])
+    expect(actions.map(a => [a.frame, a.playerId])).toEqual([
+      [20, 0],
+      [21, 1],
+    ])
+  })
+
   test('labels making something and switching back on one frame', () => {
     const { actions } = listReplayActions(players, [
       command(4000, 0, recall(1)),

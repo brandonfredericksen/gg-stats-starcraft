@@ -4,7 +4,7 @@ import styled from 'styled-components'
 import { getFairPlayFlags } from '../../common/games/fair-play'
 import { GamePlayerStats } from '../../common/games/game-stats'
 import { MaterialIcon } from '../icons/material/material-icon'
-import { GameActions } from './game-stats-actions'
+import { GameActionMix, ReplayActionsRead } from './game-stats-actions'
 import { GameFairPlay } from './game-stats-fair-play'
 import { Side } from './game-stats-model'
 import { GameOtherStats, ReplayCommandsRead } from './game-stats-other'
@@ -33,10 +33,10 @@ const FlaggedIcon = styled(MaterialIcon)`
 
 type OtherDataTab = 'stats' | 'fairPlay' | 'actions'
 
-/** What's left after the main stats: trades and hotkeys, fair play and every action, in tabs. */
+/** What's left after the main stats: the mix of actions, fair play, trades and hotkeys, in tabs. */
 export function GameOtherData({
-  gameId,
   replayPath,
+  actions,
   players,
   teamsByPlayer,
   playerColors,
@@ -45,8 +45,8 @@ export function GameOtherData({
   commands,
   onAnalyzeAgain,
 }: {
-  gameId: string
   replayPath?: string
+  actions: ReplayActionsRead
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
   playerColors: ReadonlyMap<number, string>
@@ -95,14 +95,12 @@ export function GameOtherData({
     )
   } else if (shownTab === 'actions') {
     content = (
-      <GameActions
-        gameId={gameId}
-        replayPath={replayPath}
+      <GameActionMix
+        read={actions}
         players={players}
         teamsByPlayer={teamsByPlayer}
         playerColors={playerColors}
         durationMs={durationMs}
-        commands={commands}
       />
     )
   } else {

@@ -59,8 +59,12 @@ export function listReplayActions(
     set.add(add)
     labels.set(index, set)
   }
-  for (const { frame, playerId, command } of commands) {
-    if (!ids.has(playerId) || UNLISTED.has(command.type)) {
+  const bySlot = new Map(playing.map(p => [p.slotId, p.networkId]))
+  for (const { frame, playerId: recordedId, command } of commands) {
+    // Chat is recorded under the id of whoever saved the replay. The message's own sender byte
+    // says who sent it: their slot, or 128 and up for an observer, who isn't listed.
+    const playerId = command.type === 'chat' ? bySlot.get(command.senderSlot) : recordedId
+    if (playerId === undefined || !ids.has(playerId) || UNLISTED.has(command.type)) {
       continue
     }
     const index = actions.length

@@ -182,12 +182,11 @@ const UNFOCUSED_LINE_OPACITY = 0.15
 
 /**
  * A second line for each player, drawn thin and dashed under their main one, for a number the main
- * one is part of, like every action under the effective ones.
+ * one is part of, like every action under the effective ones. The tooltip shows it on the main
+ * line's row, so each player gets one row.
  */
 interface BackLines {
   getValues: (timeline: PlayerTimeline) => ReadonlyArray<number | undefined> | undefined
-  /** What a player's back line is called in the tooltip. */
-  name: (playerName: string) => string
 }
 
 /** The chart data key for a player's back line. */
@@ -203,7 +202,7 @@ function TimelineChart({
   getValues,
   lineType = 'linear',
   formatValue,
-  lineName,
+  describeValue,
   back,
 }: {
   timesMs: ReadonlyArray<number>
@@ -219,8 +218,11 @@ function TimelineChart({
   lineType?: 'linear' | 'stepAfter' | 'stepBefore'
   /** Shows values some other way than as numbers, like lengths of time. */
   formatValue?: (value: number) => string
-  /** What a player's line is called in the tooltip, when it isn't just their name. */
-  lineName?: (playerName: string) => string
+  /**
+   * What a player's row in the tooltip says, from their value and their back line's, when it
+   * isn't just their value.
+   */
+  describeValue?: (value: string, backValue?: string) => string
   back?: BackLines
 }) {
   const format = useStatFormat()
@@ -281,9 +283,20 @@ function TimelineChart({
         // Highest first, so the order matches the lines at that moment.
         itemSorter={item => -(typeof item.value === 'number' ? item.value : 0)}
         labelFormatter={ms => getGameDurationString(Number(ms))}
-        formatter={value =>
-          typeof value === 'number' ? (formatValue ?? format.format)(value) : value
-        }
+        formatter={(value, _name, item) => {
+          if (typeof value !== 'number') {
+            return value
+          }
+          const toText = formatValue ?? format.format
+          if (!describeValue) {
+            return toText(value)
+          }
+          const backValue = back ? item.payload?.[`${String(item.dataKey)}back`] : undefined
+          return describeValue(
+            toText(value),
+            typeof backValue === 'number' ? toText(backValue) : undefined,
+          )
+        }}
       />
       {back
         ? shown.map(player => (
@@ -291,7 +304,7 @@ function TimelineChart({
               key={`back${player.id}`}
               type={lineType}
               dataKey={backDataKey(player)}
-              name={back.name(player.name)}
+              tooltipType='none'
               stroke={colors.get(player.id)}
               strokeOpacity={isDimmed(player) ? UNFOCUSED_LINE_OPACITY / 2 : 0.6}
               strokeWidth={1.2}
@@ -306,7 +319,7 @@ function TimelineChart({
           key={player.id}
           type={lineType}
           dataKey={playerDataKey(player)}
-          name={lineName ? lineName(player.name) : player.name}
+          name={player.name}
           stroke={colors.get(player.id)}
           strokeOpacity={isDimmed(player) ? UNFOCUSED_LINE_OPACITY : 1}
           strokeWidth={2.2}
@@ -350,7 +363,7 @@ export function GameStatsTimelines({
     getValues: (timeline: PlayerTimeline) => ReadonlyArray<number | undefined> | undefined
     lineType?: 'linear' | 'stepAfter' | 'stepBefore'
     formatValue?: (value: number) => string
-    lineName?: (playerName: string) => string
+    describeValue?: (value: string, backValue?: string) => string
     back?: BackLines
   }> = [
     {
@@ -369,10 +382,12 @@ export function GameStatsTimelines({
       title: t('gameStats.apmAndEapm', 'EAPM, and APM dashed'),
       getValues: tl =>
         tl.effectiveActions && getRatePerMinute(timesMs, tl.effectiveActions, EAPM_WINDOW_MS),
-      lineName: name => t('gameStats.eapmOf', '{{name}} EAPM', { name }),
+      describeValue: (eapm, apm) =>
+        apm
+          ? t('gameStats.eapmAndApm', '{{eapm}} EAPM, {{apm}} APM', { eapm, apm })
+          : t('gameStats.eapmValue', '{{eapm}} EAPM', { eapm }),
       back: {
         getValues: tl => tl.actions && getRatePerMinute(timesMs, tl.actions, EAPM_WINDOW_MS),
-        name: name => t('gameStats.apmOf', '{{name}} APM', { name }),
       },
     },
     {
@@ -440,7 +455,7 @@ export function GameStatsTimelines({
                       getValues={chart.getValues}
                       lineType={chart.lineType}
                       formatValue={chart.formatValue}
-                      lineName={chart.lineName}
+                      describeValue={chart.describeValue}
                       back={chart.back}
                     />
                   </ResponsiveContainer>
