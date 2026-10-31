@@ -42,6 +42,8 @@ export interface LocalSettings extends GgStatsAppSettings {
   clockFormat?: ClockFormat
   /** The language the app is shown in. Missing means the best match for Windows' languages. */
   language?: TranslationLanguage
+  /** Whether the welcome for a new install was shown. Missing means not yet. */
+  welcomeShown?: boolean
   /** Whether the user was asked once about starting with Windows, whatever they said. */
   startWithWindowsOffered?: boolean
   /**

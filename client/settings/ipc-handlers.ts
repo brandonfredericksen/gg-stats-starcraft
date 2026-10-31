@@ -1,6 +1,8 @@
 import swallowNonBuiltins from '../../common/async/swallow-non-builtins'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { LocalSettings } from '../../common/settings/local-settings'
+import { openDialog } from '../dialogs/action-creators'
+import { DialogType } from '../dialogs/dialog-type'
 import { dispatch } from '../dispatch-registry'
 import i18n from '../i18n/i18next'
 import { getAppLanguage } from '../i18n/language-detector'
@@ -67,6 +69,10 @@ export default function registerModule({ ipcRenderer }: { ipcRenderer: TypedIpcR
       })
 
       afterLocalSettingsChange(settings)
+
+      if (settings && !settings.welcomeShown) {
+        dispatch(openDialog({ type: DialogType.Welcome }))
+      }
     })
     .catch(swallowNonBuiltins)
 

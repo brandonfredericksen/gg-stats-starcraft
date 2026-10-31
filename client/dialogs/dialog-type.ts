@@ -8,6 +8,7 @@ export enum DialogType {
   GgStatsHealth = 'ggStatsHealth',
   StarcraftHealth = 'starcraftHealth',
   Player = 'player',
+  Welcome = 'welcome',
 }
 
 type BaseDialogPayload<D, DataType = undefined> = DataType extends undefined
@@ -45,6 +46,7 @@ type SimpleDialogPayload = BaseDialogPayload<
 >
 type GgStatsHealthDialogPayload = BaseDialogPayload<typeof DialogType.GgStatsHealth>
 type StarcraftHealthDialogPayload = BaseDialogPayload<typeof DialogType.StarcraftHealth>
+type WelcomeDialogPayload = BaseDialogPayload<typeof DialogType.Welcome>
 type PlayerDialogPayload = BaseDialogPayload<
   typeof DialogType.Player,
   {
@@ -68,3 +70,4 @@ export type DialogPayload =
   | GgStatsHealthDialogPayload
   | StarcraftHealthDialogPayload
   | PlayerDialogPayload
+  | WelcomeDialogPayload

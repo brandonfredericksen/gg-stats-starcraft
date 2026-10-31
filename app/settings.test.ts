@@ -78,7 +78,7 @@ describe('app/settings migrateLocalSettings', () => {
       visualizeNetworkStalls: true,
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 29 })
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
   })
 
   test('drops the minimap terrain toggle from version 25 settings', async () => {
@@ -88,7 +88,7 @@ describe('app/settings migrateLocalSettings', () => {
       minimapTerrainHidden: true,
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 29 })
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
   })
 
   test('drops the gameplay defaults preset from version 26 settings', async () => {
@@ -98,7 +98,7 @@ describe('app/settings migrateLocalSettings', () => {
       gameDefaultsPreset: 'legacy',
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 29 })
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
   })
 
   test('turns starting with Windows off, to be asked about once', async () => {
@@ -109,7 +109,7 @@ describe('app/settings migrateLocalSettings', () => {
       startWithWindowsOffered: true,
     })
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 29 })
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
   })
 
   test('drops the settings for changing how replays play from version 28 settings', async () => {
@@ -124,11 +124,17 @@ describe('app/settings migrateLocalSettings', () => {
       grabPanSensitivity: 40,
     } as any)
 
-    expect(migrated).toEqual({ ...VERSION_24, version: 29 })
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
+  })
+
+  test('counts the welcome as shown for settings from before it', async () => {
+    const migrated = await migrateLocalSettings({ ...VERSION_24, version: 29 })
+
+    expect(migrated).toEqual({ ...VERSION_24, welcomeShown: true, version: 30 })
   })
 
   test('leaves current settings as they are', async () => {
-    const current = { ...VERSION_24, version: 29 }
+    const current = { ...VERSION_24, version: 30 }
 
     expect(await migrateLocalSettings(current)).toEqual(current)
   })

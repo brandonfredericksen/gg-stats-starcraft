@@ -34,6 +34,9 @@ const StarcraftHealthCheckupDialog = React.lazy(async () => ({
 const PlayerDialog = React.lazy(async () => ({
   default: (await import('../players/player-dialog')).PlayerDialog,
 }))
+const WelcomeDialog = React.lazy(async () => ({
+  default: (await import('../welcome/welcome-dialog')).WelcomeDialog,
+}))
 
 const Scrim = styled(m.div)`
   position: fixed;
@@ -70,6 +73,8 @@ function getDialog(dialogType: DialogType): {
       return { component: StarcraftHealthCheckupDialog }
     case DialogType.Player:
       return { component: PlayerDialog }
+    case DialogType.Welcome:
+      return { component: WelcomeDialog, modal: true }
     default:
       return dialogType satisfies never
   }

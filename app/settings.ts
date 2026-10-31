@@ -11,7 +11,7 @@ import { LocalSettings } from '../common/settings/local-settings'
 import { findInstallPath } from './find-install-path'
 import log from './logger'
 
-const VERSION = 29
+const VERSION = 30
 
 /**
  * Where StarCraft is installed, or an empty path when it can't be found, so Settings asks for it
@@ -406,6 +406,12 @@ export async function migrateLocalSettings(
     ]) {
       delete (newSettings as any)[removed]
     }
+  }
+
+  if (!settings.version || settings.version < 30) {
+    log.verbose('Found settings version 29, migrating to version 30')
+    // The welcome is for new installs. Anyone with settings from before it has seen the app.
+    newSettings.welcomeShown = true
   }
 
   newSettings.version = VERSION
