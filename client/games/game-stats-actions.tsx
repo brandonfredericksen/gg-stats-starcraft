@@ -14,23 +14,34 @@ import { getTechName, getUpgradeName } from '../../common/games/research-types'
 import { getUnitTypeInfo } from '../../common/games/unit-types'
 import { TypedIpcRenderer } from '../../common/ipc'
 import { filterColorCodes } from '../../common/maps'
+import { numberFormat, useFormat } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import logger from '../logging/logger'
 import { buttonReset } from '../material/button-reset'
 import { RaceTag } from '../material/race-tag'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
-import { bodyMedium, labelLarge, labelMedium, labelSmall, singleLine } from '../styles/typography'
+import {
+  bodyMedium,
+  bodySmall,
+  labelLarge,
+  labelMedium,
+  labelSmall,
+  singleLine,
+} from '../styles/typography'
 import { Side } from './game-stats-model'
 import { ReplayCommandsRead } from './game-stats-other'
 import {
   LegendButton,
   Picker,
   PickerButton,
+  PlayerName,
   PlayerSwatch,
   SectionErrorBoundary,
   SectionNote,
   StatsPanel,
+  TeamChip,
+  useStatFormat,
 } from './game-stats-shared'
 
 const ipcRenderer = new TypedIpcRenderer()
@@ -679,6 +690,215 @@ const Empty = styled.div`
   color: var(--theme-on-surface-variant);
 `
 
+const percentFormat = numberFormat({ style: 'percent', maximumFractionDigits: 0 })
+
+const MixPanel = styled(StatsPanel)`
+  overflow-x: auto;
+`
+
+const MixTable = styled.div`
+  min-width: 860px;
+  display: grid;
+  grid-template-columns: minmax(200px, 1.4fr) repeat(${GROUPS.length + 1}, minmax(88px, 1fr));
+`
+
+const MixRow = styled.div`
+  display: contents;
+`
+
+const MixHeaderCell = styled.div`
+  padding: 6px 8px 4px;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+
+  border-bottom: 1px solid var(--theme-outline-variant);
+`
+
+const MixPlayerHeader = styled(MixHeaderCell)`
+  ${labelMedium};
+  padding: 12px 14px 10px;
+  justify-content: flex-start;
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+`
+
+/** A kind of action's column header, which also shows only that kind in the list below. */
+const MixHeaderButton = styled.button<{ $on: boolean }>`
+  ${buttonReset};
+  ${labelMedium};
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: ${props => (props.$on ? 'var(--theme-container-highest)' : 'transparent')};
+  color: ${props => (props.$on ? 'var(--theme-on-surface)' : 'var(--theme-on-surface-variant)')};
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--theme-on-surface);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--theme-grey-blue);
+    outline-offset: 2px;
+  }
+`
+
+const MixTotalHeader = styled(MixHeaderCell)`
+  ${labelMedium};
+  padding: 12px 14px 10px;
+  color: var(--theme-on-surface-variant);
+  font-weight: 600;
+`
+
+const MixCell = styled.div<{ $first: boolean }>`
+  min-width: 0;
+  min-height: 56px;
+  padding: 8px 14px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 2px;
+
+  border-top: 1px solid ${props => (props.$first ? 'transparent' : 'var(--theme-outline-variant)')};
+`
+
+const MixPlayerCell = styled(MixCell)`
+  ${bodyMedium};
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+`
+
+const MixCount = styled.span`
+  ${bodyMedium};
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`
+
+const MixShare = styled.span`
+  ${bodySmall};
+  color: var(--theme-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`
+
+/** A thin bar under a count, as long as the share of the player's actions it is. */
+const ShareTrack = styled.span`
+  width: 100%;
+  height: 4px;
+  margin-top: 2px;
+  border-radius: var(--radius-full);
+  background: var(--theme-outline-variant);
+  overflow: hidden;
+`
+
+const ShareFill = styled.span<{ $color: string }>`
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: ${props => props.$color};
+`
+
+/**
+ * How each player's actions split between the kinds of action, a row each, the way BWChart charted
+ * them. A kind's header also shows only that kind in the list.
+ */
+function ActionMix({
+  rows,
+  players,
+  teamsByPlayer,
+  playerColors,
+  durationMs,
+  groups,
+  onToggleGroup,
+}: {
+  rows: ReadonlyArray<ActionRow>
+  players: ReadonlyArray<GamePlayerStats>
+  teamsByPlayer: ReadonlyMap<number, Side>
+  playerColors: ReadonlyMap<number, string>
+  durationMs: number
+  groups: ReadonlySet<ActionGroup>
+  onToggleGroup: (group: ActionGroup) => void
+}) {
+  const { t } = useTranslation()
+  const format = useStatFormat()
+  const percent = useFormat(percentFormat)
+
+  const counts = new Map(players.map(p => [p.id, new Map<ActionGroup, number>()]))
+  for (const row of rows) {
+    const byGroup = row.player && counts.get(row.player.id)
+    if (byGroup) {
+      const group = groupOf(row.action.command)
+      byGroup.set(group, (byGroup.get(group) ?? 0) + 1)
+    }
+  }
+
+  return (
+    <SectionErrorBoundary>
+      <MixPanel>
+        <MixTable role='table' aria-label={t('gameStats.actions.mix', 'Action mix')}>
+          <MixRow role='row'>
+            <MixPlayerHeader role='columnheader'>{t('gameStats.player', 'Player')}</MixPlayerHeader>
+            {GROUPS.map(g => (
+              <MixHeaderCell key={g} role='columnheader'>
+                <MixHeaderButton
+                  type='button'
+                  $on={groups.has(g)}
+                  aria-pressed={groups.has(g)}
+                  title={t('gameStats.actions.mixHeaderHelp', 'Show only these in the list')}
+                  onClick={() => onToggleGroup(g)}>
+                  {groupLabel(g, t)}
+                </MixHeaderButton>
+              </MixHeaderCell>
+            ))}
+            <MixTotalHeader role='columnheader'>
+              {t('gameStats.actions.total', 'Total')}
+            </MixTotalHeader>
+          </MixRow>
+          {players.map((player, i) => {
+            const first = i === 0
+            const team = teamsByPlayer.get(player.id)
+            const byGroup = counts.get(player.id)
+            const total = byGroup ? Array.from(byGroup.values()).reduce((a, b) => a + b, 0) : 0
+            const color = playerColors.get(player.id) ?? 'var(--theme-on-surface-variant)'
+            return (
+              <MixRow key={player.id} role='row'>
+                <MixPlayerCell role='rowheader' $first={first}>
+                  <PlayerSwatch $color={color} />
+                  <PlayerName player={player} durationMs={durationMs} />
+                  {team ? <TeamChip team={team} /> : null}
+                </MixPlayerCell>
+                {GROUPS.map(g => {
+                  const count = byGroup?.get(g) ?? 0
+                  const share = total ? count / total : 0
+                  return (
+                    <MixCell key={g} role='cell' $first={first}>
+                      <MixCount>{format.format(count)}</MixCount>
+                      <MixShare>{percent.format(share)}</MixShare>
+                      <ShareTrack aria-hidden={true}>
+                        <ShareFill $color={color} style={{ width: `${share * 100}%` }} />
+                      </ShareTrack>
+                    </MixCell>
+                  )
+                })}
+                <MixCell role='cell' $first={first}>
+                  <MixCount>{format.format(total)}</MixCount>
+                </MixCell>
+              </MixRow>
+            )
+          })}
+        </MixTable>
+      </MixPanel>
+    </SectionErrorBoundary>
+  )
+}
+
 /** Reads every action in a game's replay. */
 function useReplayActions(replayPath: string | undefined) {
   const [read, setRead] = useState<{ path: string; actions?: ReplayActions }>()
@@ -718,6 +938,7 @@ export function GameActions({
   players,
   teamsByPlayer,
   playerColors,
+  durationMs,
   commands,
 }: {
   gameId: string
@@ -725,6 +946,7 @@ export function GameActions({
   players: ReadonlyArray<GamePlayerStats>
   teamsByPlayer: ReadonlyMap<number, Side>
   playerColors: ReadonlyMap<number, string>
+  durationMs: number
   commands: ReplayCommandsRead
 }) {
   const { t } = useTranslation()
@@ -837,6 +1059,17 @@ export function GameActions({
 
   return (
     <>
+      {rows.length ? (
+        <ActionMix
+          rows={rows}
+          players={humans}
+          teamsByPlayer={teamsByPlayer}
+          playerColors={playerColors}
+          durationMs={durationMs}
+          groups={groups}
+          onToggleGroup={g => setGroups(toggle(groups, g))}
+        />
+      ) : null}
       <Players>
         {hasTeams
           ? teams.map(team => (

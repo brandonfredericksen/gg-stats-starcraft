@@ -101,6 +101,7 @@ export function GameOtherData({
         players={players}
         teamsByPlayer={teamsByPlayer}
         playerColors={playerColors}
+        durationMs={durationMs}
         commands={commands}
       />
     )
