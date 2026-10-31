@@ -2023,7 +2023,7 @@
   "welcome": {
     "analyzes": "GG Stats analyzes your replays and shows the stats in them.",
     "autoCapture": "Analyze each game when it ends",
-    "autoCaptureHint": "It happens in the background, out of your way.",
+    "autoCaptureHint": "Analysis runs in the background, out of your way.",
     "baseline": "It comes with recent ladder games to compare you against, and the builds played in them. It also estimates each player's ladder rank from how they play.",
     "optionsTitle": "Your games",
     "settingsHint": "You can change these in Settings.",

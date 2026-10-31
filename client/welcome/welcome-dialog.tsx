@@ -127,7 +127,7 @@ export function WelcomeDialog({ onCancel, close }: CommonDialogProps) {
             inputProps={{ tabIndex: 0 }}
           />
           <OptionHint>
-            {t('welcome.autoCaptureHint', 'It happens in the background, out of your way.')}
+            {t('welcome.autoCaptureHint', 'Analysis runs in the background, out of your way.')}
           </OptionHint>
         </Options>
         <Hint>{t('welcome.settingsHint', 'You can change these in Settings.')}</Hint>
