@@ -12,8 +12,8 @@ import {
   summarizeTeamBuilds,
   TeamBuildSample,
 } from './builds'
-import { ESkillModel } from './eskill'
-import { averageESkill, getESkillByPlayer, isAtESkillRank } from './eskill-players'
+import { ERankModel } from './erank'
+import { averageERank, getERankByPlayer, isAtERankRank } from './erank-players'
 import type { DatedGameMetrics, MyStatsShape } from './my-stats'
 import {
   findMe,
@@ -30,16 +30,16 @@ export const COACH_MIN_USER_GAMES = 10
 /** How many games of other players a number needs before it's a fair benchmark. */
 export const COACH_MIN_POOL_GAMES = 30
 /**
- * The eSkill ranks the user can pick for other players to be at or above, lowest first. A player
- * goes by their eSkill averaged over their games of the kind compared, see `getESkillByPlayer`.
+ * The eRanks the user can pick for other players to be at or above, lowest first. A player
+ * goes by their eRank averaged over their games of the kind compared, see `getERankByPlayer`.
  */
-export const ESKILL_FLOORS: ReadonlyArray<LadderRank> = ['c', 'b', 'a', 's']
+export const ERANK_FLOORS: ReadonlyArray<LadderRank> = ['c', 'b', 'a', 's']
 /**
- * The lowest eSkill rank other players need to count, and the floor My stats starts on. Unless the
- * user picks a floor, the coach picks their own eSkill rank, so they're compared with players at
+ * The lowest eRank other players need to count, and the floor My stats starts on. Unless the
+ * user picks a floor, the coach picks their own eRank, so they're compared with players at
  * their level and above.
  */
-export const DEFAULT_ESKILL_FLOOR = ESKILL_FLOORS[0]
+export const DEFAULT_ERANK_FLOOR = ERANK_FLOORS[0]
 /** How many of the user's latest games the user can pick to look at, besides `auto` and `all`. */
 export const COACH_WINDOW_GAMES = [25, 50, 100] as const
 /**
@@ -272,8 +272,8 @@ interface CoachMetric {
    */
   openingDependent?: boolean
   /**
-   * How fast the player plays. Compared with every player, not only those at the eSkill floor:
-   * speed is much of eSkill, so anyone near the floor would be slower than nearly everyone at it.
+   * How fast the player plays. Compared with every player, not only those at the eRank floor:
+   * speed is much of eRank, so anyone near the floor would be slower than nearly everyone at it.
    * Never put ahead of the basics as a goal.
    */
   speed?: boolean
@@ -873,8 +873,8 @@ export interface CoachQuery {
   mapFamily?: MapFamily
   /** One map to look at, in game types that don't split by map, see `getMapKey`. */
   mapKey?: string
-  /** The eSkill rank other players need to count, see {@link ESKILL_FLOORS}. */
-  eSkillFloor?: LadderRank
+  /** The eRank other players need to count, see {@link ERANK_FLOORS}. */
+  eRankFloor?: LadderRank
   /**
    * Only used in 1v1: the ladder rank other players need to have had going into a game for it to
    * count, or `any`. Unless picked, the rank of the user's latest ranked game, if they have one.
@@ -892,7 +892,7 @@ export type CoachResult = {
    * `COACH_MIN_SCOPE_GAMES`.
    */
   scopes: CoachScope[]
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   /** The ladder rank other players were picked by, in 1v1. */
   rank?: LadderRank
   /** In 1v1, the rank of the user's latest ranked game here, which `auto` picks. */
@@ -2004,14 +2004,14 @@ export function pickRank(
 /**
  * Compares the user's games of one kind with other players of the same race in the same kind of
  * game, from every analyzed replay, to find what they do worse and better than most, how they've
- * played lately, and what to work on next. Other players need an eSkill at `eSkillFloor`'s rank or
- * above, unless there's no `eSkillModel` to score them with. Without a kind of game picked, it looks
+ * played lately, and what to work on next. Other players need an eRank at `eRankFloor`'s rank or
+ * above, unless there's no `eRankModel` to score them with. Without a kind of game picked, it looks
  * at the one the user played most.
  */
 export function computeCoach(
   everyGame: ReadonlyArray<DatedGameMetrics>,
   query: CoachQuery,
-  eSkillModel?: ESkillModel,
+  eRankModel?: ERankModel,
 ): CoachResult {
   const { fromMs } = query
   const allGames =
@@ -2020,7 +2020,7 @@ export function computeCoach(
   const picked =
     query.shape && query.race && (query.shape !== '1v1' || query.opponentRace) ? query : scopes[0]
   if (!picked?.shape || !picked.race) {
-    return { status: 'noGames', scopes, eSkillFloor: query.eSkillFloor ?? DEFAULT_ESKILL_FLOOR }
+    return { status: 'noGames', scopes, eRankFloor: query.eRankFloor ?? DEFAULT_ERANK_FLOOR }
   }
   const shape = picked.shape
   const race = picked.race
@@ -2094,12 +2094,12 @@ export function computeCoach(
     const me = findMe(game, query.names)
     return me && isOfKind(game, me) && hasAlly(game, me) ? [{ game, player: me }] : []
   })
-  const myESkill = eSkillModel ? averageESkill(eSkillModel, myPlays) : undefined
+  const myERank = eRankModel ? averageERank(eRankModel, myPlays) : undefined
   const autoFloor =
-    eSkillModel && myESkill !== undefined
-      ? ESKILL_FLOORS.findLast(floor => isAtESkillRank(eSkillModel, myESkill, floor))
+    eRankModel && myERank !== undefined
+      ? ERANK_FLOORS.findLast(floor => isAtERankRank(eRankModel, myERank, floor))
       : undefined
-  const eSkillFloor = query.eSkillFloor ?? autoFloor ?? DEFAULT_ESKILL_FLOOR
+  const eRankFloor = query.eRankFloor ?? autoFloor ?? DEFAULT_ERANK_FLOOR
   const { auto: autoRank, rank } =
     shape === '1v1'
       ? pickRank(games, query.names, query.rank, isOfKind)
@@ -2177,11 +2177,11 @@ export function computeCoach(
     moneyMap: false,
   }
 
-  // Players are judged by their usual eSkill over their games of this kind, not game by game.
-  const poolESkill =
-    eSkillModel &&
-    getESkillByPlayer(
-      eSkillModel,
+  // Players are judged by their usual eRank over their games of this kind, not game by game.
+  const poolERank =
+    eRankModel &&
+    getERankByPlayer(
+      eRankModel,
       Array.from(buckets.values()).flatMap(b => b.pool.map(e => e.sample)),
     )
 
@@ -2210,11 +2210,11 @@ export function computeCoach(
     const isPicked = (e: PoolEntry) =>
       (!allyRace || anyAlly || e.sameAlly) && (!rank || e.sample.player.rank === rank)
     const isAtFloor = (e: PoolEntry) => {
-      if (!eSkillModel || !poolESkill) {
+      if (!eRankModel || !poolERank) {
         return true
       }
-      const value = poolESkill.get(nameOf(e.sample.player))
-      return value !== undefined && isAtESkillRank(eSkillModel, value, eSkillFloor)
+      const value = poolERank.get(nameOf(e.sample.player))
+      return value !== undefined && isAtERankRank(eRankModel, value, eRankFloor)
     }
     const entries = played.filter(isPicked)
     const allPool = capPerPlayer(entries.map(e => e.sample))
@@ -2376,7 +2376,7 @@ export function computeCoach(
   return {
     status: 'ready',
     scopes,
-    eSkillFloor,
+    eRankFloor,
     rank,
     autoRank,
     rankMmr: shape === '1v1' ? getRankMmr(allGames) : undefined,

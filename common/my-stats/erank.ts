@@ -4,7 +4,7 @@ import { AssignedRaceChar } from '../races'
 import { makeScriptedCheck, splitsByMap } from './player-games'
 
 /**
- * eSkill estimates a player's 1v1 ladder MMR from how they played one game: how fast their hands
+ * eRank estimates a player's 1v1 ladder MMR from how they played one game: how fast their hands
  * were, how they used hotkeys and how they spent their money. It's fit to the ladder players the
  * app ships, whose MMR is known, and goes by nothing an opponent decides for them, like what they
  * killed or how much they mined.
@@ -16,24 +16,24 @@ import { makeScriptedCheck, splitsByMap } from './player-games'
  */
 
 /** Players who stopped before this haven't played enough of a game to be scored. */
-export const ESKILL_MIN_PLAYED_MS = 6 * 60_000
+export const ERANK_MIN_PLAYED_MS = 6 * 60_000
 /**
- * How many of a player's latest games their eSkill is averaged over. One game is a rough read,
+ * How many of a player's latest games their eRank is averaged over. One game is a rough read,
  * within about 220 MMR of the ladder's on average, and an average of several a much closer one.
  */
-export const ESKILL_AVERAGE_GAMES = 20
+export const ERANK_AVERAGE_GAMES = 20
 
-/** What a part of eSkill measures. */
-export type ESkillPart = 'speed' | 'hands' | 'macro'
-export const ESKILL_PARTS: ReadonlyArray<ESkillPart> = ['speed', 'hands', 'macro']
+/** What a part of eRank measures. */
+export type ERankPart = 'speed' | 'hands' | 'macro'
+export const ERANK_PARTS: ReadonlyArray<ERankPart> = ['speed', 'hands', 'macro']
 
 interface Feature {
-  part: ESkillPart
+  part: ERankPart
   get: (p: PlayerMetrics) => number | null | undefined
 }
 
 /**
- * The numbers eSkill weighs. Time out of supply isn't one: it counts being at the cap with nothing
+ * The numbers eRank weighs. Time out of supply isn't one: it counts being at the cap with nothing
  * to build or no money to build it, so it says little about a player. Neither is anything an
  * opponent shapes, like workers, income or army killed.
  */
@@ -78,10 +78,10 @@ interface RaceModel {
   /** Every training player's MMR, in order. */
   mmrs: number[]
   /** Every training player's score from each part alone, in order. */
-  partScores: Record<ESkillPart, number[]>
+  partScores: Record<ERankPart, number[]>
 }
 
-export interface ESkillModel {
+export interface ERankModel {
   /**
    * Each of {@link FEATURES}' values for players of a race in a kind of game, in order, keyed by
    * {@link groupKey}.
@@ -94,8 +94,8 @@ export interface ESkillModel {
   players: number
 }
 
-/** A player's eSkill in one game. */
-export interface ESkill {
+/** A player's eRank in one game. */
+export interface ERank {
   /** The estimated 1v1 ladder MMR. */
   value: number
   rank?: LadderRank
@@ -103,7 +103,7 @@ export interface ESkill {
    * How each part compares with ladder players of the same race, from 0 to 100. Missing for a part
    * the game didn't measure, which then counts as the middle in {@link value}.
    */
-  parts: Partial<Record<ESkillPart, number>>
+  parts: Partial<Record<ERankPart, number>>
 }
 
 function groupKey(game: GameMetrics, race: AssignedRaceChar, withMap: boolean) {
@@ -119,7 +119,7 @@ function isScorable(game: GameMetrics, player: PlayerMetrics) {
     player.human &&
     !!player.race &&
     !!player.eapm &&
-    playedMs(game, player) >= ESKILL_MIN_PLAYED_MS &&
+    playedMs(game, player) >= ERANK_MIN_PLAYED_MS &&
     game.players.every(p => p.human)
   )
 }
@@ -192,11 +192,7 @@ function quantile(sorted: ReadonlyArray<number>, share: number) {
  * scores: 0 for the middle, -1 and 1 for about a sixth of the way from either end. A number the
  * player has no value for counts as the middle.
  */
-function normalScores(
-  model: Pick<ESkillModel, 'groups'>,
-  game: GameMetrics,
-  player: PlayerMetrics,
-) {
+function normalScores(model: Pick<ERankModel, 'groups'>, game: GameMetrics, player: PlayerMetrics) {
   const race = player.race!
   const group =
     model.groups.get(groupKey(game, race, true)) ??
@@ -297,11 +293,7 @@ function fitRidge(xs: ReadonlyArray<number[]>, ys: ReadonlyArray<number>) {
   return solve(a, b)
 }
 
-function partScore(
-  weights: ReadonlyArray<number>,
-  scores: ReadonlyArray<number>,
-  part: ESkillPart,
-) {
+function partScore(weights: ReadonlyArray<number>, scores: ReadonlyArray<number>, part: ERankPart) {
   return FEATURES.reduce((sum, f, i) => (f.part === part ? sum + weights[i] * scores[i] : sum), 0)
 }
 
@@ -309,7 +301,7 @@ function rawScore(weights: ReadonlyArray<number>, scores: ReadonlyArray<number>)
   return scores.reduce((sum, score, i) => sum + weights[i] * score, weights[FEATURES.length])
 }
 
-function getRankStarts(players: ReadonlyArray<PlayerMetrics>): ESkillModel['rankStarts'] {
+function getRankStarts(players: ReadonlyArray<PlayerMetrics>): ERankModel['rankStarts'] {
   const medians = LADDER_RANKS.flatMap(rank => {
     const mmrs = players
       .filter(p => p.rank === rank)
@@ -324,11 +316,11 @@ function getRankStarts(players: ReadonlyArray<PlayerMetrics>): ESkillModel['rank
 }
 
 /**
- * Fits eSkill to `games`: every kind of game's numbers to rank players against, and for each race,
+ * Fits eRank to `games`: every kind of game's numbers to rank players against, and for each race,
  * how those ranks weigh up to the MMR of the 1v1 ladder players among them. Undefined without
  * enough ranked players of any race.
  */
-export function fitESkillModel(games: ReadonlyArray<GameMetrics>): ESkillModel | undefined {
+export function fitERankModel(games: ReadonlyArray<GameMetrics>): ERankModel | undefined {
   const isScripted = makeScriptedCheck(games)
   const groups = buildGroups(games, isScripted)
   const training = games.flatMap(game =>
@@ -338,7 +330,7 @@ export function fitESkillModel(games: ReadonlyArray<GameMetrics>): ESkillModel |
           .map(player => ({ player, scores: normalScores({ groups }, game, player) }))
       : [],
   )
-  const races: ESkillModel['races'] = {}
+  const races: ERankModel['races'] = {}
   for (const race of ['p', 't', 'z'] as const) {
     const players = training.filter(t => t.player.race === race)
     if (players.length < MIN_TRAINING_PLAYERS) {
@@ -355,8 +347,8 @@ export function fitESkillModel(games: ReadonlyArray<GameMetrics>): ESkillModel |
       rawScores: sortedScores(scores => rawScore(weights, scores)),
       mmrs: players.map(t => t.player.mmr!).sort((a, b) => a - b),
       partScores: Object.fromEntries(
-        ESKILL_PARTS.map(part => [part, sortedScores(scores => partScore(weights, scores, part))]),
-      ) as Record<ESkillPart, number[]>,
+        ERANK_PARTS.map(part => [part, sortedScores(scores => partScore(weights, scores, part))]),
+      ) as Record<ERankPart, number[]>,
     }
   }
   if (!Object.keys(races).length) {
@@ -370,21 +362,21 @@ export function fitESkillModel(games: ReadonlyArray<GameMetrics>): ESkillModel |
   }
 }
 
-/** The ladder rank an eSkill falls in. */
-export function getESkillRank(model: ESkillModel, value: number): LadderRank | undefined {
+/** The ladder rank an eRank falls in. */
+export function getERankRank(model: ERankModel, value: number): LadderRank | undefined {
   return model.rankStarts.findLast(start => value >= start.mmr)?.rank
 }
 
 /**
- * A player's eSkill in a game, if they played long enough to score. The model's estimate is spread
+ * A player's eRank in a game, if they played long enough to score. The model's estimate is spread
  * out to match the ladder: a player whose estimate beats 90% of ladder players of their race gets
  * the MMR that 90% of them are under, so the best and worst aren't pulled toward the middle.
  */
-export function getESkill(
-  model: ESkillModel,
+export function getERank(
+  model: ERankModel,
   game: GameMetrics,
   player: PlayerMetrics,
-): ESkill | undefined {
+): ERank | undefined {
   const raceModel = player.race ? model.races[player.race] : undefined
   if (!raceModel || !isScorable(game, player)) {
     return undefined
@@ -394,9 +386,9 @@ export function getESkill(
   const value = Math.round(quantile(raceModel.mmrs, percentileOf(raceModel.rawScores, raw)))
   return {
     value,
-    rank: getESkillRank(model, value),
+    rank: getERankRank(model, value),
     parts: Object.fromEntries(
-      ESKILL_PARTS.filter(part => hasPart(player, part)).map(part => [
+      ERANK_PARTS.filter(part => hasPart(player, part)).map(part => [
         part,
         Math.round(
           100 *
@@ -411,7 +403,7 @@ export function getESkill(
  * Whether the game measured any of a part for the player. Hotkeys come from the replay's commands,
  * which stats saved without a replay don't have.
  */
-function hasPart(player: PlayerMetrics, part: ESkillPart) {
+function hasPart(player: PlayerMetrics, part: ERankPart) {
   return FEATURES.some(feature => {
     const value = feature.part === part ? feature.get(player) : undefined
     return value !== null && value !== undefined && Number.isFinite(value)

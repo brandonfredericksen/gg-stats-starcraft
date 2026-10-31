@@ -1,4 +1,4 @@
-import { ESkillModel } from '../../common/my-stats/eskill'
+import { ERankModel } from '../../common/my-stats/erank'
 import { computeMyStats, DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { computePlayerScout, PlayerScout, PlayerSummary } from '../../common/my-stats/player-scout'
 import {
@@ -22,8 +22,8 @@ export interface ScoutGamesDeps {
    * one to start while the user's game is loading, so they're only used once something else did.
    */
   loadedBaseline: () => ReadonlyArray<DatedGameMetrics> | undefined
-  /** The eSkill model, if it's been fit already, for the same reason. */
-  loadedESkillModel: () => ESkillModel | undefined
+  /** The eRank model, if it's been fit already, for the same reason. */
+  loadedERankModel: () => ERankModel | undefined
 }
 
 type NameIndex = ReadonlyMap<string, ReadonlyArray<DatedGameMetrics>>
@@ -77,7 +77,7 @@ export class ScoutGames {
   async scout(accountLists: ReadonlyArray<ReadonlyArray<string>>): Promise<PlayerScout[]> {
     const own = await this.loadOwn()
     const baseline = this.getBaselineIndex()
-    const eSkillModel = this.deps.loadedESkillModel()
+    const eRankModel = this.deps.loadedERankModel()
     const nowMs = Date.now()
     const population = this.getPopulation(own.population, baseline?.population)
     return accountLists.map(accounts =>
@@ -85,7 +85,7 @@ export class ScoutGames {
         this.gamesOf(own, baseline, accounts),
         accounts,
         nowMs,
-        eSkillModel,
+        eRankModel,
         population,
       ),
     )
@@ -95,16 +95,16 @@ export class ScoutGames {
   async summarize(accountLists: ReadonlyArray<ReadonlyArray<string>>): Promise<PlayerSummary[]> {
     const own = await this.loadOwn()
     const baseline = this.getBaselineIndex()
-    const eSkillModel = this.deps.loadedESkillModel()
+    const eRankModel = this.deps.loadedERankModel()
     const nowMs = Date.now()
     return accountLists.map(accounts => {
-      const { games, apm, eapm, eSkill } = computeMyStats(
+      const { games, apm, eapm, eRank } = computeMyStats(
         this.gamesOf(own, baseline, accounts),
         { names: [...accounts], range: 'all' },
         nowMs,
-        eSkillModel,
+        eRankModel,
       )
-      return { games, apm, eapm, eSkill }
+      return { games, apm, eapm, eRank }
     })
   }
 

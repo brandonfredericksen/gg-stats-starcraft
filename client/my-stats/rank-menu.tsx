@@ -2,7 +2,7 @@ import { TFunction } from 'i18next'
 import { useAtom, useSetAtom } from 'jotai'
 import { useTranslation } from 'react-i18next'
 import { LADDER_RANKS, LadderRank } from '../../common/games/ladder'
-import { ESKILL_FLOORS, RankMmr } from '../../common/my-stats/coach'
+import { ERANK_FLOORS, RankMmr } from '../../common/my-stats/coach'
 import { useStatFormat } from '../games/game-stats-shared'
 import { RankBadge } from '../ladder/rank-badge'
 import { SegmentMenu, SegmentOption } from '../material/segmented'
@@ -91,19 +91,19 @@ export function RankMenu({
   )
 }
 
-/** What other players at an eSkill floor are called, like "eSkill B+". S is the top, so no "+". */
-export function getESkillFloorName(floor: LadderRank, t: TFunction) {
+/** What other players at an eRank floor are called, like "eRank B+". S is the top, so no "+". */
+export function getERankFloorName(floor: LadderRank, t: TFunction) {
   const rank = floor.toUpperCase()
   return floor === 's'
-    ? t('myStats.filters.eSkillTop', 'eSkill {{rank}}', { rank })
-    : t('myStats.filters.eSkillFloor', 'eSkill {{rank}}+', { rank })
+    ? t('myStats.filters.eRankTop', 'eRank {{rank}}', { rank })
+    : t('myStats.filters.eRankFloor', 'eRank {{rank}}+', { rank })
 }
 
 /**
- * The eSkill rank other players need to be compared with, for My stats and the coach alike. A pick
+ * The eRank other players need to be compared with, for My stats and the coach alike. A pick
  * applies to both.
  */
-export function ESkillFloorMenu({
+export function ERankFloorMenu({
   floor,
   label,
   showLabel,
@@ -114,15 +114,15 @@ export function ESkillFloorMenu({
 }) {
   const { t } = useTranslation()
   const setFilters = useSetAtom(myStatsFiltersAtom)
-  const options: Array<SegmentOption<LadderRank>> = ESKILL_FLOORS.map(value => ({
+  const options: Array<SegmentOption<LadderRank>> = ERANK_FLOORS.map(value => ({
     value,
-    label: getESkillFloorName(value, t),
+    label: getERankFloorName(value, t),
     menuLabel:
       value === 's'
-        ? t('myStats.filters.eSkillTopPlayers', 'Players at eSkill {{rank}}', {
+        ? t('myStats.filters.eRankTopPlayers', 'Players at eRank {{rank}}', {
             rank: value.toUpperCase(),
           })
-        : t('myStats.filters.eSkillFloorPlayers', 'Players at eSkill {{rank}} and up', {
+        : t('myStats.filters.eRankFloorPlayers', 'Players at eRank {{rank}} and up', {
             rank: value.toUpperCase(),
           }),
     icon: <RankBadge rank={value} />,
@@ -133,7 +133,7 @@ export function ESkillFloorMenu({
       showLabel={showLabel}
       options={options}
       value={floor}
-      onChange={eSkillFloor => setFilters(f => ({ ...f, eSkillFloor }))}
+      onChange={eRankFloor => setFilters(f => ({ ...f, eRankFloor }))}
     />
   )
 }

@@ -9,7 +9,7 @@ import {
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { CoachQuery, computeCoach, getMetricFamily, roundTarget } from './coach'
-import { fitESkillModel } from './eskill'
+import { fitERankModel } from './erank'
 import { DatedGameMetrics } from './my-stats'
 
 const at = (minute: number) => CHECKPOINT_MINUTES.indexOf(minute)
@@ -98,7 +98,7 @@ function poolGames(count: number, workers6: (i: number) => number, eapm = 150) {
   )
 }
 
-/** Ladder players of every race whose MMR and rank go up with their EAPM, for an eSkill model. */
+/** Ladder players of every race whose MMR and rank go up with their EAPM, for an eRank model. */
 function ladderGames(count: number) {
   const ranks: LadderRank[] = ['e', 'd', 'c', 'b', 'a']
   return Array.from({ length: count }, (_, i) => {
@@ -114,7 +114,7 @@ function ladderGames(count: number) {
   })
 }
 
-const model = fitESkillModel(ladderGames(900))!
+const model = fitERankModel(ladderGames(900))!
 
 describe('common/my-stats/coach', () => {
   test('says when there are no games to coach', () => {
@@ -187,21 +187,21 @@ describe('common/my-stats/coach', () => {
     expect(bucket.uncompared.map(s => s.key)).not.toContain('larvaeFull10')
   })
 
-  test('leaves out players under the eSkill floor', () => {
-    const query_ = { ...query, eSkillFloor: 'c' as const }
+  test('leaves out players under the eRank floor', () => {
+    const query_ = { ...query, eRankFloor: 'c' as const }
     const slow = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 90)], query_, model)
     expect(slow.status === 'ready' && slow.buckets[0].poolGames).toBe(0)
     const fast = computeCoach([...myGames(12, 14), ...poolGames(40, () => 18, 250)], query_, model)
     expect(fast.status === 'ready' && fast.buckets[0].poolGames).toBe(40)
   })
 
-  test("compares with players at the user's eSkill rank and up, unless a floor is picked", () => {
+  test("compares with players at the user's eRank and up, unless a floor is picked", () => {
     const fast = myGames(12, 18).map(g => {
       g.players[0].eapm = 260
       return g
     })
-    expect(computeCoach(fast, query, model).eSkillFloor).toBe('a')
-    expect(computeCoach(fast, { ...query, eSkillFloor: 'c' }, model).eSkillFloor).toBe('c')
+    expect(computeCoach(fast, query, model).eRankFloor).toBe('a')
+    expect(computeCoach(fast, { ...query, eRankFloor: 'c' }, model).eRankFloor).toBe('c')
   })
 
   test('leaves out players a program played for, and says how many games that was', () => {

@@ -3,7 +3,7 @@ import { MIN_GAME_LENGTH_MS } from '../common/games/game-filters'
 import { LadderGame } from '../common/games/ladder'
 import { TypedIpcMain } from '../common/ipc'
 import { computeCoach } from '../common/my-stats/coach'
-import { ESkillModel, fitESkillModel } from '../common/my-stats/eskill'
+import { ERankModel, fitERankModel } from '../common/my-stats/erank'
 import { computeMetaBuilds } from '../common/my-stats/meta-builds'
 import { computeMyStatsSummary, DatedGameMetrics } from '../common/my-stats/my-stats'
 import { GameStatsStore } from './game/game-stats-store'
@@ -21,7 +21,7 @@ function isLongEnough(game: DatedGameMetrics) {
  * replay the library doesn't know, like one moved away, is dated by when its stats were saved.
  * Players of a ladder replay get their MMR and rank from the ladder manifest next to it, if there is
  * one. The ladder baseline the app ships adds other players' games to compare with. Games shorter
- * than `MIN_GAME_LENGTH_MS` don't count. eSkill is fit to the baseline's ranked players. Also
+ * than `MIN_GAME_LENGTH_MS` don't count. eRank is fit to the baseline's ranked players. Also
  * answers what the games say about the people in a game the user joined, see {@link ScoutGames}.
  */
 export function setupMyStats(
@@ -48,21 +48,21 @@ export function setupMyStats(
     return baseline
   }
 
-  let eSkillModel: Promise<ESkillModel | undefined> | undefined
-  /** The eSkill model, once it's been fit. */
-  let loadedESkillModel: ESkillModel | undefined
-  const loadESkillModel = () => {
-    eSkillModel ??= getBaseline().then(games => {
-      const model = fitESkillModel(games)
+  let eRankModel: Promise<ERankModel | undefined> | undefined
+  /** The eRank model, once it's been fit. */
+  let loadedERankModel: ERankModel | undefined
+  const loadERankModel = () => {
+    eRankModel ??= getBaseline().then(games => {
+      const model = fitERankModel(games)
       log.info(
         model
-          ? `Fit eSkill to ${model.players} ladder players`
-          : "The ladder baseline doesn't have enough ranked players to fit eSkill to",
+          ? `Fit eRank to ${model.players} ladder players`
+          : "The ladder baseline doesn't have enough ranked players to fit eRank to",
       )
-      loadedESkillModel = model
+      loadedERankModel = model
       return model
     })
-    return eSkillModel
+    return eRankModel
   }
 
   /**
@@ -108,27 +108,27 @@ export function setupMyStats(
 
   const ipcMain = new TypedIpcMain()
   ipcMain.handle('myStatsQuery', async (_event, query) => {
-    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    const [games, model] = await Promise.all([loadGames(), loadERankModel()])
     return computeMyStatsSummary(games, query, Date.now(), model)
   })
   ipcMain.handle('coachQuery', async (_event, query) => {
-    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    const [games, model] = await Promise.all([loadGames(), loadERankModel()])
     return computeCoach(games, query, model)
   })
   ipcMain.handle('metaBuildsQuery', async (_event, query) => {
-    const [games, model] = await Promise.all([loadGames(), loadESkillModel()])
+    const [games, model] = await Promise.all([loadGames(), loadERankModel()])
     return computeMetaBuilds(games, query, model)
   })
 
   // Looking up the players in a game happens while it loads: no ladder manifests, which it doesn't
-  // need, and no baseline or eSkill model unless something else already read them.
+  // need, and no baseline or eRank model unless something else already read them.
   const scoutGames = new ScoutGames({
     loadOwnGames: async () => {
       const { games, replayPathKeys } = await loadOwnGames()
       return { games: games.filter(isLongEnough), replayPathKeys }
     },
     loadedBaseline: () => loadedBaseline,
-    loadedESkillModel: () => loadedESkillModel,
+    loadedERankModel: () => loadedERankModel,
   })
   ipcMain.handle('liveGameScout', (_event, accountLists) => scoutGames.scout(accountLists))
   ipcMain.handle('playersSummary', (_event, accountLists) => scoutGames.summarize(accountLists))
@@ -137,14 +137,14 @@ export function setupMyStats(
     /** Lets go of the games read for looking up players, like when a game was just analyzed. */
     forgetScoutGames: () => scoutGames.forget(),
     /**
-     * Reads the baseline and fits eSkill ahead of time, so the people in a game the user joins can
+     * Reads the baseline and fits eRank ahead of time, so the people in a game the user joins can
      * be scored against the ladder. Best done while no game is loading.
      */
     prepareScouting: () =>
-      loadESkillModel().then(
+      loadERankModel().then(
         () => {},
         (err: unknown) => {
-          log.warning(`Couldn't get eSkill ready for looking up players: ${getErrorStack(err)}`)
+          log.warning(`Couldn't get eRank ready for looking up players: ${getErrorStack(err)}`)
         },
       ),
   }

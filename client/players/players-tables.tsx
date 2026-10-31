@@ -140,15 +140,15 @@ function PersonName({ person }: { person: Person }) {
   )
 }
 
-function ESkillText({ eSkill }: { eSkill: PlayerSummary['eSkill'] }) {
+function ERankText({ eRank }: { eRank: PlayerSummary['eRank'] }) {
   const format = useStatFormat()
-  if (!eSkill) {
+  if (!eRank) {
     return <Muted>-</Muted>
   }
   return (
     <ValueWithRank>
-      {format.format(eSkill.value)}
-      {eSkill.rank ? <LeagueTag $rank={eSkill.rank}>{eSkill.rank.toUpperCase()}</LeagueTag> : null}
+      {format.format(eRank.value)}
+      {eRank.rank ? <LeagueTag $rank={eRank.rank}>{eRank.rank.toUpperCase()}</LeagueTag> : null}
     </ValueWithRank>
   )
 }
@@ -206,7 +206,7 @@ function TopList({
   )
 }
 
-/** The people in the user's games with the highest eSkill and eAPM, over all their games. */
+/** The people in the user's games with the highest eRank and eAPM, over all their games. */
 export function TopPlayers({
   people,
   summaries,
@@ -220,18 +220,18 @@ export function TopPlayers({
     const summary = summaries.get(person.name.toLowerCase())
     return summary && summary.games >= TOP_MIN_GAMES ? [{ person, summary }] : []
   })
-  const byESkill = ranked
-    .filter(r => r.summary.eSkill)
-    .sort((a, b) => b.summary.eSkill!.value - a.summary.eSkill!.value)
+  const byERank = ranked
+    .filter(r => r.summary.eRank)
+    .sort((a, b) => b.summary.eRank!.value - a.summary.eRank!.value)
   const byEapm = ranked
     .filter(r => r.summary.eapm)
     .sort((a, b) => b.summary.eapm!.value - a.summary.eapm!.value)
   return (
     <Columns>
       <TopList
-        title={t('players.topESkill', 'Highest eSkill')}
-        rows={byESkill}
-        value={row => <ESkillText eSkill={row.summary.eSkill} />}
+        title={t('players.topERank', 'Highest eRank')}
+        rows={byERank}
+        value={row => <ERankText eRank={row.summary.eRank} />}
       />
       <TopList
         title={t('players.topEapm', 'Highest eAPM')}
@@ -243,7 +243,7 @@ export function TopPlayers({
 }
 
 type Relation = 'all' | 'with' | 'against'
-type SortKey = 'name' | 'games' | 'with' | 'against' | 'apm' | 'eapm' | 'eSkill'
+type SortKey = 'name' | 'games' | 'with' | 'against' | 'apm' | 'eapm' | 'eRank'
 
 interface Sort {
   key: SortKey
@@ -269,8 +269,8 @@ function getSortValue(
       return summary?.apm?.value
     case 'eapm':
       return summary?.eapm?.value
-    case 'eSkill':
-      return summary?.eSkill?.value
+    case 'eRank':
+      return summary?.eRank?.value
     default:
       return key satisfies never
   }
@@ -425,7 +425,7 @@ export function PlayersTable({
             {header('against', t('players.columnAgainst', 'Against'))}
             {header('apm', t('players.columnApm', 'APM'))}
             {header('eapm', t('players.columnEapm', 'eAPM'))}
-            {header('eSkill', t('players.columnESkill', 'eSkill'))}
+            {header('eRank', t('players.columnERank', 'eRank'))}
           </tr>
         </thead>
         <tbody>
@@ -440,7 +440,7 @@ export function PlayersTable({
               <td>{summary?.apm ? format.format(summary.apm.value) : <Muted>-</Muted>}</td>
               <td>{summary?.eapm ? format.format(summary.eapm.value) : <Muted>-</Muted>}</td>
               <td>
-                <ESkillText eSkill={summary?.eSkill} />
+                <ERankText eRank={summary?.eRank} />
               </td>
             </tr>
           ))}

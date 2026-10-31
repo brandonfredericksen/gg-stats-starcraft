@@ -260,7 +260,7 @@ const cases: Array<[string, CoachResult]> = [
     {
       status: 'ready',
       scopes,
-      eSkillFloor: 'b',
+      eRankFloor: 'b',
       rank: 'a',
       autoRank: 'a',
       scope: pvzScope,
@@ -273,7 +273,7 @@ const cases: Array<[string, CoachResult]> = [
     {
       status: 'ready',
       scopes: [{ shape: '2v2', race: 'p', allyRace: 'z', games: 40 }, ...scopes],
-      eSkillFloor: 'c',
+      eRankFloor: 'c',
       scope: { shape: '2v2', race: 'p', allyRace: 'z' },
       ...recentWindow,
       buckets: [teamBucket],
@@ -284,7 +284,7 @@ const cases: Array<[string, CoachResult]> = [
     {
       status: 'ready',
       scopes,
-      eSkillFloor: 'b',
+      eRankFloor: 'b',
       scope: pvzScope,
       ...recentWindow,
       mapKey: 'polypoid',

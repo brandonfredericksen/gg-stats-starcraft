@@ -13,7 +13,7 @@ export const bahnschriftCapCentered = css`
 
 /**
  * A ladder league's letter the way StarCraft: Remastered draws it: a square outlined in the
- * league's color over a dark tint of it. For a player's Battle.net rank and the rank their eSkill
+ * league's color over a dark tint of it. For a player's Battle.net rank and the rank their eRank
  * falls in, which is a ladder rank too.
  */
 export const LeagueTag = styled.span<{ $rank: LadderRank }>`

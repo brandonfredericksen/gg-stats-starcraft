@@ -224,7 +224,7 @@ const SideLabel = styled.h2`
  * size container, so what's in it can go by its height.
  */
 /**
- * The eSkill ranks whose tiles get a touch of their league's color, more for each rank up: an edge
+ * The eRanks whose tiles get a touch of their league's color, more for each rank up: an edge
  * catching the light from the top left, then from both corners with a glow, like a trophy's rim.
  */
 type Flair = 'b' | 'a' | 's'
@@ -252,7 +252,7 @@ const FLAIR_EDGES: Record<Flair, string> = {
 }
 
 function getFlair(scout: ScoutState): Flair | undefined {
-  const rank = scout !== 'loading' && scout !== 'error' ? scout.totals.eSkill?.rank : undefined
+  const rank = scout !== 'loading' && scout !== 'error' ? scout.totals.eRank?.rank : undefined
   return rank === 's' || rank === 'a' || rank === 'b' ? rank : undefined
 }
 
@@ -722,16 +722,16 @@ function TileStats({
       <HintLabel>{t('liveGame.eapm', 'eAPM')}</HintLabel>
     </Tooltip>
   )
-  const eSkillLabel = (
+  const eRankLabel = (
     <Tooltip
       text={t(
-        'liveGame.eSkillHelp',
+        'liveGame.eRankHelp',
         'The 1v1 ladder MMR and rank of players who play the way they do: their speed, hotkeys ' +
           'and macro over their latest games. Nothing an opponent decides counts in it.',
       )}
       tabIndex={-1}
       position='top'>
-      <HintLabel>{t('liveGame.eSkill', 'eSkill')}</HintLabel>
+      <HintLabel>{t('liveGame.eRank', 'eRank')}</HintLabel>
     </Tooltip>
   )
   const cheeseLabel = (
@@ -758,7 +758,7 @@ function TileStats({
           <SkeletonText $width='32px' />
         </Stat>
         <Stat>
-          {eSkillLabel}
+          {eRankLabel}
           <SkeletonText $width='48px' />
         </Stat>
         <Stat>
@@ -806,11 +806,11 @@ function TileStats({
         <StatValue>{totals.eapm ? format.format(totals.eapm.value) : '-'}</StatValue>
       </Stat>
       <Stat>
-        {eSkillLabel}
+        {eRankLabel}
         <StatValue>
-          {totals.eSkill ? format.format(totals.eSkill.value) : '-'}
-          {totals.eSkill?.rank ? (
-            <LeagueTag $rank={totals.eSkill.rank}>{totals.eSkill.rank.toUpperCase()}</LeagueTag>
+          {totals.eRank ? format.format(totals.eRank.value) : '-'}
+          {totals.eRank?.rank ? (
+            <LeagueTag $rank={totals.eRank.rank}>{totals.eRank.rank.toUpperCase()}</LeagueTag>
           ) : null}
         </StatValue>
       </Stat>

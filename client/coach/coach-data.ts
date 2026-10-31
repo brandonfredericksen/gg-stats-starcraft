@@ -9,7 +9,7 @@ import {
   CoachScope,
   CoachWindow,
   computeCoach,
-  DEFAULT_ESKILL_FLOOR,
+  DEFAULT_ERANK_FLOOR,
 } from '../../common/my-stats/coach'
 import { computeMetaBuilds, MetaQuery, MetaResult } from '../../common/my-stats/meta-builds'
 import { MyStatsRange, MyStatsShape, RANGE_MS } from '../../common/my-stats/my-stats'
@@ -237,9 +237,9 @@ export function useCoach(): { coach: CoachResult | 'error' | undefined; retry: (
   const scope = useAtomValue(coachScopeAtom)
   const window = useAtomValue(coachWindowAtom)
   const mapKey = useAtomValue(coachMapAtom)
-  // Only a floor the user picked; otherwise the coach picks the user's own eSkill rank.
-  const { eSkillFloor, rank } = useAtomValue(myStatsFiltersAtom)
-  const { coach, retry } = useCoachResult({ ...scope, mapKey, eSkillFloor, rank, window })
+  // Only a floor the user picked; otherwise the coach picks the user's own eRank.
+  const { eRankFloor, rank } = useAtomValue(myStatsFiltersAtom)
+  const { coach, retry } = useCoachResult({ ...scope, mapKey, eRankFloor, rank, window })
   return { coach, retry }
 }
 
@@ -273,7 +273,7 @@ export function useFilteredCoach(): CoachResult | 'error' | undefined {
           race,
           opponentRace,
           mapFamily,
-          eSkillFloor: filters.eSkillFloor ?? DEFAULT_ESKILL_FLOOR,
+          eRankFloor: filters.eRankFloor ?? DEFAULT_ERANK_FLOOR,
           rank: filters.rank,
           window: 'all',
         }

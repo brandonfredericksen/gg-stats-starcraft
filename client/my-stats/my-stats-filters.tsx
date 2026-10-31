@@ -6,7 +6,7 @@ import { getRaceLetter, getShapeLabel } from '../../common/games/game-labels'
 import { LadderRank } from '../../common/games/ladder'
 import { MapFamily } from '../../common/games/map-family'
 import { RankMmr } from '../../common/my-stats/coach'
-import { DEFAULT_ESKILL_FLOOR } from '../../common/my-stats/coach'
+import { DEFAULT_ERANK_FLOOR } from '../../common/my-stats/coach'
 import { MyStatsRange, MyStatsShape, RACE_PAIRS, RacePair } from '../../common/my-stats/my-stats'
 import { splitsByMap } from '../../common/my-stats/player-games'
 import { AssignedRaceChar } from '../../common/races'
@@ -14,7 +14,7 @@ import { useFitLevel } from '../dom/use-fit-level'
 import { Segmented, SegmentMenu, SegmentOption } from '../material/segmented'
 import { labelMedium } from '../styles/typography'
 import { myStatsFiltersAtom, useShowsOtherPlayer } from './my-stats-data'
-import { ESkillFloorMenu, RankMenu } from './rank-menu'
+import { ERankFloorMenu, RankMenu } from './rank-menu'
 
 /**
  * How the filter bar gives up room in a narrow window, so it always stays one row. Each level
@@ -100,7 +100,7 @@ function Choice<T>({
 
 /**
  * Every My stats filter, in one row: the kind of game first, then what that kind of game divides
- * by (the map in 3v3 and 4v4, the opponents' races in 1v1 and 2v2), the user's race, when, and the eSkill
+ * by (the map in 3v3 and 4v4, the opponents' races in 1v1 and 2v2), the user's race, when, and the eRank
  * (and in 1v1, the ladder rank) other players need to be compared with. The last ones rarely
  * change, so they're menus. `autoRank` is the rank picked until the user picks one, and `rankMmr`
  * the MMRs each covers. `autoMapFamily` is likewise the map family picked until the user picks one.
@@ -116,7 +116,7 @@ export function FilterBar({
 }) {
   const { t } = useTranslation()
   const [filters, setFilters] = useAtom(myStatsFiltersAtom)
-  const floor = filters.eSkillFloor ?? DEFAULT_ESKILL_FLOOR
+  const floor = filters.eRankFloor ?? DEFAULT_ERANK_FLOOR
   const [rootRef, fitLevel] = useFitLevel<HTMLDivElement>(
     FitLevel.GameTypeMenu,
     [
@@ -258,7 +258,7 @@ export function FilterBar({
       {/* Other players are only compared within one game type. */}
       {filters.shape ? (
         <Field caption={floorLabel}>
-          <ESkillFloorMenu floor={floor} label={floorLabel} showLabel={false} />
+          <ERankFloorMenu floor={floor} label={floorLabel} showLabel={false} />
         </Field>
       ) : null}
       {filters.shape === '1v1' ? (

@@ -49,7 +49,7 @@ import {
 } from '../my-stats/my-stats-panels'
 import { Badge, Header, Message, Root, Title } from '../my-stats/page-layout'
 import { getPoolSource, getScriptedNote } from '../my-stats/pool-source'
-import { ESkillFloorMenu, getESkillFloorName, RankMenu } from '../my-stats/rank-menu'
+import { ERankFloorMenu, getERankFloorName, RankMenu } from '../my-stats/rank-menu'
 import { PageLoadingIndicator } from '../progress/page-loading'
 import { STUCK_EDGE_PX, stuckEdgeGradient, useStuckBarBottom } from '../stuck-bar-edge'
 import { bodyMedium, labelLarge, titleMedium, titleSmall } from '../styles/typography'
@@ -793,7 +793,7 @@ const ScopeTagsRoot = styled.span`
  */
 function ScopeLine({
   bucket,
-  eSkillFloor,
+  eRankFloor,
   sinceMs,
   window,
   autoGames,
@@ -802,7 +802,7 @@ function ScopeLine({
   others,
 }: {
   bucket: CoachBucket
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   sinceMs?: number
   window: CoachWindow
   autoGames: number
@@ -844,7 +844,7 @@ function ScopeLine({
           '{{players}} players at {{floor}} {{source}}, up to 5 games each.',
           {
             players: bucket.poolPlayers,
-            floor: getESkillFloorName(eSkillFloor, t),
+            floor: getERankFloorName(eRankFloor, t),
             source: poolSource,
           },
         )
@@ -853,7 +853,7 @@ function ScopeLine({
           '{{players}} players at {{floor}} {{source}}, since the same date, up to 5 games each.',
           {
             players: bucket.poolPlayers,
-            floor: getESkillFloorName(eSkillFloor, t),
+            floor: getERankFloorName(eRankFloor, t),
             source: poolSource,
           },
         )
@@ -1341,11 +1341,11 @@ function toFilters(scope: Omit<CoachScope, 'games'>): MyStatsFilters {
  */
 function Unlock({
   bucket,
-  eSkillFloor,
+  eRankFloor,
   sinceMs,
 }: {
   bucket: CoachBucket
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   sinceMs?: number
 }) {
   const { t } = useTranslation()
@@ -1394,7 +1394,7 @@ function Unlock({
             t={t}
             i18nKey='myStats.coach.unlockFiltersAll'
             defaults='With these filters: all your {{race}} games here, compared to {{race}} players at <b>{{floor}}</b>.'
-            values={{ race, floor: getESkillFloorName(eSkillFloor, t) }}
+            values={{ race, floor: getERankFloorName(eRankFloor, t) }}
             components={{ b: <Key /> }}
           />
         ) : (
@@ -1402,7 +1402,7 @@ function Unlock({
             t={t}
             i18nKey='myStats.coach.unlockFiltersSince'
             defaults='With these filters: your games here since <b>{{date}}</b>, compared to {{race}} players at <b>{{floor}}</b> since then.'
-            values={{ race, floor: getESkillFloorName(eSkillFloor, t), date: formatDate(sinceMs) }}
+            values={{ race, floor: getERankFloorName(eRankFloor, t), date: formatDate(sinceMs) }}
             components={{ b: <Key /> }}
           />
         )}
@@ -1435,13 +1435,13 @@ function Unlock({
         {poolShort && sinceMs === undefined
           ? t(
               'myStats.coach.unlockPoolHowAll',
-              'To count more players, analyze more replays or pick a lower eSkill under Compared with.',
+              'To count more players, analyze more replays or pick a lower eRank under Compared with.',
             )
           : null}
         {poolShort && sinceMs !== undefined
           ? t(
               'myStats.coach.unlockPoolHow',
-              'To count more players, analyze more replays, pick more of your games under You, or pick a lower eSkill under Compared with.',
+              'To count more players, analyze more replays, pick more of your games under You, or pick a lower eRank under Compared with.',
             )
           : null}
         {poolShort
@@ -1529,12 +1529,12 @@ function KeepDoing({ bucket }: { bucket: CoachBucket }) {
  */
 export function Comparison({
   bucket,
-  eSkillFloor,
+  eRankFloor,
   sameDates,
   goalNumbers = new Map(),
 }: {
   bucket: CoachBucket
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   /** Whether other players' games are limited to the dates of the user's. */
   sameDates: boolean
   /** Each goal's number, by the number it's about, for the goals shown beside the panel. */
@@ -1551,12 +1551,12 @@ export function Comparison({
       ? t(
           'myStats.coach.othersFloor',
           'Compared to {{race}} players at {{floor}} {{source}}, since the same date. Speed rows count every player.',
-          { race, floor: getESkillFloorName(eSkillFloor, t), source: poolSource },
+          { race, floor: getERankFloorName(eRankFloor, t), source: poolSource },
         )
       : t(
           'myStats.coach.othersFloorAll',
           'Compared to {{race}} players at {{floor}} {{source}}. Speed rows count every player.',
-          { race, floor: getESkillFloorName(eSkillFloor, t), source: poolSource },
+          { race, floor: getERankFloorName(eRankFloor, t), source: poolSource },
         ),
   ]
   if (isTeamGame(bucket.shape)) {
@@ -1732,7 +1732,7 @@ export function Comparison({
 
 function BucketView({
   bucket,
-  eSkillFloor,
+  eRankFloor,
   sinceMs,
   showTitle,
   counts,
@@ -1742,7 +1742,7 @@ function BucketView({
   autoMonths,
 }: {
   bucket: CoachBucket
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   sinceMs?: number
   showTitle: boolean
   counts: ReadonlyArray<ShapeCount>
@@ -1766,9 +1766,9 @@ function BucketView({
       <PlanColumns>
         <SectionErrorBoundary>
           {showNextGame ? (
-            <NextGame bucket={bucket} allGames={sinceMs === undefined} eSkillFloor={eSkillFloor} />
+            <NextGame bucket={bucket} allGames={sinceMs === undefined} eRankFloor={eRankFloor} />
           ) : (
-            <Unlock bucket={bucket} eSkillFloor={eSkillFloor} sinceMs={sinceMs} />
+            <Unlock bucket={bucket} eRankFloor={eRankFloor} sinceMs={sinceMs} />
           )}
         </SectionErrorBoundary>
         <SideColumn>
@@ -1786,18 +1786,18 @@ function BucketView({
         <SectionErrorBoundary>
           <Comparison
             bucket={bucket}
-            eSkillFloor={eSkillFloor}
+            eRankFloor={eRankFloor}
             sameDates={sinceMs !== undefined}
             goalNumbers={getGoalNumbers(bucket)}
           />
         </SectionErrorBoundary>
       ) : null}
       {showNextGame && !ready ? (
-        <Unlock bucket={bucket} eSkillFloor={eSkillFloor} sinceMs={sinceMs} />
+        <Unlock bucket={bucket} eRankFloor={eRankFloor} sinceMs={sinceMs} />
       ) : null}
       <ScopeLine
         bucket={bucket}
-        eSkillFloor={eSkillFloor}
+        eRankFloor={eRankFloor}
         sinceMs={sinceMs}
         window={window}
         autoGames={autoGames}
@@ -1810,12 +1810,12 @@ function BucketView({
 }
 
 /**
- * Who the coach compares the user with, picked by eSkill rank. Until the user picks, it's the
- * user's own eSkill rank. A pick also applies to My stats, which compares with the same players.
+ * Who the coach compares the user with, picked by eRank. Until the user picks, it's the
+ * user's own eRank. A pick also applies to My stats, which compares with the same players.
  */
 function FloorMenu({ floor }: { floor: LadderRank }) {
   const { t } = useTranslation()
-  return <ESkillFloorMenu floor={floor} label={t('myStats.filters.floor', 'Compared with')} />
+  return <ERankFloorMenu floor={floor} label={t('myStats.filters.floor', 'Compared with')} />
 }
 
 /** Which of the user's games the coach looks at: their latest few, or all of them. */
@@ -1914,7 +1914,7 @@ function CoachBody({ coach, counts }: { coach: CoachResult; counts: ReadonlyArra
         <BucketView
           key={`${bucket.shape}${bucket.mapFamily ?? ''}`}
           bucket={bucket}
-          eSkillFloor={coach.eSkillFloor}
+          eRankFloor={coach.eRankFloor}
           sinceMs={coach.sinceMs}
           showTitle={shown.length > 1 && bucket.mapFamily !== undefined}
           counts={counts}
@@ -1998,7 +1998,7 @@ export function CoachToolbar({
   /** The kinds of game to offer, of `coach.scopes`. */
   scopes: ReadonlyArray<CoachScope>
   counts: ReadonlyArray<ShapeCount>
-  /** Whether to offer picking who the user is compared with, by eSkill and rank. */
+  /** Whether to offer picking who the user is compared with, by eRank and rank. */
   showCompared?: boolean
 }) {
   const { t } = useTranslation()
@@ -2025,7 +2025,7 @@ export function CoachToolbar({
         {coach.status === 'ready' ? (
           <WindowMenu autoGames={coach.autoGames} autoMonths={coach.autoMonths} />
         ) : null}
-        {showCompared ? <FloorMenu floor={coach.eSkillFloor} /> : null}
+        {showCompared ? <FloorMenu floor={coach.eRankFloor} /> : null}
         {showCompared && picked?.shape === '1v1' ? (
           <RankMenu
             autoRank={coach.autoRank}

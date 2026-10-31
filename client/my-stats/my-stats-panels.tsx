@@ -58,7 +58,7 @@ import {
 } from '../styles/typography'
 import { useShowsOtherPlayer } from './my-stats-data'
 import { getPoolSource, getScriptedNote } from './pool-source'
-import { getESkillFloorName } from './rank-menu'
+import { getERankFloorName } from './rank-menu'
 
 export const PanelTitle = styled.h2`
   ${titleSmall};
@@ -291,18 +291,18 @@ const FitRecord = styled.span<{ $digits: number }>`
 `
 
 /** Centers the rank on the digits rather than leaving it on their baseline. */
-const ESkillRow = styled.span`
+const ERankRow = styled.span`
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
 `
 
-function ESkillValue({ value, rank }: { value: string; rank?: LadderRank }) {
+function ERankValue({ value, rank }: { value: string; rank?: LadderRank }) {
   return (
-    <ESkillRow>
+    <ERankRow>
       {value}
       {rank ? <LeagueTag $rank={rank}>{rank.toUpperCase()}</LeagueTag> : null}
-    </ESkillRow>
+    </ERankRow>
   )
 }
 
@@ -314,7 +314,7 @@ export function Totals({
   stats,
   compact = false,
 }: {
-  stats: Pick<MyStatsResult, 'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill'>
+  stats: Pick<MyStatsResult, 'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eRank'>
   compact?: boolean
 }) {
   const { t } = useTranslation()
@@ -369,24 +369,20 @@ export function Totals({
       ),
     ],
     [
-      stats.eSkill ? (
-        <ESkillValue
-          key='eSkill'
-          value={format.format(stats.eSkill.value)}
-          rank={stats.eSkill.rank}
-        />
+      stats.eRank ? (
+        <ERankValue key='eRank' value={format.format(stats.eRank.value)} rank={stats.eRank.rank} />
       ) : (
         '-'
       ),
-      t('myStats.totals.eSkill', 'eSkill'),
+      t('myStats.totals.eRank', 'eRank'),
       t(
-        'myStats.help.eSkill',
+        'myStats.help.eRank',
         'The 1v1 ladder MMR and rank of players who play the way you do: your speed, hotkeys and macro, ranked against players of your race in the same kind of game. Nothing an opponent decides counts in it.',
       ),
-      stats.eSkill
-        ? t('myStats.totals.eSkillGames', {
+      stats.eRank
+        ? t('myStats.totals.eRankGames', {
             defaultValue: 'Over the last {{count}} games',
-            count: stats.eSkill.games,
+            count: stats.eRank.games,
           })
         : undefined,
     ],
@@ -998,7 +994,7 @@ const SECOND_COLOR = 'var(--theme-data-2)'
 /** With more games than this, points would crowd the line, so only the hovered one is drawn. */
 const MAX_DOTS = 50
 
-type TrendMetric = 'apm' | 'eSkill' | 'workers6' | 'income6' | 'bankMid' | 'supplyBlocked'
+type TrendMetric = 'apm' | 'eRank' | 'workers6' | 'income6' | 'bankMid' | 'supplyBlocked'
 type TrendCount = 20 | 50 | 100
 
 interface TrendMetricInfo {
@@ -1103,13 +1099,13 @@ export function Trends({ games }: { games: ReadonlyArray<MyStatsGame> }) {
       secondLabel: t('myStats.trends.eapm', 'EAPM'),
       format: value => format.format(value),
     },
-    eSkill: {
-      label: t('myStats.trends.eSkill', 'eSkill'),
+    eRank: {
+      label: t('myStats.trends.eRank', 'eRank'),
       help: t(
-        'myStats.help.trendESkill',
+        'myStats.help.trendERank',
         'The 1v1 ladder MMR of players who play the way you did, from your speed, hotkeys and macro. Games under 6 minutes have none.',
       ),
-      values: game => [game.eSkill],
+      values: game => [game.eRank],
       format: value => format.format(value),
     },
     workers6: {
@@ -1420,7 +1416,7 @@ export function MacroAveragesPanel({
   noOthersNote,
   othersFromBaseline,
   othersScripted,
-  eSkillFloor,
+  eRankFloor,
   rank,
   extraNote,
 }: {
@@ -1432,7 +1428,7 @@ export function MacroAveragesPanel({
   othersFromBaseline: number
   /** Other players' games a bot or macro program played, left out of {@link othersGames}. */
   othersScripted: number
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   rank?: LadderRank
   /** A last sentence for the note under the numbers. */
   extraNote?: string
@@ -1597,7 +1593,7 @@ export function MacroAveragesPanel({
                     help={t(
                       'myStats.help.others',
                       'Other players in the same kind of games, with the same races as the filters, at {{floor}} and at least 5 minutes played. Their games from any time count. Your games under 5 minutes are left out too.',
-                      { floor: getESkillFloorName(eSkillFloor, t) },
+                      { floor: getERankFloorName(eRankFloor, t) },
                     )}
                   />
                 </span>
@@ -1621,7 +1617,7 @@ export function MacroAveragesPanel({
       <MacroNote>
         {hasOthers
           ? null
-          : `${noOthersNote ?? t('myStats.macro.noOthers', 'No other players at {{floor}} in these games yet, so there is nothing to compare with.', { floor: getESkillFloorName(eSkillFloor, t) })} `}
+          : `${noOthersNote ?? t('myStats.macro.noOthers', 'No other players at {{floor}} in these games yet, so there is nothing to compare with.', { floor: getERankFloorName(eRankFloor, t) })} `}
         {!hasOthers
           ? null
           : t('myStats.macro.othersNote', {
@@ -1630,7 +1626,7 @@ export function MacroAveragesPanel({
               defaultValue_one:
                 "Others come from {{count}} game of another player {{source}}, at {{floor}}. With 5 games or more on each side, your number is green when it's clearly better and red when it's clearly worse.",
               count: othersGames,
-              floor: getESkillFloorName(eSkillFloor, t),
+              floor: getERankFloorName(eRankFloor, t),
               source: getPoolSource(othersFromBaseline, othersGames, t),
             })}
         {hasOthers ? ' ' : null}

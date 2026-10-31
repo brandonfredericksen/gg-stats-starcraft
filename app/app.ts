@@ -968,7 +968,7 @@ app.on('ready', () => {
           .catch(err => {
             logger.error(`Error starting the live game watchers: ${getErrorStack(err)}`)
           })
-        // eSkill comes from the ladder baseline, too big a read to start while a game loads, so
+        // eRank comes from the ladder baseline, too big a read to start while a game loads, so
         // it's read a little after the app starts, once no game is going.
         const prepareScouting = () => {
           localSettings

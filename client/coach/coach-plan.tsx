@@ -17,7 +17,7 @@ import { raceCharToLabel } from '../../common/races'
 import { currentFormatLocale } from '../i18n/locale-formats'
 import { MaterialIcon } from '../icons/material/material-icon'
 import { buttonReset } from '../material/button-reset'
-import { getESkillFloorName } from '../my-stats/rank-menu'
+import { getERankFloorName } from '../my-stats/rank-menu'
 import { useAppDispatch } from '../redux-hooks'
 import { watchGameAt } from '../replays/action-creators'
 
@@ -450,13 +450,13 @@ function GoalItem({
   goal,
   index,
   bucket,
-  eSkillFloor,
+  eRankFloor,
   compact = false,
 }: {
   goal: CoachGoal
   index: number
   bucket: CoachBucket
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
   /** A later goal: its replay moment and tip stay hidden until asked for. */
   compact?: boolean
 }) {
@@ -477,13 +477,13 @@ function GoalItem({
   const race = raceCharToLabel(bucket.race, t)
   const headlineValues = {
     gap: goal.unit === 'time' ? formatTimeDiff(gap, t) : formatValue(gap, goal.unit),
-    // Speed is compared with every player, not only those at the eSkill floor.
+    // Speed is compared with every player, not only those at the eRank floor.
     players:
       goal.key !== 'buildTiming' && getMetricFamily(goal.key) === 'speed'
         ? t('myStats.coach.playersAll', '{{race}} players', { race })
         : t('myStats.coach.playersAtFloor', '{{race}} players at {{floor}}', {
             race,
-            floor: getESkillFloorName(eSkillFloor, t),
+            floor: getERankFloorName(eRankFloor, t),
           }),
     build: goal.key === 'buildTiming' ? getBuildName(goal.buildKey ?? '', t) : undefined,
   }
@@ -598,11 +598,11 @@ function GoalItem({
 export function NextGame({
   bucket,
   allGames,
-  eSkillFloor,
+  eRankFloor,
 }: {
   bucket: CoachBucket
   allGames: boolean
-  eSkillFloor: LadderRank
+  eRankFloor: LadderRank
 }) {
   const { t } = useTranslation()
   return (
@@ -626,12 +626,7 @@ export function NextGame({
               {t('myStats.coach.focusLabel', 'Play your next game around this')}
             </GoalsLabel>
             <Goals>
-              <GoalItem
-                goal={bucket.goals[0]}
-                index={0}
-                bucket={bucket}
-                eSkillFloor={eSkillFloor}
-              />
+              <GoalItem goal={bucket.goals[0]} index={0} bucket={bucket} eRankFloor={eRankFloor} />
             </Goals>
           </Focus>
           {bucket.goals.length > 1 ? (
@@ -644,7 +639,7 @@ export function NextGame({
                     goal={goal}
                     index={i + 1}
                     bucket={bucket}
-                    eSkillFloor={eSkillFloor}
+                    eRankFloor={eRankFloor}
                     compact={true}
                   />
                 ))}

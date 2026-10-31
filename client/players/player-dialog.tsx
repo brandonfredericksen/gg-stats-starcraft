@@ -787,28 +787,28 @@ function Overview({
         ) : null}
         <Tile>
           <TileValue>
-            {totals.eSkill ? format.format(totals.eSkill.value) : '-'}
-            {totals.eSkill?.rank ? (
-              <LeagueTag $rank={totals.eSkill.rank}>{totals.eSkill.rank.toUpperCase()}</LeagueTag>
+            {totals.eRank ? format.format(totals.eRank.value) : '-'}
+            {totals.eRank?.rank ? (
+              <LeagueTag $rank={totals.eRank.rank}>{totals.eRank.rank.toUpperCase()}</LeagueTag>
             ) : null}
           </TileValue>
           <TileLabel>
             <HelpLabel
-              label={t('players.eSkill', 'eSkill')}
+              label={t('players.eRank', 'eRank')}
               help={t(
-                'players.eSkillHelp',
+                'players.eRankHelp',
                 "An estimate, not a ladder rating: the 1v1 ladder MMR and rank that this speed, hotkeys and macro match, over the latest games. Results don't count.",
               )}
             />
           </TileLabel>
           <TileNote>
-            {totals.eSkill
-              ? t('players.eSkillGames', {
+            {totals.eRank
+              ? t('players.eRankGames', {
                   defaultValue: 'Estimate, {{count}} games',
                   defaultValue_one: 'Estimate, 1 game',
-                  count: totals.eSkill.games,
+                  count: totals.eRank.games,
                 })
-              : t('players.eSkillNone', 'Needs longer games')}
+              : t('players.eRankNone', 'Needs longer games')}
           </TileNote>
         </Tile>
         <Tile>

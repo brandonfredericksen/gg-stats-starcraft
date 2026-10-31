@@ -4,9 +4,9 @@ import { getMapDisplayName, getMapKey, MapFamily } from '../games/map-family'
 import { CHECKPOINT_MINUTES, GameMetrics, GameShape, PlayerMetrics } from '../games/player-metrics'
 import { isMyPlayerName } from '../games/player-names'
 import { ALL_ASSIGNED_RACE_CHARS, AssignedRaceChar } from '../races'
-import { DEFAULT_ESKILL_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
-import { ESKILL_AVERAGE_GAMES, ESkillModel, getESkill, getESkillRank } from './eskill'
-import { getESkillByPlayer, isAtESkillRank } from './eskill-players'
+import { DEFAULT_ERANK_FLOOR, getRankMmr, pickRank, RankMmr } from './coach'
+import { ERANK_AVERAGE_GAMES, ERankModel, getERank, getERankRank } from './erank'
+import { getERankByPlayer, isAtERankRank } from './erank-players'
 import {
   findMe,
   getMyResult,
@@ -43,8 +43,8 @@ export interface MyStatsQuery {
    * played most is picked.
    */
   mapFamily?: MapFamily
-  /** The eSkill rank other players need for the comparisons to count them, see `ESKILL_FLOORS`. */
-  eSkillFloor?: LadderRank
+  /** The eRank other players need for the comparisons to count them, see `ERANK_FLOORS`. */
+  eRankFloor?: LadderRank
   /** Only used in 1v1: the ladder rank other players need, see `CoachQuery`. */
   rank?: LadderRank | 'any'
 }
@@ -98,11 +98,11 @@ export function computeMyStatsSummary(
   games: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
   nowMs: number,
-  eSkillModel?: ESkillModel,
+  eRankModel?: ERankModel,
 ): MyStatsSummary {
   const { names, range, shape } = query
   return {
-    stats: computeMyStats(games, query, nowMs, eSkillModel),
+    stats: computeMyStats(games, query, nowMs, eRankModel),
     analyzedGames: computeMyStats(games, { names, range: 'all' }, nowMs).games,
     scopedGames: computeMyStats(games, { names, range, shape }, nowMs).games,
     ladder: getLatestLadder(games, names),
@@ -148,8 +148,8 @@ export interface MyStatsGame {
   bankMid?: number
   /** The share of the game spent supply blocked, after the first 3 minutes. */
   supplyBlockedShare?: number
-  /** The user's eSkill in the game, see `eskill.ts`, if they played long enough to score. */
-  eSkill?: number
+  /** The user's eRank in the game, see `erank.ts`, if they played long enough to score. */
+  eRank?: number
 }
 
 export interface MatchupRow extends WinLoss {
@@ -218,10 +218,10 @@ export interface MyStatsResult {
   eapm?: Average
   durationMs?: Average
   /**
-   * The user's eSkill averaged over their latest {@link ESKILL_AVERAGE_GAMES} scored games, and the
+   * The user's eRank averaged over their latest {@link ERANK_AVERAGE_GAMES} scored games, and the
    * ladder rank it falls in.
    */
-  eSkill?: Average & { rank?: LadderRank }
+  eRank?: Average & { rank?: LadderRank }
   /** The latest games, oldest first. */
   recent: MyStatsGame[]
   /** The latest games for the trends, oldest first, up to {@link TREND_GAMES}. */
@@ -231,7 +231,7 @@ export interface MyStatsResult {
   macro: MacroAverages
   /**
    * The same numbers for other players in these kinds of games: the same game type, race and
-   * opponent race as the filters, at or above the eSkill floor.
+   * opponent race as the filters, at or above the eRank floor.
    */
   macroOthers: MacroAverages
   /** How many other players' games {@link macroOthers} comes from. */
@@ -362,7 +362,7 @@ function playsAgainstPair(
 
 function toGame(
   { game, me, result, teammates, opponents }: MyGame,
-  eSkillModel: ESkillModel | undefined,
+  eRankModel: ERankModel | undefined,
 ): MyStatsGame {
   return {
     gameId: game.gameId,
@@ -380,21 +380,21 @@ function toGame(
     income6: me.income[CHECKPOINT_MINUTES.indexOf(6)] ?? undefined,
     bankMid: me.bank[1] ?? undefined,
     supplyBlockedShare: me.supplyBlockedShare ?? undefined,
-    eSkill: eSkillModel ? getESkill(eSkillModel, game, me)?.value : undefined,
+    eRank: eRankModel ? getERank(eRankModel, game, me)?.value : undefined,
   }
 }
 
-function getESkillAverage(
+function getERankAverage(
   games: ReadonlyArray<MyStatsGame>,
-  model: ESkillModel | undefined,
-): MyStatsResult['eSkill'] {
-  const scores = games.flatMap(g => (g.eSkill !== undefined ? [g.eSkill] : []))
-  const latest = scores.slice(-ESKILL_AVERAGE_GAMES)
+  model: ERankModel | undefined,
+): MyStatsResult['eRank'] {
+  const scores = games.flatMap(g => (g.eRank !== undefined ? [g.eRank] : []))
+  const latest = scores.slice(-ERANK_AVERAGE_GAMES)
   if (!model || !latest.length) {
     return undefined
   }
   const value = latest.reduce((a, b) => a + b, 0) / latest.length
-  return { value, games: latest.length, rank: getESkillRank(model, value) }
+  return { value, games: latest.length, rank: getERankRank(model, value) }
 }
 
 type MatchupTally = MatchupRow & { apmAverage: Averager; length: Averager }
@@ -635,8 +635,8 @@ function playedEnough(game: DatedGameMetrics, player: PlayerMetrics) {
 /**
  * Other players to compare the user's numbers with: anyone but the user in games of the type the
  * filters pick, playing the race they pick against the opponents' races they pick, at or above the
- * eSkill floor and, in 1v1, at `rank`, who played at least 5 minutes. A player's eSkill is averaged
- * over those games, and without an `eSkillModel` there's no floor. Games from any time count, since
+ * eRank floor and, in 1v1, at `rank`, who played at least 5 minutes. A player's eRank is averaged
+ * over those games, and without an `eRankModel` there's no floor. Games from any time count, since
  * how others play doesn't depend on when the user did. Games a program played are marked, to be
  * left out.
  */
@@ -644,10 +644,10 @@ function getOthers(
   allGames: ReadonlyArray<DatedGameMetrics>,
   query: MyStatsQuery,
   rank: LadderRank | undefined,
-  eSkillModel: ESkillModel | undefined,
+  eRankModel: ERankModel | undefined,
 ): Array<{ player: PlayerMetrics; baseline: boolean; scripted: boolean }> {
   const isScripted = makeScriptedCheck(allGames)
-  const floor = query.eSkillFloor ?? DEFAULT_ESKILL_FLOOR
+  const floor = query.eRankFloor ?? DEFAULT_ERANK_FLOOR
   const candidates = allGames.flatMap(game => {
     if (query.shape && game.shape !== query.shape) {
       return []
@@ -676,13 +676,13 @@ function getOthers(
       scripted: isScripted(player),
     }))
   })
-  if (!eSkillModel) {
+  if (!eRankModel) {
     return candidates
   }
-  const byPlayer = getESkillByPlayer(eSkillModel, candidates)
+  const byPlayer = getERankByPlayer(eRankModel, candidates)
   return candidates.filter(c => {
     const value = byPlayer.get(nameOf(c.player))
-    return value !== undefined && isAtESkillRank(eSkillModel, value, floor)
+    return value !== undefined && isAtERankRank(eRankModel, value, floor)
   })
 }
 
@@ -716,7 +716,7 @@ export function computeMyStats(
   allGames: ReadonlyArray<DatedGameMetrics>,
   pickedQuery: MyStatsQuery,
   nowMs: number,
-  eSkillModel?: ESkillModel,
+  eRankModel?: ERankModel,
 ): MyStatsResult {
   const myGames = allGames
     .map(game => toMyGame(game, pickedQuery.names))
@@ -737,7 +737,7 @@ export function computeMyStats(
     durationMs.add(g.game.durationMs)
   }
 
-  const shown = games.map(g => toGame(g, eSkillModel))
+  const shown = games.map(g => toGame(g, eRankModel))
   const people = getPeople(games, query.names)
   const { auto: autoRank, rank } =
     query.shape === '1v1'
@@ -748,7 +748,7 @@ export function computeMyStats(
       : { auto: undefined, rank: undefined }
   // Each game type plays differently, and the ladder games the app ships are all 1v1, so other
   // players are only compared with once a game type is picked.
-  const candidates = query.shape ? getOthers(allGames, query, rank, eSkillModel) : []
+  const candidates = query.shape ? getOthers(allGames, query, rank, eRankModel) : []
   const others = candidates.filter(o => !o.scripted)
   return {
     games: games.length,
@@ -756,7 +756,7 @@ export function computeMyStats(
     apm: apm.get(),
     eapm: eapm.get(),
     durationMs: durationMs.get(),
-    eSkill: getESkillAverage(shown, eSkillModel),
+    eRank: getERankAverage(shown, eRankModel),
     recent: shown.slice(-RECENT_GAMES),
     trend: shown.slice(-TREND_GAMES),
     byMatchup: getMatchupRows(games),

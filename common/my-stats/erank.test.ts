@@ -8,7 +8,7 @@ import {
   PlayerMetrics,
 } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
-import { fitESkillModel, getESkill } from './eskill'
+import { fitERankModel, getERank } from './erank'
 
 function player(name: string, race: AssignedRaceChar, overrides: Partial<PlayerMetrics> = {}) {
   const empty = CHECKPOINT_MINUTES.map(() => null)
@@ -78,15 +78,15 @@ function ladderGames(count: number) {
   return games
 }
 
-describe('common/my-stats/eskill', () => {
+describe('common/my-stats/erank', () => {
   const games = ladderGames(900)
-  const model = fitESkillModel(games)!
+  const model = fitERankModel(games)!
 
   test('scores faster players with smaller banks higher', () => {
     const slow = player('slow', 'p', { eapm: 80, bank: [280, 560, null] })
     const fast = player('fast', 'p', { eapm: 240, bank: [120, 250, null] })
-    const slowSkill = getESkill(model, game('1v1', [slow, fast]), slow)!
-    const fastSkill = getESkill(model, game('1v1', [slow, fast]), fast)!
+    const slowSkill = getERank(model, game('1v1', [slow, fast]), slow)!
+    const fastSkill = getERank(model, game('1v1', [slow, fast]), fast)!
 
     expect(fastSkill.value).toBeGreaterThan(slowSkill.value + 600)
     expect(fastSkill.parts.speed).toBeGreaterThan(85)
@@ -98,7 +98,7 @@ describe('common/my-stats/eskill', () => {
 
   test('stays within the MMRs of the players it was fit to', () => {
     const blazing = player('blazing', 't', { eapm: 900, bank: [0, 0, null] })
-    const skill = getESkill(model, game('1v1', [blazing, player('other', 'z')]), blazing)!
+    const skill = getERank(model, game('1v1', [blazing, player('other', 'z')]), blazing)!
 
     expect(skill.value).toBeLessThanOrEqual(1000 + 99 * 14)
     expect(skill.rank).toBe('a')
@@ -113,7 +113,7 @@ describe('common/my-stats/eskill', () => {
         ),
       ),
     )
-    const teamModel = fitESkillModel([...games, ...teamGames])!
+    const teamModel = fitERankModel([...games, ...teamGames])!
     // Slow next to the 2v2 players, though as fast as a good 1v1 player.
     const slowForTeams = player('me', 'z', { eapm: 210 })
     const inTeamGame = game('2v2', [
@@ -122,19 +122,19 @@ describe('common/my-stats/eskill', () => {
     ])
     const in1v1 = game('1v1', [slowForTeams, player('y', 'p')])
 
-    expect(getESkill(teamModel, inTeamGame, slowForTeams)!.parts.speed).toBeLessThan(20)
-    expect(getESkill(teamModel, in1v1, slowForTeams)!.parts.speed).toBeGreaterThan(60)
+    expect(getERank(teamModel, inTeamGame, slowForTeams)!.parts.speed).toBeLessThan(20)
+    expect(getERank(teamModel, in1v1, slowForTeams)!.parts.speed).toBeGreaterThan(60)
   })
 
   test("doesn't score games too short to tell, or against computers", () => {
     const me = player('me', 'p')
-    expect(getESkill(model, game('1v1', [me, player('y', 'z')], 5 * 60_000), me)).toBeUndefined()
+    expect(getERank(model, game('1v1', [me, player('y', 'z')], 5 * 60_000), me)).toBeUndefined()
     expect(
-      getESkill(model, game('1v1', [me, player('cpu', 'z', { human: false })]), me),
+      getERank(model, game('1v1', [me, player('cpu', 'z', { human: false })]), me),
     ).toBeUndefined()
   })
 
   test('needs ranked players to fit', () => {
-    expect(fitESkillModel([game('1v1', [player('a', 'p'), player('b', 'z')])])).toBeUndefined()
+    expect(fitERankModel([game('1v1', [player('a', 'p'), player('b', 'z')])])).toBeUndefined()
   })
 })

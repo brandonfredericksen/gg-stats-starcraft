@@ -4,7 +4,7 @@ import {
   GAME_METRICS_VERSION,
   PlayerMetrics,
 } from '../../common/games/player-metrics'
-import { ESkillModel } from '../../common/my-stats/eskill'
+import { ERankModel } from '../../common/my-stats/erank'
 import { DatedGameMetrics } from '../../common/my-stats/my-stats'
 import { computePlayerScout } from '../../common/my-stats/player-scout'
 import { asMockedFunction } from '../../common/testing/mocks'
@@ -86,11 +86,11 @@ describe('ScoutGames', () => {
   function setup(own: DatedGameMetrics[], baseline?: DatedGameMetrics[]) {
     const loadOwnGames = vi.fn(async () => ({ games: own, replayPathKeys: [] }))
     let loadedBaseline = baseline
-    let loadedESkillModel: ESkillModel | undefined
+    let loadedERankModel: ERankModel | undefined
     const scoutGames = new ScoutGames({
       loadOwnGames,
       loadedBaseline: () => loadedBaseline,
-      loadedESkillModel: () => loadedESkillModel,
+      loadedERankModel: () => loadedERankModel,
     })
     return {
       scoutGames,
@@ -98,8 +98,8 @@ describe('ScoutGames', () => {
       loadBaseline: (games: DatedGameMetrics[]) => {
         loadedBaseline = games
       },
-      fitESkill: (model: ESkillModel) => {
-        loadedESkillModel = model
+      fitERank: (model: ERankModel) => {
+        loadedERankModel = model
       },
     }
   }
@@ -122,13 +122,13 @@ describe('ScoutGames', () => {
     })
   })
 
-  test("scores eSkill once the model's been fit, without fitting it", async () => {
-    const { scoutGames, fitESkill } = setup([game('Opp', 'Me')])
+  test("scores eRank once the model's been fit, without fitting it", async () => {
+    const { scoutGames, fitERank } = setup([game('Opp', 'Me')])
     const scout = asMockedFunction(computePlayerScout)
     const [before] = await scoutGames.scout([['Opp']])
     expect(scout.mock.lastCall?.[3]).toBeUndefined()
-    const model = { players: 1 } as ESkillModel
-    fitESkill(model)
+    const model = { players: 1 } as ERankModel
+    fitERank(model)
     scout.mockReturnValueOnce(before)
     await scoutGames.scout([['Opp']])
     expect(scout.mock.lastCall?.[3]).toBe(model)

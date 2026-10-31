@@ -75,16 +75,16 @@ const OtherCell = styled(Cell)`
 /** How the top players were picked, see `MetaResult.topBy`. */
 function getTopPlayersNote(meta: MetaResult, values: Record<string, unknown>, t: TFunction) {
   switch (meta.topBy) {
-    case 'eskill':
+    case 'erank':
       return t(
-        'builds.metaFieldESkill',
-        '{{games}} games of {{players}} {{race}} players from the last 6 months: S and A rank, with S counting twice. Players without a ladder rank here go by their eSkill.',
+        'builds.metaFieldERank',
+        '{{games}} games of {{players}} {{race}} players from the last 6 months: S and A rank, with S counting twice. Players without a ladder rank here go by their eRank.',
         values,
       )
-    case 'eskillQuarter':
+    case 'erankQuarter':
       return t(
-        'builds.metaFieldESkillQuarter',
-        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the best quarter of players here by eSkill, over {{eskill}}.',
+        'builds.metaFieldERankQuarter',
+        'From {{games}} games of {{players}} {{race}} players over the last 6 months: the best quarter of players here by eRank, over {{erank}}.',
         values,
       )
     case 'rank':
@@ -118,7 +118,7 @@ export function getTopPlayersHelp(
     players: meta.players,
     race: raceCharToLabel(scope.race, t),
     eapm: Math.round(meta.eapmCutoff ?? 0),
-    eskill: Math.round(meta.eSkillCutoff ?? 0),
+    erank: Math.round(meta.eRankCutoff ?? 0),
   }
   const notes = meta.games
     ? [getTopPlayersNote(meta, values, t)]

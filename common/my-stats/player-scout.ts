@@ -2,7 +2,7 @@ import { MapFamily } from '../games/map-family'
 import { GameShape, PlayerMetrics } from '../games/player-metrics'
 import { AssignedRaceChar } from '../races'
 import { getBuildFamily } from './build-family'
-import { ESkillModel } from './eskill'
+import { ERankModel } from './erank'
 import { computeMyStats, DatedGameMetrics, MyStatsResult, WinLoss } from './my-stats'
 import { getMyResult, getSidesOf, splitsByMap } from './player-games'
 import { BuildPopulation, emptyPlaystyleCounts, getGamePlaystyle, Playstyle } from './playstyle'
@@ -43,11 +43,11 @@ export interface ScoutPlaystyles {
 /** The parts of My stats a player's card shows, worked out the same way as on My stats. */
 export type ScoutTotals = Pick<
   MyStatsResult,
-  'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eSkill' | 'recent'
+  'games' | 'record' | 'apm' | 'eapm' | 'durationMs' | 'eRank' | 'recent'
 >
 
 /** The numbers a list of players sorts and ranks them by, worked out as for {@link ScoutTotals}. */
-export type PlayerSummary = Pick<MyStatsResult, 'games' | 'apm' | 'eapm' | 'eSkill'>
+export type PlayerSummary = Pick<MyStatsResult, 'games' | 'apm' | 'eapm' | 'eRank'>
 
 /** What the analyzed games say about a player: how they've done, and how they play. */
 export interface PlayerScout {
@@ -84,7 +84,7 @@ export function computePlayerScout(
   games: ReadonlyArray<DatedGameMetrics>,
   accounts: ReadonlyArray<string>,
   nowMs = Date.now(),
-  eSkillModel?: ESkillModel,
+  eRankModel?: ERankModel,
   population?: BuildPopulation,
 ): PlayerScout {
   const lowerAccounts = new Set(accounts.map(a => a.toLowerCase()))
@@ -94,11 +94,11 @@ export function computePlayerScout(
     apm,
     eapm,
     durationMs,
-    eSkill,
+    eRank,
     recent,
-  } = computeMyStats(games, { names: [...accounts], range: 'all' }, nowMs, eSkillModel)
+  } = computeMyStats(games, { names: [...accounts], range: 'all' }, nowMs, eRankModel)
   const scout: PlayerScout = {
-    totals: { games: count, record, apm, eapm, durationMs, eSkill, recent },
+    totals: { games: count, record, apm, eapm, durationMs, eRank, recent },
     races: [],
     matchups: [],
     playstyles: [],
