@@ -1723,6 +1723,8 @@
     "topERank": "Highest eRank",
     "topGames_one": "{{count}} game",
     "topGames_other": "{{count}} games",
+    "topMinGames_one": "At least {{count}} games",
+    "topMinGames_other": "At least {{count}} games",
     "topNone_one": "Nobody has {{count}} analyzed games yet.",
     "topNone_other": "Nobody has {{count}} analyzed games yet.",
     "unnamedBuild": "No named build",

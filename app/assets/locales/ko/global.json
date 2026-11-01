@@ -1646,6 +1646,7 @@
     "topEapm": "eAPM 최고",
     "topERank": "eRank 최고",
     "topGames_other": "{{count}}게임",
+    "topMinGames_other": "{{count}}게임 이상",
     "topNone_other": "아직 {{count}}게임 이상 분석된 플레이어가 없습니다.",
     "unnamedBuild": "이름 없는 빌드",
     "unnamedBuildHelp": "너무 일찍 끝나서 알 수 없는 게임처럼, 빌드 이름을 붙이지 못한 게임입니다.",

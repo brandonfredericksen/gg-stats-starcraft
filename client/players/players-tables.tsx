@@ -18,6 +18,7 @@ import {
   Muted,
   PaddedPanel,
   PanelHead,
+  PanelHeadNote,
   PanelTitle,
   RecordText,
   Table,
@@ -175,6 +176,12 @@ function TopList({
     <PaddedPanel>
       <PanelHead $spread={!!pager}>
         <PanelTitle>{title}</PanelTitle>
+        <PanelHeadNote>
+          {t('players.topMinGames', {
+            defaultValue: 'At least {{count}} games',
+            count: TOP_MIN_GAMES,
+          })}
+        </PanelHeadNote>
         {pager}
       </PanelHead>
       {shown.length ? (
